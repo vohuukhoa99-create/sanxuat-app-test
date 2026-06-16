@@ -8203,25 +8203,14 @@ body,
   line-height: 1.2;
 }
 
-.report-pipeline .pipeline-card-body small {
-  overflow: visible;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-
-.pipeline-card-value {
+.pipeline-card-weight {
   display: block;
-  font-size: 32px;
-  font-weight: 700;
-  line-height: 1.35;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
   white-space: nowrap;
-  overflow: visible;
-}
-
-.pipeline-card-unit {
-  font-size: 14px;
-  line-height: 1.4;
-  vertical-align: baseline;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ceo-dashboard {

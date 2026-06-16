@@ -3629,12 +3629,13 @@ function ReportsPage({ data }) {
         {renderKpis(reportKpis.production)}
         <section className="panel"><h2>Pipeline sản xuất</h2><div className="pipeline-flow report-pipeline">{pipelineStages.map(([stage, label]) => {
           const stageOrders = orders.filter((order) => order.stage === stage)
+          const stageWeight = stageOrders.reduce((sum, order) => sum + num(order.quantityKg), 0)
           return (
             <div className="pipeline-step pipeline-card" key={stage}>
               <span>{stageLabelMap[stage] || label}</span>
               <div className="pipeline-card-body">
                 <strong>{stageOrders.length}</strong>
-                <small><span className="pipeline-card-value">{kg(stageOrders.reduce((sum, order) => sum + num(order.quantityKg), 0)).replace(' kg', '')}</span> <span className="pipeline-card-unit">kg</span></small>
+                <div className="pipeline-card-weight">{kg(stageWeight)}</div>
               </div>
             </div>
           )
