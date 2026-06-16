@@ -172,18 +172,18 @@ const AUTH_VERSION = 2
 const removedDefaultUsernames = new Set(['kho-nvl', 'kho-tp'])
 
 const defaultUsers = [
-  { username: 'admin', password: 'Admin@123', role: 'Admin', fullName: 'Quản trị hệ thống' },
-  { username: 'kho.nl', password: 'KhoNL@123', role: 'Kho NL', fullName: 'Kho nguyên liệu' },
-  { username: 'kythuat', password: 'Kythuat@123', role: 'Kỹ thuật', fullName: 'Phòng kỹ thuật' },
-  { username: 'sanxuat', password: 'Sanxuat@123', role: 'Sản xuất', fullName: 'Phòng sản xuất' },
-  { username: 'qc', password: 'QC@123', role: 'QC', fullName: 'QC sản xuất' },
-  { username: 'canhoa', password: 'CanHoa@123', role: 'Cân hóa', fullName: 'Tổ cân hóa' },
-  { username: 'canran', password: 'CanRan@123', role: 'Cân rắn', fullName: 'Tổ cân rắn' },
-  { username: 'phoitron', password: 'PhoiTron@123', role: 'Phối trộn', fullName: 'Tổ phối trộn' },
-  { username: 'donggoi', password: 'DongGoi@123', role: 'Đóng gói', fullName: 'Tổ đóng gói' },
-  { username: 'kho.tp', password: 'KhoTP@123', role: 'Kho TP', fullName: 'Kho thành phẩm' },
-  { username: 'quandoc', password: 'QuanDoc@123', role: 'Quản đốc', fullName: 'Quản đốc' },
-  { username: 'giamdoc', password: 'GiamDoc@123', role: 'Ban giám đốc', fullName: 'Ban giám đốc' },
+  { username: 'admin', password: DEFAULT_PASSWORD, role: 'Admin', fullName: 'Quản trị hệ thống' },
+  { username: 'kho.nl', password: DEFAULT_PASSWORD, role: 'Kho NL', fullName: 'Kho nguyên liệu' },
+  { username: 'kythuat', password: DEFAULT_PASSWORD, role: 'Kỹ thuật', fullName: 'Phòng kỹ thuật' },
+  { username: 'sanxuat', password: DEFAULT_PASSWORD, role: 'Sản xuất', fullName: 'Phòng sản xuất' },
+  { username: 'qc', password: DEFAULT_PASSWORD, role: 'QC', fullName: 'QC sản xuất' },
+  { username: 'canhoa', password: DEFAULT_PASSWORD, role: 'Cân hóa', fullName: 'Tổ cân hóa' },
+  { username: 'canran', password: DEFAULT_PASSWORD, role: 'Cân rắn', fullName: 'Tổ cân rắn' },
+  { username: 'phoitron', password: DEFAULT_PASSWORD, role: 'Phối trộn', fullName: 'Tổ phối trộn' },
+  { username: 'donggoi', password: DEFAULT_PASSWORD, role: 'Đóng gói', fullName: 'Tổ đóng gói' },
+  { username: 'kho.tp', password: DEFAULT_PASSWORD, role: 'Kho TP', fullName: 'Kho thành phẩm' },
+  { username: 'quandoc', password: DEFAULT_PASSWORD, role: 'Quản đốc', fullName: 'Quản đốc' },
+  { username: 'giamdoc', password: DEFAULT_PASSWORD, role: 'Ban giám đốc', fullName: 'Ban giám đốc' },
 ].map((user) => ({ ...user, department: user.role, status: ACTIVE_STATUS }))
 
 const legacyRoleMap = {
@@ -210,16 +210,16 @@ function normalizeAuthData(saved = {}) {
   })
   roles.Admin = defaultNavItems.map((item) => item.id)
 
-  const shouldPreserveDefaultUsers = saved.authVersion === AUTH_VERSION
   const savedUsers = (saved.users || []).filter((user) => user?.username && !removedDefaultUsernames.has(user.username))
   const savedUsersByUsername = new Map(savedUsers.map((user) => [user.username, user]))
   const seededUsers = defaultUsers.map((user) => {
-    const savedUser = shouldPreserveDefaultUsers ? savedUsersByUsername.get(user.username) : null
+    const savedUser = savedUsersByUsername.get(user.username)
     if (!savedUser) return user
     const role = legacyRoleMap[savedUser.role] || savedUser.role || user.role
     return {
       ...user,
       ...savedUser,
+      password: DEFAULT_PASSWORD,
       role,
       department: legacyRoleMap[savedUser.department] || savedUser.department || role,
       status: savedUser.status || ACTIVE_STATUS,
@@ -232,6 +232,7 @@ function normalizeAuthData(saved = {}) {
       const role = legacyRoleMap[user.role] || user.role || 'Sản xuất'
       return {
         ...user,
+        password: user.password || DEFAULT_PASSWORD,
         role,
         department: legacyRoleMap[user.department] || user.department || role,
         status: user.status || ACTIVE_STATUS,
@@ -348,7 +349,7 @@ function statusClass(status = '') {
 
 function LoginPage({ onLogin, error }) {
   const [username, setUsername] = useState('admin')
-  const [password, setPassword] = useState('Admin@123')
+  const [password, setPassword] = useState(DEFAULT_PASSWORD)
   return (
     <main className="login-shell">
       <form className="login-card" onSubmit={(event) => { event.preventDefault(); onLogin(username, password) }}>
@@ -358,7 +359,7 @@ function LoginPage({ onLogin, error }) {
         <label>Mật khẩu<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
         {error && <div className="process-alert">{error}</div>}
         <button className="primary-button">Đăng nhập</button>
-        <p>Tài khoản mặc định: <strong>admin / Admin@123</strong></p>
+        <p>Tài khoản mặc định: <strong>admin / 123456</strong></p>
       </form>
     </main>
   )
@@ -3985,6 +3986,12 @@ function AdminPage({ authData, setAuthData }) {
     updateUser(username, { password: nextPassword })
     setNotice(`Đã đặt lại mật khẩu cho ${username}.`)
   }
+  const resetAllPasswords = () => {
+    updateAuth({
+      ...authData,
+      users: (authData.users || []).map((user) => ({ ...user, password: DEFAULT_PASSWORD })),
+    }, 'Đã đặt lại toàn bộ mật khẩu về 123456')
+  }
   const togglePermission = (role, id) => {
     if (role === 'Admin') return
     const permissions = authData.roles[role] || []
@@ -4031,7 +4038,10 @@ function AdminPage({ authData, setAuthData }) {
       <section className="panel">
         <div className="section-heading-row">
           <div><span className="section-kicker">Quản trị hệ thống</span><h2>Danh sách người dùng</h2></div>
-          <button className="primary-button" type="button" onClick={addUser}>Thêm người dùng</button>
+          <div className="action-row">
+            <button className="secondary-button" type="button" onClick={resetAllPasswords}>Đặt lại toàn bộ mật khẩu</button>
+            <button className="primary-button" type="button" onClick={addUser}>Thêm người dùng</button>
+          </div>
         </div>
         {notice && <p className="empty-alert">{notice}</p>}
         <div className="table-wrapper">
