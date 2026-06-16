@@ -3574,6 +3574,15 @@ function ReportsPage({ data }) {
     ['finished-goods', 'Kho thành phẩm'],
     ['completed', 'Hoàn thành'],
   ]
+  const stageLabelMap = {
+    qc1: 'QC sản xuất thử',
+    weighing: 'Tổ cân nguyên liệu',
+    mixing: 'Tổ phối trộn',
+    'finished-qc': 'QC thành phẩm',
+    packaging: 'Đóng gói',
+    'finished-goods': 'Kho thành phẩm',
+    completed: 'Hoàn thành',
+  }
   const tabs = [
     ['production', 'Sản xuất'],
     ['qc', 'QC'],
@@ -3622,7 +3631,7 @@ function ReportsPage({ data }) {
           const stageOrders = orders.filter((order) => order.stage === stage)
           return (
             <div className="pipeline-step pipeline-card" key={stage}>
-              <span>{label}</span>
+              <span>{stageLabelMap[stage] || label}</span>
               <div className="pipeline-card-body">
                 <strong>{stageOrders.length}</strong>
                 <small><span className="pipeline-card-value">{kg(stageOrders.reduce((sum, order) => sum + num(order.quantityKg), 0)).replace(' kg', '')}</span> <span className="pipeline-card-unit">kg</span></small>
