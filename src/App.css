@@ -7501,3 +7501,110 @@ body,
   font-size: 11px !important;
 }
 
+/* Direct fix for the actual QC trial table headers. */
+.qc-trial-page.qc-sample-page:not(.qc2-page) > .qc-trial-panel.qc-sample-layout {
+  grid-template-columns: minmax(180px, 24%) minmax(0, 76%) !important;
+  gap: 8px !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) > .qc-trial-panel.qc-sample-layout > .qc-queue {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table-wrapper > table.qc-trial-table.compact-qc-table {
+  width: 100% !important;
+  max-width: 100% !important;
+  table-layout: fixed !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table-wrapper > table.qc-trial-table.compact-qc-table thead th.qc-trial-th {
+  width: auto !important;
+  height: auto !important;
+  min-height: 30px !important;
+  padding: 3px 6px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  text-align: center !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+}
+
+/* Final readable QC trial table: target the actual rendered table only. */
+.qc-trial-page.qc-sample-page:not(.qc2-page) > .qc-trial-layout {
+  display: grid !important;
+  grid-template-columns: 280px minmax(0, 1fr) !important;
+  gap: 16px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) > .qc-trial-layout > .qc-queue {
+  width: 280px !important;
+  min-width: 0 !important;
+  max-width: 280px !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) > .qc-trial-layout > .qc-active-panel {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table-wrapper {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table-wrapper > table.qc-trial-table.compact-qc-table {
+  width: 100% !important;
+  max-width: 100% !important;
+  table-layout: auto !important;
+  font-size: 12px !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table-wrapper > table.qc-trial-table.compact-qc-table thead th.qc-trial-th {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  line-height: 1.2 !important;
+  font-size: 12px !important;
+  padding: 8px 6px !important;
+  text-align: center !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table-wrapper > table.qc-trial-table.compact-qc-table tbody td {
+  font-size: 12px !important;
+  padding: 6px !important;
+  vertical-align: middle !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table-wrapper > table.qc-trial-table.compact-qc-table input {
+  height: 30px !important;
+  min-height: 30px !important;
+  font-size: 12px !important;
+  padding: 4px 6px !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table-wrapper > table.qc-trial-table.compact-qc-table .qc-value-input {
+  width: 80px !important;
+  min-width: 0 !important;
+  max-width: 80px !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table-wrapper > table.qc-trial-table.compact-qc-table .qc-reason-input,
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table-wrapper > table.qc-trial-table.compact-qc-table .qc-note-input {
+  width: 140px !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+

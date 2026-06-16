@@ -1537,7 +1537,7 @@ function QC1({ data, setData }) {
 
   return (
     <div className="page-content qc-sample-page qc-trial-page">
-      <section className="panel qc-sample-layout qc-trial-panel">
+      <section className="panel qc-sample-layout qc-trial-panel qc-trial-layout">
         <aside className="qc-queue">
           <div>
             <span className="section-kicker">Danh sách chờ</span>
@@ -1586,25 +1586,25 @@ function QC1({ data, setData }) {
               <div className="qc-trial-table-wrapper">
                 <table className="qc-trial-table compact-qc-table">
                   <colgroup>
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '10%' }} />
-                    <col style={{ width: '7%' }} />
-                    <col style={{ width: '9%' }} />
-                    <col style={{ width: '14%' }} />
-                    <col style={{ width: '10%' }} />
-                    <col style={{ width: '20%' }} />
-                    <col style={{ width: '22%' }} />
+                    <col style={{ width: '80px' }} />
+                    <col style={{ width: '90px' }} />
+                    <col style={{ width: '60px' }} />
+                    <col style={{ width: '80px' }} />
+                    <col style={{ width: '90px' }} />
+                    <col style={{ width: '90px' }} />
+                    <col style={{ width: '150px' }} />
+                    <col style={{ width: '150px' }} />
                   </colgroup>
                   <thead>
                     <tr>
-                      <th>Mã VT</th>
-                      <th>Tên VT</th>
-                      <th>Nhóm</th>
-                      <th>Theo lệnh</th>
-                      <th>Giá trị sau QC</th>
-                      <th>Chênh lệch</th>
-                      <th>Lý do điều chỉnh</th>
-                      <th>Ghi chú</th>
+                      <th className="qc-trial-th">Mã VT</th>
+                      <th className="qc-trial-th">Tên VT</th>
+                      <th className="qc-trial-th">Nhóm</th>
+                      <th className="qc-trial-th">Theo lệnh</th>
+                      <th className="qc-trial-th">Sau QC</th>
+                      <th className="qc-trial-th">Chênh lệch</th>
+                      <th className="qc-trial-th">Lý do</th>
+                      <th className="qc-trial-th">Ghi chú</th>
                     </tr>
                   </thead>
                   <tbody>
