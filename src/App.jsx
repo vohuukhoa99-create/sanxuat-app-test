@@ -3632,11 +3632,9 @@ function ReportsPage({ data }) {
           const stageWeight = stageOrders.reduce((sum, order) => sum + num(order.quantityKg), 0)
           return (
             <div className="pipeline-step pipeline-card" key={stage}>
-              <span>{stageLabelMap[stage] || label}</span>
-              <div className="pipeline-card-body">
-                <strong>{stageOrders.length}</strong>
-                <div className="pipeline-card-weight">{kg(stageWeight)}</div>
-              </div>
+              <div className="pipeline-card-title">{stageLabelMap[stage] || label}</div>
+              <div className="pipeline-card-count">{stageOrders.length}</div>
+              <div className="pipeline-card-weight">{kg(stageWeight)}</div>
             </div>
           )
         })}</div></section>

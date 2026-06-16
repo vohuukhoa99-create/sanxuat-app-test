@@ -8166,51 +8166,43 @@ body,
 }
 
 .report-pipeline .pipeline-card {
-  min-height: 90px;
+  min-height: 110px;
   height: auto;
   padding: 12px;
-  display: grid;
-  grid-template-rows: auto 1fr;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: stretch;
   overflow: visible;
 }
 
 .pipeline-card {
-  min-height: 76px;
+  min-height: 110px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px;
   overflow: visible;
 }
 
-.report-pipeline .pipeline-card > span {
-  line-height: 1.35;
-  white-space: normal;
+.pipeline-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
 }
 
-.pipeline-card-body {
-  min-height: 42px;
-  overflow: visible;
-  display: grid;
-  align-content: center;
-  justify-items: start;
-  gap: 4px;
-}
-
-.pipeline-card-body strong {
-  display: block;
-  line-height: 1.2;
-}
-
-.report-pipeline .pipeline-card-body strong {
-  line-height: 1.2;
+.pipeline-card-count {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .pipeline-card-weight {
   display: block;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .ceo-dashboard {
