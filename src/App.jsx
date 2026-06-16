@@ -3565,7 +3565,15 @@ function ReportsPage({ data }) {
   const topMaterials = countBy(qc2AdjustmentItems, (item) => item.materialCode, (item) => Math.max(0, num(item.adjustmentKg ?? item.requiredKg))).slice(0, 5)
   const topQc = countBy(qc2AdjustmentRows, ({ ticket }) => ticket.createdBy).slice(0, 5)
   const qrFailLogs = (data.productionLogs || data.logs || []).filter((log) => String(log.entry || '').includes('QR') && String(log.entry || '').includes('FAIL'))
-  const pipelineStages = ['qc1', 'weighing', 'mixing', 'finished-qc', 'packaging', 'finished-goods', 'completed']
+  const pipelineStages = [
+    ['qc1', 'QC sản xuất thử'],
+    ['weighing', 'Tổ cân'],
+    ['mixing', 'Phối trộn'],
+    ['finished-qc', 'QC thành phẩm'],
+    ['packaging', 'Đóng gói'],
+    ['finished-goods', 'Kho thành phẩm'],
+    ['completed', 'Hoàn thành'],
+  ]
   const tabs = [
     ['production', 'Sản xuất'],
     ['qc', 'QC'],
@@ -3610,7 +3618,18 @@ function ReportsPage({ data }) {
     if (tab === 'production') return (
       <>
         {renderKpis(reportKpis.production)}
-        <section className="panel"><h2>Pipeline sản xuất</h2><div className="pipeline-flow report-pipeline">{pipelineStages.map((stage) => <div className="pipeline-step" key={stage}><span>{stage}</span><strong>{orders.filter((order) => order.stage === stage).length}</strong><small>{kg(orders.filter((order) => order.stage === stage).reduce((sum, order) => sum + num(order.quantityKg), 0))}</small></div>)}</div></section>
+        <section className="panel"><h2>Pipeline sản xuất</h2><div className="pipeline-flow report-pipeline">{pipelineStages.map(([stage, label]) => {
+          const stageOrders = orders.filter((order) => order.stage === stage)
+          return (
+            <div className="pipeline-step pipeline-card" key={stage}>
+              <span>{label}</span>
+              <div className="pipeline-card-body">
+                <strong>{stageOrders.length}</strong>
+                <small><span className="pipeline-card-value">{kg(stageOrders.reduce((sum, order) => sum + num(order.quantityKg), 0)).replace(' kg', '')}</span> <span className="pipeline-card-unit">kg</span></small>
+              </div>
+            </div>
+          )
+        })}</div></section>
         <section className="panel report-table-panel"><h2>Báo cáo lệnh sản xuất V3</h2><SimpleTable tableClassName="report-wide-table" headers={['Lệnh', 'Sản phẩm', 'LOT', 'Công thức', 'QC sản xuất thử', 'QC2', 'Đóng gói', 'Kho TP', 'Trạng thái']} rows={orders.map((order) => <tr key={order.id}><td>{order.id}</td><td>{order.product}</td><td>{order.lot}</td><td>{order.originalFormulaId}/{order.originalFormulaVersion}</td><td>{displayQcTrialText(order.qc1Result) || '-'}</td><td>{order.qc2?.result || '-'}</td><td>{order.packaging ? 'Đã đóng gói' : '-'}</td><td>{order.stage === 'completed' ? 'Đã nhập' : '-'}</td><td>{displayQcTrialText(order.status)}</td></tr>)} /></section>
       </>
     )
