@@ -8166,23 +8166,27 @@ body,
 }
 
 .report-pipeline .pipeline-card {
-  min-height: 110px;
-  height: auto;
-  padding: 12px;
+  min-height: 96px !important;
+  height: auto !important;
+  max-height: none !important;
+  padding: 12px !important;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   align-items: stretch;
   overflow: visible;
+  box-sizing: border-box;
 }
 
 .pipeline-card {
-  min-height: 110px;
+  min-height: 96px;
+  height: auto;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   padding: 12px;
-  overflow: visible;
+  box-sizing: border-box;
 }
 
 .pipeline-card-title {
@@ -8192,17 +8196,19 @@ body,
 }
 
 .pipeline-card-count {
-  font-size: 34px;
+  font-size: 28px;
   font-weight: 700;
   line-height: 1;
 }
 
 .pipeline-card-weight {
   display: block;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.25;
   white-space: nowrap;
+  overflow: visible;
+  margin-top: 4px;
 }
 
 .ceo-dashboard {
