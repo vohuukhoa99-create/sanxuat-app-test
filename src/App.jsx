@@ -4260,7 +4260,11 @@ function App() {
     setCurrentUser(found)
     setLoginError('')
   }
-  const logout = () => { localStorage.removeItem(SESSION_KEY); setCurrentUser(null) }
+  const logout = () => {
+    localStorage.removeItem(SESSION_KEY)
+    setCurrentUser(null)
+    setMobileMenuOpen(false)
+  }
   const changePage = (nextPage) => {
     setSelectedPage(nextPage)
     setMobileMenuOpen(false)
@@ -4287,9 +4291,18 @@ function App() {
 
   return (
     <div className="app-shell">
-      {mobileMenuOpen && <div className="mobile-overlay" onClick={() => setMobileMenuOpen(false)} />}
+      {mobileMenuOpen && <div className="mobile-drawer-overlay" onClick={() => setMobileMenuOpen(false)} />}
       <Sidebar selected={page} onChange={changePage} navItems={navItems} className="desktop-sidebar" />
-      <Sidebar selected={page} onChange={changePage} navItems={navItems} className={`mobile-sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`} />
+      <Sidebar
+        selected={page}
+        onChange={changePage}
+        navItems={navItems}
+        className={`mobile-sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`}
+        variant="mobile"
+        user={user}
+        onClose={() => setMobileMenuOpen(false)}
+        onLogout={logout}
+      />
       <main className="main-content">
         <header className="mobile-header">
           <button type="button" className="mobile-menu-button" onClick={() => setMobileMenuOpen(true)} aria-label="Mở menu">☰</button>
