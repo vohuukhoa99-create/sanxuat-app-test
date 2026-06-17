@@ -28,6 +28,90 @@ const todayText = () => new Date().toISOString().slice(0, 10)
 const num = (value) => Number(value) || 0
 const kg = (value) => `${num(value).toLocaleString('vi-VN', { maximumFractionDigits: 3 })} kg`
 const uid = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+const RAW_MATERIAL_QR_TYPE = 'RAW_MATERIAL_LOT'
+
+function rawMaterialLotStatus(lot) {
+  const initialQty = num(lot.initialQty)
+  const remainingQty = num(lot.remainingQty)
+  const minStock = num(lot.minStock)
+  if (remainingQty <= 0) return 'Hết tồn'
+  if (remainingQty <= minStock || (initialQty > 0 && remainingQty <= initialQty * 0.1)) return 'Sắp hết'
+  return 'Còn tồn'
+}
+
+function buildRawMaterialLotQr(lot) {
+  return JSON.stringify({
+    type: RAW_MATERIAL_QR_TYPE,
+    materialCode: lot.materialCode,
+    materialName: lot.materialName,
+    lotCode: lot.lotCode,
+    supplier: lot.supplier,
+    importDate: lot.importDate,
+    remainingQty: num(lot.remainingQty),
+    unit: lot.unit || 'kg',
+  })
+}
+
+function normalizeRawMaterialLot(item = {}) {
+  const initialQty = num(item.initialQty ?? item.weight ?? item.quantity ?? item.qty)
+  const remainingQty = item.remainingQty == null ? initialQty : num(item.remainingQty)
+  const lot = {
+    ...item,
+    id: item.id || uid('RM'),
+    materialCode: item.materialCode || '',
+    materialName: item.materialName || item.name || item.materialCode || '',
+    materialGroup: item.materialGroup || item.group || CHEMICAL,
+    lotCode: item.lotCode || item.lot || '',
+    supplier: item.supplier || '',
+    importDate: item.importDate || todayText(),
+    initialQty,
+    remainingQty,
+    unit: item.unit || 'kg',
+    minStock: num(item.minStock),
+  }
+  const issuedQty = Math.max(0, num(lot.initialQty) - num(lot.remainingQty))
+  const status = item.status || rawMaterialLotStatus(lot)
+  const qrCode = buildRawMaterialLotQr({ ...lot, status })
+  return {
+    ...lot,
+    lot: lot.lotCode,
+    weight: lot.initialQty,
+    issuedQty,
+    status,
+    qrCode,
+  }
+}
+
+function normalizeRawMaterialLots(items = []) {
+  return items.map(normalizeRawMaterialLot)
+}
+
+function parseRawMaterialQr(value) {
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function validateRawMaterialQr(qrInput, requiredMaterial, lots = []) {
+  const qr = parseRawMaterialQr(qrInput)
+  if (!qr || qr.type !== RAW_MATERIAL_QR_TYPE) {
+    return { ok: false, message: 'QR sai type.', qr }
+  }
+  if (qr.materialCode !== requiredMaterial.materialCode) {
+    return { ok: false, message: `Sai nguyên liệu. Lệnh yêu cầu ${requiredMaterial.materialCode}, QR đang là ${qr.materialCode}.`, qr }
+  }
+  const lot = lots.find((item) => item.lotCode === qr.lotCode && item.materialCode === qr.materialCode)
+  if (!lot) {
+    return { ok: false, message: 'Không tìm thấy lô nguyên liệu trong kho.', qr }
+  }
+  if (num(lot.remainingQty) <= 0) {
+    return { ok: false, message: 'Lô nguyên liệu đã hết tồn.', qr, lot }
+  }
+  return { ok: true, qr, lot }
+}
 
 function buildFormulaItems(lines, quantityKg) {
   return lines.map((line, index) => ({
@@ -71,9 +155,9 @@ const defaultMixingMachines = [
 
 const initialData = {
   rawMaterials: [
-    { id: 'RM-001', materialCode: 'PASTE 02', materialName: 'Paste nền 02', materialGroup: CHEMICAL, lot: 'NVL-260613-01', importDate: '2026-06-13', supplier: 'HB Chemical', weight: 320, unit: 'kg', qrCode: 'PASTE 02|NVL-260613-01|320kg' },
-    { id: 'RM-002', materialCode: 'R91', materialName: 'Bột R91', materialGroup: SOLID, lot: 'NVL-260613-02', importDate: '2026-06-13', supplier: 'Silica Việt', weight: 800, unit: 'kg', qrCode: 'R91|NVL-260613-02|800kg' },
-    { id: 'RM-003', materialCode: 'SW34', materialName: 'SW34', materialGroup: SOLID, lot: 'NVL-260612-01', importDate: '2026-06-12', supplier: 'Khoáng sản HB', weight: 1000, unit: 'kg', qrCode: 'SW34|NVL-260612-01|1000kg' },
+    normalizeRawMaterialLot({ id: 'RM-001', materialCode: 'PASTE 02', materialName: 'Paste nền 02', materialGroup: CHEMICAL, lotCode: 'NVL-260613-01', importDate: '2026-06-13', supplier: 'HB Chemical', initialQty: 320, remainingQty: 320, unit: 'kg' }),
+    normalizeRawMaterialLot({ id: 'RM-002', materialCode: 'R91', materialName: 'Bột R91', materialGroup: SOLID, lotCode: 'NVL-260613-02', importDate: '2026-06-13', supplier: 'Silica Việt', initialQty: 800, remainingQty: 800, unit: 'kg' }),
+    normalizeRawMaterialLot({ id: 'RM-003', materialCode: 'SW34', materialName: 'SW34', materialGroup: SOLID, lotCode: 'NVL-260612-01', importDate: '2026-06-12', supplier: 'Khoáng sản HB', initialQty: 1000, remainingQty: 1000, unit: 'kg' }),
   ],
   formulas: Object.entries(masterFormulaLines).map(([id, rows], index) => ({
     id,
@@ -98,6 +182,7 @@ const initialData = {
   qc2AdjustmentTickets: [],
   supplementalWeighing: [],
   weighedContainers: [],
+  stockTransactions: [],
   packingLogs: [],
   finishedGoods: [],
   mixingMachines: defaultMixingMachines,
@@ -1165,11 +1250,22 @@ function PseudoQr({ value }) {
 
 function RawMaterialsPage({ data, setData }) {
   const [form, setForm] = useState({ materialCode: '', materialName: '', materialGroup: CHEMICAL, lot: '', importDate: todayText(), supplier: '', weight: 0, unit: 'kg' })
-  const qrValue = JSON.stringify(form)
+  const previewLot = normalizeRawMaterialLot({
+    materialCode: form.materialCode,
+    materialName: form.materialName,
+    materialGroup: form.materialGroup,
+    lotCode: form.lot,
+    supplier: form.supplier,
+    importDate: form.importDate,
+    initialQty: form.weight,
+    remainingQty: form.weight,
+    unit: form.unit,
+  })
+  const qrValue = buildRawMaterialLotQr(previewLot)
   const save = () => {
-    if (!form.materialCode || !form.materialName || !form.lot) return
-    const item = { ...form, id: uid('RM'), weight: num(form.weight), qrCode: qrValue }
-    setData((current) => addLogToData({ ...current, rawMaterials: [item, ...current.rawMaterials] }, `Tạo QR nguyên liệu khi nhập kho: ${item.materialCode} - lô ${item.lot}.`))
+    if (!form.materialCode || !form.materialName || !form.lot || !form.supplier || !form.materialGroup || !form.weight || !form.unit || !form.importDate) return
+    const item = normalizeRawMaterialLot({ ...form, id: uid('RM'), lotCode: form.lot, initialQty: form.weight, remainingQty: form.weight, qrCode: qrValue })
+    setData((current) => addLogToData({ ...current, rawMaterials: [item, ...normalizeRawMaterialLots(current.rawMaterials || [])] }, `Tạo QR nguyên liệu khi nhập kho: ${item.materialCode} - lô ${item.lotCode}.`))
     setForm({ materialCode: '', materialName: '', materialGroup: CHEMICAL, lot: '', importDate: todayText(), supplier: '', weight: 0, unit: 'kg' })
   }
   const printQr = () => {
@@ -1207,9 +1303,22 @@ function RawMaterialsPage({ data, setData }) {
         </div>
       </section>
       <section className="panel">
-        <h3>Danh sách nguyên liệu</h3>
-        <SimpleTable headers={['Mã VT', 'Tên vật tư', 'Nhóm', 'Lô', 'Ngày nhập', 'NCC', 'Khối lượng', 'QR']} rows={data.rawMaterials.map((item) => (
-          <tr key={item.id}><td>{item.materialCode}</td><td>{item.materialName}</td><td>{item.materialGroup}</td><td>{item.lot}</td><td>{item.importDate}</td><td>{item.supplier}</td><td>{item.weight} {item.unit}</td><td><code>{item.qrCode}</code></td></tr>
+        <h3>Tồn kho nguyên liệu theo lô</h3>
+        <SimpleTable headers={['Mã vật tư', 'Tên vật tư', 'Nhóm', 'Lô nhập', 'Nhà cung cấp', 'Ngày nhập', 'Tồn ban đầu', 'Đã xuất cho SX', 'Tồn còn lại', 'Đơn vị', 'QR', 'Trạng thái']} rows={normalizeRawMaterialLots(data.rawMaterials || []).map((item) => (
+          <tr key={item.id}>
+            <td>{item.materialCode}</td>
+            <td>{item.materialName}</td>
+            <td>{item.materialGroup}</td>
+            <td>{item.lotCode}</td>
+            <td>{item.supplier}</td>
+            <td>{item.importDate}</td>
+            <td>{num(item.initialQty).toLocaleString('vi-VN')}</td>
+            <td>{num(item.issuedQty).toLocaleString('vi-VN')}</td>
+            <td>{num(item.remainingQty).toLocaleString('vi-VN')}</td>
+            <td>{item.unit}</td>
+            <td><code>{item.qrCode}</code></td>
+            <td><span className={`dispatch-badge ${item.status === 'Hết tồn' ? 'fail' : item.status === 'Sắp hết' ? 'waiting' : 'ready'}`}>{item.status}</span></td>
+          </tr>
         ))} />
       </section>
     </div>
@@ -2484,20 +2593,32 @@ function WeighingPage({ data, setData, group }) {
     setWarning('Đã tạo dữ liệu demo QR hỗn hợp.')
   }
 
-  const updateWeight = (order, item, patch, log) => setData((current) => addLogToData({ ...current, orders: current.orders.map((currentOrder) => {
-    if (currentOrder.id !== order.id) return currentOrder
-    if (currentOrder.stage === 'supplement-weighing') {
-      const updateTickets = (tickets = []) => tickets.map((ticket) => ticket.id === item.ticketId ? { ...ticket, items: getTicketItems(ticket).map((row) => row.id === item.id ? { ...row, ...patch } : row) } : ticket)
-      return {
-        ...currentOrder,
-        qc2SupplementTickets: updateTickets(getQc2SupplementTickets(currentOrder)),
-        qc2AdjustedFormula: updateTickets(getQc2SupplementTickets(currentOrder)),
-        updatedAt: nowText(),
+  const updateWeight = (order, item, patch, log, stockIssue = null) => setData((current) => {
+    const materialLots = normalizeRawMaterialLots(current.rawMaterials || [])
+    const issuedQty = num(stockIssue?.quantityOut)
+    const nextRawMaterials = stockIssue && issuedQty > 0
+      ? materialLots.map((lot) => lot.lotCode === stockIssue.lotCode && lot.materialCode === stockIssue.materialCode
+        ? normalizeRawMaterialLot({ ...lot, remainingQty: Math.max(0, num(lot.remainingQty) - issuedQty) })
+        : lot)
+      : materialLots
+    const stockTransactions = stockIssue && issuedQty > 0
+      ? [...(current.stockTransactions || []), { id: uid('STK'), transactionType: 'ISSUE_TO_PRODUCTION', createdAt: nowText(), operator: 'Tổ cân', ...stockIssue, quantityOut: issuedQty }]
+      : (current.stockTransactions || [])
+    return addLogToData({ ...current, rawMaterials: nextRawMaterials, stockTransactions, orders: current.orders.map((currentOrder) => {
+      if (currentOrder.id !== order.id) return currentOrder
+      if (currentOrder.stage === 'supplement-weighing') {
+        const updateTickets = (tickets = []) => tickets.map((ticket) => ticket.id === item.ticketId ? { ...ticket, items: getTicketItems(ticket).map((row) => row.id === item.id ? { ...row, ...patch } : row) } : ticket)
+        return {
+          ...currentOrder,
+          qc2SupplementTickets: updateTickets(getQc2SupplementTickets(currentOrder)),
+          qc2AdjustedFormula: updateTickets(getQc2SupplementTickets(currentOrder)),
+          updatedAt: nowText(),
+        }
       }
-    }
-    const apply = (rows) => rows.map((row) => row.id === item.id ? { ...row, ...patch } : row)
-    return { ...currentOrder, activeProductionFormula: apply(getEffectiveFormula(currentOrder)), qc1AdjustedFormula: currentOrder.qc1AdjustedFormula ? apply(currentOrder.qc1AdjustedFormula) : currentOrder.qc1AdjustedFormula, updatedAt: nowText() }
-  }), supplementalWeighing: (current.supplementalWeighing || []).map((ticket) => ticket.id === item.ticketId ? { ...ticket, items: getTicketItems(ticket).map((row) => row.id === item.id ? { ...row, ...patch } : row) } : ticket) }, log))
+      const apply = (rows) => rows.map((row) => row.id === item.id ? { ...row, ...patch } : row)
+      return { ...currentOrder, activeProductionFormula: apply(getEffectiveFormula(currentOrder)), qc1AdjustedFormula: currentOrder.qc1AdjustedFormula ? apply(currentOrder.qc1AdjustedFormula) : currentOrder.qc1AdjustedFormula, updatedAt: nowText() }
+    }), supplementalWeighing: (current.supplementalWeighing || []).map((ticket) => ticket.id === item.ticketId ? { ...ticket, items: getTicketItems(ticket).map((row) => row.id === item.id ? { ...row, ...patch } : row) } : ticket) }, log)
+  })
 
   const finishIfReady = (order) => setData((current) => {
     const sourceOrder = current.orders.find((item) => item.id === order.id) || order
@@ -2640,8 +2761,8 @@ function WeighingPage({ data, setData, group }) {
                 <div className="weighing-progress"><i style={{ width: `${progress}%` }} /></div>
                 <strong>{progress}%</strong>
               </div>
-              <SimpleTable headers={['STT', 'Mã VT', 'Tên VT', 'Cần cân', 'QR', 'Thực cân', 'Sai lệch', 'Trạng thái']} rows={activeItems.map((item, index) => (
-                <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} />
+              <SimpleTable headers={['STT', 'Mã VT yêu cầu', 'Tên VT', 'Cần cân', 'QR lô đã quét', 'Lô nhập', 'Tồn trước', 'Thực cân', 'Tồn sau', 'Khớp QR', 'Trạng thái']} rows={activeItems.map((item, index) => (
+                <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} scaleType={scaleKey} setWarning={setWarning} />
               ))} empty={`Không có vật tư nhóm ${group}.`} />
               {activeContainers.map((container) => <WeighedContainerCard key={container.containerId} container={container} onPrint={openPrintContainer} onDetail={openPrintContainer} />)}
             </>
@@ -2742,25 +2863,74 @@ function WeighingOrderGroup({ title, orders, activeId, onStart, showStart = fals
   )
 }
 
-function WeighingRow({ order, item, index, active, updateWeight }) {
+function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots = [], scaleType, setWarning }) {
   const [qrInput, setQrInput] = useState(item.qrScanned || '')
   const [weight, setWeight] = useState(item.actualWeight || '')
   const qrPassed = item.qrStatus === 'PASS'
   const weightPassed = item.weighStatus === 'PASS'
   const completed = qrPassed && weightPassed
   const actual = item.actualWeight === '' || item.actualWeight == null ? '' : num(item.actualWeight)
-  const diff = actual === '' ? '' : Number((actual - num(item.requiredKg)).toFixed(3))
+  const selectedLot = rawMaterialLots.find((lot) => lot.lotCode === item.rawMaterialLotCode && lot.materialCode === item.materialCode)
+  const remainingBefore = item.rawMaterialRemainingBefore ?? selectedLot?.remainingQty
+  const remainingAfter = item.rawMaterialRemainingAfter ?? (actual !== '' && remainingBefore != null ? Math.max(0, num(remainingBefore) - actual) : '')
   const confirmQr = () => {
     if (!active) return
-    const pass = qrInput.trim().toUpperCase() === String(item.materialCode).toUpperCase()
-    updateWeight(order, item, { qrScanned: qrInput, qrStatus: pass ? 'PASS' : 'FAIL', note: pass ? item.note : 'Sai mã QR' }, `QR ${pass ? 'PASS' : 'FAIL'} ${order.id} - ${item.materialCode}.`)
+    const result = validateRawMaterialQr(qrInput, item, rawMaterialLots)
+    if (!result.ok) {
+      setWarning?.(result.message)
+      updateWeight(order, item, { qrScanned: qrInput, qrStatus: 'FAIL', qrMatchStatus: result.message, note: result.message }, `QR FAIL ${order.id} - ${item.materialCode}: ${result.message}`)
+      return
+    }
+    setWarning?.('')
+    updateWeight(order, item, {
+      qrScanned: qrInput,
+      rawMaterialQr: qrInput,
+      rawMaterialLotCode: result.lot.lotCode,
+      rawMaterialRemainingBefore: num(result.lot.remainingQty),
+      qrStatus: 'PASS',
+      qrMatchStatus: 'Khớp QR',
+      note: item.note,
+    }, `QR PASS ${order.id} - ${item.materialCode}, lô ${result.lot.lotCode}.`)
   }
   const confirmWeight = () => {
-    if (!active || !qrPassed) return
+    if (!active) return
+    if (!qrPassed || !item.rawMaterialLotCode) {
+      setWarning?.('Vui lòng quét QR lô nguyên liệu hợp lệ trước khi cân.')
+      return
+    }
     const actualWeight = num(weight)
+    const lot = rawMaterialLots.find((row) => row.lotCode === item.rawMaterialLotCode && row.materialCode === item.materialCode)
+    if (!lot) {
+      setWarning?.('Không tìm thấy lô nguyên liệu trong kho.')
+      return
+    }
+    if (num(lot.remainingQty) <= 0) {
+      setWarning?.('Lô nguyên liệu đã hết tồn.')
+      return
+    }
+    if (num(lot.remainingQty) < actualWeight) {
+      setWarning?.('Lô nguyên liệu không đủ tồn kho.')
+      return
+    }
     const pass = Math.abs(actualWeight - num(item.requiredKg)) <= num(item.toleranceKg)
     const supplementalText = order.stage === 'supplement-weighing' ? `Cân bổ sung ${item.materialGroup === CHEMICAL ? 'hóa' : 'rắn'}` : 'Cân'
-    updateWeight(order, item, { actualWeight, weighStatus: pass ? 'PASS' : 'FAIL', confirmedAt: nowText(), note: pass ? item.note : 'Ngoài dung sai' }, `${supplementalText} ${pass ? 'PASS' : 'FAIL'} ${order.id} - ${item.materialCode}.`)
+    const nextRemaining = num(lot.remainingQty) - actualWeight
+    setWarning?.(pass ? '' : 'Khối lượng cân ngoài dung sai.')
+    updateWeight(order, item, {
+      actualWeight,
+      rawMaterialRemainingBefore: num(lot.remainingQty),
+      rawMaterialRemainingAfter: nextRemaining,
+      weighStatus: pass ? 'PASS' : 'FAIL',
+      confirmedAt: nowText(),
+      note: pass ? item.note : 'Ngoài dung sai',
+    }, `${supplementalText} ${pass ? 'PASS' : 'FAIL'} ${order.id} - ${item.materialCode}, lô ${lot.lotCode}.`, pass ? {
+      productionOrderId: order.id,
+      materialCode: item.materialCode,
+      lotCode: lot.lotCode,
+      quantityOut: actualWeight,
+      unit: lot.unit || 'kg',
+      scaleType,
+    } : null)
   }
   return (
     <tr className={`${active ? 'weighing-active-row' : ''} ${completed ? 'weighing-completed-row' : ''}`}>
@@ -2769,8 +2939,11 @@ function WeighingRow({ order, item, index, active, updateWeight }) {
       <td>{item.materialName}</td>
       <td>{kg(item.requiredKg)}</td>
       <td><div className="weighing-inline-action">{active && !qrPassed ? <><input value={qrInput} onChange={(event) => setQrInput(event.target.value)} /><button className="secondary-button" onClick={confirmQr}>QR</button></> : <span>{item.qrScanned || '-'}</span>}{qrPassed ? <span className="weighing-check">QR PASS</span> : item.qrStatus === 'FAIL' ? <span className="weighing-fail">QR FAIL</span> : null}</div></td>
+      <td>{item.rawMaterialLotCode || '-'}</td>
+      <td>{remainingBefore === '' || remainingBefore == null ? '-' : kg(remainingBefore)}</td>
       <td>{active && qrPassed && !weightPassed ? <div className="weighing-inline-action"><input type="number" value={weight} onChange={(event) => setWeight(event.target.value)} /><button className="primary-button" onClick={confirmWeight}>Cân</button></div> : actual === '' ? '-' : kg(actual)}</td>
-      <td>{diff === '' ? '-' : <span className={`qc-diff-badge ${diff > 0 ? 'diff-up' : diff < 0 ? 'diff-down' : 'diff-same'}`}>{diff > 0 ? '+' : ''}{kg(diff)}</span>}</td>
+      <td>{remainingAfter === '' || remainingAfter == null ? '-' : kg(remainingAfter)}</td>
+      <td>{item.qrMatchStatus || item.qrStatus || '-'}</td>
       <td>{completed ? <span className="weighing-check">✓ Hoàn thành</span> : qrPassed ? <span className="weighing-check">✓ QR đạt</span> : active ? 'Đang thao tác' : '-'}</td>
     </tr>
   )
@@ -4324,6 +4497,7 @@ function App() {
     const weighedContainers = normalizeWeighedContainers(loadStored(WEIGHED_CONTAINERS_KEY, saved.weighedContainers || []))
     const packingLogs = loadStored(PACKING_LOGS_KEY, saved.packingLogs || [])
     const finishedGoods = normalizeFinishedGoodsData(loadStored(FINISHED_GOODS_KEY, saved.finishedGoods || []))
+    const rawMaterials = normalizeRawMaterialLots(saved.rawMaterials || seed.rawMaterials || [])
     const storedOrders = loadStored(PRODUCTION_ORDERS_KEY, null)
     const orders = normalizeProductionOrders(storedOrders || saved.productionOrders || saved.orders || seed.orders || [], formulas)
     const baseData = {
@@ -4338,6 +4512,8 @@ function App() {
       weighedContainers,
       packingLogs,
       finishedGoods,
+      rawMaterials,
+      stockTransactions: saved.stockTransactions || [],
       mixingMachines: saved.mixingMachines?.length ? saved.mixingMachines : defaultMixingMachines,
       productionLogs,
     }
@@ -4366,7 +4542,7 @@ function App() {
     localStorage.setItem(WEIGHED_CONTAINERS_KEY, JSON.stringify(normalizeWeighedContainers(data.weighedContainers || [])))
     localStorage.setItem(PACKING_LOGS_KEY, JSON.stringify(data.packingLogs || []))
     localStorage.setItem(FINISHED_GOODS_KEY, JSON.stringify(normalizeFinishedGoodsData(data.finishedGoods || [])))
-    localStorage.setItem(DATA_KEY, JSON.stringify({ ...data, orders, productionOrders: orders }))
+    localStorage.setItem(DATA_KEY, JSON.stringify({ ...data, rawMaterials: normalizeRawMaterialLots(data.rawMaterials || []), orders, productionOrders: orders }))
   }, [data])
   useEffect(() => { localStorage.setItem(AUTH_KEY, JSON.stringify(authData)) }, [authData])
 
