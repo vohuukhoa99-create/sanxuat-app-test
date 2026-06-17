@@ -23,7 +23,7 @@ export function Sidebar({
               className="sidebar-brand-logo mobile-sidebar-logo"
             />
             <div className="mobile-sidebar-brand mobile-title-box">
-              <h2 className="mobile-drawer-title">Sơn Hòa Bình</h2>
+              <h2 className="mobile-drawer-title">SƠN HÒA BÌNH</h2>
               <p className="mobile-drawer-subtitle">Hệ thống quản lý sản xuất V3</p>
             </div>
             <button type="button" className="mobile-sidebar-close mobile-drawer-close" onClick={onClose} aria-label="Đóng menu">×</button>

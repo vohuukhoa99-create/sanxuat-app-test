@@ -9718,3 +9718,93 @@ body,
     background: rgba(0, 165, 220, 0.18) !important;
   }
 }
+
+@media (max-width: 768px) {
+  .mobile-sidebar.sidebar,
+  .sidebar {
+    background:
+      radial-gradient(circle at 10% 0%, rgba(0, 169, 224, 0.28), transparent 34%),
+      linear-gradient(180deg, #07182f 0%, #073b73 52%, #052a54 100%) !important;
+  }
+
+  .mobile-sidebar-header,
+  .mobile-drawer-header {
+    display: grid !important;
+    grid-template-columns: 56px minmax(0, 1fr) 44px !important;
+    align-items: center !important;
+    column-gap: 12px !important;
+    width: 100% !important;
+  }
+
+  .mobile-sidebar-logo,
+  .mobile-drawer-logo,
+  .sidebar-brand-logo {
+    width: 56px !important;
+    height: 56px !important;
+    object-fit: contain !important;
+    flex-shrink: 0 !important;
+    background: #ffffff !important;
+    border-radius: 12px !important;
+    padding: 5px !important;
+  }
+
+  .mobile-sidebar-brand,
+  .mobile-drawer-brand,
+  .sidebar-brand-text {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .mobile-sidebar-brand h2,
+  .mobile-drawer-brand h2,
+  .sidebar-brand-title {
+    margin: 0 !important;
+    font-size: 18px !important;
+    font-weight: 800 !important;
+    line-height: 1.15 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+  }
+
+  .mobile-sidebar-brand p,
+  .mobile-drawer-brand p,
+  .sidebar-brand-subtitle {
+    margin: 4px 0 0 !important;
+    font-size: 12px !important;
+    line-height: 1.25 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+  }
+
+  .mobile-sidebar-close,
+  .mobile-drawer-close {
+    width: 44px !important;
+    height: 44px !important;
+    flex-shrink: 0 !important;
+    justify-self: end !important;
+  }
+
+  .sidebar .nav-item,
+  .sidebar button,
+  .sidebar a {
+    color: #f4f8ff !important;
+    font-size: 15px !important;
+    min-height: 46px !important;
+    padding: 10px 14px !important;
+    gap: 10px !important;
+    line-height: 1.25 !important;
+  }
+
+  .sidebar .nav-item.active,
+  .sidebar button.active,
+  .sidebar a.active {
+    background: rgba(0, 169, 224, 0.22) !important;
+  }
+}
