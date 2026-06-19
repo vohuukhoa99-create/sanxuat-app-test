@@ -49,16 +49,21 @@ export function Sidebar({
       )}
 
       <nav className={isMobile ? 'sidebar-nav mobile-nav-list' : 'sidebar-nav'}>
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={`${isMobile ? 'mobile-nav-item' : 'nav-item'} nav-item ${selected === item.id ? 'active' : ''}`}
-            onClick={() => onChange(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
+        {navItems.map((item) => {
+          const childActive = navItems.some((child) => child.parentId === item.id && child.id === selected)
+          const isSubitem = Boolean(item.parentId)
+          return (
+            <div className={`nav-group ${isSubitem ? 'nav-subgroup' : ''}`} key={item.id}>
+              <button
+                type="button"
+                className={`${isMobile ? 'mobile-nav-item' : 'nav-item'} nav-item ${isSubitem ? 'nav-subitem' : ''} ${selected === item.id || childActive ? 'active' : ''}`}
+                onClick={() => onChange(item.id)}
+              >
+                {item.label}
+              </button>
+            </div>
+          )
+        })}
       </nav>
     </aside>
   )

@@ -100,6 +100,30 @@
   color: #ffffff;
 }
 
+.nav-group {
+  display: grid;
+  gap: 4px;
+}
+
+.nav-submenu {
+  display: grid;
+  gap: 4px;
+  margin-left: 12px;
+}
+
+.nav-subitem {
+  min-height: 30px !important;
+  padding: 7px 12px 7px 18px !important;
+  border-radius: 10px;
+  font-size: 12px !important;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.nav-subitem.active {
+  background: rgba(0, 169, 224, 0.28);
+  color: #ffffff;
+}
+
 .main-content {
   padding: 24px 28px;
   display: flex;
@@ -1867,39 +1891,39 @@ tbody tr:hover {
 .permission-matrix-wrapper {
   width: 100%;
   max-width: 100%;
-  overflow-x: auto;
+  overflow: auto;
   background: #fff;
   border: 1px solid #dfe8e3;
   border-radius: 10px;
   max-height: calc(100vh - 190px);
-  transform: scale(0.85);
-  transform-origin: top left;
-  width: 118%;
 }
 
 .permission-matrix {
-  width: 100%;
-  min-width: 920px;
+  width: max-content !important;
+  min-width: max-content !important;
   border-collapse: collapse;
-  table-layout: fixed;
-  font-size: 9px;
+  table-layout: fixed !important;
+  font-size: 12px !important;
 }
 
 .permission-matrix th,
 .permission-matrix td {
   border-bottom: 1px solid #e5eee9;
   border-right: 1px solid #eef3f0;
-  height: 24px;
-  padding: 2px 4px;
-  line-height: 1;
-  text-align: center;
-  vertical-align: middle;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 2px 4px !important;
+  line-height: 1.15 !important;
+  text-align: center !important;
+  vertical-align: middle !important;
 }
 
 .permission-matrix th:first-child,
 .permission-matrix td:first-child {
-  text-align: left;
-  width: 160px;
+  text-align: left !important;
+  min-width: 220px !important;
+  width: 220px !important;
+  max-width: 220px !important;
   position: sticky;
   left: 0;
   z-index: 2;
@@ -1911,7 +1935,9 @@ tbody tr:hover {
 
 .permission-matrix th:not(:first-child),
 .permission-matrix td:not(:first-child) {
-  width: 56px;
+  min-width: 70px !important;
+  max-width: 70px !important;
+  width: 70px !important;
 }
 
 .permission-matrix th {
@@ -1920,42 +1946,30 @@ tbody tr:hover {
   z-index: 3;
   background: #eaf6f0;
   color: #073723;
-  font-size: 9px;
+  height: 48px !important;
+  min-height: 48px !important;
+  padding: 2px !important;
+  font-size: 11px !important;
   font-weight: 600;
   white-space: normal;
-  line-height: 1.2;
+  line-height: 1.2 !important;
+}
+
+.permission-matrix thead th:not(:first-child) {
+  position: sticky !important;
+  height: 48px !important;
+  min-height: 48px !important;
+  max-height: 48px !important;
+  overflow: visible !important;
 }
 
 .permission-matrix td {
-  font-size: 9px;
+  font-size: 12px !important;
 }
 
 .permission-matrix th:first-child {
   z-index: 4;
-}
-.permission-matrix input[type="checkbox"] {
-  width: 13px;
-  height: 13px;
-  transform: scale(0.75);
-  margin: 0;
-  cursor: pointer;
-}
-
-.permission-matrix th,
-.permission-matrix td {
-  height: 22px;
-  padding: 2px 4px;
-  line-height: 1;
-}
-
-.permission-matrix th:first-child,
-.permission-matrix td:first-child {
-  width: 140px;
-}
-
-.permission-matrix th:not(:first-child),
-.permission-matrix td:not(:first-child) {
-  width: 48px;
+  background: #eaf6f0;
 }
 
 .permission-matrix-wrapper {
@@ -1963,23 +1977,36 @@ tbody tr:hover {
 }
 .role-column-header {
   display: grid;
-  gap: 3px;
+  gap: 2px;
   justify-items: center;
-  font-size: 9px;
+  align-items: center;
+  min-width: 70px !important;
+  max-width: 70px !important;
+  width: 70px !important;
+  height: 24px !important;
+  min-height: 0 !important;
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+}
+
+.role-column-header strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .role-column-header > span {
   display: inline-flex;
-  gap: 4px;
+  gap: 3px;
 }
 
 .role-column-header .icon-button {
-  width: 20px !important;
-  min-width: 20px !important;
-  height: 20px !important;
-  min-height: 20px !important;
+  width: 18px !important;
+  min-width: 18px !important;
+  height: 18px !important;
+  min-height: 18px !important;
   border-radius: 5px !important;
-  font-size: 10px !important;
+  font-size: 9px !important;
+  padding: 0 !important;
 }
 
 .role-column-header .danger-icon {
@@ -1987,28 +2014,44 @@ tbody tr:hover {
 }
 
 .role-quick-actions {
-  display: grid;
-  gap: 3px;
-  margin-top: 4px;
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  display: flex;
+  gap: 2px;
+  justify-items: center;
+  margin-top: 0;
 }
 
 .role-quick-actions button {
-  height: 20px !important;
-  min-height: 20px !important;
-  padding: 2px 4px !important;
+  height: 18px !important;
+  min-height: 18px !important;
+  padding: 0 4px !important;
   border: 1px solid rgba(7, 34, 26, 0.12);
-  border-radius: 5px;
+  border-radius: 6px;
   background: #fff;
   color: #38564a;
-  font-size: 8px !important;
+  font-size: 9px !important;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+  flex: 1 1 0;
 }
 
 .permission-matrix input[type='checkbox'] {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  transform: scale(0.85);
+  width: 12px !important;
+  min-width: 12px !important;
+  max-width: 12px !important;
+  height: 12px !important;
+  min-height: 12px !important;
+  max-height: 12px !important;
+  margin: 0 auto !important;
+  transform: scale(0.65) !important;
   cursor: pointer;
+  display: block !important;
+  vertical-align: middle !important;
 }
 
 .permission-matrix input[type='checkbox']:disabled {
@@ -8692,7 +8735,8 @@ body,
   }
 
   .permission-matrix {
-    min-width: 920px;
+    width: max-content !important;
+    min-width: max-content !important;
   }
 
   .report-pipeline,
@@ -11049,4 +11093,36 @@ body,
     justify-content: stretch;
     flex-direction: column;
   }
+}
+
+.sidebar .nav-group {
+  display: grid;
+  gap: 4px;
+}
+
+.sidebar .nav-submenu {
+  display: grid;
+  gap: 4px;
+  margin-left: 12px;
+}
+
+.sidebar .nav-subgroup,
+.mobile-sidebar .nav-subgroup {
+  margin-left: 12px;
+}
+
+.sidebar .nav-subitem,
+.mobile-sidebar .nav-subitem {
+  min-height: 30px !important;
+  padding: 7px 12px 7px 18px !important;
+  border-radius: 10px !important;
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+  color: rgba(255, 255, 255, 0.78) !important;
+}
+
+.sidebar .nav-subitem.active,
+.mobile-sidebar .nav-subitem.active {
+  background: rgba(0, 169, 224, 0.28) !important;
+  color: #ffffff !important;
 }

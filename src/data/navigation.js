@@ -13,4 +13,5 @@ export const defaultNavItems = [
   { id: 'logs', label: 'Nhật ký sản xuất' },
   { id: 'reports', label: 'Báo cáo' },
   { id: 'admin', label: 'Quản trị hệ thống' },
+  { id: 'admin-machines', label: 'Danh mục máy phối trộn', parentId: 'admin' },
 ]
