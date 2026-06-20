@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react'
 import { defaultNavItems } from '../data/navigation.js'
 
 export function Sidebar({
@@ -11,6 +12,34 @@ export function Sidebar({
   onLogout,
 }) {
   const isMobile = variant === 'mobile'
+  const childrenByParent = useMemo(() => navItems.reduce((acc, item) => {
+    if (!item.parentId) return acc
+    acc[item.parentId] = [...(acc[item.parentId] || []), item]
+    return acc
+  }, {}), [navItems])
+  const parentByChild = useMemo(() => navItems.reduce((acc, item) => {
+    if (item.parentId) acc[item.id] = item.parentId
+    return acc
+  }, {}), [navItems])
+  const rootItems = useMemo(() => navItems.filter((item) => !item.parentId), [navItems])
+  const [openGroups, setOpenGroups] = useState(() => {
+    const activeParent = parentByChild[selected]
+    return activeParent ? { [activeParent]: true } : {}
+  })
+
+  useEffect(() => {
+    const activeParent = parentByChild[selected]
+    if (activeParent) setOpenGroups((current) => ({ ...current, [activeParent]: true }))
+  }, [parentByChild, selected])
+
+  const handleItemClick = (item) => {
+    const children = childrenByParent[item.id] || []
+    if (children.length || item.type === 'group') {
+      setOpenGroups((current) => ({ ...current, [item.id]: !current[item.id] }))
+      return
+    }
+    onChange(item.id)
+  }
 
   return (
     <aside className={`sidebar ${className}`}>
@@ -49,18 +78,35 @@ export function Sidebar({
       )}
 
       <nav className={isMobile ? 'sidebar-nav mobile-nav-list' : 'sidebar-nav'}>
-        {navItems.map((item) => {
-          const childActive = navItems.some((child) => child.parentId === item.id && child.id === selected)
-          const isSubitem = Boolean(item.parentId)
+        {rootItems.map((item) => {
+          const children = childrenByParent[item.id] || []
+          const childActive = children.some((child) => child.id === selected)
+          const expanded = openGroups[item.id] || childActive
           return (
-            <div className={`nav-group ${isSubitem ? 'nav-subgroup' : ''}`} key={item.id}>
+            <div className="nav-group" key={item.id}>
               <button
                 type="button"
-                className={`${isMobile ? 'mobile-nav-item' : 'nav-item'} nav-item ${isSubitem ? 'nav-subitem' : ''} ${selected === item.id || childActive ? 'active' : ''}`}
-                onClick={() => onChange(item.id)}
+                className={`${isMobile ? 'mobile-nav-item' : 'nav-item'} nav-item ${children.length ? 'nav-parent' : ''} ${selected === item.id || childActive ? 'active' : ''}`}
+                onClick={() => handleItemClick(item)}
+                aria-expanded={children.length ? expanded : undefined}
               >
-                {item.label}
+                <span>{item.label}</span>
+                {children.length > 0 && <span className="nav-caret">{expanded ? '⌃' : '⌄'}</span>}
               </button>
+              {children.length > 0 && expanded && (
+                <div className="nav-submenu">
+                  {children.map((child) => (
+                    <button
+                      type="button"
+                      key={child.id}
+                      className={`${isMobile ? 'mobile-nav-item' : 'nav-item'} nav-item nav-subitem ${selected === child.id ? 'active' : ''}`}
+                      onClick={() => onChange(child.id)}
+                    >
+                      {child.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )
         })}

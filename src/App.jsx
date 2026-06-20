@@ -287,6 +287,23 @@ const initialData = {
   stockTransactions: [],
   packingLogs: [],
   finishedGoods: [],
+  productCatalog: [
+    { id: 'PRD-HNS-252-G1', code: 'HNS 252.G1', name: 'HNS 252.G1', group: 'Sơn', unit: 'kg', status: 'Hoạt động', note: 'Sản phẩm demo' },
+    { id: 'PRD-HNS-252-R2', code: 'HNS 252.R2', name: 'HNS 252.R2', group: 'Sơn', unit: 'kg', status: 'Hoạt động', note: 'Sản phẩm demo' },
+  ],
+  supplierCatalog: [
+    { id: 'SUP-HB-CHEM', code: 'HB-CHEM', name: 'HB Chemical', phone: '', address: '', status: 'Hoạt động', note: '' },
+    { id: 'SUP-SILICA-VIET', code: 'SILICA-VIET', name: 'Silica Việt', phone: '', address: '', status: 'Hoạt động', note: '' },
+  ],
+  customerCatalog: [
+    { id: 'CUS-DEMO', code: 'CUS-DEMO', name: 'Đơn hàng demo', phone: '', address: '', status: 'Hoạt động', note: '' },
+    { id: 'CUS-QC2', code: 'CUS-QC2', name: 'Đơn hàng mẫu QC2', phone: '', address: '', status: 'Hoạt động', note: '' },
+  ],
+  employeeCatalog: [
+    { id: 'EMP-KHO-NL', code: 'EMP-KHO-NL', name: 'Nhân sự kho nguyên liệu', department: 'Kho nguyên liệu', role: 'Kho NL', status: 'Hoạt động', note: 'Phạm vi vận hành sản xuất' },
+    { id: 'EMP-QC', code: 'EMP-QC', name: 'Nhân sự QC', department: 'QC', role: 'QC', status: 'Hoạt động', note: 'Phạm vi vận hành sản xuất' },
+    { id: 'EMP-PHOI-TRON', code: 'EMP-PHOI-TRON', name: 'Nhân sự phối trộn', department: 'Tổ phối trộn', role: 'Phối trộn', status: 'Hoạt động', note: 'Phạm vi vận hành sản xuất' },
+  ],
   mixingMachines: defaultMixingMachines,
 }
 
@@ -349,25 +366,47 @@ function ensureQcDemoOrders(orders = [], seedOrders = []) {
   return [...requiredSeeds, ...orders.filter((order) => !seedIds.has(order.id))]
 }
 
+const CRUD_ACTIONS = ['view', 'create', 'edit', 'delete']
+const masterPermissionGroups = [
+  ['material', 'Dữ liệu gốc / Danh mục vật tư'],
+  ['product', 'Dữ liệu gốc / Danh mục sản phẩm'],
+  ['supplier', 'Dữ liệu gốc / Danh mục nhà cung cấp'],
+  ['customer', 'Dữ liệu gốc / Danh mục khách hàng'],
+  ['employee', 'Dữ liệu gốc / Danh sách nhân viên'],
+  ['machine', 'Dữ liệu gốc / Danh mục máy phối trộn'],
+  ['formula', 'Dữ liệu gốc / Công thức gốc'],
+]
+const masterPermissionIds = masterPermissionGroups.flatMap(([key]) => CRUD_ACTIONS.map((action) => `master.${key}.${action}`))
+const masterFull = (key) => CRUD_ACTIONS.map((action) => `master.${key}.${action}`)
+const masterView = (key) => [`master.${key}.view`]
+const systemPermissionIds = ['admin']
+const menuPermissionIds = defaultNavItems.map((item) => item.permission || (item.type !== 'group' ? item.id : '')).filter((id, index, items) => id && items.indexOf(id) === index)
+const allSystemPermissionIds = Array.from(new Set([...menuPermissionIds, ...masterPermissionIds, ...systemPermissionIds, 'formula.secure.view']))
+const hasPermission = (permissions = [], permission) => permissions.includes(permission)
+const hasAnyPermission = (permissions = [], permissionIds = []) => permissionIds.some((permission) => hasPermission(permissions, permission))
+const pagePermission = (item) => item.permission || item.id
+
 const defaultRoles = {
-  Admin: defaultNavItems.map((item) => item.id),
-  'Kho NL': ['dashboard', 'raw-materials', 'logs'],
-  'Kỹ thuật': ['dashboard', 'formulas', 'logs'],
-  'Sản xuất': ['dashboard', 'orders', 'logs'],
-  QC: ['dashboard', 'qc', 'finished-qc', 'logs', 'reports'],
+  Admin: allSystemPermissionIds,
+  'Kho NL': ['dashboard', 'raw-materials', 'logs', ...masterView('material'), ...masterView('supplier')],
+  'Kỹ thuật': ['dashboard', 'logs', ...masterFull('material'), ...masterFull('product'), ...masterFull('formula'), ...masterView('machine'), ...masterView('supplier'), 'formula.secure.view'],
+  'Sản xuất': ['dashboard', 'orders', 'logs', ...masterView('product'), ...masterView('machine'), ...masterView('customer')],
+  QC: ['dashboard', 'qc', 'finished-qc', 'logs', 'reports', ...masterView('product'), ...masterView('formula')],
   'Cân hóa': ['dashboard', 'chemical', 'logs'],
   'Cân rắn': ['dashboard', 'solid', 'logs'],
-  'Phối trộn': ['dashboard', 'mixing', 'logs'],
+  'Phối trộn': ['dashboard', 'mixing', 'logs', ...masterView('machine')],
   'Đóng gói': ['dashboard', 'packaging', 'logs'],
   'Kho TP': ['dashboard', 'finished-goods', 'logs'],
-  'Quản đốc': ['dashboard', 'orders', 'qc', 'chemical', 'solid', 'mixing', 'finished-qc', 'packaging', 'finished-goods', 'logs', 'reports'],
+  'Quản đốc': ['dashboard', 'orders', 'qc', 'chemical', 'solid', 'mixing', 'finished-qc', 'packaging', 'finished-goods', 'logs', 'reports', ...masterFull('employee')],
   'Ban giám đốc': ['dashboard', 'finished-qc', 'reports', 'logs'],
+  HCNS: ['dashboard', 'logs'],
+  'Kinh doanh': ['dashboard', 'logs', ...masterFull('customer'), ...masterView('product')],
 }
 
 const ACTIVE_STATUS = 'Hoạt động'
 const LOCKED_STATUS = 'Khóa'
 const DEFAULT_PASSWORD = '123456'
-const AUTH_VERSION = 2
+const AUTH_VERSION = 3
 const removedDefaultUsernames = new Set(['kho-nvl', 'kho-tp'])
 
 const defaultUsers = [
@@ -383,6 +422,8 @@ const defaultUsers = [
   { username: 'kho.tp', password: DEFAULT_PASSWORD, role: 'Kho TP', fullName: 'Kho thành phẩm' },
   { username: 'quandoc', password: DEFAULT_PASSWORD, role: 'Quản đốc', fullName: 'Quản đốc' },
   { username: 'giamdoc', password: DEFAULT_PASSWORD, role: 'Ban giám đốc', fullName: 'Ban giám đốc' },
+  { username: 'hcns', password: DEFAULT_PASSWORD, role: 'HCNS', fullName: 'HCNS' },
+  { username: 'kinhdoanh', password: DEFAULT_PASSWORD, role: 'Kinh doanh', fullName: 'Kinh doanh' },
 ].map((user) => ({ ...user, department: user.role, status: ACTIVE_STATUS }))
 
 const legacyRoleMap = {
@@ -401,13 +442,34 @@ const defaultAuth = {
   accessLogs: [],
 }
 
+function expandLegacyPermissions(permissions = []) {
+  const expanded = new Set(permissions)
+  const legacyMap = {
+    formulas: masterFull('formula'),
+    'admin-machines': masterFull('machine'),
+    'master-materials': masterFull('material'),
+    'master-products': masterFull('product'),
+    'master-suppliers': masterFull('supplier'),
+    'master-customers': masterFull('customer'),
+    'master-employees': masterFull('employee'),
+    admin: ['admin'],
+    'admin-users': ['admin'],
+    'admin-roles': ['admin'],
+    'admin-permissions': ['admin'],
+  }
+  permissions.forEach((permission) => {
+    ;(legacyMap[permission] || []).forEach((item) => expanded.add(item))
+  })
+  return Array.from(expanded)
+}
+
 function normalizeAuthData(saved = {}) {
   const roles = { ...defaultRoles }
   Object.entries(saved.roles || {}).forEach(([role, permissions]) => {
     const nextRole = legacyRoleMap[role] || role
-    roles[nextRole] = Array.from(new Set([...(roles[nextRole] || []), ...(permissions || [])]))
+    roles[nextRole] = Array.from(new Set([...(roles[nextRole] || []), ...expandLegacyPermissions(permissions || [])]))
   })
-  roles.Admin = defaultNavItems.map((item) => item.id)
+  roles.Admin = allSystemPermissionIds
 
   const savedUsers = (saved.users || []).filter((user) => user?.username && !removedDefaultUsernames.has(user.username))
   const savedUsersByUsername = new Map(savedUsers.map((user) => [user.username, user]))
@@ -1551,7 +1613,7 @@ const readExcelCell = (row, keys) => {
   return ''
 }
 
-function FormulasPage({ data, setData }) {
+function FormulasPage({ data, setData, permissions = [] }) {
   const [selectedId, setSelectedId] = useState(data.formulas[0]?.id || '')
   const [createOpen, setCreateOpen] = useState(false)
   const [formulaDraft, setFormulaDraft] = useState(emptyMasterFormulaDraft)
@@ -1583,8 +1645,12 @@ function FormulasPage({ data, setData }) {
     && draftTotal === 100
     && !draftDuplicateMaterials
     && !draftCodeExists
+  const canCreateFormula = hasPermission(permissions, 'master.formula.create')
+  const canEditFormula = hasPermission(permissions, 'master.formula.edit')
+  const canSecureViewFormula = hasPermission(permissions, 'formula.secure.view')
 
   const openCreateFormula = () => {
+    if (!canCreateFormula) return
     setFormulaDraft(emptyMasterFormulaDraft())
     setFormulaMessage('')
     setCreateOpen(true)
@@ -1602,7 +1668,7 @@ function FormulasPage({ data, setData }) {
   }))
 
   const saveMasterFormula = () => {
-    if (!canSaveFormula) return
+    if (!canCreateFormula || !canSaveFormula) return
     const formula = {
       id: formulaDraft.code.trim(),
       code: formulaDraft.code.trim(),
@@ -1633,6 +1699,7 @@ function FormulasPage({ data, setData }) {
   }
 
   const downloadFormulaTemplate = () => {
+    if (!canCreateFormula) return
     const rows = [
       { 'Mã CT': 'HNS-NEW-001', 'Tên SP': 'HNS Demo', 'Nhóm sản phẩm': 'Sơn', Version: 'V1.0', 'Ngày hiệu lực': todayText(), 'Ghi chú': '', 'Mã VT': 'PASTE 02', 'Tên VT': 'Paste nền 02', 'Nhóm': CHEMICAL, 'Tỷ lệ %': 4.61 },
       { 'Mã CT': 'HNS-NEW-001', 'Tên SP': 'HNS Demo', 'Nhóm sản phẩm': 'Sơn', Version: 'V1.0', 'Ngày hiệu lực': todayText(), 'Ghi chú': '', 'Mã VT': 'R91', 'Tên VT': 'Bột R91', 'Nhóm': SOLID, 'Tỷ lệ %': 95.39 },
@@ -1643,7 +1710,7 @@ function FormulasPage({ data, setData }) {
   }
 
   const importFormulaExcel = (file) => {
-    if (!file) return
+    if (!canCreateFormula || !file) return
     const reader = new FileReader()
     reader.onload = (event) => {
       try {
@@ -1717,7 +1784,7 @@ function FormulasPage({ data, setData }) {
   }
 
   const startAdjustment = () => {
-    if (!selected) return
+    if (!canEditFormula || !selected) return
     const versionNo = versions.length + 1
     const newDraft = {
       id: uid('FVER'),
@@ -1754,7 +1821,7 @@ function FormulasPage({ data, setData }) {
   }))
 
   const saveDraft = () => {
-    if (!draft || !canApprove) return
+    if (!canEditFormula || !draft || !canApprove) return
     const approved = { ...draft, status: 'Đã duyệt', approvedAt: nowText() }
     setData((current) => {
       const exists = (current.formulaVersions || []).some((version) => version.id === approved.id)
@@ -1781,10 +1848,10 @@ function FormulasPage({ data, setData }) {
         <div className="panel-header-row">
           <div><h2>Công thức gốc</h2><p className="panel-text">Thư viện công thức chuẩn do Phòng Kỹ thuật ban hành. Tỷ lệ gốc không bị ghi đè; mọi thay đổi được lưu thành phiên bản điều chỉnh riêng để so sánh.</p></div>
           <div className="action-row">
-            <button className="primary-button" onClick={openCreateFormula}>Tạo công thức gốc</button>
-            <button className="secondary-button" onClick={() => importFormulaRef.current?.click()}>Tải công thức Excel</button>
-            <button className="secondary-button" onClick={downloadFormulaTemplate}>Tải file mẫu</button>
-            <button className="primary-button" onClick={startAdjustment}>Tạo phiên bản điều chỉnh</button>
+            <button className="primary-button" disabled={!canCreateFormula} onClick={openCreateFormula}>Tạo công thức gốc</button>
+            <button className="secondary-button" disabled={!canCreateFormula} onClick={() => importFormulaRef.current?.click()}>Tải công thức Excel</button>
+            <button className="secondary-button" disabled={!canCreateFormula} onClick={downloadFormulaTemplate}>Tải file mẫu</button>
+            <button className="primary-button" disabled={!canEditFormula} onClick={startAdjustment}>Tạo phiên bản điều chỉnh</button>
             <button className="secondary-button" onClick={() => setSelectedVersionId(latestApproved?.id || '')}>So sánh với công thức gốc</button>
             <button className="secondary-button" onClick={restoreBase}>Khôi phục về công thức gốc</button>
           </div>
@@ -1805,17 +1872,18 @@ function FormulasPage({ data, setData }) {
           <label>Người duyệt<input readOnly={!draft} value={activeVersion?.approvedBy || selected.approvedBy} onChange={(event) => updateDraftField('approvedBy', event.target.value)} /></label>
           <label className="wide-field">Lý do điều chỉnh<input readOnly={!draft} value={activeVersion?.adjustmentReason || ''} onChange={(event) => updateDraftField('adjustmentReason', event.target.value)} /></label>
         </div>
-        {adjustedTotal !== 100 && <div className="formula-ratio-alert">Tổng tỷ lệ điều chỉnh chưa bằng 100% ({adjustedTotal}%)</div>}
-        {adjustedTotal === 100 && <div className="formula-ratio-ok">Tổng tỷ lệ điều chỉnh = 100%</div>}
-        <SimpleTable headers={['STT', 'Mã vật tư', 'Tên vật tư', 'Nhóm', 'Tỷ lệ gốc %', 'Tỷ lệ điều chỉnh %', 'Chênh lệch %', 'Ghi chú điều chỉnh']} rows={comparisonItems.map((item, index) => (
+        {canSecureViewFormula && adjustedTotal !== 100 && <div className="formula-ratio-alert">Tổng tỷ lệ điều chỉnh chưa bằng 100% ({adjustedTotal}%)</div>}
+        {canSecureViewFormula && adjustedTotal === 100 && <div className="formula-ratio-ok">Tổng tỷ lệ điều chỉnh = 100%</div>}
+        {!canSecureViewFormula && <div className="process-alert">Bạn có quyền xem công thức, nhưng chưa có quyền formula.secure.view nên tỷ lệ phần trăm được ẩn.</div>}
+        <SimpleTable headers={canSecureViewFormula ? ['STT', 'Mã vật tư', 'Tên vật tư', 'Nhóm', 'Tỷ lệ gốc %', 'Tỷ lệ điều chỉnh %', 'Chênh lệch %', 'Ghi chú điều chỉnh'] : ['STT', 'Mã vật tư', 'Tên vật tư', 'Nhóm', 'Ghi chú điều chỉnh']} rows={comparisonItems.map((item, index) => (
           <tr key={item.id}>
             <td>{index + 1}</td>
             <td>{item.materialCode}</td>
             <td>{item.materialName}</td>
             <td>{item.materialGroup}</td>
-            <td>{item.ratioPercent}%</td>
-            <td>{draft ? <input type="number" value={item.adjustedPercent} onChange={(event) => updateDraftItem(item.id, 'adjustedPercent', event.target.value)} /> : `${item.adjustedPercent}%`}</td>
-            <td><span className={diffClass(item.diff)}>{item.diff > 0 ? '+' : ''}{item.diff}%</span></td>
+            {canSecureViewFormula && <td>{item.ratioPercent}%</td>}
+            {canSecureViewFormula && <td>{draft ? <input type="number" value={item.adjustedPercent} onChange={(event) => updateDraftItem(item.id, 'adjustedPercent', event.target.value)} /> : `${item.adjustedPercent}%`}</td>}
+            {canSecureViewFormula && <td><span className={diffClass(item.diff)}>{item.diff > 0 ? '+' : ''}{item.diff}%</span></td>}
             <td>{draft ? <input value={item.adjustmentNote} onChange={(event) => updateDraftItem(item.id, 'adjustmentNote', event.target.value)} /> : item.adjustmentNote || '-'}</td>
           </tr>
         ))} />
@@ -1860,7 +1928,7 @@ function FormulasPage({ data, setData }) {
   )
 }
 
-function OrdersPage({ data, setData }) {
+function OrdersPage({ data, setData, permissions = [] }) {
   const [form, setForm] = useState({ formulaId: data.formulas[0]?.id || '', quantityKg: 1000, lot: '', customer: '', mixerMachine: '', productionRequestNo: '', note: '' })
   const [message, setMessage] = useState('')
   const [warning, setWarning] = useState('')
@@ -2007,7 +2075,7 @@ function OrdersPage({ data, setData }) {
                 ['finishedQc', 'Nhật ký QC thành phẩm'],
               ].map(([id, label]) => <button key={id} className={detailTab === id ? 'active' : ''} onClick={() => setDetailTab(id)}>{label}</button>)}
             </div>
-            <OrderDetailTabs order={detailOrder} tab={detailTab} productionLogs={data.productionLogs || []} qc2Logs={data.qc2Logs || []} />
+            <OrderDetailTabs order={detailOrder} tab={detailTab} productionLogs={data.productionLogs || []} qc2Logs={data.qc2Logs || []} permissions={permissions} />
           </div>
         </div>
       )}
@@ -2015,13 +2083,25 @@ function OrdersPage({ data, setData }) {
   )
 }
 
-function FormulaTable({ items }) {
-  return <SimpleTable headers={['STT', 'Mã VT', 'Tên vật tư', 'Nhóm', 'Tỷ lệ %', 'Khối lượng/lệnh']} rows={items.map((item, index) => <tr key={item.id || index}><td>{index + 1}</td><td>{item.materialCode}</td><td>{item.materialName}</td><td>{item.materialGroup}</td><td>{item.ratioPercent}%</td><td>{kg(item.requiredKg)}</td></tr>)} />
+function FormulaTable({ items, secure = false }) {
+  const headers = secure ? ['STT', 'Mã VT', 'Tên vật tư', 'Nhóm', 'Tỷ lệ %', 'Khối lượng/lệnh'] : ['STT', 'Mã VT', 'Tên vật tư', 'Nhóm', 'Khối lượng/lệnh']
+  return <SimpleTable headers={headers} rows={items.map((item, index) => (
+    <tr key={item.id || index}>
+      <td>{index + 1}</td>
+      <td>{item.materialCode}</td>
+      <td>{item.materialName}</td>
+      <td>{item.materialGroup}</td>
+      {secure && <td>{item.ratioPercent}%</td>}
+      <td>{kg(item.requiredKg)}</td>
+    </tr>
+  ))} />
 }
 
-function OrderDetailTabs({ order, tab, productionLogs, qc2Logs }) {
+function OrderDetailTabs({ order, tab, productionLogs, qc2Logs, permissions = [] }) {
   const materials = order.activeProductionFormula || order.productionFormulaSnapshot || []
   const originalMaterials = order.originalFormulaSnapshot || order.productionFormulaSnapshot || []
+  const canViewFormula = hasAnyPermission(permissions, ['master.formula.view', 'formula.secure.view'])
+  const canSecureViewFormula = hasPermission(permissions, 'formula.secure.view')
   const qc1Rows = order.qc1Adjustments || order.qc1Logs || []
   const qc2Rows = order.qc2Adjustments || order.qc2AdjustedFormula || []
   const relatedLogs = productionLogs.filter((log) => String(log.entry || '').includes(order.orderCode || order.id))
@@ -2048,7 +2128,10 @@ function OrderDetailTabs({ order, tab, productionLogs, qc2Logs }) {
     )
   }
 
-  if (tab === 'materials') return <FormulaTable items={originalMaterials.map((item) => ({ ...item, requiredKg: item.requiredKg ?? item.materialPerLot }))} />
+  if (tab === 'materials') {
+    if (!canViewFormula) return <p className="empty-alert">Bạn chưa có quyền xem dữ liệu công thức của lệnh sản xuất.</p>
+    return <FormulaTable secure={canSecureViewFormula} items={originalMaterials.map((item) => ({ ...item, requiredKg: item.requiredKg ?? item.materialPerLot }))} />
+  }
   if (tab === 'qc1') {
     return qc1Rows.length ? <SimpleTable headers={['Thời gian', 'Kết quả', 'Số dòng chỉnh']} rows={qc1Rows.map((row) => <tr key={row.id || row.time}><td>{row.time}</td><td>{displayQcTrialText(row.result)}</td><td>{row.changes?.length || 0}</td></tr>)} /> : <p className="empty-alert">Chưa có điều chỉnh QC sản xuất thử.</p>
   }
@@ -4634,13 +4717,16 @@ function ReportsPage({ data }) {
   )
 }
 
-function MixingMachineCatalogPage({ data, setData, user }) {
+function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
   const emptyMachineDraft = { machineCode: '', machineName: '', motorPower: '', capacityKg: '', department: 'Tổ phối trộn', productionTeam: 'Tổ phối trộn', status: 'READY', note: '' }
   const [machineDraft, setMachineDraft] = useState(emptyMachineDraft)
   const [editingMachineCode, setEditingMachineCode] = useState('')
   const [notice, setNotice] = useState('')
   const machines = normalizeMixingMachines(data.mixingMachines)
   const pendingMachineRequests = (data.orders || []).filter((order) => order.machineChangeRequest?.status === 'PENDING')
+  const canCreateMachine = hasPermission(permissions, 'master.machine.create')
+  const canEditMachine = hasPermission(permissions, 'master.machine.edit')
+  const canDeleteMachine = hasPermission(permissions, 'master.machine.delete')
   const canApproveMachineChange = user?.role === 'Admin' || user?.role === 'Sản xuất'
   const updateMachineDraft = (field, value) => setMachineDraft((current) => ({ ...current, [field]: value }))
   const resetMachineDraft = () => {
@@ -4648,6 +4734,7 @@ function MixingMachineCatalogPage({ data, setData, user }) {
     setEditingMachineCode('')
   }
   const editMachine = (machine) => {
+    if (!canEditMachine) return
     setMachineDraft({
       machineCode: machine.machineCode,
       machineName: machine.machineName,
@@ -4661,6 +4748,10 @@ function MixingMachineCatalogPage({ data, setData, user }) {
     setEditingMachineCode(machine.machineCode)
   }
   const saveMachine = () => {
+    if (!(editingMachineCode ? canEditMachine : canCreateMachine)) {
+      setNotice('Bạn chưa có quyền tạo hoặc sửa danh mục máy phối trộn.')
+      return
+    }
     const machine = { ...normalizeMixingMachine(machineDraft), catalogOverride: true }
     if (!machine.machineCode || !machine.machineName || !machine.capacityKg) {
       setNotice('Vui lòng nhập Mã máy, Tên máy và Công suất kg.')
@@ -4683,6 +4774,10 @@ function MixingMachineCatalogPage({ data, setData, user }) {
     resetMachineDraft()
   }
   const deactivateMachine = (machineCode) => {
+    if (!canDeleteMachine) {
+      setNotice('Bạn chưa có quyền ngừng sử dụng máy phối trộn.')
+      return
+    }
     const machineLabel = getMixingMachineLabelByCode(machineCode, machines)
     setData((current) => addLogToData({
       ...current,
@@ -4771,21 +4866,21 @@ function MixingMachineCatalogPage({ data, setData, user }) {
     <div className="page-content admin-page">
       <section className="panel">
         <div className="section-heading-row">
-          <div><span className="section-kicker">Quản trị hệ thống</span><h2>Danh mục máy phối trộn</h2></div>
+          <div><span className="section-kicker">Dữ liệu gốc</span><h2>Danh mục máy phối trộn</h2></div>
           <div className="action-row">
-            <button type="button" className="secondary-button" onClick={resetMachineDraft}>Nhập mới</button>
-            <button type="button" className="primary-button" onClick={saveMachine}>{editingMachineCode ? 'Lưu máy' : 'Thêm máy'}</button>
+            <button type="button" className="secondary-button" disabled={!canCreateMachine} onClick={resetMachineDraft}>Nhập mới</button>
+            <button type="button" className="primary-button" disabled={editingMachineCode ? !canEditMachine : !canCreateMachine} onClick={saveMachine}>{editingMachineCode ? 'Lưu máy' : 'Thêm máy'}</button>
           </div>
         </div>
         {notice && <p className="empty-alert">{notice}</p>}
         <div className="production-form-grid order-create-form">
-          <label>Mã máy<input value={machineDraft.machineCode} onChange={(event) => updateMachineDraft('machineCode', event.target.value.toUpperCase())} placeholder="M01" disabled={Boolean(editingMachineCode)} /></label>
-          <label>Tên máy<input value={machineDraft.machineName} onChange={(event) => updateMachineDraft('machineName', event.target.value)} placeholder="Máy phối trộn 500kg" /></label>
-          <label>Công suất motor<input value={machineDraft.motorPower} onChange={(event) => updateMachineDraft('motorPower', event.target.value)} placeholder="7.5HP" /></label>
-          <label>Công suất kg<input type="number" value={machineDraft.capacityKg} onChange={(event) => updateMachineDraft('capacityKg', event.target.value)} placeholder="500" /></label>
-          <label>Tổ sản xuất/phân xưởng<input value={machineDraft.department} onChange={(event) => { updateMachineDraft('department', event.target.value); updateMachineDraft('productionTeam', event.target.value) }} placeholder="Tổ phối trộn" /></label>
-          <label>Trạng thái<select value={machineDraft.status} onChange={(event) => updateMachineDraft('status', event.target.value)}><option value="READY">READY</option><option value="INACTIVE">INACTIVE</option><option value="MAINTENANCE">MAINTENANCE</option></select></label>
-          <label className="wide-field">Ghi chú<textarea value={machineDraft.note} onChange={(event) => updateMachineDraft('note', event.target.value)} /></label>
+          <label>Mã máy<input value={machineDraft.machineCode} onChange={(event) => updateMachineDraft('machineCode', event.target.value.toUpperCase())} placeholder="M01" disabled={Boolean(editingMachineCode) || !(editingMachineCode ? canEditMachine : canCreateMachine)} /></label>
+          <label>Tên máy<input value={machineDraft.machineName} readOnly={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('machineName', event.target.value)} placeholder="Máy phối trộn 500kg" /></label>
+          <label>Công suất motor<input value={machineDraft.motorPower} readOnly={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('motorPower', event.target.value)} placeholder="7.5HP" /></label>
+          <label>Công suất kg<input type="number" value={machineDraft.capacityKg} readOnly={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('capacityKg', event.target.value)} placeholder="500" /></label>
+          <label>Tổ sản xuất/phân xưởng<input value={machineDraft.department} readOnly={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => { updateMachineDraft('department', event.target.value); updateMachineDraft('productionTeam', event.target.value) }} placeholder="Tổ phối trộn" /></label>
+          <label>Trạng thái<select value={machineDraft.status} disabled={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('status', event.target.value)}><option value="READY">READY</option><option value="INACTIVE">INACTIVE</option><option value="MAINTENANCE">MAINTENANCE</option></select></label>
+          <label className="wide-field">Ghi chú<textarea value={machineDraft.note} readOnly={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('note', event.target.value)} /></label>
         </div>
         <div className="table-wrapper">
           <table className="admin-wide-table">
@@ -4813,8 +4908,8 @@ function MixingMachineCatalogPage({ data, setData, user }) {
                   <td>{machine.note || '-'}</td>
                   <td>
                     <div className="user-action-group">
-                      <button type="button" className="secondary-button" onClick={() => editMachine(machine)}>Sửa</button>
-                      <button type="button" className="danger-button" disabled={machine.status === 'INACTIVE'} onClick={() => deactivateMachine(machine.machineCode)}>Ngừng sử dụng</button>
+                      <button type="button" className="secondary-button" disabled={!canEditMachine} onClick={() => editMachine(machine)}>Sửa</button>
+                      <button type="button" className="danger-button" disabled={!canDeleteMachine || machine.status === 'INACTIVE'} onClick={() => deactivateMachine(machine.machineCode)}>Ngừng sử dụng</button>
                     </div>
                   </td>
                 </tr>
@@ -4846,6 +4941,74 @@ function MixingMachineCatalogPage({ data, setData, user }) {
   )
 }
 
+function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, permissions = [] }) {
+  const rows = data[storageKey] || []
+  const canCreate = hasPermission(permissions, `master.${storageKey.replace('Catalog', '')}.create`)
+  const canEdit = hasPermission(permissions, `master.${storageKey.replace('Catalog', '')}.edit`)
+  const canDelete = hasPermission(permissions, `master.${storageKey.replace('Catalog', '')}.delete`)
+  const updateRow = (rowId, field, value) => {
+    if (!canEdit) return
+    setData((current) => ({
+      ...current,
+      [storageKey]: (current[storageKey] || []).map((row) => row.id === rowId ? { ...row, [field]: value } : row),
+    }))
+  }
+  const addRow = () => {
+    if (!canCreate) return
+    const next = {
+      id: uid(storageKey.replace('Catalog', '').toUpperCase()),
+      code: '',
+      name: '',
+      status: 'Hoạt động',
+      note: '',
+    }
+    fields.forEach((field) => {
+      if (next[field] == null) next[field] = ''
+    })
+    setData((current) => ({ ...current, [storageKey]: [next, ...(current[storageKey] || [])] }))
+  }
+  const deleteRow = (rowId) => {
+    if (!canDelete) return
+    setData((current) => ({ ...current, [storageKey]: (current[storageKey] || []).filter((row) => row.id !== rowId) }))
+  }
+
+  return (
+    <div className="page-content">
+      <section className="panel">
+        <div className="section-heading-row">
+          <div><span className="section-kicker">Dữ liệu gốc</span><h2>{title}</h2></div>
+          <button className="primary-button" type="button" disabled={!canCreate} onClick={addRow}>Thêm mới</button>
+        </div>
+        <div className="table-wrapper">
+          <table className="admin-wide-table">
+            <thead>
+              <tr>
+                {labels.map((label) => <th key={label}>{label}</th>)}
+                <th>Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  {fields.map((field, index) => (
+                    <td key={field} data-label={labels[index]}>
+                      <input value={row[field] || ''} readOnly={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)} />
+                    </td>
+                  ))}
+                  <td data-label="Hành động">
+                    <button className="danger-button" type="button" disabled={!canDelete} onClick={() => deleteRow(row.id)}>Xóa</button>
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && <tr><td className="empty-row" colSpan={fields.length + 1}>Chưa có dữ liệu.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function AdminPage({ authData, setAuthData }) {
   const [showCreateRole, setShowCreateRole] = useState(false)
   const [newRoleName, setNewRoleName] = useState('')
@@ -4861,6 +5024,8 @@ function AdminPage({ authData, setAuthData }) {
     ['Phối trộn', 'Phối trộn'],
     ['Đóng gói', 'Đóng gói'],
     ['Kho TP', 'Kho TP'],
+    ['HCNS', 'HCNS'],
+    ['Kinh doanh', 'Kinh doanh'],
   ]
   const baseRoleNames = baseRoles.map(([role]) => role)
   const extraRoles = Object.keys(authData.roles || {})
@@ -4870,13 +5035,26 @@ function AdminPage({ authData, setAuthData }) {
     ...baseRoles.filter(([role]) => authData.roles?.[role]),
     ...extraRoles,
   ]
-  const menuItems = defaultNavItems.filter((item) => !item.parentId)
-  const allPermissionIds = menuItems.map((item) => item.id)
+  const operationPermissionRows = defaultNavItems
+    .filter((item) => !item.parentId && item.permission && item.type !== 'group')
+    .map((item) => ({ label: item.label, permissions: [{ action: 'Truy cập', id: item.permission }] }))
+  const masterPermissionRows = masterPermissionGroups.map(([key, label]) => ({
+    label,
+    permissions: CRUD_ACTIONS.map((action) => ({ action: action[0].toUpperCase() + action.slice(1), id: `master.${key}.${action}` })),
+  }))
+  const systemPermissionRows = [
+    { label: 'Quản trị hệ thống / Người dùng', permissions: [{ action: 'Truy cập', id: 'admin' }] },
+    { label: 'Quản trị hệ thống / Vai trò', permissions: [{ action: 'Truy cập', id: 'admin' }] },
+    { label: 'Quản trị hệ thống / Ma trận phân quyền', permissions: [{ action: 'Truy cập', id: 'admin' }] },
+    { label: 'Bảo mật công thức / Xem tỷ lệ đầy đủ', permissions: [{ action: 'Secure view', id: 'formula.secure.view' }] },
+  ]
+  const permissionRows = [...operationPermissionRows, ...masterPermissionRows, ...systemPermissionRows]
+  const allPermissionIds = allSystemPermissionIds
   const withAdminPermissions = (nextAuth) => ({
     ...nextAuth,
     roles: {
       ...nextAuth.roles,
-      Admin: defaultNavItems.map((item) => item.id),
+      Admin: allSystemPermissionIds,
     },
   })
   const updateAuth = (nextAuth, message = 'Đã cập nhật phân quyền.') => {
@@ -5047,15 +5225,31 @@ function AdminPage({ authData, setAuthData }) {
               </tr>
             </thead>
             <tbody>
-              {menuItems.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.label}</td>
+              {permissionRows.map((item) => (
+                <tr key={item.label}>
+                  <td>
+                    <strong>{item.label}</strong>
+                    <div className="permission-action-row">
+                      {item.permissions.map((permission) => <span key={permission.id}>{permission.action}</span>)}
+                    </div>
+                  </td>
                   {roles.map(([role]) => {
-                    const checked = role === 'Admin' || (authData.roles[role] || []).includes(item.id)
+                    const checked = role === 'Admin' || item.permissions.every((permission) => (authData.roles[role] || []).includes(permission.id))
                     const disabled = role === 'Admin'
                     return (
-                      <td key={`${role}-${item.id}`}>
-                        <input type="checkbox" checked={checked} disabled={disabled} onChange={() => togglePermission(role, item.id)} />
+                      <td key={`${role}-${item.label}`}>
+                        <div className="permission-action-checks">
+                          {item.permissions.map((permission) => (
+                            <input
+                              key={permission.id}
+                              type="checkbox"
+                              checked={role === 'Admin' || (authData.roles[role] || []).includes(permission.id)}
+                              disabled={disabled}
+                              title={`${permission.action}: ${permission.id}`}
+                              onChange={() => togglePermission(role, permission.id)}
+                            />
+                          ))}
+                        </div>
                       </td>
                     )
                   })}
@@ -5099,6 +5293,14 @@ const pageMeta = {
   logs: ['Nhật ký sản xuất', 'Lịch sử thao tác toàn quy trình'],
   reports: ['Báo cáo', 'Dashboard và báo cáo V3'],
   admin: ['Quản trị hệ thống', 'Vai trò và phân quyền'],
+  'admin-users': ['Người dùng', 'Quản lý tài khoản hệ thống'],
+  'admin-roles': ['Vai trò', 'Quản lý vai trò hệ thống'],
+  'admin-permissions': ['Ma trận phân quyền', 'Phân quyền chi tiết theo chức năng'],
+  'master-materials': ['Danh mục vật tư', 'Dữ liệu gốc vật tư dùng trong sản xuất'],
+  'master-products': ['Danh mục sản phẩm', 'Dữ liệu gốc sản phẩm'],
+  'master-suppliers': ['Danh mục nhà cung cấp', 'Dữ liệu gốc nhà cung cấp'],
+  'master-customers': ['Danh mục khách hàng', 'Dữ liệu gốc khách hàng'],
+  'master-employees': ['Danh sách nhân viên', 'Nhân sự vận hành trong phạm vi sản xuất'],
   'admin-machines': ['Danh mục máy phối trộn', 'Khai báo máy, trạng thái và đề nghị đổi máy'],
 }
 
@@ -5178,10 +5380,17 @@ function App() {
   const user = currentUser && authData.users.find((item) => item.username === currentUser.username)
   const navItems = useMemo(() => {
     const permissions = authData.roles[user?.role] || []
-    return defaultNavItems.filter((item) => permissions.includes(item.id) || (item.parentId && permissions.includes(item.parentId)))
+    const visibleChildren = new Set(defaultNavItems
+      .filter((item) => item.parentId && hasPermission(permissions, pagePermission(item)))
+      .map((item) => item.parentId))
+    return defaultNavItems.filter((item) => {
+      if (!item.parentId && item.type === 'group') return visibleChildren.has(item.id)
+      return hasPermission(permissions, pagePermission(item))
+    })
   }, [authData.roles, user])
-  const visiblePageIds = useMemo(() => navItems.map((item) => item.id), [navItems])
-  const page = visiblePageIds.includes(selectedPage) ? selectedPage : navItems[0]?.id || 'dashboard'
+  const userPermissions = authData.roles[user?.role] || []
+  const visiblePageIds = useMemo(() => navItems.filter((item) => item.type !== 'group').map((item) => item.id), [navItems])
+  const page = visiblePageIds.includes(selectedPage) ? selectedPage : visiblePageIds[0] || 'dashboard'
   const [title, subtitle] = pageMeta[page] || pageMeta.dashboard
 
   const login = (username, password) => {
@@ -5214,8 +5423,8 @@ function App() {
   const pages = {
     dashboard: <DashboardPage data={data} />,
     'raw-materials': <RawMaterialsPage data={data} setData={setData} />,
-    formulas: <FormulasPage data={data} setData={setData} />,
-    orders: <OrdersPage data={data} setData={setData} />,
+    formulas: <FormulasPage data={data} setData={setData} permissions={userPermissions} />,
+    orders: <OrdersPage data={data} setData={setData} permissions={userPermissions} />,
     qc: <QCPage data={data} setData={setData} />,
     chemical: <WeighingPage data={data} setData={setData} group={CHEMICAL} />,
     solid: <WeighingPage data={data} setData={setData} group={SOLID} />,
@@ -5226,7 +5435,15 @@ function App() {
     logs: <LogsPage data={data} />,
     reports: <ReportsPage data={data} />,
     admin: <AdminPage authData={authData} setAuthData={setAuthData} />,
-    'admin-machines': <MixingMachineCatalogPage data={data} setData={setData} user={user} />,
+    'admin-users': <AdminPage authData={authData} setAuthData={setAuthData} />,
+    'admin-roles': <AdminPage authData={authData} setAuthData={setAuthData} />,
+    'admin-permissions': <AdminPage authData={authData} setAuthData={setAuthData} />,
+    'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'materialGroup', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'group', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã KH', 'Tên KH', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-employees': <MasterCatalogPage title="Danh sách nhân viên" storageKey="employeeCatalog" fields={['code', 'name', 'department', 'role', 'status', 'note']} labels={['Mã NV', 'Họ tên', 'Bộ phận', 'Vai trò vận hành', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
+    'admin-machines': <MixingMachineCatalogPage data={data} setData={setData} user={user} permissions={userPermissions} />,
   }
 
   return (

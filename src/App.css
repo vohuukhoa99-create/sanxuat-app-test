@@ -94,6 +94,20 @@
   line-height: 1.25;
 }
 
+.nav-parent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nav-caret {
+  flex: 0 0 auto;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 12px;
+  line-height: 1;
+}
+
 .nav-item:hover,
 .nav-item.active {
   background: rgba(0, 169, 224, 0.18);
@@ -2057,6 +2071,25 @@ tbody tr:hover {
   overflow: hidden;
   text-overflow: clip;
   flex: 1 1 0;
+}
+
+.permission-action-row,
+.permission-action-checks {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px;
+  align-items: center;
+}
+
+.permission-action-row {
+  margin-top: 3px;
+  color: #60766b;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.permission-action-checks {
+  justify-items: center;
 }
 
 .permission-matrix input[type='checkbox'] {
