@@ -33,6 +33,18 @@ const kg = (value) => `${num(value).toLocaleString('vi-VN', { maximumFractionDig
 const uid = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
 const RAW_MATERIAL_QR_TYPE = 'RAW_MATERIAL_LOT'
 
+function parseScaleWeightKg(text = '') {
+  const normalized = String(text)
+    .replace(/\r/g, '\n')
+    .replace(/,/g, '.')
+    .toLowerCase()
+  const kgMatches = [...normalized.matchAll(/[-+]?\s*\d+(?:\.\d+)?\s*kg/g)]
+  const source = kgMatches.at(-1)?.[0] || [...normalized.matchAll(/[-+]?\s*\d+(?:\.\d+)?/g)].at(-1)?.[0] || ''
+  if (!source) return null
+  const value = Number(source.replace(/kg/g, '').replace(/\s/g, ''))
+  return Number.isFinite(value) ? Math.abs(value) : null
+}
+
 function rawMaterialLotStatus(lot) {
   const initialQty = num(lot.initialQty)
   const remainingQty = num(lot.remainingQty)
@@ -2869,6 +2881,13 @@ function WeighingPage({ data, setData, group }) {
   const [warning, setWarning] = useState('')
   const [printQrModal, setPrintQrModal] = useState(null)
   const [weighingDetailModal, setWeighingDetailModal] = useState(null)
+  const [scaleStatus, setScaleStatus] = useState('Chưa kết nối cân')
+  const [scaleRawText, setScaleRawText] = useState('')
+  const [scaleWeightKg, setScaleWeightKg] = useState(null)
+  const [scaleSupported, setScaleSupported] = useState(true)
+  const scalePortRef = useRef(null)
+  const scaleReaderRef = useRef(null)
+  const scaleReadingRef = useRef(false)
   const activeOrder = pendingOrders.find((order) => order.id === activeOrderId)
   const waitingOrders = pendingOrders.filter((order) => order.id !== activeOrder?.id && order.status === 'Chờ cân')
   const activeItems = activeOrder ? getItems(activeOrder) : []
@@ -2880,6 +2899,67 @@ function WeighingPage({ data, setData, group }) {
   const activeContainers = activeOrder ? getOrderGroupContainers(data.weighedContainers || [], activeOrder, activeWeighingType).filter((item) => item.materialGroup === group) : []
   const completedWeighingContainers = normalizeWeighedContainers(data.weighedContainers || []).filter((item) => item.materialGroup === group).reverse()
   const latestContainer = completedWeighingContainers[0]
+
+  useEffect(() => {
+    setScaleSupported(typeof navigator !== 'undefined' && Boolean(navigator.serial))
+    return () => {
+      scaleReadingRef.current = false
+      scaleReaderRef.current?.cancel().catch(() => {})
+      scalePortRef.current?.close().catch(() => {})
+    }
+  }, [])
+
+  const connectScale = async () => {
+    if (typeof navigator === 'undefined' || !navigator.serial) {
+      setScaleSupported(false)
+      setWarning('Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.')
+      return
+    }
+    try {
+      scaleReadingRef.current = false
+      await scaleReaderRef.current?.cancel().catch(() => {})
+      await scalePortRef.current?.close().catch(() => {})
+      const port = await navigator.serial.requestPort()
+      await port.open({
+        baudRate: 9600,
+        dataBits: 8,
+        stopBits: 1,
+        parity: 'none',
+        flowControl: 'none',
+      })
+      scalePortRef.current = port
+      scaleReadingRef.current = true
+      setScaleStatus('Đã kết nối cân')
+      setWarning('')
+      const decoder = new TextDecoder()
+      let buffer = ''
+      while (scaleReadingRef.current && port.readable) {
+        const reader = port.readable.getReader()
+        scaleReaderRef.current = reader
+        try {
+          while (scaleReadingRef.current) {
+            const { value, done } = await reader.read()
+            if (done) break
+            const chunk = decoder.decode(value, { stream: true })
+            if (!chunk) continue
+            buffer = `${buffer}${chunk}`.slice(-240)
+            setScaleRawText(buffer.trim())
+            const parsed = parseScaleWeightKg(buffer)
+            if (parsed != null) setScaleWeightKg(parsed)
+          }
+        } finally {
+          reader.releaseLock()
+        }
+      }
+    } catch (error) {
+      if (error?.name === 'NotFoundError') {
+        setScaleStatus('Chưa chọn cổng cân')
+        return
+      }
+      setScaleStatus('Mất kết nối cân')
+      setWarning(`Không đọc được dữ liệu cân: ${error.message}`)
+    }
+  }
 
   const handleViewWeighingDetail = (container) => {
     setWeighingDetailModal(container)
@@ -3062,11 +3142,18 @@ function WeighingPage({ data, setData, group }) {
               <h2>{activeTitle}</h2>
             </div>
             <div className="action-row">
+              <button className="secondary-button weighing-finish-button" type="button" onClick={connectScale}>Kết nối cân</button>
               <button className="secondary-button weighing-finish-button" onClick={createDemoQrData}>Tạo dữ liệu demo QR</button>
               {canFinish && <button className="primary-button weighing-finish-button" onClick={finishActiveOrder}>{group === CHEMICAL ? 'Hoàn thành cân hóa' : 'Hoàn thành cân rắn'}</button>}
             </div>
           </div>
           {warning && <div className="process-alert">{warning}</div>}
+          {!scaleSupported && <div className="process-alert">Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.</div>}
+          <div className="scale-serial-panel">
+            <div><span>Trạng thái cân</span><strong>{scaleStatus}</strong></div>
+            <div><span>Khối lượng cân hiện tại</span><strong>{scaleWeightKg == null ? '-' : kg(scaleWeightKg)}</strong></div>
+            <div className="scale-raw-text"><span>Dữ liệu nhận được</span><strong>{scaleRawText || '-'}</strong></div>
+          </div>
           {!activeOrder && <p className="empty-alert">Chưa có lệnh nào đang cân. Vui lòng chọn một lệnh từ danh sách chờ.</p>}
           {activeOrder && (
             <>
@@ -3083,7 +3170,7 @@ function WeighingPage({ data, setData, group }) {
                 <strong>{progress}%</strong>
               </div>
               <SimpleTable headers={['STT', 'Mã VT yêu cầu', 'Tên VT', 'Cần cân', 'QR lô đã quét', 'Lô nhập', 'Tồn trước', 'Thực cân', 'Tồn sau', 'Khớp QR', 'Trạng thái']} rows={activeItems.map((item, index) => (
-                <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} scaleType={scaleKey} setWarning={setWarning} />
+                <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} />
               ))} empty={`Không có vật tư nhóm ${group}.`} />
               {activeContainers.map((container) => <WeighedContainerCard key={container.containerId} container={container} onPrint={handlePrintQr} onDetail={handleViewWeighingDetail} />)}
             </>
@@ -3248,7 +3335,7 @@ function WeighingOrderGroup({ title, orders, activeId, onStart, showStart = fals
   )
 }
 
-function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots = [], scaleType, setWarning }) {
+function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots = [], scaleType, setWarning, scaleWeightKg = null }) {
   const [qrInput, setQrInput] = useState(item.qrScanned || '')
   const [weight, setWeight] = useState(item.actualWeight || '')
   const qrPassed = item.qrStatus === 'PASS'
@@ -3277,13 +3364,13 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       note: item.note,
     }, `QR PASS ${order.id} - ${item.materialCode}, lô ${result.lot.lotCode}.`)
   }
-  const confirmWeight = () => {
+  const confirmWeight = (overrideWeight = null) => {
     if (!active) return
     if (!qrPassed || !item.rawMaterialLotCode) {
       setWarning?.('Vui lòng quét QR lô nguyên liệu hợp lệ trước khi cân.')
       return
     }
-    const actualWeight = num(weight)
+    const actualWeight = num(overrideWeight ?? weight)
     const lot = rawMaterialLots.find((row) => row.lotCode === item.rawMaterialLotCode && row.materialCode === item.materialCode)
     if (!lot) {
       setWarning?.('Không tìm thấy lô nguyên liệu trong kho.')
@@ -3317,6 +3404,14 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       scaleType,
     } : null)
   }
+  const recordScaleWeight = () => {
+    if (scaleWeightKg == null) {
+      setWarning?.('Chưa có dữ liệu khối lượng từ cân.')
+      return
+    }
+    setWeight(scaleWeightKg)
+    confirmWeight(scaleWeightKg)
+  }
   return (
     <tr className={`${active ? 'weighing-active-row' : ''} ${completed ? 'weighing-completed-row' : ''}`}>
       <td>{index + 1}</td>
@@ -3326,7 +3421,7 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       <td><div className="weighing-inline-action">{active && !qrPassed ? <><input value={qrInput} onChange={(event) => setQrInput(event.target.value)} /><button className="secondary-button" onClick={confirmQr}>QR</button></> : <span>{item.qrScanned || '-'}</span>}{qrPassed ? <span className="weighing-check">QR PASS</span> : item.qrStatus === 'FAIL' ? <span className="weighing-fail">QR FAIL</span> : null}</div></td>
       <td>{item.rawMaterialLotCode || '-'}</td>
       <td>{remainingBefore === '' || remainingBefore == null ? '-' : kg(remainingBefore)}</td>
-      <td>{active && qrPassed && !weightPassed ? <div className="weighing-inline-action"><input type="number" value={weight} onChange={(event) => setWeight(event.target.value)} /><button className="primary-button" onClick={confirmWeight}>Cân</button></div> : actual === '' ? '-' : kg(actual)}</td>
+      <td>{active && qrPassed && !weightPassed ? <div className="weighing-inline-action"><input type="number" value={weight} onChange={(event) => setWeight(event.target.value)} /><button className="primary-button" onClick={() => confirmWeight()}>Cân</button><button className="secondary-button" disabled={scaleWeightKg == null} onClick={recordScaleWeight}>Ghi nhận khối lượng</button></div> : actual === '' ? '-' : kg(actual)}</td>
       <td>{remainingAfter === '' || remainingAfter == null ? '-' : kg(remainingAfter)}</td>
       <td>{item.qrMatchStatus || item.qrStatus || '-'}</td>
       <td>{completed ? <span className="weighing-check">✓ Hoàn thành</span> : qrPassed ? <span className="weighing-check">✓ QR đạt</span> : active ? 'Đang thao tác' : '-'}</td>
