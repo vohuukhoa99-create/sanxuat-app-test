@@ -267,6 +267,25 @@ const getOrderAssignedMachineLabel = (order = {}, machines = []) => {
   return formatMixingMachineLabel({ machineCode: code, machineName: name, capacityKg: capacity })
 }
 
+const productionAssignmentStages = ['Cân hóa', 'Cân rắn', 'Phối trộn', 'QC', 'Đóng gói', 'Kho thành phẩm']
+const roleAssignmentStageMap = {
+  'Cân hóa': ['Cân hóa'],
+  'Cân rắn': ['Cân rắn'],
+  'Phối trộn': ['Phối trộn'],
+}
+const getStageAssignmentsForRole = (assignments = [], role = '') => {
+  const stages = roleAssignmentStageMap[role]
+  return stages ? assignments.filter((item) => stages.includes(item.stage)) : assignments
+}
+const getActiveAssignments = (assignments = [], stage, date = todayText(), shiftCode = '') => (
+  assignments.filter((item) => (
+    item.date === date
+    && item.stage === stage
+    && item.status !== 'Hủy'
+    && (!shiftCode || item.shiftCode === shiftCode)
+  ))
+)
+
 const initialData = {
   rawMaterials: [
     normalizeRawMaterialLot({ id: 'RM-001', materialCode: 'PASTE 02', materialName: 'Paste nền 02', materialGroup: CHEMICAL, lotCode: 'NVL-260613-01', importDate: '2026-06-13', supplier: 'HB Chemical', initialQty: 320, remainingQty: 320, unit: 'kg' }),
@@ -312,10 +331,22 @@ const initialData = {
     { id: 'CUS-QC2', code: 'CUS-QC2', name: 'Đơn hàng mẫu QC2', phone: '', address: '', status: 'Hoạt động', note: '' },
   ],
   employeeCatalog: [
-    { id: 'EMP-KHO-NL', code: 'EMP-KHO-NL', name: 'Nhân sự kho nguyên liệu', department: 'Kho nguyên liệu', role: 'Kho NL', status: 'Hoạt động', note: 'Phạm vi vận hành sản xuất' },
-    { id: 'EMP-QC', code: 'EMP-QC', name: 'Nhân sự QC', department: 'QC', role: 'QC', status: 'Hoạt động', note: 'Phạm vi vận hành sản xuất' },
-    { id: 'EMP-PHOI-TRON', code: 'EMP-PHOI-TRON', name: 'Nhân sự phối trộn', department: 'Tổ phối trộn', role: 'Phối trộn', status: 'Hoạt động', note: 'Phạm vi vận hành sản xuất' },
+    { id: 'EMP-CAN-HOA', code: 'EMP-CAN-HOA', name: 'Nguyễn Đại Phú', productionTeam: 'TH', title: 'Tổ trưởng', operationRole: 'Cân hóa', status: 'Hoạt động', qrEmployee: 'EMP-CAN-HOA' },
+    { id: 'EMP-CAN-RAN', code: 'EMP-CAN-RAN', name: 'Trần Minh Kha', productionTeam: 'TC', title: 'Tổ trưởng', operationRole: 'Cân rắn', status: 'Hoạt động', qrEmployee: 'EMP-CAN-RAN' },
+    { id: 'EMP-PHOI-TRON', code: 'EMP-PHOI-TRON', name: 'Lê Phương Bình', productionTeam: 'TP1', title: 'Tổ trưởng', operationRole: 'Phối trộn', status: 'Hoạt động', qrEmployee: 'EMP-PHOI-TRON' },
+    { id: 'EMP-PHOI-TRON-2', code: 'EMP-PHOI-TRON-2', name: 'Nguyễn Văn Tân', productionTeam: 'TP2', title: 'Tổ trưởng', operationRole: 'Phối trộn', status: 'Hoạt động', qrEmployee: 'EMP-PHOI-TRON-2' },
   ],
+  teamCatalog: [
+    { id: 'TEAM-TP1', code: 'TP1', name: 'Tổ phối trộn 1', leader: 'Lê Phương Bình', note: '', status: 'Hoạt động' },
+    { id: 'TEAM-TP2', code: 'TP2', name: 'Tổ phối trộn 2', leader: 'Nguyễn Văn Tân', note: '', status: 'Hoạt động' },
+    { id: 'TEAM-TH', code: 'TH', name: 'Tổ Hóa', leader: 'Nguyễn Đại Phú', note: '', status: 'Hoạt động' },
+    { id: 'TEAM-TC', code: 'TC', name: 'Tổ Cát', leader: 'Trần Minh Kha', note: '', status: 'Hoạt động' },
+  ],
+  shiftCatalog: [
+    { id: 'SHIFT-C1', code: 'C1', name: 'Ca ngày', startTime: '07:00', endTime: '17:00', note: '', status: 'Hoạt động' },
+    { id: 'SHIFT-C2', code: 'C2', name: 'Ca tăng ca', startTime: '17:00', endTime: '21:00', note: '', status: 'Hoạt động' },
+  ],
+  productionAssignments: [],
   mixingMachines: defaultMixingMachines,
 }
 
@@ -385,15 +416,23 @@ const masterPermissionGroups = [
   ['supplier', 'Dữ liệu gốc / Danh mục nhà cung cấp'],
   ['customer', 'Dữ liệu gốc / Danh mục khách hàng'],
   ['employee', 'Dữ liệu gốc / Danh sách nhân viên'],
+  ['team', 'Dữ liệu gốc / Danh mục tổ sản xuất'],
+  ['shift', 'Dữ liệu gốc / Danh mục ca làm việc'],
   ['machine', 'Dữ liệu gốc / Danh mục máy phối trộn'],
   ['formula', 'Dữ liệu gốc / Công thức gốc'],
 ]
 const masterPermissionIds = masterPermissionGroups.flatMap(([key]) => CRUD_ACTIONS.map((action) => `master.${key}.${action}`))
+const productionPermissionGroups = [
+  ['assignment', 'Sản xuất / Phân công nhân sự theo ca'],
+]
+const productionPermissionIds = productionPermissionGroups.flatMap(([key]) => CRUD_ACTIONS.map((action) => `production.${key}.${action}`))
 const masterFull = (key) => CRUD_ACTIONS.map((action) => `master.${key}.${action}`)
 const masterView = (key) => [`master.${key}.view`]
+const productionFull = (key) => CRUD_ACTIONS.map((action) => `production.${key}.${action}`)
+const productionView = (key) => [`production.${key}.view`]
 const systemPermissionIds = ['admin']
 const menuPermissionIds = defaultNavItems.map((item) => item.permission || (item.type !== 'group' ? item.id : '')).filter((id, index, items) => id && items.indexOf(id) === index)
-const allSystemPermissionIds = Array.from(new Set([...menuPermissionIds, ...masterPermissionIds, ...systemPermissionIds, 'formula.secure.view']))
+const allSystemPermissionIds = Array.from(new Set([...menuPermissionIds, ...masterPermissionIds, ...productionPermissionIds, ...systemPermissionIds, 'formula.secure.view']))
 const hasPermission = (permissions = [], permission) => permissions.includes(permission)
 const hasAnyPermission = (permissions = [], permissionIds = []) => permissionIds.some((permission) => hasPermission(permissions, permission))
 const pagePermission = (item) => item.permission || item.id
@@ -402,14 +441,14 @@ const defaultRoles = {
   Admin: allSystemPermissionIds,
   'Kho NL': ['dashboard', 'raw-materials', 'logs', ...masterView('material'), ...masterView('supplier')],
   'Kỹ thuật': ['dashboard', 'logs', ...masterFull('material'), ...masterFull('product'), ...masterFull('formula'), ...masterView('machine'), ...masterView('supplier'), 'formula.secure.view'],
-  'Sản xuất': ['dashboard', 'orders', 'logs', ...masterView('product'), ...masterView('machine'), ...masterView('customer')],
+  'Sản xuất': ['dashboard', 'orders', 'logs', ...productionFull('assignment'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('product'), ...masterView('machine'), ...masterView('customer')],
   QC: ['dashboard', 'qc', 'finished-qc', 'logs', 'reports', ...masterView('product'), ...masterView('formula')],
-  'Cân hóa': ['dashboard', 'chemical', 'logs'],
-  'Cân rắn': ['dashboard', 'solid', 'logs'],
-  'Phối trộn': ['dashboard', 'mixing', 'logs', ...masterView('machine')],
+  'Cân hóa': ['dashboard', 'chemical', 'logs', ...productionView('assignment')],
+  'Cân rắn': ['dashboard', 'solid', 'logs', ...productionView('assignment')],
+  'Phối trộn': ['dashboard', 'mixing', 'logs', ...productionView('assignment'), ...masterView('machine')],
   'Đóng gói': ['dashboard', 'packaging', 'logs'],
   'Kho TP': ['dashboard', 'finished-goods', 'logs'],
-  'Quản đốc': ['dashboard', 'orders', 'qc', 'chemical', 'solid', 'mixing', 'finished-qc', 'packaging', 'finished-goods', 'logs', 'reports', ...masterFull('employee')],
+  'Quản đốc': ['dashboard', 'orders', 'qc', 'chemical', 'solid', 'mixing', 'finished-qc', 'packaging', 'finished-goods', 'logs', 'reports', ...productionFull('assignment'), ...masterFull('employee'), ...masterFull('team'), ...masterFull('shift')],
   'Ban giám đốc': ['dashboard', 'finished-qc', 'reports', 'logs'],
   HCNS: ['dashboard', 'logs'],
   'Kinh doanh': ['dashboard', 'logs', ...masterFull('customer'), ...masterView('product')],
@@ -464,6 +503,9 @@ function expandLegacyPermissions(permissions = []) {
     'master-suppliers': masterFull('supplier'),
     'master-customers': masterFull('customer'),
     'master-employees': masterFull('employee'),
+    'master-teams': masterFull('team'),
+    'master-shifts': masterFull('shift'),
+    'production-assignments': productionFull('assignment'),
     admin: ['admin'],
     'admin-users': ['admin'],
     'admin-roles': ['admin'],
@@ -2901,6 +2943,8 @@ function WeighingPage({ data, setData, group }) {
   const activeContainers = activeOrder ? getOrderGroupContainers(data.weighedContainers || [], activeOrder, activeWeighingType).filter((item) => item.materialGroup === group) : []
   const completedWeighingContainers = normalizeWeighedContainers(data.weighedContainers || []).filter((item) => item.materialGroup === group).reverse()
   const latestContainer = completedWeighingContainers[0]
+  const assignmentStage = group === CHEMICAL ? 'Cân hóa' : 'Cân rắn'
+  const currentAssignments = getActiveAssignments(data.productionAssignments || [], assignmentStage)
 
   useEffect(() => {
     setScaleSupported(typeof navigator !== 'undefined' && Boolean(navigator.serial))
@@ -3158,6 +3202,9 @@ function WeighingPage({ data, setData, group }) {
             </div>
           </div>
           {warning && <div className="process-alert">{warning}</div>}
+          <div className="process-alert assignment-context">
+            <strong>Phân công ca hiện tại:</strong> {currentAssignments.length ? currentAssignments.map((item) => `${item.employeeName} (${item.shiftCode}${item.productionTeamName ? ` - ${item.productionTeamName}` : ''})`).join(', ') : 'Chưa có phân công.'}
+          </div>
           {!scaleSupported && <div className="process-alert">Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.</div>}
           <div className="scale-serial-panel">
             <div><span>Trạng thái cân</span><strong>{scaleStatus}</strong></div>
@@ -3484,6 +3531,7 @@ function MixingPage({ data, setData }) {
   const [qrForms, setQrForms] = useState({})
   const [changeRequestDraft, setChangeRequestDraft] = useState(null)
   const [warning, setWarning] = useState('')
+  const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'Phối trộn')
   const activeMixingOrders = orders.filter((order) => order.mixing?.status === 'Active' || order.mixingStatus === 'Active')
   const readyOrders = orders.filter((order) => getOrderAssignedMachineCode(order))
   const mixingHistory = orders.filter((order) => order.mixingStatus === 'completed' || order.mixing?.status === 'Completed' || order.mixingCompletedAt)
@@ -3684,6 +3732,9 @@ function MixingPage({ data, setData }) {
           <button className="primary-button" onClick={createDemoQrData}>Tạo dữ liệu demo QR</button>
         </div>
         {warning && <div className="process-alert">{warning}</div>}
+        <div className="process-alert assignment-context">
+          <strong>Phân công ca hiện tại:</strong> {currentAssignments.length ? currentAssignments.map((item) => `${item.employeeName} (${item.shiftCode}${item.machineName ? ` - ${item.machineName}` : ''})`).join(', ') : 'Chưa có phân công.'}
+        </div>
         <div className="table-wrapper mixing-machine-table-wrapper">
           <table className="mixing-machine-table">
             <thead>
@@ -5053,11 +5104,146 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
   )
 }
 
-function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, permissions = [] }) {
+function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
+  const canCreate = hasPermission(permissions, 'production.assignment.create')
+  const canEdit = hasPermission(permissions, 'production.assignment.edit')
+  const canDelete = hasPermission(permissions, 'production.assignment.delete')
+  const visibleStages = roleAssignmentStageMap[user?.role] || productionAssignmentStages
+  const activeEmployees = (data.employeeCatalog || []).filter((employee) => employee.status !== 'Ngừng sử dụng')
+  const shifts = data.shiftCatalog || []
+  const teams = data.teamCatalog || []
+  const machines = getActiveMixingMachines(normalizeMixingMachines(data.mixingMachines || []))
+  const defaultStage = visibleStages[0] || productionAssignmentStages[0]
+  const [notice, setNotice] = useState('')
+  const [form, setForm] = useState({
+    date: todayText(),
+    shiftCode: shifts[0]?.code || '',
+    stage: defaultStage,
+    machineCode: '',
+    employeeCode: activeEmployees[0]?.code || '',
+  })
+  const updateForm = (field, value) => {
+    setForm((current) => {
+      const next = { ...current, [field]: value }
+      if (field === 'stage' && value !== 'Phối trộn') next.machineCode = ''
+      return next
+    })
+  }
+  const employeeByCode = (code) => activeEmployees.find((employee) => employee.code === code)
+  const teamByCode = (code) => teams.find((team) => team.code === code)
+  const shiftByCode = (code) => shifts.find((shift) => shift.code === code)
+  const machineByCode = (code) => machines.find((machine) => machine.machineCode === code)
+  const visibleAssignments = getStageAssignmentsForRole(data.productionAssignments || [], user?.role)
+    .slice()
+    .sort((a, b) => `${b.date} ${b.assignedAt}`.localeCompare(`${a.date} ${a.assignedAt}`, 'vi', { numeric: true }))
+  const saveAssignment = () => {
+    if (!canCreate) return
+    const employee = employeeByCode(form.employeeCode)
+    const shift = shiftByCode(form.shiftCode)
+    const machine = form.stage === 'Phối trộn' ? machineByCode(form.machineCode) : null
+    if (!employee || !shift || !form.date || !form.stage) {
+      setNotice('Vui lòng chọn đủ ngày, ca, công đoạn và nhân viên.')
+      return
+    }
+    if (form.stage === 'Phối trộn' && !machine) {
+      setNotice('Vui lòng chọn máy phối trộn cho công đoạn Phối trộn.')
+      return
+    }
+    const assignedAt = nowText()
+    const team = teamByCode(employee.productionTeam)
+    const assignment = {
+      id: uid('ASSIGN'),
+      date: form.date,
+      shiftCode: shift.code,
+      shiftName: shift.name,
+      stage: form.stage,
+      machineCode: machine?.machineCode || '',
+      machineName: machine ? formatMixingMachineLabel(machine) : '',
+      employeeCode: employee.code,
+      employeeName: employee.name,
+      employeeQr: employee.qrEmployee || employee.qr || '',
+      productionTeam: employee.productionTeam || '',
+      productionTeamName: team?.name || employee.productionTeam || '',
+      assignedBy: user?.fullName || user?.username || 'Hệ thống',
+      assignedAt,
+      status: 'Đang phân công',
+    }
+    setData((current) => addLogToData({
+      ...current,
+      productionAssignments: [assignment, ...(current.productionAssignments || [])],
+    }, `Phân công ${assignment.employeeName} vào ${assignment.stage} ca ${assignment.shiftCode} ngày ${assignment.date}.`))
+    setNotice('Đã lưu phân công.')
+  }
+  const updateAssignmentStatus = (assignmentId, status) => {
+    if (!canEdit) return
+    setData((current) => ({
+      ...current,
+      productionAssignments: (current.productionAssignments || []).map((item) => item.id === assignmentId ? { ...item, status } : item),
+    }))
+  }
+  const deleteAssignment = (assignmentId) => {
+    if (!canDelete) return
+    setData((current) => ({
+      ...current,
+      productionAssignments: (current.productionAssignments || []).filter((item) => item.id !== assignmentId),
+    }))
+  }
+
+  return (
+    <div className="page-content production-assignment-page">
+      <section className="panel">
+        <div className="section-heading-row">
+          <div>
+            <span className="section-kicker">Sản xuất</span>
+            <h2>Phân công nhân sự theo ca</h2>
+            <p className="panel-text">Dữ liệu phục vụ nhận diện nhân sự đang trực ở công đoạn, sẵn sàng nối QR nhân viên và cân điện tử sau này.</p>
+          </div>
+          <button className="primary-button" type="button" disabled={!canCreate} onClick={saveAssignment}>Lưu phân công</button>
+        </div>
+        <div className="production-form-grid order-create-form">
+          <label>Ngày<input type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} /></label>
+          <label>Ca làm việc<select value={form.shiftCode} onChange={(event) => updateForm('shiftCode', event.target.value)}>{shifts.map((shift) => <option key={shift.code} value={shift.code}>{shift.code} / {shift.name}</option>)}</select></label>
+          <label>Công đoạn<select value={form.stage} onChange={(event) => updateForm('stage', event.target.value)}>{visibleStages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select></label>
+          {form.stage === 'Phối trộn' && (
+            <label>Máy phối trộn<select value={form.machineCode} onChange={(event) => updateForm('machineCode', event.target.value)}><option value="">Chọn máy</option>{machines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}</select></label>
+          )}
+          <label className={form.stage === 'Phối trộn' ? '' : 'wide-field'}>Nhân viên<select value={form.employeeCode} onChange={(event) => updateForm('employeeCode', event.target.value)}>{activeEmployees.map((employee) => <option key={employee.code} value={employee.code}>{employee.code} / {employee.name}</option>)}</select></label>
+        </div>
+        {notice && <div className="process-alert">{notice}</div>}
+      </section>
+      <section className="panel">
+        <h3>Bảng phân công</h3>
+        <SimpleTable tableClassName="production-assignment-table" headers={['Ngày', 'Ca', 'Công đoạn', 'Máy', 'Nhân viên', 'Tổ sản xuất', 'Người phân công', 'Thời gian phân công', 'Trạng thái', 'Hành động']} rows={visibleAssignments.map((item) => (
+          <tr key={item.id}>
+            <td>{item.date}</td>
+            <td>{item.shiftCode} / {item.shiftName}</td>
+            <td>{item.stage}</td>
+            <td>{item.machineName || item.machineCode || '-'}</td>
+            <td>{item.employeeName}</td>
+            <td>{item.productionTeamName || item.productionTeam || '-'}</td>
+            <td>{item.assignedBy}</td>
+            <td>{item.assignedAt}</td>
+            <td>
+              <select value={item.status} disabled={!canEdit} onChange={(event) => updateAssignmentStatus(item.id, event.target.value)}>
+                <option>Đang phân công</option>
+                <option>Hoàn thành</option>
+                <option>Hủy</option>
+              </select>
+            </td>
+            <td><button className="danger-button" type="button" disabled={!canDelete} onClick={() => deleteAssignment(item.id)}>Xóa</button></td>
+          </tr>
+        ))} empty="Chưa có phân công trong phạm vi được xem." />
+      </section>
+    </div>
+  )
+}
+
+function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, permissions = [], permissionKey }) {
   const rows = data[storageKey] || []
-  const canCreate = hasPermission(permissions, `master.${storageKey.replace('Catalog', '')}.create`)
-  const canEdit = hasPermission(permissions, `master.${storageKey.replace('Catalog', '')}.edit`)
-  const canDelete = hasPermission(permissions, `master.${storageKey.replace('Catalog', '')}.delete`)
+  const key = permissionKey || storageKey.replace('Catalog', '')
+  const canCreate = hasPermission(permissions, `master.${key}.create`)
+  const canEdit = hasPermission(permissions, `master.${key}.edit`)
+  const canDelete = hasPermission(permissions, `master.${key}.delete`)
   const updateRow = (rowId, field, value) => {
     if (!canEdit) return
     setData((current) => ({
@@ -5154,13 +5340,17 @@ function AdminPage({ authData, setAuthData }) {
     label,
     permissions: CRUD_ACTIONS.map((action) => ({ action: action[0].toUpperCase() + action.slice(1), id: `master.${key}.${action}` })),
   }))
+  const productionPermissionRows = productionPermissionGroups.map(([key, label]) => ({
+    label,
+    permissions: CRUD_ACTIONS.map((action) => ({ action: action[0].toUpperCase() + action.slice(1), id: `production.${key}.${action}` })),
+  }))
   const systemPermissionRows = [
     { label: 'Quản trị hệ thống / Người dùng', permissions: [{ action: 'Truy cập', id: 'admin' }] },
     { label: 'Quản trị hệ thống / Vai trò', permissions: [{ action: 'Truy cập', id: 'admin' }] },
     { label: 'Quản trị hệ thống / Ma trận phân quyền', permissions: [{ action: 'Truy cập', id: 'admin' }] },
     { label: 'Bảo mật công thức / Xem tỷ lệ đầy đủ', permissions: [{ action: 'Secure view', id: 'formula.secure.view' }] },
   ]
-  const permissionRows = [...operationPermissionRows, ...masterPermissionRows, ...systemPermissionRows]
+  const permissionRows = [...operationPermissionRows, ...productionPermissionRows, ...masterPermissionRows, ...systemPermissionRows]
   const allPermissionIds = allSystemPermissionIds
   const withAdminPermissions = (nextAuth) => ({
     ...nextAuth,
@@ -5395,6 +5585,7 @@ const pageMeta = {
   'raw-materials': ['Kho nguyên liệu', 'Nhập NVL, tạo QR/Barcode và lưu localStorage'],
   formulas: ['Công thức gốc', 'Phòng kỹ thuật quản lý công thức gốc'],
   orders: ['Lệnh sản xuất', 'Tạo lệnh từ công thức gốc và chờ QC sản xuất thử'],
+  'production-assignments': ['Phân công nhân sự theo ca', 'Theo dõi nhân sự trực công đoạn trong từng ca sản xuất'],
   qc: ['QC sản xuất thử', 'QC sản xuất thử - Kiểm tra và hiệu chỉnh lệnh SX trước sản xuất chính thức'],
   chemical: ['Tổ cân hóa', 'Cân hóa chất chính và bổ sung'],
   solid: ['Tổ cân rắn', 'Cân nguyên liệu rắn chính và bổ sung'],
@@ -5413,6 +5604,8 @@ const pageMeta = {
   'master-suppliers': ['Danh mục nhà cung cấp', 'Dữ liệu gốc nhà cung cấp'],
   'master-customers': ['Danh mục khách hàng', 'Dữ liệu gốc khách hàng'],
   'master-employees': ['Danh sách nhân viên', 'Nhân sự vận hành trong phạm vi sản xuất'],
+  'master-teams': ['Danh mục tổ sản xuất', 'Tổ vận hành dùng cho phân công sản xuất'],
+  'master-shifts': ['Danh mục ca làm việc', 'Ca làm việc dùng cho phân công sản xuất'],
   'admin-machines': ['Danh mục máy phối trộn', 'Khai báo máy, trạng thái và đề nghị đổi máy'],
 }
 
@@ -5537,6 +5730,7 @@ function App() {
     'raw-materials': <RawMaterialsPage data={data} setData={setData} />,
     formulas: <FormulasPage data={data} setData={setData} permissions={userPermissions} />,
     orders: <OrdersPage data={data} setData={setData} permissions={userPermissions} />,
+    'production-assignments': <ProductionAssignmentPage data={data} setData={setData} user={user} permissions={userPermissions} />,
     qc: <QCPage data={data} setData={setData} />,
     chemical: <WeighingPage data={data} setData={setData} group={CHEMICAL} />,
     solid: <WeighingPage data={data} setData={setData} group={SOLID} />,
@@ -5554,7 +5748,9 @@ function App() {
     'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'group', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã KH', 'Tên KH', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
-    'master-employees': <MasterCatalogPage title="Danh sách nhân viên" storageKey="employeeCatalog" fields={['code', 'name', 'department', 'role', 'status', 'note']} labels={['Mã NV', 'Họ tên', 'Bộ phận', 'Vai trò vận hành', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-employees': <MasterCatalogPage title="Danh sách nhân viên" storageKey="employeeCatalog" fields={['code', 'name', 'productionTeam', 'title', 'operationRole', 'status', 'qrEmployee']} labels={['Mã NV', 'Họ tên', 'Tổ sản xuất', 'Chức danh', 'Vai trò vận hành', 'Trạng thái', 'QR nhân viên']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-teams': <MasterCatalogPage title="Danh mục tổ sản xuất" storageKey="teamCatalog" permissionKey="team" fields={['code', 'name', 'leader', 'note', 'status']} labels={['Mã tổ', 'Tên tổ', 'Tổ trưởng', 'Ghi chú', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-shifts': <MasterCatalogPage title="Danh mục ca làm việc" storageKey="shiftCatalog" permissionKey="shift" fields={['code', 'name', 'startTime', 'endTime', 'note', 'status']} labels={['Mã ca', 'Tên ca', 'Giờ bắt đầu', 'Giờ kết thúc', 'Ghi chú', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
     'admin-machines': <MixingMachineCatalogPage data={data} setData={setData} user={user} permissions={userPermissions} />,
   }
 
