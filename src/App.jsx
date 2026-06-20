@@ -2885,6 +2885,8 @@ function WeighingPage({ data, setData, group }) {
   const [scaleRawText, setScaleRawText] = useState('')
   const [scaleWeightKg, setScaleWeightKg] = useState(null)
   const [scaleSupported, setScaleSupported] = useState(true)
+  const [scaleBaudRate, setScaleBaudRate] = useState(9600)
+  const [scalePortLabel, setScalePortLabel] = useState('Chưa kết nối')
   const scalePortRef = useRef(null)
   const scaleReaderRef = useRef(null)
   const scaleReadingRef = useRef(false)
@@ -2921,15 +2923,22 @@ function WeighingPage({ data, setData, group }) {
       await scalePortRef.current?.close().catch(() => {})
       const port = await navigator.serial.requestPort()
       await port.open({
-        baudRate: 9600,
+        baudRate: Number(scaleBaudRate),
         dataBits: 8,
         stopBits: 1,
         parity: 'none',
         flowControl: 'none',
       })
+      const portInfo = port.getInfo?.() || {}
+      const portLabel = portInfo.usbVendorId
+        ? `USB-RS232 VID:${portInfo.usbVendorId} PID:${portInfo.usbProductId || '-'}`
+        : 'Cổng serial đã chọn'
       scalePortRef.current = port
       scaleReadingRef.current = true
-      setScaleStatus('Đã kết nối cân')
+      setScaleStatus(`Đã kết nối cân (${scaleBaudRate} baud)`)
+      setScalePortLabel(portLabel)
+      setScaleRawText('')
+      setScaleWeightKg(null)
       setWarning('')
       const decoder = new TextDecoder()
       let buffer = ''
@@ -2954,6 +2963,7 @@ function WeighingPage({ data, setData, group }) {
     } catch (error) {
       if (error?.name === 'NotFoundError') {
         setScaleStatus('Chưa chọn cổng cân')
+        setScalePortLabel('Chưa kết nối')
         return
       }
       setScaleStatus('Mất kết nối cân')
@@ -3151,6 +3161,13 @@ function WeighingPage({ data, setData, group }) {
           {!scaleSupported && <div className="process-alert">Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.</div>}
           <div className="scale-serial-panel">
             <div><span>Trạng thái cân</span><strong>{scaleStatus}</strong></div>
+            <div><span>Cổng đã kết nối</span><strong>{scalePortLabel}</strong></div>
+            <label className="scale-baud-select">
+              <span>BaudRate</span>
+              <select value={scaleBaudRate} onChange={(event) => setScaleBaudRate(Number(event.target.value))}>
+                {[2400, 4800, 9600, 19200].map((rate) => <option key={rate} value={rate}>{rate}</option>)}
+              </select>
+            </label>
             <div><span>Khối lượng cân hiện tại</span><strong>{scaleWeightKg == null ? '-' : kg(scaleWeightKg)}</strong></div>
             <div className="scale-raw-text"><span>Dữ liệu nhận được</span><strong>{scaleRawText || '-'}</strong></div>
           </div>

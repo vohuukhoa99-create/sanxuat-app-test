@@ -11187,12 +11187,13 @@ body,
 
 .scale-serial-panel {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   margin: 10px 0 14px;
 }
 
-.scale-serial-panel div {
+.scale-serial-panel div,
+.scale-baud-select {
   min-width: 0;
   padding: 10px 12px;
   border: 1px solid #dfe8e3;
@@ -11200,18 +11201,29 @@ body,
   background: #f8fbf9;
 }
 
-.scale-serial-panel span {
+.scale-serial-panel span,
+.scale-baud-select span {
   display: block;
   color: #60766b;
   font-size: 11px;
   font-weight: 700;
 }
 
-.scale-serial-panel strong {
+.scale-serial-panel strong,
+.scale-baud-select select {
   display: block;
   margin-top: 4px;
   color: #073723;
   overflow-wrap: anywhere;
+}
+
+.scale-baud-select select {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid #d7e3dc;
+  border-radius: 6px;
+  background: #fff;
+  padding: 4px 8px;
 }
 
 .scale-raw-text strong {
