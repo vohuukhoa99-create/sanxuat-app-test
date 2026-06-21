@@ -1911,6 +1911,7 @@ tbody tr:hover {
   gap: 4px;
   width: 100%;
   max-width: none;
+  min-width: 0;
 }
 
 .admin-action-bar,
@@ -1926,17 +1927,20 @@ tbody tr:hover {
 .permission-matrix-wrapper {
   width: 100%;
   max-width: none;
-  overflow: auto;
+  overflow-x: scroll !important;
+  overflow-y: auto;
   background: #fff;
   border: 1px solid #dfe8e3;
   border-radius: 10px;
   max-height: calc(100vh - 190px);
   overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+  padding-bottom: 6px;
 }
 
 .permission-matrix {
   width: max-content !important;
-  min-width: max-content !important;
+  min-width: 1884px !important;
   border-collapse: collapse;
   table-layout: fixed !important;
   font-size: 12px !important;
@@ -2123,6 +2127,17 @@ tbody tr:hover {
   scrollbar-gutter: stable;
 }
 
+.permission-matrix-page {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+
+.permission-matrix-page .permission-matrix-panel,
+.permission-matrix-page .permission-matrix-wrapper {
+  min-width: 0;
+}
+
 .permission-matrix thead th:first-child {
   z-index: 5;
 }
@@ -2132,12 +2147,14 @@ tbody tr:hover {
 }
 
 @media (min-width: 1200px) {
-  .admin-page:has(.permission-matrix-panel) {
+  .admin-page:has(.permission-matrix-panel),
+  .permission-matrix-page {
     width: calc(100vw - 300px);
     max-width: none;
   }
 
-  .admin-page:has(.permission-matrix-panel) .permission-matrix-panel {
+  .admin-page:has(.permission-matrix-panel) .permission-matrix-panel,
+  .permission-matrix-page .permission-matrix-panel {
     width: 100%;
   }
 }

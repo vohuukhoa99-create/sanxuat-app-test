@@ -5551,7 +5551,7 @@ function AdminPage({ authData, setAuthData, section = 'users' }) {
     setNotice('Đã lưu phân quyền. Thay đổi có hiệu lực khi người dùng đăng nhập lại.')
   }
   return (
-    <div className="page-content admin-page">
+    <div className={`page-content admin-page ${section === 'permissions' ? 'permission-matrix-page' : ''}`}>
       {section === 'users' && <section className="panel">
         <div className="section-heading-row">
           <div><span className="section-kicker">Quản trị hệ thống</span><h2>Danh sách người dùng</h2></div>
