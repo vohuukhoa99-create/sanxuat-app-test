@@ -448,10 +448,6 @@ const defaultRoles = {
   'Phối trộn': ['dashboard', 'mixing', 'logs', ...productionView('assignment'), ...masterView('machine')],
   'Đóng gói': ['dashboard', 'packaging', 'logs'],
   'Kho TP': ['dashboard', 'finished-goods', 'logs'],
-  'Quản đốc': ['dashboard', 'orders', 'qc', 'chemical', 'solid', 'mixing', 'finished-qc', 'packaging', 'finished-goods', 'logs', 'reports', ...productionFull('assignment'), ...masterFull('employee'), ...masterFull('team'), ...masterFull('shift')],
-  'Ban giám đốc': ['dashboard', 'finished-qc', 'reports', 'logs'],
-  HCNS: ['dashboard', 'logs'],
-  'Kinh doanh': ['dashboard', 'logs', ...masterFull('customer'), ...masterView('product')],
 }
 
 const ACTIVE_STATUS = 'Hoạt động'
@@ -471,10 +467,10 @@ const defaultUsers = [
   { username: 'phoitron', password: DEFAULT_PASSWORD, role: 'Phối trộn', fullName: 'Tổ phối trộn' },
   { username: 'donggoi', password: DEFAULT_PASSWORD, role: 'Đóng gói', fullName: 'Tổ đóng gói' },
   { username: 'kho.tp', password: DEFAULT_PASSWORD, role: 'Kho TP', fullName: 'Kho thành phẩm' },
-  { username: 'quandoc', password: DEFAULT_PASSWORD, role: 'Quản đốc', fullName: 'Quản đốc' },
-  { username: 'giamdoc', password: DEFAULT_PASSWORD, role: 'Ban giám đốc', fullName: 'Ban giám đốc' },
-  { username: 'hcns', password: DEFAULT_PASSWORD, role: 'HCNS', fullName: 'HCNS' },
-  { username: 'kinhdoanh', password: DEFAULT_PASSWORD, role: 'Kinh doanh', fullName: 'Kinh doanh' },
+  { username: 'quandoc', password: DEFAULT_PASSWORD, role: 'Sản xuất', fullName: 'Quản đốc' },
+  { username: 'giamdoc', password: DEFAULT_PASSWORD, role: 'Admin', fullName: 'Ban giám đốc' },
+  { username: 'hcns', password: DEFAULT_PASSWORD, role: 'Sản xuất', fullName: 'HCNS' },
+  { username: 'kinhdoanh', password: DEFAULT_PASSWORD, role: 'Admin', fullName: 'Kinh doanh' },
 ].map((user) => ({ ...user, department: user.role, status: ACTIVE_STATUS }))
 
 const legacyRoleMap = {
@@ -485,6 +481,10 @@ const legacyRoleMap = {
   'Tổ cân rắn': 'Cân rắn',
   'Tổ phối trộn': 'Phối trộn',
   'Kho thành phẩm': 'Kho TP',
+  'Quản đốc': 'Sản xuất',
+  'Ban giám đốc': 'Admin',
+  HCNS: 'Sản xuất',
+  'Kinh doanh': 'Admin',
 }
 
 const defaultAuth = {
@@ -522,6 +522,7 @@ function normalizeAuthData(saved = {}) {
   const roles = { ...defaultRoles }
   Object.entries(saved.roles || {}).forEach(([role, permissions]) => {
     const nextRole = legacyRoleMap[role] || role
+    if (!defaultRoles[nextRole]) return
     roles[nextRole] = Array.from(new Set([...(roles[nextRole] || []), ...expandLegacyPermissions(permissions || [])]))
   })
   roles.Admin = allSystemPermissionIds
@@ -5429,8 +5430,6 @@ function AdminPage({ authData, setAuthData, section = 'users' }) {
     ['Phối trộn', 'Phối trộn'],
     ['Đóng gói', 'Đóng gói'],
     ['Kho TP', 'Kho TP'],
-    ['HCNS', 'HCNS'],
-    ['Kinh doanh', 'Kinh doanh'],
   ]
   const baseRoleNames = baseRoles.map(([role]) => role)
   const extraRoles = Object.keys(authData.roles || {})
