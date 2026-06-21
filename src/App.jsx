@@ -4760,6 +4760,10 @@ function normalizeSystemLogs(data = {}) {
       username: log.username || log.user || log.actor || '-',
       employee: log.employeeName || log.employee || '-',
       employeeCode: log.employeeCode || '',
+      employeeCodes: Array.isArray(log.employeeCodes) ? log.employeeCodes : [log.employeeCode].filter(Boolean),
+      employeeNames: Array.isArray(log.employeeNames) ? log.employeeNames : [log.employeeName || log.employee].filter(Boolean),
+      assignmentId: log.assignmentId || '',
+      assignmentIds: Array.isArray(log.assignmentIds) ? log.assignmentIds : [log.assignmentId].filter(Boolean),
       role: log.role || '-',
       stage: log.processName || inferLogStage(log),
       orderCode: log.productionOrderCode || inferLogOrder(log),
@@ -5157,36 +5161,222 @@ function StaffPerformanceReportPage({ data }) {
   const employees = data.employeeCatalog || []
   const assignments = data.productionAssignments || []
   const logs = normalizeSystemLogs(data)
+  const shifts = data.shiftCatalog || []
+  const today = todayText()
+  const dateToYmd = (date) => {
+    const value = new Date(date)
+    return Number.isNaN(value.getTime()) ? today : value.toISOString().slice(0, 10)
+  }
+  const startOfWeek = () => {
+    const date = new Date()
+    const day = date.getDay() || 7
+    date.setDate(date.getDate() - day + 1)
+    return dateToYmd(date)
+  }
+  const startOfMonth = () => `${today.slice(0, 8)}01`
+  const rangeForPeriod = (period) => {
+    if (period === 'week') return { fromDate: startOfWeek(), toDate: today }
+    if (period === 'month') return { fromDate: startOfMonth(), toDate: today }
+    if (period === 'custom') return {}
+    return { fromDate: today, toDate: today }
+  }
+  const defaultFilters = {
+    period: 'today',
+    fromDate: today,
+    toDate: today,
+    shiftCode: 'all',
+    team: 'all',
+    stage: 'all',
+    employeeCode: 'all',
+    assignmentStatus: 'all',
+  }
+  const [draftFilters, setDraftFilters] = useState(defaultFilters)
+  const [appliedFilters, setAppliedFilters] = useState(defaultFilters)
+  const updateFilter = (field, value) => {
+    setDraftFilters((current) => {
+      if (field === 'period') return { ...current, period: value, ...rangeForPeriod(value) }
+      return { ...current, [field]: value, ...(field === 'fromDate' || field === 'toDate' ? { period: 'custom' } : {}) }
+    })
+  }
+  const applyFilters = () => setAppliedFilters(draftFilters)
+  const clearFilters = () => {
+    setDraftFilters(defaultFilters)
+    setAppliedFilters(defaultFilters)
+  }
+  const assignmentDateText = (assignment = {}) => String(assignment.workDate || assignment.date || assignment.assignedAt || '').slice(0, 10)
+  const assignmentTeamText = (assignment = {}) => assignment.teamName || assignment.productionTeamName || assignment.productionTeam || assignment.teamCode || ''
+  const assignmentStageText = (assignment = {}) => assignment.processName || assignment.stage || ''
+  const assignmentStatusText = (assignment = {}) => assignment.status || 'Chưa bắt đầu'
+  const logDateText = (log = {}) => String(log.time || '').slice(0, 10)
+  const logEmployeeCodes = (log = {}) => (Array.isArray(log.employeeCodes) && log.employeeCodes.length ? log.employeeCodes : [log.employeeCode].filter(Boolean))
+  const logEmployeeNames = (log = {}) => (Array.isArray(log.employeeNames) && log.employeeNames.length ? log.employeeNames : [log.employee].filter(Boolean))
+  const isCompletedText = (value = '') => /hoàn thành|completed|đạt|pass|ok/i.test(String(value))
+  const teamOptions = Array.from(new Set([
+    ...employees.map((employee) => employee.productionTeam),
+    ...assignments.map(assignmentTeamText),
+  ])).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const stageOptions = Array.from(new Set([
+    ...productionAssignmentStages,
+    ...assignments.map(assignmentStageText),
+    ...logs.map((log) => log.stage),
+  ])).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const statusOptions = Array.from(new Set(assignments.map(assignmentStatusText))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const employeeOptions = employees.slice().sort((a, b) => a.code.localeCompare(b.code, 'vi', { numeric: true }))
+  const employeeMatchesFilters = (employee) => (
+    (appliedFilters.team === 'all' || employee.productionTeam === appliedFilters.team)
+    && (appliedFilters.employeeCode === 'all' || employee.code === appliedFilters.employeeCode)
+  )
+  const assignmentMatchesFilters = (assignment) => {
+    const dateText = assignmentDateText(assignment)
+    if (appliedFilters.fromDate && dateText && dateText < appliedFilters.fromDate) return false
+    if (appliedFilters.toDate && dateText && dateText > appliedFilters.toDate) return false
+    if (appliedFilters.shiftCode !== 'all' && assignment.shiftCode !== appliedFilters.shiftCode) return false
+    if (appliedFilters.team !== 'all' && assignmentTeamText(assignment) !== appliedFilters.team && assignment.productionTeam !== appliedFilters.team) return false
+    if (appliedFilters.stage !== 'all' && assignmentStageText(assignment) !== appliedFilters.stage) return false
+    if (appliedFilters.assignmentStatus !== 'all' && assignmentStatusText(assignment) !== appliedFilters.assignmentStatus) return false
+    return true
+  }
+  const logMatchesFilters = (log) => {
+    const dateText = logDateText(log)
+    if (appliedFilters.fromDate && dateText && dateText < appliedFilters.fromDate) return false
+    if (appliedFilters.toDate && dateText && dateText > appliedFilters.toDate) return false
+    if (appliedFilters.stage !== 'all' && log.stage !== appliedFilters.stage) return false
+    return true
+  }
+  const filteredAssignments = assignments.filter(assignmentMatchesFilters)
+  const filteredLogs = logs.filter(logMatchesFilters)
   const rows = employees.map((employee) => {
-    const employeeAssignments = assignments.filter((item) => assignmentEmployeeCodes(item).includes(employee.code) || assignmentEmployeeNames(item).includes(employee.name))
-    const employeeLogs = logs.filter((log) => (Array.isArray(log.employeeCodes) && log.employeeCodes.includes(employee.code)) || log.employeeCode === employee.code || (Array.isArray(log.employeeNames) && log.employeeNames.includes(employee.name)) || log.employee === employee.name)
+    const employeeAssignments = filteredAssignments.filter((item) => assignmentEmployeeCodes(item).includes(employee.code) || assignmentEmployeeNames(item).includes(employee.name))
+    const employeeLogs = filteredLogs.filter((log) => logEmployeeCodes(log).includes(employee.code) || logEmployeeNames(log).includes(employee.name) || log.employee === employee.name)
+    const shiftCount = new Set(employeeAssignments.map((item) => `${assignmentDateText(item)}-${item.shiftCode || ''}`)).size
+    const orderCount = new Set(employeeLogs.map((log) => log.orderCode).filter((orderCode) => orderCode && orderCode !== '-')).size
+    const completedAssignments = employeeAssignments.filter((item) => isCompletedText(item.status)).length
+    const completedLogs = employeeLogs.filter((log) => isCompletedText(log.result)).length
+    const completed = completedAssignments + completedLogs
+    const completionRate = employeeAssignments.length ? Math.round((completedAssignments / employeeAssignments.length) * 100) : 0
     return {
       employee,
       assigned: employeeAssignments.length,
-      completed: employeeAssignments.filter((item) => item.status === 'Hoàn thành').length,
+      shiftCount,
+      orderCount,
       actions: employeeLogs.length,
+      completed,
+      completionRate,
       lastAction: employeeLogs[0]?.time || employeeAssignments[0]?.assignedAt || '-',
+      note: employeeLogs.length ? '' : 'Chưa có dữ liệu thao tác',
     }
-  })
+  }).filter(({ employee }) => employeeMatchesFilters(employee))
+  const filterSummary = [
+    `Chu kỳ: ${appliedFilters.period === 'today' ? 'Hôm nay' : appliedFilters.period === 'week' ? 'Tuần này' : appliedFilters.period === 'month' ? 'Tháng này' : 'Tùy chọn'}`,
+    `Từ ngày: ${appliedFilters.fromDate || '-'}`,
+    `Đến ngày: ${appliedFilters.toDate || '-'}`,
+    `Ca: ${appliedFilters.shiftCode === 'all' ? 'Tất cả' : appliedFilters.shiftCode}`,
+    `Tổ: ${appliedFilters.team === 'all' ? 'Tất cả' : appliedFilters.team}`,
+    `Công đoạn: ${appliedFilters.stage === 'all' ? 'Tất cả' : appliedFilters.stage}`,
+    `Nhân viên: ${appliedFilters.employeeCode === 'all' ? 'Tất cả' : appliedFilters.employeeCode}`,
+    `Trạng thái: ${appliedFilters.assignmentStatus === 'all' ? 'Tất cả' : appliedFilters.assignmentStatus}`,
+  ].join(' | ')
+  const exportRows = rows.map(({ employee, assigned, shiftCount, orderCount, actions, completed, completionRate, lastAction, note }) => ({
+    'Mã NV': employee.code,
+    'Nhân viên': employee.name,
+    'Tổ sản xuất': employee.productionTeam,
+    'Vai trò vận hành': employee.operationRole,
+    'Số phân công': assigned,
+    'Số ca tham gia': shiftCount,
+    'Số lệnh tham gia': orderCount,
+    'Số thao tác': actions,
+    'Hoàn thành': completed,
+    'Tỷ lệ hoàn thành %': completionRate,
+    'Thao tác gần nhất': lastAction,
+    'Ghi chú': note,
+  }))
+  const exportExcel = () => {
+    const fallbackHeader = {
+      'Mã NV': '',
+      'Nhân viên': '',
+      'Tổ sản xuất': '',
+      'Vai trò vận hành': '',
+      'Số phân công': '',
+      'Số ca tham gia': '',
+      'Số lệnh tham gia': '',
+      'Số thao tác': '',
+      'Hoàn thành': '',
+      'Tỷ lệ hoàn thành %': '',
+      'Thao tác gần nhất': '',
+      'Ghi chú': '',
+    }
+    const sheetRows = [
+      ['Báo cáo hiệu suất nhân sự'],
+      [filterSummary],
+      [`Ngày xuất: ${nowText()}`],
+      [],
+      Object.keys(exportRows[0] || fallbackHeader),
+      ...exportRows.map((row) => Object.values(row)),
+    ]
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(sheetRows), 'Hieu suat nhan su')
+    XLSX.writeFile(book, `bao-cao-hieu-suat-nhan-su-${todayText().replaceAll('-', '')}.xlsx`)
+  }
   return (
     <div className="page-content reports-page">
       <section className="panel">
         <div className="section-heading-row">
           <div><span className="section-kicker">Báo cáo</span><h2>Hiệu suất nhân sự</h2></div>
+          <button className="secondary-button" type="button" onClick={exportExcel}>Xuất Excel</button>
         </div>
+        <div className="report-filters">
+          <label>Chu kỳ<select value={draftFilters.period} onChange={(event) => updateFilter('period', event.target.value)}>
+            <option value="today">Hôm nay</option>
+            <option value="week">Tuần này</option>
+            <option value="month">Tháng này</option>
+            <option value="custom">Tùy chọn khoảng ngày</option>
+          </select></label>
+          <label>Từ ngày<input type="date" value={draftFilters.fromDate} onChange={(event) => updateFilter('fromDate', event.target.value)} /></label>
+          <label>Đến ngày<input type="date" value={draftFilters.toDate} onChange={(event) => updateFilter('toDate', event.target.value)} /></label>
+          <label>Ca làm việc<select value={draftFilters.shiftCode} onChange={(event) => updateFilter('shiftCode', event.target.value)}>
+            <option value="all">Tất cả ca</option>
+            {shifts.map((shift) => <option key={shift.code} value={shift.code}>{shift.code} / {shift.name}</option>)}
+          </select></label>
+          <label>Tổ sản xuất<select value={draftFilters.team} onChange={(event) => updateFilter('team', event.target.value)}>
+            <option value="all">Tất cả tổ</option>
+            {teamOptions.map((team) => <option key={team} value={team}>{team}</option>)}
+          </select></label>
+          <label>Công đoạn<select value={draftFilters.stage} onChange={(event) => updateFilter('stage', event.target.value)}>
+            <option value="all">Tất cả công đoạn</option>
+            {stageOptions.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
+          </select></label>
+          <label>Nhân viên<select value={draftFilters.employeeCode} onChange={(event) => updateFilter('employeeCode', event.target.value)}>
+            <option value="all">Tất cả nhân viên</option>
+            {employeeOptions.map((employee) => <option key={employee.code} value={employee.code}>{employee.code} / {employee.name}</option>)}
+          </select></label>
+          <label>Trạng thái phân công<select value={draftFilters.assignmentStatus} onChange={(event) => updateFilter('assignmentStatus', event.target.value)}>
+            <option value="all">Tất cả trạng thái</option>
+            {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+          </select></label>
+        </div>
+        <div className="action-row">
+          <button className="primary-button" type="button" onClick={applyFilters}>Lọc báo cáo</button>
+          <button className="secondary-button" type="button" onClick={clearFilters}>Xóa lọc</button>
+          <button className="secondary-button" type="button" onClick={exportExcel}>Xuất Excel</button>
+        </div>
+        <p className="panel-text">{filterSummary}</p>
         <SimpleTable
           tableClassName="report-wide-table"
-          headers={['Mã NV', 'Nhân viên', 'Tổ sản xuất', 'Vai trò vận hành', 'Số phân công', 'Hoàn thành', 'Số thao tác', 'Thao tác gần nhất']}
-          rows={rows.map(({ employee, assigned, completed, actions, lastAction }) => (
+          headers={['Mã NV', 'Nhân viên', 'Tổ sản xuất', 'Vai trò vận hành', 'Số phân công', 'Số ca tham gia', 'Số lệnh tham gia', 'Số thao tác', 'Hoàn thành', 'Tỷ lệ hoàn thành %', 'Thao tác gần nhất', 'Ghi chú']}
+          rows={rows.map(({ employee, assigned, shiftCount, orderCount, actions, completed, completionRate, lastAction, note }) => (
             <tr key={employee.code}>
               <td>{employee.code}</td>
               <td>{employee.name}</td>
               <td>{employee.productionTeam}</td>
               <td>{employee.operationRole}</td>
               <td>{assigned}</td>
-              <td>{completed}</td>
+              <td>{shiftCount}</td>
+              <td>{orderCount}</td>
               <td>{actions}</td>
+              <td>{completed}</td>
+              <td>{assigned ? `${completionRate}%` : '0%'}</td>
               <td>{lastAction}</td>
+              <td>{note || '-'}</td>
             </tr>
           ))}
         />
