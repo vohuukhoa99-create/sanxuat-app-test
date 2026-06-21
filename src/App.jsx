@@ -60,6 +60,36 @@ const realCustomerFields = (index = 0) => {
     channelCode: customer.channelCode || '',
   }
 }
+const formatCustomerOption = (customer = {}) => [customer.customerCode, customer.customerName, customer.province].filter(Boolean).join(' - ')
+const customerMatches = (customer = {}, query = '') => {
+  const value = query.trim().toLowerCase()
+  if (!value) return true
+  return [customer.customerCode, customer.customerName, customer.province, customer.channelCode]
+    .some((item) => String(item || '').toLowerCase().includes(value))
+}
+const resolveOrderCustomer = (order = {}) => {
+  const catalog = normalizeCustomerCatalog()
+  const code = order.customerCode || ''
+  const name = order.customerName || order.customer || ''
+  const match = catalog.find((customer) => customer.customerCode === code)
+    || catalog.find((customer) => customer.customerName === name)
+  if (!match) {
+    return {
+      customer: name,
+      customerName: name,
+      customerCode: code,
+      province: order.province || '',
+      channelCode: order.channelCode || '',
+    }
+  }
+  return {
+    customer: match.customerName || '',
+    customerName: match.customerName || '',
+    customerCode: match.customerCode || '',
+    province: match.province || '',
+    channelCode: match.channelCode || '',
+  }
+}
 const uid = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
 const RAW_MATERIAL_QR_TYPE = 'RAW_MATERIAL_LOT'
 
@@ -788,6 +818,7 @@ function normalizeProductionOrders(orders = [], formulas = []) {
     const requestedWeight = num(order.requestedWeight ?? order.quantityKg)
     const assignedMachineCode = normalizeMixingMachineCode(order.assignedMachineCode || order.mixerMachine || order.assignedMixingMachine || order.mixingMachine || order.mixing?.machineCode || '')
     const assignedMachine = machineCatalog.find((machine) => machine.machineCode === assignedMachineCode)
+    const customerFields = resolveOrderCustomer(order)
     return {
       ...order,
       id: order.id || fallbackCode,
@@ -797,7 +828,7 @@ function normalizeProductionOrders(orders = [], formulas = []) {
       formulaVersion: order.formulaVersion || order.originalFormulaVersion || formula?.version || '',
       productName: order.productName || order.product || formula?.product || '',
       product: order.product || order.productName || formula?.product || '',
-      customer: order.customer || '',
+      ...customerFields,
       lot: order.lot || `LOT-${fallbackCode}`,
       requestedWeight,
       quantityKg: requestedWeight,
@@ -2187,12 +2218,14 @@ function FormulasPage({ data, setData, permissions = [] }) {
 }
 
 function OrdersPage({ data, setData, permissions = [] }) {
-  const [form, setForm] = useState({ formulaId: data.formulas[0]?.id || '', quantityKg: 1000, lot: '', customer: '', mixerMachine: '', productionRequestNo: '', note: '' })
+  const [form, setForm] = useState({ formulaId: data.formulas[0]?.id || '', quantityKg: 1000, lot: '', customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
   const [message, setMessage] = useState('')
   const [warning, setWarning] = useState('')
   const [detailOrderId, setDetailOrderId] = useState('')
   const [detailTab, setDetailTab] = useState('info')
   const machines = getActiveMixingMachines(normalizeMixingMachines(data.mixingMachines))
+  const customerOptions = useMemo(() => normalizeCustomerCatalog(data.customerCatalog), [data.customerCatalog])
+  const selectedCustomer = customerOptions.find((customer) => customer.customerCode === form.customerCode)
   const formula = data.formulas.find((item) => item.id === form.formulaId)
   const libraryItems = formula ? formula.items.map((item) => ({
     code: item.materialCode,
@@ -2217,6 +2250,10 @@ function OrdersPage({ data, setData, permissions = [] }) {
       setWarning('Khối lượng đơn hàng không hợp lệ')
       return
     }
+    if (!selectedCustomer) {
+      setWarning('Vui lòng chọn khách hàng hợp lệ từ danh mục.')
+      return
+    }
     const assignedMachine = machines.find((machine) => machine.machineCode === form.mixerMachine)
     if (!assignedMachine) {
       setWarning('Vui lòng chọn máy phối trộn.')
@@ -2235,7 +2272,11 @@ function OrdersPage({ data, setData, permissions = [] }) {
       productName: formula.product,
       product: formula.product,
       lot: form.lot || `LOT-${id}`,
-      customer: form.customer,
+      customer: selectedCustomer.customerName,
+      customerName: selectedCustomer.customerName,
+      customerCode: selectedCustomer.customerCode,
+      province: selectedCustomer.province || '',
+      channelCode: selectedCustomer.channelCode || '',
       mixerMachine: form.mixerMachine,
       assignedMachineCode: assignedMachine.machineCode,
       assignedMachineName: assignedMachine.machineName,
@@ -2288,7 +2329,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
     }
     setData((current) => addLogToData({ ...current, orders: [order, ...current.orders] }, `Sử dụng ${sourceLabel} của ${formula.code} để tạo lệnh SX ${id}, chỉ định máy ${formatMixingMachineLabel(assignedMachine)}.`))
     setMessage('Tạo lệnh sản xuất thành công')
-    setForm((current) => ({ ...current, lot: '', customer: '', mixerMachine: '', productionRequestNo: '', note: '' }))
+    setForm((current) => ({ ...current, lot: '', customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' }))
   }
   const detailOrder = data.orders.find((order) => order.id === detailOrderId)
   return (
@@ -2301,7 +2342,15 @@ function OrdersPage({ data, setData, permissions = [] }) {
           <label>Công thức gốc<select value={form.formulaId} onChange={(event) => setForm({ ...form, formulaId: event.target.value })}>{data.formulas.map((item) => <option value={item.id} key={item.id}>{item.code} - {item.version}</option>)}</select></label>
           <label>Khối lượng đơn hàng<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value })} /></label>
           <label>Mã LOT<input value={form.lot} onChange={(event) => setForm({ ...form, lot: event.target.value })} /></label>
-          <label>Khách hàng<input value={form.customer} onChange={(event) => setForm({ ...form, customer: event.target.value })} /></label>
+          <label>Khách hàng *
+            <CustomerSearchCombobox
+              customers={customerOptions}
+              value={selectedCustomer}
+              inputValue={form.customerSearch}
+              onInputChange={(value) => setForm({ ...form, customerSearch: value, customer: '', customerName: '', customerCode: '', province: '', channelCode: '' })}
+              onSelect={(customer) => setForm({ ...form, customerSearch: formatCustomerOption(customer), customer: customer.customerName, customerName: customer.customerName, customerCode: customer.customerCode, province: customer.province || '', channelCode: customer.channelCode || '' })}
+            />
+          </label>
           <label>Máy phối trộn *<select value={form.mixerMachine} onChange={(event) => setForm({ ...form, mixerMachine: event.target.value })}><option value="">Chọn máy</option>{machines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}</select></label>
           <label>Phiếu yêu cầu SX<input value={form.productionRequestNo} placeholder="Nhập số phiếu yêu cầu sản xuất" onChange={(event) => setForm({ ...form, productionRequestNo: event.target.value })} /></label>
           <label className="wide-field">Ghi chú<textarea value={form.note} placeholder="Ví dụ: Giống mẫu đã duyệt ngày .../..." onChange={(event) => setForm({ ...form, note: event.target.value })} /></label>
@@ -2310,8 +2359,8 @@ function OrdersPage({ data, setData, permissions = [] }) {
       </section>
       <section className="panel">
         <h3>Danh sách lệnh</h3>
-        <SimpleTable tableClassName="orders-table" headers={['Mã lệnh SX', 'Sản phẩm', 'Công thức gốc', 'Version', 'LOT', 'Khối lượng', 'Máy phối trộn', 'Phiếu yêu cầu SX', 'Ghi chú', 'Trạng thái', 'Ngày tạo', 'Hành động']} rows={data.orders.map((order) => (
-          <tr key={order.id}><td>{order.orderCode || order.id}</td><td>{order.productName || order.product}</td><td>{order.formulaCode || order.originalFormulaId}</td><td>{order.formulaVersion || order.originalFormulaVersion}</td><td>{order.lot}</td><td>{kg(order.requestedWeight ?? order.quantityKg)}</td><td>{getOrderAssignedMachineLabel(order, machines)}</td><td>{order.productionRequestNo || '-'}</td><td className="ellipsis-cell" title={order.note || ''}>{order.note || '-'}</td><td><span className={`flow-pill ${statusClass(order.status)}`}>{displayQcTrialText(order.status)}</span></td><td>{order.createdAt}</td><td><button className="secondary-button" onClick={() => { setDetailOrderId(order.id); setDetailTab('info') }}>Chi tiết</button></td></tr>
+        <SimpleTable tableClassName="orders-table" headers={['Mã lệnh SX', 'Sản phẩm', 'Khách hàng', 'Công thức gốc', 'Version', 'LOT', 'Khối lượng', 'Máy phối trộn', 'Phiếu yêu cầu SX', 'Ghi chú', 'Trạng thái', 'Ngày tạo', 'Hành động']} rows={data.orders.map((order) => (
+          <tr key={order.id}><td>{order.orderCode || order.id}</td><td>{order.productName || order.product}</td><td>{order.customerName || order.customer || '-'}</td><td>{order.formulaCode || order.originalFormulaId}</td><td>{order.formulaVersion || order.originalFormulaVersion}</td><td>{order.lot}</td><td>{kg(order.requestedWeight ?? order.quantityKg)}</td><td>{getOrderAssignedMachineLabel(order, machines)}</td><td>{order.productionRequestNo || '-'}</td><td className="ellipsis-cell" title={order.note || ''}>{order.note || '-'}</td><td><span className={`flow-pill ${statusClass(order.status)}`}>{displayQcTrialText(order.status)}</span></td><td>{order.createdAt}</td><td><button className="secondary-button" onClick={() => { setDetailOrderId(order.id); setDetailTab('info') }}>Chi tiết</button></td></tr>
         ))} />
       </section>
       {detailOrder && (
@@ -2355,6 +2404,44 @@ function FormulaTable({ items, secure = false }) {
   ))} />
 }
 
+function CustomerSearchCombobox({ customers = [], value = {}, inputValue = '', onInputChange, onSelect }) {
+  const [open, setOpen] = useState(false)
+  const query = inputValue || ''
+  const filteredCustomers = useMemo(() => customers.filter((customer) => customerMatches(customer, query)).slice(0, 30), [customers, query])
+  const selectCustomer = (customer) => {
+    onSelect(customer)
+    setOpen(false)
+  }
+  return (
+    <div className="customer-combobox">
+      <input
+        value={query}
+        placeholder="Gõ mã, tên, tỉnh/thành hoặc kênh"
+        onFocus={() => setOpen(true)}
+        onChange={(event) => {
+          onInputChange(event.target.value)
+          setOpen(true)
+        }}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        aria-autocomplete="list"
+        aria-expanded={open}
+      />
+      {value?.customerCode && <span className="customer-combobox-selected">{value.customerCode} / {value.customerName}</span>}
+      {open && (
+        <div className="customer-combobox-menu">
+          {filteredCustomers.length ? filteredCustomers.map((customer) => (
+            <button type="button" key={customer.customerCode || customer.id} onMouseDown={(event) => event.preventDefault()} onClick={() => selectCustomer(customer)}>
+              <strong>{customer.customerCode}</strong>
+              <span>{customer.customerName}</span>
+              <em>{customer.province || '-'}</em>
+            </button>
+          )) : <div className="customer-combobox-empty">Không có khách hàng phù hợp</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function OrderDetailTabs({ order, tab, productionLogs, qc2Logs, permissions = [] }) {
   const materials = order.activeProductionFormula || order.productionFormulaSnapshot || []
   const originalMaterials = order.originalFormulaSnapshot || order.productionFormulaSnapshot || []
@@ -2371,7 +2458,8 @@ function OrderDetailTabs({ order, tab, productionLogs, qc2Logs, permissions = []
         {[
           ['Mã lệnh SX', order.orderCode || order.id],
           ['Sản phẩm', order.productName || order.product],
-          ['Khách hàng', order.customer || '-'],
+          ['Khách hàng', order.customerName || order.customer || '-'],
+          ['Mã khách hàng', order.customerCode || '-'],
           ['Công thức gốc', order.formulaCode || order.originalFormulaId],
           ['Version', order.formulaVersion || order.originalFormulaVersion],
           ['LOT', order.lot],
@@ -2555,7 +2643,7 @@ function QC1({ data, setData, user }) {
                     <div><span>Công thức gốc</span><strong>{activeOrder.formulaCode || activeOrder.originalFormulaId} / {activeOrder.formulaVersion || activeOrder.originalFormulaVersion}</strong></div>
                     <div><span>Khối lượng</span><strong>{kg(activeOrder.requestedWeight ?? activeOrder.quantityKg)}</strong></div>
                     <div><span>LOT</span><strong>{activeOrder.lot}</strong></div>
-                    <div><span>Khách hàng</span><strong>{activeOrder.customer || '-'}</strong></div>
+                    <div><span>Khách hàng</span><strong>{activeOrder.customerName || activeOrder.customer || '-'}</strong></div>
                   </div>
                 </div>
                 <div className="qc-trial-action-bar">
@@ -2983,7 +3071,7 @@ function FinishedProductQcPage({ data, setData, user }) {
                 </div>
                 <div className="qc-order-summary finished-qc-info-grid qc-finished-info-grid">
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Mã lệnh SX</span><strong className="value">{activeOrder.orderCode || activeOrder.id}</strong></div>
-                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Khách hàng</span><strong className="value">{activeOrder.customer || '-'}</strong></div>
+                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Khách hàng</span><strong className="value">{activeOrder.customerName || activeOrder.customer || '-'}</strong></div>
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Sản phẩm</span><strong className="value">{activeOrder.productName || activeOrder.product}</strong></div>
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">LOT</span><strong className="value">{activeOrder.lot}</strong></div>
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Công thức gốc</span><strong className="value">{activeOrder.formulaCode || activeOrder.originalFormulaId}</strong></div>
@@ -4473,7 +4561,7 @@ function FinishedGoodsPage({ data, setData }) {
                     <td>{order.orderCode || order.id}</td>
                     <td>{order.productName || order.product}</td>
                     <td>{order.lot}</td>
-                    <td>{order.customer || '-'}</td>
+                    <td>{order.customerName || order.customer || '-'}</td>
                     <td>{kg(qc2FinalWeight(order))}</td>
                     <td>{kg(packingLog?.totalPackedWeight || order.packaging?.totalPackedWeight || 0)}</td>
                     <td>{packingSpecSummary(details)}</td>
@@ -4791,7 +4879,8 @@ function historyInfoRows(record) {
     ['Mã lệnh SX', order.orderCode || order.id],
     ['Công thức gốc', order.formulaCode || order.originalFormulaId || '-'],
     ['Version', order.formulaVersion || order.originalFormulaVersion || '-'],
-    ['Khách hàng', order.customer || '-'],
+    ['Khách hàng', order.customerName || order.customer || '-'],
+    ['Mã khách hàng', order.customerCode || '-'],
     ['Sản phẩm', order.productName || order.product || '-'],
     ['LOT', order.lot || '-'],
     ['Khối lượng yêu cầu', kg(order.requestedWeight ?? order.quantityKg)],
@@ -4904,7 +4993,7 @@ function LogsPage({ data }) {
     if (filters.orderCode && !String(order.orderCode || order.id).toLowerCase().includes(filters.orderCode.toLowerCase())) return false
     if (filters.product && !String(order.productName || order.product || '').toLowerCase().includes(filters.product.toLowerCase())) return false
     if (filters.lot && !String(order.lot || '').toLowerCase().includes(filters.lot.toLowerCase())) return false
-    if (filters.customer && String(order.customer || order.customerName || '') !== filters.customer) return false
+    if (filters.customer && String(order.customerName || order.customer || '') !== filters.customer) return false
     if (filters.status && !String(order.status || order.orderStatus || '').toLowerCase().includes(filters.status.toLowerCase())) return false
     if (filters.stage && !String(record.currentStage || '').toLowerCase().includes(filters.stage.toLowerCase())) return false
     if (filters.actor && !record.timeline.some((item) => String(item.actor || '').toLowerCase().includes(filters.actor.toLowerCase()))) return false
@@ -4920,7 +5009,7 @@ function LogsPage({ data }) {
       STT: index + 1,
       'Mã lệnh SX': order.orderCode || order.id,
       'Ngày tạo': order.createdAt || '-',
-      'Khách hàng': order.customer || '-',
+      'Khách hàng': order.customerName || order.customer || '-',
       'Sản phẩm': order.productName || order.product || '-',
       LOT: order.lot || '-',
       'Khối lượng yêu cầu': order.requestedWeight ?? order.quantityKg,
@@ -4989,7 +5078,7 @@ function LogsPage({ data }) {
         <h3>Bảng tổng hợp lệnh SX</h3>
         <SimpleTable headers={['STT', 'Mã lệnh SX', 'Ngày tạo', 'Khách hàng', 'Sản phẩm', 'LOT', 'Khối lượng yêu cầu', 'Trạng thái hiện tại', 'Công đoạn hiện tại', 'Số lần QC sản xuất thử điều chỉnh', 'Số lần QC2 điều chỉnh', 'Tổng kg bổ sung', 'Thời gian hoàn thành', 'Hành động']} rows={filtered.map((record, index) => {
           const order = record.order
-          return <tr key={order.id}><td>{index + 1}</td><td>{order.orderCode || order.id}</td><td>{order.createdAt || '-'}</td><td>{order.customer || '-'}</td><td>{order.productName || order.product || '-'}</td><td>{order.lot || '-'}</td><td>{kg(order.requestedWeight ?? order.quantityKg)}</td><td>{displayQcTrialText(order.orderStatus || order.status || '-')}</td><td>{record.currentStage}</td><td>{record.qc1Rows.filter((row) => (row.changes || []).length).length}</td><td>{record.qc2Rows.length}</td><td>{kg(record.totalSupplementKg)}</td><td>{order.completedAt || '-'}</td><td><button className="primary-button" onClick={() => { setSelectedId(order.id); setTab('info') }}>Xem chi tiết</button></td></tr>
+          return <tr key={order.id}><td>{index + 1}</td><td>{order.orderCode || order.id}</td><td>{order.createdAt || '-'}</td><td>{order.customerName || order.customer || '-'}</td><td>{order.productName || order.product || '-'}</td><td>{order.lot || '-'}</td><td>{kg(order.requestedWeight ?? order.quantityKg)}</td><td>{displayQcTrialText(order.orderStatus || order.status || '-')}</td><td>{record.currentStage}</td><td>{record.qc1Rows.filter((row) => (row.changes || []).length).length}</td><td>{record.qc2Rows.length}</td><td>{kg(record.totalSupplementKg)}</td><td>{order.completedAt || '-'}</td><td><button className="primary-button" onClick={() => { setSelectedId(order.id); setTab('info') }}>Xem chi tiết</button></td></tr>
         })} />
       </section>
       {selected && <ProductionHistoryModal record={selected} tab={tab} setTab={setTab} onClose={() => setSelectedId('')} />}
@@ -5139,7 +5228,7 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
   const orderStatusText = (order = {}) => displayQcTrialText(order.status || order.orderStatus || order.stage || '-') || '-'
   const orderStageText = (order = {}) => stageLabelMap[order.stage] || order.stage || '-'
   const orderShiftText = (order = {}) => order.shiftCode || order.productionShift || order.shift || ''
-  const orderCustomerText = (order = {}) => order.customer || order.customerName || ''
+  const orderCustomerText = (order = {}) => order.customerName || order.customer || ''
   const orderActualWeight = (order = {}) => {
     const finishedWeight = finishedGoods.filter((item) => item.orderId === order.id || item.orderCode === orderCodeText(order)).reduce((sum, item) => sum + num(item.weight), 0)
     const packingWeight = packingLogs.filter((item) => item.orderId === order.id || item.orderCode === orderCodeText(order)).reduce((sum, item) => sum + num(item.totalPackedWeight), 0)

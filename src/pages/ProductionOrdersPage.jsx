@@ -1,4 +1,21 @@
 import { useMemo, useState } from 'react'
+import { customerCatalog } from '../data/customerCatalog.js'
+
+const normalizedCustomerCatalog = (customerCatalog || []).map((customer, index) => ({
+  id: customer.id || customer.customerCode || `CUS-${index}`,
+  customerCode: customer.customerCode || '',
+  customerName: customer.customerName || '',
+  province: customer.province || '',
+  channelCode: customer.channelCode || '',
+  status: customer.status || '',
+})).filter((customer) => customer.customerCode || customer.customerName)
+const formatCustomerOption = (customer = {}) => [customer.customerCode, customer.customerName, customer.province].filter(Boolean).join(' - ')
+const customerMatches = (customer = {}, query = '') => {
+  const value = query.trim().toLowerCase()
+  if (!value) return true
+  return [customer.customerCode, customer.customerName, customer.province, customer.channelCode]
+    .some((item) => String(item || '').toLowerCase().includes(value))
+}
 
 const hssIngredients = [
   { materialCode: 'PASTE 02', materialName: 'PASTE 02', materialGroup: 'Hóa chế', ratioPercent: 4.61 },
@@ -17,6 +34,11 @@ const defaultOrder = () => ({
   id: `LSX-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${String(Date.now()).slice(-4)}`,
   productionDate: new Date().toISOString().slice(0, 10),
   customer: '',
+  customerName: '',
+  customerCode: '',
+  province: '',
+  channelCode: '',
+  customerSearch: '',
   product: 'HSS 251.023',
   formula: 'HSS 251.023',
   lot: '',
@@ -57,8 +79,42 @@ const blankIngredient = (quantityKg, no) => ({
 const calcMaterialPerLot = (ratioPercent, quantityKg) =>
   Number((((Number(ratioPercent) || 0) * (Number(quantityKg) || 0)) / 100).toFixed(3))
 
+function CustomerSearchCombobox({ value = {}, inputValue = '', onInputChange, onSelect }) {
+  const [open, setOpen] = useState(false)
+  const filteredCustomers = useMemo(() => normalizedCustomerCatalog.filter((customer) => customerMatches(customer, inputValue)).slice(0, 30), [inputValue])
+  return (
+    <div className="customer-combobox">
+      <input
+        value={inputValue}
+        placeholder="Gõ mã, tên, tỉnh/thành hoặc kênh"
+        onFocus={() => setOpen(true)}
+        onChange={(event) => {
+          onInputChange(event.target.value)
+          setOpen(true)
+        }}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        aria-autocomplete="list"
+        aria-expanded={open}
+      />
+      {value?.customerCode && <span className="customer-combobox-selected">{value.customerCode} / {value.customerName}</span>}
+      {open && (
+        <div className="customer-combobox-menu">
+          {filteredCustomers.length ? filteredCustomers.map((customer) => (
+            <button type="button" key={customer.customerCode || customer.id} onMouseDown={(event) => event.preventDefault()} onClick={() => { onSelect(customer); setOpen(false) }}>
+              <strong>{customer.customerCode}</strong>
+              <span>{customer.customerName}</span>
+              <em>{customer.province || '-'}</em>
+            </button>
+          )) : <div className="customer-combobox-empty">Không có khách hàng phù hợp</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function OrderCreateModal({ onClose, onSave }) {
   const [form, setForm] = useState(defaultOrder)
+  const selectedCustomer = normalizedCustomerCatalog.find((customer) => customer.customerCode === form.customerCode)
 
   const updateField = (field, value) => {
     setForm((current) => {
@@ -109,9 +165,18 @@ function OrderCreateModal({ onClose, onSave }) {
 
   const handleSubmit = (event) => {
     event.preventDefault()
+    if (!selectedCustomer) {
+      window.alert('Vui lòng chọn khách hàng hợp lệ từ danh mục.')
+      return
+    }
     const now = new Date().toISOString().slice(0, 16).replace('T', ' ')
     onSave({
       ...form,
+      customer: selectedCustomer.customerName,
+      customerName: selectedCustomer.customerName,
+      customerCode: selectedCustomer.customerCode,
+      province: selectedCustomer.province || '',
+      channelCode: selectedCustomer.channelCode || '',
       quantityKg: Number(form.quantityKg) || 0,
       batchCount: Number(form.batchCount) || 0,
       createdAt: now,
@@ -145,7 +210,14 @@ function OrderCreateModal({ onClose, onSave }) {
             <div className="production-form-grid">
               <label>Mã lệnh sản xuất<input value={form.id} onChange={(event) => updateField('id', event.target.value)} required /></label>
               <label>Ngày sản xuất<input type="date" value={form.productionDate} onChange={(event) => updateField('productionDate', event.target.value)} /></label>
-              <label>Khách hàng / CT-KH<input value={form.customer} onChange={(event) => updateField('customer', event.target.value)} /></label>
+              <label>Khách hàng / CT-KH
+                <CustomerSearchCombobox
+                  value={selectedCustomer}
+                  inputValue={form.customerSearch}
+                  onInputChange={(value) => setForm((current) => ({ ...current, customerSearch: value, customer: '', customerName: '', customerCode: '', province: '', channelCode: '' }))}
+                  onSelect={(customer) => setForm((current) => ({ ...current, customerSearch: formatCustomerOption(customer), customer: customer.customerName, customerName: customer.customerName, customerCode: customer.customerCode, province: customer.province || '', channelCode: customer.channelCode || '' }))}
+                />
+              </label>
               <label>Tên sản phẩm<input value={form.product} onChange={(event) => updateField('product', event.target.value)} required /></label>
               <label>Mã sản phẩm / công thức<input value={form.formula} onChange={(event) => updateField('formula', event.target.value)} required /></label>
               <label>Mã lô / LOT<input value={form.lot} onChange={(event) => updateField('lot', event.target.value)} /></label>
@@ -237,6 +309,7 @@ export function ProductionOrdersPage({ orders, onCreateOrder }) {
               <tr>
                 <th>Lệnh</th>
                 <th>Sản phẩm</th>
+                <th>Khách hàng</th>
                 <th>Công thức</th>
                 <th>LOT</th>
                 <th>Trạng thái</th>
@@ -250,6 +323,7 @@ export function ProductionOrdersPage({ orders, onCreateOrder }) {
                 <tr key={order.id}>
                   <td>{order.id}</td>
                   <td>{order.product}</td>
+                  <td>{order.customerName || order.customer || '-'}</td>
                   <td>{order.formula}</td>
                   <td>{order.lot || '-'}</td>
                   <td><span className="status-pill">{order.status || order.stage}</span></td>
