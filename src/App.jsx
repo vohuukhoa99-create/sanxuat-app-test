@@ -5012,6 +5012,151 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
     'finished-goods': 'Kho thành phẩm',
     completed: 'Hoàn thành',
   }
+  const today = todayText()
+  const dateToYmd = (date) => {
+    const value = new Date(date)
+    return Number.isNaN(value.getTime()) ? today : value.toISOString().slice(0, 10)
+  }
+  const startOfWeek = () => {
+    const date = new Date()
+    const day = date.getDay() || 7
+    date.setDate(date.getDate() - day + 1)
+    return dateToYmd(date)
+  }
+  const startOfMonth = () => `${today.slice(0, 8)}01`
+  const rangeForPeriod = (period) => {
+    if (period === 'week') return { fromDate: startOfWeek(), toDate: today }
+    if (period === 'month') return { fromDate: startOfMonth(), toDate: today }
+    if (period === 'custom') return {}
+    return { fromDate: today, toDate: today }
+  }
+  const productionDefaultFilters = {
+    period: 'today',
+    fromDate: today,
+    toDate: today,
+    shiftCode: 'all',
+    product: 'all',
+    lot: '',
+    orderCode: '',
+    formula: 'all',
+    orderStatus: 'all',
+    stage: 'all',
+    machineCode: 'all',
+    customer: 'all',
+  }
+  const [productionDraftFilters, setProductionDraftFilters] = useState(productionDefaultFilters)
+  const [productionFilters, setProductionFilters] = useState(productionDefaultFilters)
+  const updateProductionFilter = (field, value) => {
+    setProductionDraftFilters((current) => {
+      if (field === 'period') return { ...current, period: value, ...rangeForPeriod(value) }
+      return { ...current, [field]: value, ...(field === 'fromDate' || field === 'toDate' ? { period: 'custom' } : {}) }
+    })
+  }
+  const applyProductionFilters = () => setProductionFilters(productionDraftFilters)
+  const clearProductionFilters = () => {
+    setProductionDraftFilters(productionDefaultFilters)
+    setProductionFilters(productionDefaultFilters)
+  }
+  const orderCodeText = (order = {}) => order.orderCode || order.id || ''
+  const orderProductText = (order = {}) => order.productName || order.product || '-'
+  const orderFormulaText = (order = {}) => [order.originalFormulaId || order.formulaId || order.formulaCode, order.originalFormulaVersion || order.formulaVersion].filter(Boolean).join('/') || '-'
+  const orderDateText = (order = {}) => String(order.createdAt || '').slice(0, 10)
+  const orderStatusText = (order = {}) => displayQcTrialText(order.status || order.orderStatus || order.stage || '-') || '-'
+  const orderStageText = (order = {}) => stageLabelMap[order.stage] || order.stage || '-'
+  const orderShiftText = (order = {}) => order.shiftCode || order.productionShift || order.shift || ''
+  const orderCustomerText = (order = {}) => order.customer || order.customerName || ''
+  const orderActualWeight = (order = {}) => {
+    const finishedWeight = finishedGoods.filter((item) => item.orderId === order.id || item.orderCode === orderCodeText(order)).reduce((sum, item) => sum + num(item.weight), 0)
+    const packingWeight = packingLogs.filter((item) => item.orderId === order.id || item.orderCode === orderCodeText(order)).reduce((sum, item) => sum + num(item.totalPackedWeight), 0)
+    return finishedWeight || packingWeight || num(order.mixing?.finalWeightKg || order.mixingFinalWeightKg || order.qc2FinalWeight || 0)
+  }
+  const orderStageStatus = (order = {}, stage) => {
+    if (stage === 'QC sản xuất thử') return displayQcTrialText(order.qc1Result || order.qc1Status) || '-'
+    if (stage === 'Cân hóa') return order.chemicalStatus || order.scaleStatus?.chemical || '-'
+    if (stage === 'Cân rắn') return order.solidStatus || order.scaleStatus?.solid || '-'
+    if (stage === 'Phối trộn') return order.mixing?.status || order.mixingStatus || '-'
+    if (stage === 'QC thành phẩm') return order.qc2?.result || order.qc2Status || (getQc2Adjustments(order).length ? 'Có điều chỉnh' : '-')
+    if (stage === 'Đóng gói') return order.packaging?.status || (getLatestPackingLog(order, packingLogs) ? 'Hoàn thành' : '-')
+    if (stage === 'Kho thành phẩm') return finishedGoods.some((item) => item.orderId === order.id || item.orderCode === orderCodeText(order)) || order.stage === 'completed' ? 'Hoàn thành' : '-'
+    return '-'
+  }
+  const productionHistory = normalizeProductionHistory(data)
+  const historyByOrder = new Map(productionHistory.map((record) => [record.order.id, record]))
+  const productOptions = Array.from(new Set(orders.map(orderProductText))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const formulaOptions = Array.from(new Set(orders.map(orderFormulaText))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const orderStatusOptions = Array.from(new Set(orders.map(orderStatusText))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const customerOptions = Array.from(new Set(orders.map(orderCustomerText))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const shiftOptions = data.shiftCatalog || []
+  const filteredProductionOrders = orders.filter((order) => {
+    const filters = productionFilters
+    const dateText = orderDateText(order)
+    const machineCode = getOrderAssignedMachineCode(order) || order.mixingMachine || order.mixing?.machineCode || ''
+    if (filters.fromDate && dateText && dateText < filters.fromDate) return false
+    if (filters.toDate && dateText && dateText > filters.toDate) return false
+    if (filters.shiftCode !== 'all' && orderShiftText(order) !== filters.shiftCode) return false
+    if (filters.product !== 'all' && orderProductText(order) !== filters.product) return false
+    if (filters.lot && !String(order.lot || '').toLowerCase().includes(filters.lot.toLowerCase())) return false
+    if (filters.orderCode && !orderCodeText(order).toLowerCase().includes(filters.orderCode.toLowerCase())) return false
+    if (filters.formula !== 'all' && orderFormulaText(order) !== filters.formula) return false
+    if (filters.orderStatus !== 'all' && orderStatusText(order) !== filters.orderStatus) return false
+    if (filters.stage !== 'all' && order.stage !== filters.stage) return false
+    if (filters.machineCode !== 'all' && machineCode !== filters.machineCode) return false
+    if (filters.customer !== 'all' && orderCustomerText(order) !== filters.customer) return false
+    return true
+  })
+  const productionKpis = [
+    ['Tổng lệnh', filteredProductionOrders.length],
+    ['Đang chạy', filteredProductionOrders.filter((order) => !['completed', 'cancelled'].includes(order.stage)).length],
+    ['Hoàn thành', filteredProductionOrders.filter((order) => order.stage === 'completed').length],
+    ['Tổng sản lượng', kg(filteredProductionOrders.reduce((sum, order) => sum + num(order.quantityKg || order.requestedWeight), 0))],
+  ]
+  const productionFilterSummary = [
+    `Chu kỳ: ${productionFilters.period === 'today' ? 'Hôm nay' : productionFilters.period === 'week' ? 'Tuần này' : productionFilters.period === 'month' ? 'Tháng này' : 'Tùy chọn'}`,
+    `Từ ngày: ${productionFilters.fromDate || '-'}`,
+    `Đến ngày: ${productionFilters.toDate || '-'}`,
+    `Ca: ${productionFilters.shiftCode === 'all' ? 'Tất cả' : productionFilters.shiftCode}`,
+    `Sản phẩm: ${productionFilters.product === 'all' ? 'Tất cả' : productionFilters.product}`,
+    `Máy: ${productionFilters.machineCode === 'all' ? 'Tất cả' : productionFilters.machineCode}`,
+  ].join(' | ')
+  const productionRows = filteredProductionOrders.map((order) => {
+    const record = historyByOrder.get(order.id)
+    const latestAction = record?.timeline?.slice().reverse().find((item) => item.time || item.actor) || {}
+    return {
+      order,
+      orderCode: orderCodeText(order),
+      createdAt: order.createdAt || '-',
+      product: orderProductText(order),
+      lot: order.lot || '-',
+      formula: orderFormulaText(order),
+      plannedWeight: num(order.quantityKg || order.requestedWeight),
+      actualWeight: orderActualWeight(order),
+      machine: getOrderAssignedMachineLabel(order, machines),
+      qc1: orderStageStatus(order, 'QC sản xuất thử'),
+      chemical: orderStageStatus(order, 'Cân hóa'),
+      solid: orderStageStatus(order, 'Cân rắn'),
+      mixing: orderStageStatus(order, 'Phối trộn'),
+      qc2: orderStageStatus(order, 'QC thành phẩm'),
+      packaging: orderStageStatus(order, 'Đóng gói'),
+      warehouse: orderStageStatus(order, 'Kho thành phẩm'),
+      status: orderStatusText(order),
+      latestActor: latestAction.actor || '-',
+      latestTime: latestAction.time || '-',
+    }
+  })
+  const exportProductionExcel = () => {
+    const headers = ['Mã lệnh SX', 'Ngày tạo', 'Sản phẩm', 'LOT', 'Công thức', 'Khối lượng kế hoạch', 'Khối lượng thực tế nếu có', 'Máy phối trộn', 'QC sản xuất thử', 'Cân hóa', 'Cân rắn', 'Phối trộn', 'QC thành phẩm', 'Đóng gói', 'Kho thành phẩm', 'Trạng thái hiện tại', 'Người thao tác gần nhất', 'Thời gian thao tác gần nhất']
+    const sheetRows = [
+      ['Báo cáo sản xuất'],
+      [productionFilterSummary],
+      [`Ngày xuất: ${nowText()}`],
+      [],
+      headers,
+      ...productionRows.map((row) => [row.orderCode, row.createdAt, row.product, row.lot, row.formula, row.plannedWeight, row.actualWeight || '', row.machine, row.qc1, row.chemical, row.solid, row.mixing, row.qc2, row.packaging, row.warehouse, row.status, row.latestActor, row.latestTime]),
+    ]
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(sheetRows), 'Bao cao san xuat')
+    XLSX.writeFile(book, `bao-cao-san-xuat-${todayText().replaceAll('-', '')}.xlsx`)
+  }
   const tabs = [
     ['production', 'Sản xuất'],
     ['qc', 'QC'],
@@ -5056,9 +5201,61 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
   const renderTab = () => {
     if (tab === 'production') return (
       <>
-        {renderKpis(reportKpis.production)}
+        <section className="panel">
+          <div className="section-heading-row">
+            <div><span className="section-kicker">Bộ lọc</span><h2>Báo cáo sản xuất</h2></div>
+            <button className="secondary-button" type="button" onClick={exportProductionExcel}>Xuất Excel</button>
+          </div>
+          <div className="report-filters">
+            <label>Chu kỳ<select value={productionDraftFilters.period} onChange={(event) => updateProductionFilter('period', event.target.value)}>
+              <option value="today">Hôm nay</option>
+              <option value="week">Tuần này</option>
+              <option value="month">Tháng này</option>
+              <option value="custom">Tùy chọn</option>
+            </select></label>
+            <label>Từ ngày<input type="date" value={productionDraftFilters.fromDate} onChange={(event) => updateProductionFilter('fromDate', event.target.value)} /></label>
+            <label>Đến ngày<input type="date" value={productionDraftFilters.toDate} onChange={(event) => updateProductionFilter('toDate', event.target.value)} /></label>
+            <label>Ca làm việc<select value={productionDraftFilters.shiftCode} onChange={(event) => updateProductionFilter('shiftCode', event.target.value)}>
+              <option value="all">Tất cả ca</option>
+              {shiftOptions.map((shift) => <option key={shift.code} value={shift.code}>{shift.code} / {shift.name}</option>)}
+            </select></label>
+            <label>Sản phẩm<select value={productionDraftFilters.product} onChange={(event) => updateProductionFilter('product', event.target.value)}>
+              <option value="all">Tất cả sản phẩm</option>
+              {productOptions.map((product) => <option key={product} value={product}>{product}</option>)}
+            </select></label>
+            <label>LOT<input value={productionDraftFilters.lot} onChange={(event) => updateProductionFilter('lot', event.target.value)} placeholder="Nhập LOT" /></label>
+            <label>Lệnh sản xuất<input value={productionDraftFilters.orderCode} onChange={(event) => updateProductionFilter('orderCode', event.target.value)} placeholder="Mã lệnh SX" /></label>
+            <label>Công thức<select value={productionDraftFilters.formula} onChange={(event) => updateProductionFilter('formula', event.target.value)}>
+              <option value="all">Tất cả công thức</option>
+              {formulaOptions.map((formula) => <option key={formula} value={formula}>{formula}</option>)}
+            </select></label>
+            <label>Trạng thái lệnh<select value={productionDraftFilters.orderStatus} onChange={(event) => updateProductionFilter('orderStatus', event.target.value)}>
+              <option value="all">Tất cả trạng thái</option>
+              {orderStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+            </select></label>
+            <label>Công đoạn hiện tại<select value={productionDraftFilters.stage} onChange={(event) => updateProductionFilter('stage', event.target.value)}>
+              <option value="all">Tất cả công đoạn</option>
+              {pipelineStages.map(([stage, label]) => <option key={stage} value={stage}>{label}</option>)}
+            </select></label>
+            <label>Máy phối trộn<select value={productionDraftFilters.machineCode} onChange={(event) => updateProductionFilter('machineCode', event.target.value)}>
+              <option value="all">Tất cả máy</option>
+              {machines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{formatMixingMachineLabel(machine)}</option>)}
+            </select></label>
+            <label>Khách hàng<select value={productionDraftFilters.customer} onChange={(event) => updateProductionFilter('customer', event.target.value)}>
+              <option value="all">Tất cả khách hàng</option>
+              {customerOptions.map((customer) => <option key={customer} value={customer}>{customer}</option>)}
+            </select></label>
+          </div>
+          <div className="action-row">
+            <button className="primary-button" type="button" onClick={applyProductionFilters}>Lọc báo cáo</button>
+            <button className="secondary-button" type="button" onClick={clearProductionFilters}>Xóa lọc</button>
+            <button className="secondary-button" type="button" onClick={exportProductionExcel}>Xuất Excel</button>
+          </div>
+          <p className="panel-text">{productionFilterSummary}</p>
+        </section>
+        {renderKpis(productionKpis)}
         <section className="panel"><h2>Pipeline sản xuất</h2><div className="pipeline-flow report-pipeline">{pipelineStages.map(([stage, label]) => {
-          const stageOrders = orders.filter((order) => order.stage === stage)
+          const stageOrders = filteredProductionOrders.filter((order) => order.stage === stage)
           const stageWeight = stageOrders.reduce((sum, order) => sum + num(order.quantityKg), 0)
           return (
             <div className="pipeline-step pipeline-card" key={stage}>
@@ -5068,7 +5265,7 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
             </div>
           )
         })}</div></section>
-        <section className="panel report-table-panel"><h2>Báo cáo lệnh sản xuất V3</h2><SimpleTable tableClassName="report-wide-table" headers={['Lệnh', 'Sản phẩm', 'LOT', 'Công thức', 'QC sản xuất thử', 'QC2', 'Đóng gói', 'Kho TP', 'Trạng thái']} rows={orders.map((order) => <tr key={order.id}><td>{order.id}</td><td>{order.product}</td><td>{order.lot}</td><td>{order.originalFormulaId}/{order.originalFormulaVersion}</td><td>{displayQcTrialText(order.qc1Result) || '-'}</td><td>{order.qc2?.result || '-'}</td><td>{order.packaging ? 'Đã đóng gói' : '-'}</td><td>{order.stage === 'completed' ? 'Đã nhập' : '-'}</td><td>{displayQcTrialText(order.status)}</td></tr>)} /></section>
+        <section className="panel report-table-panel"><h2>Báo cáo lệnh sản xuất</h2><SimpleTable tableClassName="report-wide-table" headers={['Mã lệnh SX', 'Ngày tạo', 'Sản phẩm', 'LOT', 'Công thức', 'Khối lượng kế hoạch', 'Khối lượng thực tế nếu có', 'Máy phối trộn', 'QC sản xuất thử', 'Cân hóa', 'Cân rắn', 'Phối trộn', 'QC thành phẩm', 'Đóng gói', 'Kho thành phẩm', 'Trạng thái hiện tại', 'Người thao tác gần nhất', 'Thời gian thao tác gần nhất']} rows={productionRows.map((row) => <tr key={row.order.id}><td>{row.orderCode}</td><td>{row.createdAt}</td><td>{row.product}</td><td>{row.lot}</td><td>{row.formula}</td><td>{kg(row.plannedWeight)}</td><td>{row.actualWeight ? kg(row.actualWeight) : '-'}</td><td>{row.machine}</td><td>{row.qc1}</td><td>{row.chemical}</td><td>{row.solid}</td><td>{row.mixing}</td><td>{row.qc2}</td><td>{row.packaging}</td><td>{row.warehouse}</td><td>{row.status}</td><td>{row.latestActor}</td><td>{row.latestTime}</td></tr>)} empty="Không có lệnh sản xuất phù hợp bộ lọc." /></section>
       </>
     )
     if (tab === 'qc') return (
