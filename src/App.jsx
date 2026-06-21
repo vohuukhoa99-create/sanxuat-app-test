@@ -5198,34 +5198,223 @@ function StaffPerformanceReportPage({ data }) {
 function MachinePerformanceReportPage({ data }) {
   const machines = normalizeMixingMachines(data.mixingMachines || [])
   const orders = normalizeProductionOrders(data.orders || [], data.formulas || [])
-  const rows = machines.map((machine) => {
-    const machineOrders = orders.filter((order) => (order.mixingMachine || order.mixing?.machineCode) === machine.machineCode)
+  const shifts = data.shiftCatalog || []
+  const today = todayText()
+  const dateToYmd = (date) => {
+    const value = new Date(date)
+    return Number.isNaN(value.getTime()) ? today : value.toISOString().slice(0, 10)
+  }
+  const startOfWeek = () => {
+    const date = new Date()
+    const day = date.getDay() || 7
+    date.setDate(date.getDate() - day + 1)
+    return dateToYmd(date)
+  }
+  const startOfMonth = () => `${today.slice(0, 8)}01`
+  const rangeForPeriod = (period) => {
+    if (period === 'week') return { fromDate: startOfWeek(), toDate: today }
+    if (period === 'month') return { fromDate: startOfMonth(), toDate: today }
+    if (period === 'custom') return {}
+    return { fromDate: today, toDate: today }
+  }
+  const defaultFilters = {
+    period: 'today',
+    fromDate: today,
+    toDate: today,
+    shiftCode: 'all',
+    machineCode: 'all',
+    orderStatus: 'all',
+    product: 'all',
+    lot: '',
+  }
+  const [draftFilters, setDraftFilters] = useState(defaultFilters)
+  const [appliedFilters, setAppliedFilters] = useState(defaultFilters)
+  const updateFilter = (field, value) => {
+    setDraftFilters((current) => {
+      if (field === 'period') return { ...current, period: value, ...rangeForPeriod(value) }
+      return { ...current, [field]: value, ...(field === 'fromDate' || field === 'toDate' ? { period: 'custom' } : {}) }
+    })
+  }
+  const clearFilters = () => {
+    setDraftFilters(defaultFilters)
+    setAppliedFilters(defaultFilters)
+  }
+  const applyFilters = () => setAppliedFilters(draftFilters)
+  const orderDateText = (order = {}) => String(order.mixingCompletedAt || order.mixing?.completedAt || order.mixingStartAt || order.mixing?.startedAt || order.updatedAt || order.createdAt || '').slice(0, 10)
+  const orderMachineCodes = (order = {}) => [...new Set([
+    order.mixingMachine,
+    order.mixing?.machineCode,
+    getOrderAssignedMachineCode(order),
+  ].filter(Boolean).map(normalizeMixingMachineCode))]
+  const orderStatusText = (order = {}) => order.status || order.mixing?.status || order.mixingStatus || order.stage || 'Chưa xác định'
+  const orderProductText = (order = {}) => order.productName || order.product || order.formulaCode || 'Chưa xác định'
+  const orderShiftCode = (order = {}) => order.shiftCode || order.productionShift || order.shift || ''
+  const parseTime = (value) => {
+    if (!value) return null
+    const date = new Date(String(value).replace(' ', 'T'))
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+  const runMinutes = (order = {}) => {
+    const startedAt = parseTime(order.mixingStartAt || order.mixing?.startedAt)
+    const completedAt = parseTime(order.mixingCompletedAt || order.mixing?.completedAt)
+    if (!startedAt || !completedAt || completedAt < startedAt) return null
+    return Math.round((completedAt - startedAt) / 60000)
+  }
+  const formatMinutes = (minutes) => {
+    if (minutes == null) return 'Chưa có dữ liệu'
+    if (minutes < 60) return `${minutes} phút`
+    const hours = Math.floor(minutes / 60)
+    const remain = minutes % 60
+    return remain ? `${hours} giờ ${remain} phút` : `${hours} giờ`
+  }
+  const productOptions = Array.from(new Set(orders.map(orderProductText))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const statusOptions = Array.from(new Set(orders.map(orderStatusText))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const filteredOrders = orders.filter((order) => {
+    const dateText = orderDateText(order)
+    const machineCodes = orderMachineCodes(order)
+    if (appliedFilters.fromDate && dateText && dateText < appliedFilters.fromDate) return false
+    if (appliedFilters.toDate && dateText && dateText > appliedFilters.toDate) return false
+    if (appliedFilters.shiftCode !== 'all' && orderShiftCode(order) !== appliedFilters.shiftCode) return false
+    if (appliedFilters.machineCode !== 'all' && !machineCodes.includes(appliedFilters.machineCode)) return false
+    if (appliedFilters.orderStatus !== 'all' && orderStatusText(order) !== appliedFilters.orderStatus) return false
+    if (appliedFilters.product !== 'all' && orderProductText(order) !== appliedFilters.product) return false
+    if (appliedFilters.lot && !String(order.lot || '').toLowerCase().includes(appliedFilters.lot.toLowerCase())) return false
+    return machineCodes.length > 0
+  })
+  const rows = machines
+    .filter((machine) => appliedFilters.machineCode === 'all' || machine.machineCode === appliedFilters.machineCode)
+    .map((machine) => {
+    const machineOrders = filteredOrders.filter((order) => orderMachineCodes(order).includes(machine.machineCode))
+    const activeOrders = machineOrders.filter((order) => order.mixing?.status === 'Active' || order.mixingStatus === 'Active')
+    const completedOrders = machineOrders.filter((order) => order.mixingCompletedAt || order.mixing?.completedAt)
+    const totalOutputKg = machineOrders.reduce((sum, order) => sum + num(order.quantityKg || order.requestedWeight), 0)
+    const averageOutputKg = completedOrders.length ? totalOutputKg / completedOrders.length : 0
+    const totalRunMinutes = machineOrders.reduce((sum, order) => {
+      const minutes = runMinutes(order)
+      return minutes == null ? sum : sum + minutes
+    }, 0)
+    const hasRunTime = machineOrders.some((order) => runMinutes(order) != null)
+    const utilizationPercent = machineOrders.length ? Math.round((completedOrders.length / machineOrders.length) * 100) : 0
+    const lastOrder = machineOrders.slice().sort((a, b) => String(orderDateText(b)).localeCompare(String(orderDateText(a)), 'vi', { numeric: true }))[0]
     return {
       machine,
-      orderCount: machineOrders.length,
-      activeCount: machineOrders.filter((order) => order.mixing?.status === 'Active' || order.mixingStatus === 'Active').length,
-      completedCount: machineOrders.filter((order) => order.mixingCompletedAt || order.mixing?.completedAt).length,
-      lastOrder: machineOrders[0]?.orderCode || machineOrders[0]?.id || '-',
+      assignedCount: machineOrders.length,
+      activeCount: activeOrders.length,
+      completedCount: completedOrders.length,
+      totalOutputKg,
+      averageOutputKg,
+      runTimeText: hasRunTime ? formatMinutes(totalRunMinutes) : 'Chưa có dữ liệu',
+      idleTimeText: 'Chưa có dữ liệu',
+      utilizationPercent,
+      lastOrder: lastOrder?.orderCode || lastOrder?.id || '-',
     }
   })
+  const exportRows = rows.map((row) => ({
+    'Mã máy': row.machine.machineCode,
+    'Tên máy': formatMixingMachineLabel(row.machine),
+    'Công suất thiết kế kg/mẻ': row.machine.capacityKg || '',
+    'Số lệnh được phân công': row.assignedCount,
+    'Số lệnh đang chạy': row.activeCount,
+    'Số lệnh hoàn thành': row.completedCount,
+    'Tổng sản lượng kg': Number(row.totalOutputKg.toFixed(3)),
+    'Sản lượng trung bình/lệnh': Number(row.averageOutputKg.toFixed(3)),
+    'Thời gian chạy': row.runTimeText,
+    'Thời gian dừng/chờ': row.idleTimeText,
+    'Hiệu suất sử dụng %': row.utilizationPercent,
+    'Lệnh gần nhất': row.lastOrder,
+  }))
+  const filterSummary = [
+    `Chu kỳ: ${appliedFilters.period === 'today' ? 'Hôm nay' : appliedFilters.period === 'week' ? 'Tuần này' : appliedFilters.period === 'month' ? 'Tháng này' : 'Tùy chọn'}`,
+    `Từ ngày: ${appliedFilters.fromDate || '-'}`,
+    `Đến ngày: ${appliedFilters.toDate || '-'}`,
+    `Ca: ${appliedFilters.shiftCode === 'all' ? 'Tất cả' : appliedFilters.shiftCode}`,
+    `Máy: ${appliedFilters.machineCode === 'all' ? 'Tất cả' : appliedFilters.machineCode}`,
+    `Trạng thái: ${appliedFilters.orderStatus === 'all' ? 'Tất cả' : appliedFilters.orderStatus}`,
+    `Sản phẩm: ${appliedFilters.product === 'all' ? 'Tất cả' : appliedFilters.product}`,
+    `LOT: ${appliedFilters.lot || 'Tất cả'}`,
+  ].join(' | ')
+  const exportExcel = () => {
+    const sheetRows = [
+      ['Báo cáo hiệu suất máy'],
+      [filterSummary],
+      [`Ngày xuất: ${nowText()}`],
+      [],
+      Object.keys(exportRows[0] || {
+        'Mã máy': '',
+        'Tên máy': '',
+        'Công suất thiết kế kg/mẻ': '',
+        'Số lệnh được phân công': '',
+        'Số lệnh đang chạy': '',
+        'Số lệnh hoàn thành': '',
+        'Tổng sản lượng kg': '',
+        'Sản lượng trung bình/lệnh': '',
+        'Thời gian chạy': '',
+        'Thời gian dừng/chờ': '',
+        'Hiệu suất sử dụng %': '',
+        'Lệnh gần nhất': '',
+      }),
+      ...exportRows.map((row) => Object.values(row)),
+    ]
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(sheetRows), 'Hieu suat may')
+    XLSX.writeFile(book, `bao-cao-hieu-suat-may-${todayText().replaceAll('-', '')}.xlsx`)
+  }
   return (
     <div className="page-content reports-page">
       <section className="panel">
         <div className="section-heading-row">
           <div><span className="section-kicker">Báo cáo</span><h2>Hiệu suất máy</h2></div>
+          <button className="secondary-button" type="button" onClick={exportExcel}>Xuất Excel</button>
         </div>
+        <div className="report-filters">
+          <label>Chu kỳ<select value={draftFilters.period} onChange={(event) => updateFilter('period', event.target.value)}>
+            <option value="today">Hôm nay</option>
+            <option value="week">Tuần này</option>
+            <option value="month">Tháng này</option>
+            <option value="custom">Tùy chọn khoảng ngày</option>
+          </select></label>
+          <label>Từ ngày<input type="date" value={draftFilters.fromDate} onChange={(event) => updateFilter('fromDate', event.target.value)} /></label>
+          <label>Đến ngày<input type="date" value={draftFilters.toDate} onChange={(event) => updateFilter('toDate', event.target.value)} /></label>
+          <label>Ca làm việc<select value={draftFilters.shiftCode} onChange={(event) => updateFilter('shiftCode', event.target.value)}>
+            <option value="all">Tất cả ca</option>
+            {shifts.map((shift) => <option key={shift.code} value={shift.code}>{shift.code} / {shift.name}</option>)}
+          </select></label>
+          <label>Máy phối trộn<select value={draftFilters.machineCode} onChange={(event) => updateFilter('machineCode', event.target.value)}>
+            <option value="all">Tất cả máy</option>
+            {machines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{formatMixingMachineLabel(machine)}</option>)}
+          </select></label>
+          <label>Trạng thái lệnh<select value={draftFilters.orderStatus} onChange={(event) => updateFilter('orderStatus', event.target.value)}>
+            <option value="all">Tất cả trạng thái</option>
+            {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+          </select></label>
+          <label>Sản phẩm<select value={draftFilters.product} onChange={(event) => updateFilter('product', event.target.value)}>
+            <option value="all">Tất cả sản phẩm</option>
+            {productOptions.map((product) => <option key={product} value={product}>{product}</option>)}
+          </select></label>
+          <label>LOT<input value={draftFilters.lot} onChange={(event) => updateFilter('lot', event.target.value)} placeholder="Nhập LOT" /></label>
+        </div>
+        <div className="action-row">
+          <button className="primary-button" type="button" onClick={applyFilters}>Lọc báo cáo</button>
+          <button className="secondary-button" type="button" onClick={clearFilters}>Xóa lọc</button>
+          <button className="secondary-button" type="button" onClick={exportExcel}>Xuất Excel</button>
+        </div>
+        <p className="panel-text">{filterSummary}</p>
         <SimpleTable
           tableClassName="report-wide-table"
-          headers={['Mã máy', 'Tên máy', 'Công suất kg/mẻ', 'Trạng thái', 'Số lệnh', 'Đang chạy', 'Đã hoàn thành phối trộn', 'Lệnh gần nhất']}
-          rows={rows.map(({ machine, orderCount, activeCount, completedCount, lastOrder }) => (
+          headers={['Mã máy', 'Tên máy', 'Công suất thiết kế kg/mẻ', 'Số lệnh được phân công', 'Số lệnh đang chạy', 'Số lệnh hoàn thành', 'Tổng sản lượng kg', 'Sản lượng trung bình/lệnh', 'Thời gian chạy', 'Thời gian dừng/chờ', 'Hiệu suất sử dụng %', 'Lệnh gần nhất']}
+          rows={rows.map(({ machine, assignedCount, activeCount, completedCount, totalOutputKg, averageOutputKg, runTimeText, idleTimeText, utilizationPercent, lastOrder }) => (
             <tr key={machine.machineCode}>
               <td>{machine.machineCode}</td>
               <td>{formatMixingMachineLabel(machine)}</td>
               <td>{machine.capacityKg || '-'}</td>
-              <td>{machine.status || '-'}</td>
-              <td>{orderCount}</td>
+              <td>{assignedCount}</td>
               <td>{activeCount}</td>
               <td>{completedCount}</td>
+              <td>{kg(totalOutputKg)}</td>
+              <td>{completedCount ? kg(averageOutputKg) : '0 kg'}</td>
+              <td>{runTimeText}</td>
+              <td>{idleTimeText}</td>
+              <td>{assignedCount ? `${utilizationPercent}%` : '0%'}</td>
               <td>{lastOrder}</td>
             </tr>
           ))}
