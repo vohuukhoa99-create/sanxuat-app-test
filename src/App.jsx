@@ -5038,6 +5038,39 @@ function ReportsPage({ data }) {
         <section className="panel report-table-panel"><h2>Lệnh phối trộn</h2><SimpleTable tableClassName="report-wide-table" headers={['Lệnh', 'Sản phẩm', 'LOT', 'Máy', 'Trạng thái phối trộn', 'Bắt đầu', 'Hoàn thành']} rows={orders.filter((order) => order.mixing || order.mixingStatus || ['mixing', 'mixing-supplement'].includes(order.stage)).map((order) => <tr key={order.id}><td>{order.id}</td><td>{order.product}</td><td>{order.lot}</td><td>{getOrderAssignedMachineLabel(order, machines)}</td><td>{order.mixingStatus || order.mixing?.status || '-'}</td><td>{order.mixingStartAt || order.mixing?.startedAt || '-'}</td><td>{order.mixingCompletedAt || order.mixing?.completedAt || '-'}</td></tr>)} /></section>
       </>
     )
+    if (tab === 'trace') return (
+      <>
+        <section className="panel">
+          <div className="section-heading-row"><h2>Truy xuất lô sản xuất</h2></div>
+          <div className="production-form-grid">
+            <label>Nhập LOT<input value={traceLot} onChange={(event) => setTraceLot(event.target.value)} placeholder="VD: LOT-HNS-G1-001" /></label>
+          </div>
+        </section>
+        <section className="panel report-table-panel">
+          <SimpleTable tableClassName="report-wide-table" headers={['LOT', 'Lệnh sản xuất', 'Sản phẩm', 'Người cân hóa', 'Người cân rắn', 'Người phối trộn', 'Người QC', 'Người đóng gói', 'Người nhập kho TP', 'Thời gian công đoạn', 'Máy phối trộn']} rows={traceRecords.map((record) => {
+            const byStage = (name) => record.timeline.filter((item) => String(item.stage || '').includes(name))
+            const actorText = (name) => byStage(name).map((item) => item.actor).filter(Boolean).join(', ') || '-'
+            const timeText = record.timeline.map((item) => `${item.stage}: ${item.time || '-'}`).join(' | ')
+            const machineText = getHistoryMixingRows(record).map((item) => item.machine).filter(Boolean).join(', ') || '-'
+            return (
+              <tr key={record.order.id}>
+                <td>{record.order.lot || '-'}</td>
+                <td>{record.order.orderCode || record.order.id}</td>
+                <td>{record.order.productName || record.order.product || '-'}</td>
+                <td>{actorText('Cân hóa')}</td>
+                <td>{actorText('Cân rắn')}</td>
+                <td>{actorText('Phối trộn')}</td>
+                <td>{actorText('QC')}</td>
+                <td>{actorText('Đóng gói')}</td>
+                <td>{actorText('kho')}</td>
+                <td>{timeText || '-'}</td>
+                <td>{machineText}</td>
+              </tr>
+            )
+          })} empty="Chưa có dữ liệu truy xuất cho LOT đã chọn." />
+        </section>
+      </>
+    )
     return (
       <>
         {renderKpis(reportKpis.qr)}
@@ -5892,39 +5925,6 @@ function App() {
     const orders = ensureQcDemoOrders(
       normalizeProductionOrders(orderSource, formulas),
       normalizeProductionOrders(seed.orders, formulas),
-    )
-    if (tab === 'trace') return (
-      <>
-        <section className="panel">
-          <div className="section-heading-row"><h2>Truy xuất lô sản xuất</h2></div>
-          <div className="production-form-grid">
-            <label>Nhập LOT<input value={traceLot} onChange={(event) => setTraceLot(event.target.value)} placeholder="VD: LOT-HNS-G1-001" /></label>
-          </div>
-        </section>
-        <section className="panel report-table-panel">
-          <SimpleTable tableClassName="report-wide-table" headers={['LOT', 'Lệnh sản xuất', 'Sản phẩm', 'Người cân hóa', 'Người cân rắn', 'Người phối trộn', 'Người QC', 'Người đóng gói', 'Người nhập kho TP', 'Thời gian công đoạn', 'Máy phối trộn']} rows={traceRecords.map((record) => {
-            const byStage = (name) => record.timeline.filter((item) => String(item.stage || '').includes(name))
-            const actorText = (name) => byStage(name).map((item) => item.actor).filter(Boolean).join(', ') || '-'
-            const timeText = record.timeline.map((item) => `${item.stage}: ${item.time || '-'}`).join(' | ')
-            const machineText = getHistoryMixingRows(record).map((item) => item.machine).filter(Boolean).join(', ') || '-'
-            return (
-              <tr key={record.order.id}>
-                <td>{record.order.lot || '-'}</td>
-                <td>{record.order.orderCode || record.order.id}</td>
-                <td>{record.order.productName || record.order.product || '-'}</td>
-                <td>{actorText('Cân hóa')}</td>
-                <td>{actorText('Cân rắn')}</td>
-                <td>{actorText('Phối trộn')}</td>
-                <td>{actorText('QC')}</td>
-                <td>{actorText('Đóng gói')}</td>
-                <td>{actorText('kho')}</td>
-                <td>{timeText || '-'}</td>
-                <td>{machineText}</td>
-              </tr>
-            )
-          })} empty="Chưa có dữ liệu truy xuất cho LOT đã chọn." />
-        </section>
-      </>
     )
     const baseData = {
       ...seed,
