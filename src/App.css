@@ -591,6 +591,53 @@ tbody tr:hover {
   min-height: 38px;
 }
 
+.assignment-employee-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.assignment-employee-field > span {
+  color: #476154;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.assignment-employee-checklist {
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid rgba(7, 34, 26, 0.16);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.assignment-employee-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  margin: 0;
+  color: #173d2d;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.assignment-employee-option input {
+  width: 16px !important;
+  min-width: 16px !important;
+  height: 16px;
+  margin: 0;
+}
+
+.assignment-empty {
+  color: #6b7f74;
+  font-size: 13px;
+}
+
 .orders-table {
   min-width: 1320px;
 }

@@ -5492,7 +5492,6 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     const aliases = new Set([teamNameOrCode, teamByCode(teamNameOrCode)?.name, ...(teamEmployeeAliases[teamNameOrCode] || [])].filter(Boolean))
     return activeEmployees.filter((employee) => aliases.has(employee.productionTeam))
   }
-  const defaultEmployees = employeesByTeam(defaultTeamCode)
   const [notice, setNotice] = useState('')
   const [form, setForm] = useState({
     date: todayText(),
@@ -5500,7 +5499,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     teamCode: defaultTeamCode,
     stage: defaultStage,
     machineCode: '',
-    employeeCodes: defaultEmployees[0]?.code ? [defaultEmployees[0].code] : [],
+    employeeCodes: [],
   })
   const updateForm = (field, value) => {
     setForm((current) => {
@@ -5508,8 +5507,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       const nextAllowedStages = getAllowedStagesForTeam(next.teamCode)
       if (field === 'teamCode') {
         next.stage = nextAllowedStages.includes(current.stage) ? current.stage : nextAllowedStages[0] || ''
-        const teamEmployees = employeesByTeam(value)
-        next.employeeCodes = teamEmployees[0]?.code ? [teamEmployees[0].code] : []
+        next.employeeCodes = []
       }
       if (field === 'stage' && !nextAllowedStages.includes(value)) next.stage = nextAllowedStages[0] || ''
       if (next.stage !== 'Phối trộn') next.machineCode = ''
@@ -5526,7 +5524,6 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       const nextStage = nextAllowedStages.includes(current.stage) ? current.stage : nextAllowedStages[0] || ''
       const currentEmployeeCodes = Array.isArray(current.employeeCodes) ? current.employeeCodes : [current.employeeCode].filter(Boolean)
       const nextEmployeeCodes = currentEmployeeCodes.filter((code) => nextEmployees.some((employee) => employee.code === code))
-      if (nextEmployeeCodes.length === 0 && nextEmployees[0]?.code) nextEmployeeCodes.push(nextEmployees[0].code)
       const nextMachineCode = nextStage === 'Phối trộn' ? current.machineCode : ''
       if (
         normalizedTeamCode === current.teamCode
@@ -5650,6 +5647,11 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
   }
   const selectWholeTeam = () => updateForm('employeeCodes', selectableEmployees.map((employee) => employee.code))
   const clearSelectedEmployees = () => updateForm('employeeCodes', [])
+  const toggleEmployee = (employeeCode) => {
+    updateForm('employeeCodes', (form.employeeCodes || []).includes(employeeCode)
+      ? (form.employeeCodes || []).filter((code) => code !== employeeCode)
+      : [...(form.employeeCodes || []), employeeCode])
+  }
 
   return (
     <div className="page-content production-assignment-page">
@@ -5670,10 +5672,22 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
           {form.stage === 'Phối trộn' && (
             <label>Máy phối trộn<select value={form.machineCode} onChange={(event) => updateForm('machineCode', event.target.value)}><option value="">Chọn máy</option>{machines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}</select></label>
           )}
-          <label className={form.stage === 'Phối trộn' ? '' : 'wide-field'}>Nhân viên<select multiple size={Math.min(Math.max(selectableEmployees.length, 3), 6)} value={form.employeeCodes || []} onChange={(event) => updateForm('employeeCodes', Array.from(event.target.selectedOptions, (option) => option.value))}>
-            {selectableEmployees.length === 0 && <option value="">Chưa có nhân viên phù hợp</option>}
-            {selectableEmployees.map((employee) => <option key={employee.code} value={employee.code}>{employee.code} / {employee.name}</option>)}
-          </select></label>
+          <div className={`assignment-employee-field ${form.stage === 'Phối trộn' ? '' : 'wide-field'}`}>
+            <span>Nhân viên</span>
+            <div className="assignment-employee-checklist">
+              {selectableEmployees.length === 0 && <div className="assignment-empty">Chưa có nhân viên phù hợp</div>}
+              {selectableEmployees.map((employee) => (
+                <label className="assignment-employee-option" key={employee.code}>
+                  <input
+                    type="checkbox"
+                    checked={(form.employeeCodes || []).includes(employee.code)}
+                    onChange={() => toggleEmployee(employee.code)}
+                  />
+                  <span>{employee.code} / {employee.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
         </div>
         <div className="action-row">
           <button className="secondary-button" type="button" disabled={!canCreate || selectableEmployees.length === 0} onClick={selectWholeTeam}>Chọn cả tổ</button>
