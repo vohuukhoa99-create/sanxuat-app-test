@@ -3,7 +3,7 @@ export const defaultNavItems = [
   { id: 'raw-materials', label: 'Kho nguyên liệu', permission: 'raw-materials' },
   { id: 'orders', label: 'Lệnh sản xuất', permission: 'orders' },
   { id: 'production', label: 'Sản xuất', type: 'group' },
-  { id: 'production-assignments', label: 'Phân công nhân sự theo ca', parentId: 'production', permission: 'production.assignment.view' },
+  { id: 'production-assignments', label: 'Phân công nhân sự', parentId: 'production', permission: 'production.assignment.view' },
   { id: 'qc', label: 'QC sản xuất thử', permission: 'qc' },
   { id: 'chemical', label: 'Tổ cân hóa', permission: 'chemical' },
   { id: 'solid', label: 'Tổ cân rắn', permission: 'solid' },

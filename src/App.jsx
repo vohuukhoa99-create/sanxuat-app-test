@@ -267,7 +267,17 @@ const getOrderAssignedMachineLabel = (order = {}, machines = []) => {
   return formatMixingMachineLabel({ machineCode: code, machineName: name, capacityKg: capacity })
 }
 
-const productionAssignmentStages = ['Cân hóa', 'Cân rắn', 'Phối trộn', 'QC', 'Đóng gói', 'Kho thành phẩm']
+const productionAssignmentStages = ['Cân hóa', 'Cân rắn', 'Phối trộn', 'QC sản xuất thử', 'QC thành phẩm', 'Đóng gói', 'Kho thành phẩm']
+const productionProcessOptions = [
+  ['CHEMICAL_WEIGHING', 'Cân hóa'],
+  ['SOLID_WEIGHING', 'Cân rắn'],
+  ['MIXING', 'Phối trộn'],
+  ['QC_TRIAL', 'QC sản xuất thử'],
+  ['QC_FINISHED', 'QC thành phẩm'],
+  ['PACKAGING', 'Đóng gói'],
+  ['FINISHED_GOODS', 'Kho thành phẩm'],
+]
+const processCodeByName = Object.fromEntries(productionProcessOptions.map(([code, name]) => [name, code]))
 const roleAssignmentStageMap = {
   'Cân hóa': ['Cân hóa'],
   'Cân rắn': ['Cân rắn'],
@@ -275,12 +285,12 @@ const roleAssignmentStageMap = {
 }
 const getStageAssignmentsForRole = (assignments = [], role = '') => {
   const stages = roleAssignmentStageMap[role]
-  return stages ? assignments.filter((item) => stages.includes(item.stage)) : assignments
+  return stages ? assignments.filter((item) => stages.includes(item.stage || item.processName)) : assignments
 }
 const getActiveAssignments = (assignments = [], stage, date = todayText(), shiftCode = '') => (
   assignments.filter((item) => (
-    item.date === date
-    && item.stage === stage
+    (item.date || item.workDate) === date
+    && (item.stage || item.processName) === stage
     && item.status !== 'Hủy'
     && (!shiftCode || item.shiftCode === shiftCode)
   ))
@@ -447,16 +457,17 @@ const masterPermissionGroups = [
 ]
 const masterPermissionIds = masterPermissionGroups.flatMap(([key]) => CRUD_ACTIONS.map((action) => `master.${key}.${action}`))
 const productionPermissionGroups = [
-  ['assignment', 'Sản xuất / Phân công nhân sự theo ca'],
+  ['assignment', 'Sản xuất / Phân công nhân sự'],
 ]
 const productionPermissionIds = productionPermissionGroups.flatMap(([key]) => CRUD_ACTIONS.map((action) => `production.${key}.${action}`))
+const productionExtraPermissionIds = ['production.trace.view', 'production.log.view']
 const masterFull = (key) => CRUD_ACTIONS.map((action) => `master.${key}.${action}`)
 const masterView = (key) => [`master.${key}.view`]
 const productionFull = (key) => CRUD_ACTIONS.map((action) => `production.${key}.${action}`)
 const productionView = (key) => [`production.${key}.view`]
 const systemPermissionIds = ['admin']
 const menuPermissionIds = defaultNavItems.map((item) => item.permission || (item.type !== 'group' ? item.id : '')).filter((id, index, items) => id && items.indexOf(id) === index)
-const allSystemPermissionIds = Array.from(new Set([...menuPermissionIds, ...masterPermissionIds, ...productionPermissionIds, ...systemPermissionIds, 'formula.secure.view']))
+const allSystemPermissionIds = Array.from(new Set([...menuPermissionIds, ...masterPermissionIds, ...productionPermissionIds, ...productionExtraPermissionIds, ...systemPermissionIds, 'formula.secure.view']))
 const hasPermission = (permissions = [], permission) => permissions.includes(permission)
 const hasAnyPermission = (permissions = [], permissionIds = []) => permissionIds.some((permission) => hasPermission(permissions, permission))
 const pagePermission = (item) => item.permission || item.id
@@ -465,15 +476,15 @@ const defaultRoles = {
   Admin: allSystemPermissionIds,
   'Kho NL': ['dashboard', 'raw-materials', 'logs', ...masterView('material'), ...masterView('supplier')],
   'Kỹ thuật': ['dashboard', 'logs', ...masterFull('material'), ...masterFull('product'), ...masterFull('formula'), ...masterView('machine'), ...masterView('supplier'), 'formula.secure.view'],
-  'Sản xuất': ['dashboard', 'orders', 'logs', ...productionFull('assignment'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('product'), ...masterView('machine'), ...masterView('customer')],
+  'Sản xuất': ['dashboard', 'orders', 'logs', 'production.log.view', ...productionFull('assignment'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('product'), ...masterView('machine'), ...masterView('customer')],
   QC: ['dashboard', 'qc', 'finished-qc', 'logs', 'reports', ...masterView('product'), ...masterView('formula')],
-  'Cân hóa': ['dashboard', 'chemical', 'logs', ...productionView('assignment')],
-  'Cân rắn': ['dashboard', 'solid', 'logs', ...productionView('assignment')],
-  'Phối trộn': ['dashboard', 'mixing', 'logs', ...productionView('assignment'), ...masterView('machine')],
+  'Cân hóa': ['dashboard', 'chemical', 'logs', 'production.log.view', ...productionView('assignment')],
+  'Cân rắn': ['dashboard', 'solid', 'logs', 'production.log.view', ...productionView('assignment')],
+  'Phối trộn': ['dashboard', 'mixing', 'logs', 'production.log.view', ...productionView('assignment'), ...masterView('machine')],
   'Đóng gói': ['dashboard', 'packaging', 'logs'],
   'Kho TP': ['dashboard', 'finished-goods', 'logs', 'reports'],
-  'Quản đốc': ['dashboard', 'orders', 'qc', 'chemical', 'solid', 'mixing', 'finished-qc', 'packaging', 'finished-goods', 'logs', 'reports', ...productionView('assignment'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('product'), ...masterView('customer')],
-  'Ban giám đốc': ['dashboard', 'logs', 'reports', ...productionView('assignment'), ...masterView('material'), ...masterView('product'), ...masterView('supplier'), ...masterView('customer'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('formula')],
+  'Quản đốc': ['dashboard', 'orders', 'qc', 'chemical', 'solid', 'mixing', 'finished-qc', 'packaging', 'finished-goods', 'logs', 'reports', 'production.trace.view', 'production.log.view', 'production.assignment.view', 'production.assignment.create', 'production.assignment.edit', ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('product'), ...masterView('customer')],
+  'Ban giám đốc': ['dashboard', 'logs', 'reports', 'production.trace.view', 'production.log.view', ...productionView('assignment'), ...masterView('material'), ...masterView('product'), ...masterView('supplier'), ...masterView('customer'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('formula')],
 }
 const officialRoleNames = Object.keys(defaultRoles)
 
@@ -606,14 +617,32 @@ function loadStored(key, fallback) {
   }
 }
 
-function operationLogMeta(user, { employee = '', stage = '', order, result = '' } = {}) {
+function operationLogMeta(user, { employee = '', employeeCode = '', employeeName = '', stage = '', order, material = {}, machine = {}, actionType = '', result = '', targetQty = '', actualQty = '' } = {}) {
+  const orderCode = typeof order === 'string' ? order : (order?.orderCode || order?.id || '')
+  const inferredEmployeeName = employeeName || employee || user?.fullName || user?.username || 'Chưa xác định'
   return {
     username: user?.username || '',
     user: user?.fullName || user?.username || '',
+    userAccount: user?.username || '',
+    userRole: user?.role || '',
     employee,
+    employeeCode: employeeCode || '',
+    employeeName: inferredEmployeeName,
     role: user?.role || '',
     stage,
-    orderCode: typeof order === 'string' ? order : (order?.orderCode || order?.id || ''),
+    processName: stage || '',
+    orderCode,
+    productionOrderCode: orderCode,
+    lotCode: typeof order === 'object' ? (order?.lot || '') : '',
+    materialCode: material.materialCode || '',
+    materialName: material.materialName || '',
+    targetQty,
+    actualQty,
+    machineCode: machine.machineCode || '',
+    machineName: machine.machineName || machine.name || '',
+    actionType: actionType || result || 'Thao tác',
+    actionDescription: actionType || result || '',
+    resultStatus: result,
     result,
   }
 }
@@ -4570,7 +4599,7 @@ function normalizeProductionHistory(data = {}) {
       ...supplementRows.map((ticket) => ({ time: ticket.createdAt, stage: 'Cân bổ sung QC2', actor: ticket.createdBy || '-', content: `Phiếu cân ${ticket.id}`, status: displayQc2Status(ticket.status) })),
       ...(packingLog ? [{ time: packingLog.completedAt || packingLog.startedAt, stage: 'Đóng gói', actor: packingLog.packer || '-', content: `Đóng gói ${kg(packingLog.totalPackedWeight)}`, status: packingLog.status === 'completed' ? 'Hoàn thành' : packingLog.status }] : []),
       ...finishedRows.map((item) => ({ time: item.importDate, stage: 'Nhập kho TP', actor: item.receiver || '-', content: `Nhập kho ${item.finishedCode}`, status: item.status })),
-      ...relatedLogs.map((log) => ({ time: log.time, stage: 'Nhật ký hệ thống', actor: log.actor || '-', content: log.entry || log.action || '-', status: log.status || '-' })),
+      ...relatedLogs.map((log) => ({ time: log.time, stage: log.processName || log.stage || 'Nhật ký hệ thống', actor: log.employeeName || log.employee || log.user || log.actor || '-', employeeCode: log.employeeCode || '', employeeName: log.employeeName || log.employee || '', userAccount: log.userAccount || log.username || '', machine: log.machineCode || log.machineName || '', machineName: log.machineName || '', content: log.entry || log.action || log.actionDescription || '-', status: log.resultStatus || log.result || log.status || '-' })),
     ].filter((item) => item.time || item.content).sort((a, b) => String(a.time || '').localeCompare(String(b.time || ''), 'vi', { numeric: true }))
     return { order, machines, qc1Rows, qc2Rows, supplementRows, packingLog, finishedRows, timeline, totalSupplementKg, currentStage }
   })
@@ -4671,12 +4700,14 @@ function normalizeSystemLogs(data = {}) {
       id,
       time: log.time || log.createdAt || '-',
       username: log.username || log.user || log.actor || '-',
-      employee: log.employee || log.employeeName || '-',
+      employee: log.employeeName || log.employee || '-',
+      employeeCode: log.employeeCode || '',
       role: log.role || '-',
-      stage: inferLogStage(log),
-      orderCode: inferLogOrder(log),
-      content: log.entry || log.action || '-',
-      result: log.result || log.status || '-',
+      stage: log.processName || inferLogStage(log),
+      orderCode: log.productionOrderCode || inferLogOrder(log),
+      machine: log.machineName || log.machineCode || '',
+      content: log.actionDescription || log.entry || log.action || '-',
+      result: log.resultStatus || log.result || log.status || '-',
     })
   })
   return Array.from(byId.values()).sort((a, b) => String(b.time).localeCompare(String(a.time), 'vi', { numeric: true }))
@@ -4726,7 +4757,7 @@ function SystemLogsPage({ data }) {
 }
 
 function LogsPage({ data }) {
-  const [filters, setFilters] = useState({ fromDate: '', toDate: '', orderCode: '', product: '', lot: '', customer: '', status: '', stage: '', actor: '' })
+  const [filters, setFilters] = useState({ fromDate: '', toDate: '', orderCode: '', product: '', lot: '', customer: '', status: '', stage: '', actor: '', employee: '', machine: '', userAccount: '' })
   const [selectedId, setSelectedId] = useState('')
   const [tab, setTab] = useState('info')
   const history = normalizeProductionHistory(data)
@@ -4741,6 +4772,9 @@ function LogsPage({ data }) {
     if (filters.status && !String(order.status || order.orderStatus || '').toLowerCase().includes(filters.status.toLowerCase())) return false
     if (filters.stage && !String(record.currentStage || '').toLowerCase().includes(filters.stage.toLowerCase())) return false
     if (filters.actor && !record.timeline.some((item) => String(item.actor || '').toLowerCase().includes(filters.actor.toLowerCase()))) return false
+    if (filters.employee && !record.timeline.some((item) => `${item.actor || ''} ${item.employeeName || ''} ${item.employeeCode || ''}`.toLowerCase().includes(filters.employee.toLowerCase()))) return false
+    if (filters.machine && !record.timeline.some((item) => `${item.machine || ''} ${item.machineName || ''} ${item.content || ''}`.toLowerCase().includes(filters.machine.toLowerCase()))) return false
+    if (filters.userAccount && !record.timeline.some((item) => `${item.userAccount || ''} ${item.actor || ''}`.toLowerCase().includes(filters.userAccount.toLowerCase()))) return false
     return true
   })
   const selected = history.find((record) => record.order.id === selectedId)
@@ -4807,6 +4841,9 @@ function LogsPage({ data }) {
           <label>Trạng thái<input value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })} /></label>
           <label>Công đoạn<input value={filters.stage} onChange={(event) => setFilters({ ...filters, stage: event.target.value })} /></label>
           <label>Người thực hiện<input value={filters.actor} onChange={(event) => setFilters({ ...filters, actor: event.target.value })} /></label>
+          <label>Nhân viên<input value={filters.employee} onChange={(event) => setFilters({ ...filters, employee: event.target.value })} /></label>
+          <label>Máy<input value={filters.machine} onChange={(event) => setFilters({ ...filters, machine: event.target.value })} /></label>
+          <label>Tài khoản thao tác<input value={filters.userAccount} onChange={(event) => setFilters({ ...filters, userAccount: event.target.value })} /></label>
         </div>
       </section>
       <section className="panel">
@@ -4877,6 +4914,7 @@ function ProductionHistoryModal({ record, tab, setTab, onClose }) {
 
 function ReportsPage({ data }) {
   const [tab, setTab] = useState('production')
+  const [traceLot, setTraceLot] = useState('')
   const orders = normalizeProductionOrders(data.orders || [], data.formulas || [])
   const packingLogs = data.packingLogs || []
   const finishedGoods = normalizeFinishedGoodsData(data.finishedGoods || [])
@@ -4889,6 +4927,8 @@ function ReportsPage({ data }) {
   const topMaterials = countBy(qc2AdjustmentItems, (item) => item.materialCode, (item) => Math.max(0, num(item.adjustmentKg ?? item.requiredKg))).slice(0, 5)
   const topQc = countBy(qc2AdjustmentRows, ({ ticket }) => ticket.createdBy).slice(0, 5)
   const qrFailLogs = (data.productionLogs || data.logs || []).filter((log) => String(log.entry || '').includes('QR') && String(log.entry || '').includes('FAIL'))
+  const traceRecords = normalizeProductionHistory(data)
+    .filter((record) => !traceLot || String(record.order.lot || '').toLowerCase().includes(traceLot.toLowerCase()))
   const pipelineStages = [
     ['qc1', 'QC sản xuất thử'],
     ['weighing', 'Tổ cân'],
@@ -4913,6 +4953,7 @@ function ReportsPage({ data }) {
     ['warehouse', 'Kho'],
     ['machines', 'Máy móc'],
     ['qr', 'Truy xuất QR'],
+    ['trace', 'Truy xuất lô'],
   ]
   const reportKpis = {
     production: [
@@ -5256,6 +5297,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
   const [form, setForm] = useState({
     date: todayText(),
     shiftCode: shifts[0]?.code || '',
+    teamCode: teams[0]?.code || '',
     stage: defaultStage,
     machineCode: '',
     employeeCode: activeEmployees[0]?.code || '',
@@ -5271,6 +5313,44 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
   const teamByCode = (code) => teams.find((team) => team.code === code)
   const shiftByCode = (code) => shifts.find((shift) => shift.code === code)
   const machineByCode = (code) => machines.find((machine) => machine.machineCode === code)
+  const teamEmployeeAliases = {
+    TP1: ['TP1', 'Tổ trộn 1', 'Tổ phối trộn 1'],
+    TP2: ['TP2', 'Tổ trộn 2', 'Tổ phối trộn 2'],
+    TH: ['TH', 'Tổ Hóa'],
+    TC: ['TC', 'Tổ Cát'],
+  }
+  const employeesByTeam = (teamNameOrCode) => {
+    const aliases = new Set([teamNameOrCode, teamByCode(teamNameOrCode)?.name, ...(teamEmployeeAliases[teamNameOrCode] || [])].filter(Boolean))
+    return activeEmployees.filter((employee) => aliases.has(employee.productionTeam))
+  }
+  const buildAssignment = ({ workDate, shift, team, processName, employee, machine = null, status = 'Chưa bắt đầu', assignmentNote = '' }) => {
+    const assignedAt = nowText()
+    return {
+      id: uid('ASSIGN'),
+      assignmentId: uid('ASSIGN'),
+      date: workDate,
+      workDate,
+      shiftCode: shift.code,
+      shiftName: shift.name,
+      teamCode: team?.code || employee.productionTeam || '',
+      teamName: team?.name || employee.productionTeam || '',
+      stage: processName,
+      processCode: processCodeByName[processName] || processName,
+      processName,
+      machineCode: machine?.machineCode || '',
+      machineName: machine ? formatMixingMachineLabel(machine) : '',
+      employeeCode: employee.code,
+      employeeName: employee.name,
+      employeeQr: employee.qrEmployee || employee.qr || '',
+      productionTeam: team?.code || employee.productionTeam || '',
+      productionTeamName: team?.name || employee.productionTeam || '',
+      assignedBy: user?.fullName || user?.username || 'Hệ thống',
+      assignedAt,
+      note: assignmentNote,
+      assignmentNote,
+      status,
+    }
+  }
   const visibleAssignments = getStageAssignmentsForRole(data.productionAssignments || [], user?.role)
     .slice()
     .sort((a, b) => `${b.date} ${b.assignedAt}`.localeCompare(`${a.date} ${a.assignedAt}`, 'vi', { numeric: true }))
@@ -5278,6 +5358,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     if (!canCreate) return
     const employee = employeeByCode(form.employeeCode)
     const shift = shiftByCode(form.shiftCode)
+    const team = teamByCode(form.teamCode)
     const machine = form.stage === 'Phối trộn' ? machineByCode(form.machineCode) : null
     if (!employee || !shift || !form.date || !form.stage) {
       setNotice('Vui lòng chọn đủ ngày, ca, công đoạn và nhân viên.')
@@ -5287,43 +5368,47 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       setNotice('Vui lòng chọn máy phối trộn cho công đoạn Phối trộn.')
       return
     }
-    const assignedAt = nowText()
-    const team = teamByCode(employee.productionTeam)
-    const assignment = {
-      id: uid('ASSIGN'),
-      date: form.date,
-      shiftCode: shift.code,
-      shiftName: shift.name,
-      stage: form.stage,
-      machineCode: machine?.machineCode || '',
-      machineName: machine ? formatMixingMachineLabel(machine) : '',
-      employeeCode: employee.code,
-      employeeName: employee.name,
-      employeeQr: employee.qrEmployee || employee.qr || '',
-      productionTeam: employee.productionTeam || '',
-      productionTeamName: team?.name || employee.productionTeam || '',
-      assignedBy: user?.fullName || user?.username || 'Hệ thống',
-      assignedAt,
-      status: 'Đang phân công',
-    }
+    const assignment = buildAssignment({ workDate: form.date, shift, team: team || teamByCode(employee.productionTeam), processName: form.stage, employee, machine })
     setData((current) => addLogToData({
       ...current,
       productionAssignments: [assignment, ...(current.productionAssignments || [])],
     }, `Phân công ${assignment.employeeName} vào ${assignment.stage} ca ${assignment.shiftCode} ngày ${assignment.date}.`))
     setNotice('Đã lưu phân công.')
   }
+  const applyTemplate = (template) => {
+    if (!canCreate) return
+    const shift = shiftByCode(form.shiftCode)
+    if (!shift || !form.date) {
+      setNotice('Vui lòng chọn ngày và ca trước khi áp dụng mẫu.')
+      return
+    }
+    const templateRows = template === 'A'
+      ? [['TP1', 'Phối trộn', 'Tổ phối trộn chính'], ['TP2', 'Phối trộn', 'Cân phụ / phối trộn bổ sung'], ['TH', 'Cân hóa', 'Tổ cân hóa'], ['TC', 'Cân rắn', 'Tổ cân rắn']]
+      : [['TP2', 'Phối trộn', 'Tổ phối trộn chính'], ['TP1', 'Phối trộn', 'Cân phụ / phối trộn bổ sung'], ['TH', 'Cân hóa', 'Tổ cân hóa'], ['TC', 'Cân rắn', 'Tổ cân rắn']]
+    const assignments = templateRows.flatMap(([teamCode, processName, assignmentNote]) => {
+      const team = teamByCode(teamCode)
+      const employees = employeesByTeam(teamCode).length ? employeesByTeam(teamCode) : employeesByTeam(team?.name)
+      const machine = processName === 'Phối trộn' ? machines[0] : null
+      return employees.map((employee) => buildAssignment({ workDate: form.date, shift, team, processName, employee, machine, assignmentNote }))
+    })
+    setData((current) => addLogToData({
+      ...current,
+      productionAssignments: [...assignments, ...(current.productionAssignments || [])],
+    }, `Áp dụng mẫu phân công ${template} cho ngày ${form.date}, ca ${shift.code}.`))
+    setNotice(`Đã áp dụng mẫu ${template} cho ${assignments.length} nhân viên.`)
+  }
   const updateAssignmentStatus = (assignmentId, status) => {
     if (!canEdit) return
     setData((current) => ({
       ...current,
-      productionAssignments: (current.productionAssignments || []).map((item) => item.id === assignmentId ? { ...item, status } : item),
+      productionAssignments: (current.productionAssignments || []).map((item) => (item.id || item.assignmentId) === assignmentId ? { ...item, status } : item),
     }))
   }
   const deleteAssignment = (assignmentId) => {
     if (!canDelete) return
     setData((current) => ({
       ...current,
-      productionAssignments: (current.productionAssignments || []).filter((item) => item.id !== assignmentId),
+      productionAssignments: (current.productionAssignments || []).filter((item) => (item.id || item.assignmentId) !== assignmentId),
     }))
   }
 
@@ -5333,7 +5418,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
         <div className="section-heading-row">
           <div>
             <span className="section-kicker">Sản xuất</span>
-            <h2>Phân công nhân sự theo ca</h2>
+            <h2>Phân công nhân sự</h2>
             <p className="panel-text">Dữ liệu phục vụ nhận diện nhân sự đang trực ở công đoạn, sẵn sàng nối QR nhân viên và cân điện tử sau này.</p>
           </div>
           <button className="primary-button" type="button" disabled={!canCreate} onClick={saveAssignment}>Lưu phân công</button>
@@ -5341,34 +5426,40 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
         <div className="production-form-grid order-create-form">
           <label>Ngày<input type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} /></label>
           <label>Ca làm việc<select value={form.shiftCode} onChange={(event) => updateForm('shiftCode', event.target.value)}>{shifts.map((shift) => <option key={shift.code} value={shift.code}>{shift.code} / {shift.name}</option>)}</select></label>
+          <label>Tổ sản xuất<select value={form.teamCode} onChange={(event) => updateForm('teamCode', event.target.value)}>{teams.map((team) => <option key={team.code} value={team.code}>{team.code} / {team.name}</option>)}</select></label>
           <label>Công đoạn<select value={form.stage} onChange={(event) => updateForm('stage', event.target.value)}>{visibleStages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select></label>
           {form.stage === 'Phối trộn' && (
             <label>Máy phối trộn<select value={form.machineCode} onChange={(event) => updateForm('machineCode', event.target.value)}><option value="">Chọn máy</option>{machines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}</select></label>
           )}
           <label className={form.stage === 'Phối trộn' ? '' : 'wide-field'}>Nhân viên<select value={form.employeeCode} onChange={(event) => updateForm('employeeCode', event.target.value)}>{activeEmployees.map((employee) => <option key={employee.code} value={employee.code}>{employee.code} / {employee.name}</option>)}</select></label>
         </div>
+        <div className="action-row">
+          <button className="secondary-button" type="button" disabled={!canCreate} onClick={() => applyTemplate('A')}>Áp dụng mẫu A</button>
+          <button className="secondary-button" type="button" disabled={!canCreate} onClick={() => applyTemplate('B')}>Áp dụng mẫu B</button>
+        </div>
         {notice && <div className="process-alert">{notice}</div>}
       </section>
       <section className="panel">
         <h3>Bảng phân công</h3>
-        <SimpleTable tableClassName="production-assignment-table" headers={['Ngày', 'Ca', 'Công đoạn', 'Máy', 'Nhân viên', 'Tổ sản xuất', 'Người phân công', 'Thời gian phân công', 'Trạng thái', 'Hành động']} rows={visibleAssignments.map((item) => (
-          <tr key={item.id}>
-            <td>{item.date}</td>
+        <SimpleTable tableClassName="production-assignment-table" headers={['Ngày', 'Ca', 'Tổ sản xuất', 'Công đoạn', 'Máy', 'Nhân viên', 'Người phân công', 'Thời gian phân công', 'Trạng thái', 'Hành động']} rows={visibleAssignments.map((item) => (
+          <tr key={item.id || item.assignmentId}>
+            <td>{item.workDate || item.date}</td>
             <td>{item.shiftCode} / {item.shiftName}</td>
-            <td>{item.stage}</td>
+            <td>{item.teamName || item.productionTeamName || item.productionTeam || '-'}</td>
+            <td>{item.processName || item.stage}</td>
             <td>{item.machineName || item.machineCode || '-'}</td>
             <td>{item.employeeName}</td>
-            <td>{item.productionTeamName || item.productionTeam || '-'}</td>
             <td>{item.assignedBy}</td>
             <td>{item.assignedAt}</td>
             <td>
-              <select value={item.status} disabled={!canEdit} onChange={(event) => updateAssignmentStatus(item.id, event.target.value)}>
-                <option>Đang phân công</option>
+              <select value={item.status} disabled={!canEdit} onChange={(event) => updateAssignmentStatus(item.id || item.assignmentId, event.target.value)}>
+                <option>Chưa bắt đầu</option>
+                <option>Đang thực hiện</option>
                 <option>Hoàn thành</option>
                 <option>Hủy</option>
               </select>
             </td>
-            <td><button className="danger-button" type="button" disabled={!canDelete} onClick={() => deleteAssignment(item.id)}>Xóa</button></td>
+            <td><button className="danger-button" type="button" disabled={!canDelete} onClick={() => deleteAssignment(item.id || item.assignmentId)}>Xóa</button></td>
           </tr>
         ))} empty="Chưa có phân công trong phạm vi được xem." />
       </section>
@@ -5477,6 +5568,10 @@ function AdminPage({ authData, setAuthData, section = 'users' }) {
     label,
     permissions: CRUD_ACTIONS.map((action) => ({ action: action[0].toUpperCase() + action.slice(1), id: `production.${key}.${action}` })),
   }))
+  const productionExtraPermissionRows = [
+    { label: 'Sản xuất / Truy xuất lô sản xuất', permissions: [{ action: 'View', id: 'production.trace.view' }] },
+    { label: 'Sản xuất / Nhật ký thao tác', permissions: [{ action: 'View', id: 'production.log.view' }] },
+  ]
   const systemPermissionRows = [
     { label: 'Quản trị hệ thống / Người dùng', permissions: [{ action: 'Truy cập', id: 'admin' }] },
     { label: 'Quản trị hệ thống / Vai trò', permissions: [{ action: 'Truy cập', id: 'admin' }] },
@@ -5484,7 +5579,7 @@ function AdminPage({ authData, setAuthData, section = 'users' }) {
     { label: 'Quản trị hệ thống / Nhật ký hệ thống', permissions: [{ action: 'Truy cập', id: 'admin' }] },
     { label: 'Bảo mật công thức / Xem tỷ lệ đầy đủ', permissions: [{ action: 'Secure view', id: 'formula.secure.view' }] },
   ]
-  const permissionRows = [...operationPermissionRows, ...productionPermissionRows, ...masterPermissionRows, ...systemPermissionRows]
+  const permissionRows = [...operationPermissionRows, ...productionPermissionRows, ...productionExtraPermissionRows, ...masterPermissionRows, ...systemPermissionRows]
   const allPermissionIds = allSystemPermissionIds
   const withAdminPermissions = (nextAuth) => ({
     ...nextAuth,
@@ -5748,7 +5843,7 @@ const pageMeta = {
   'raw-materials': ['Kho nguyên liệu', 'Nhập NVL, tạo QR/Barcode và lưu localStorage'],
   formulas: ['Công thức gốc', 'Phòng kỹ thuật quản lý công thức gốc'],
   orders: ['Lệnh sản xuất', 'Tạo lệnh từ công thức gốc và chờ QC sản xuất thử'],
-  'production-assignments': ['Phân công nhân sự theo ca', 'Theo dõi nhân sự trực công đoạn trong từng ca sản xuất'],
+  'production-assignments': ['Phân công nhân sự', 'Theo dõi nhân sự trực công đoạn trong từng ca sản xuất'],
   qc: ['QC sản xuất thử', 'QC sản xuất thử - Kiểm tra và hiệu chỉnh lệnh SX trước sản xuất chính thức'],
   chemical: ['Tổ cân hóa', 'Cân hóa chất chính và bổ sung'],
   solid: ['Tổ cân rắn', 'Cân nguyên liệu rắn chính và bổ sung'],
@@ -5797,6 +5892,39 @@ function App() {
     const orders = ensureQcDemoOrders(
       normalizeProductionOrders(orderSource, formulas),
       normalizeProductionOrders(seed.orders, formulas),
+    )
+    if (tab === 'trace') return (
+      <>
+        <section className="panel">
+          <div className="section-heading-row"><h2>Truy xuất lô sản xuất</h2></div>
+          <div className="production-form-grid">
+            <label>Nhập LOT<input value={traceLot} onChange={(event) => setTraceLot(event.target.value)} placeholder="VD: LOT-HNS-G1-001" /></label>
+          </div>
+        </section>
+        <section className="panel report-table-panel">
+          <SimpleTable tableClassName="report-wide-table" headers={['LOT', 'Lệnh sản xuất', 'Sản phẩm', 'Người cân hóa', 'Người cân rắn', 'Người phối trộn', 'Người QC', 'Người đóng gói', 'Người nhập kho TP', 'Thời gian công đoạn', 'Máy phối trộn']} rows={traceRecords.map((record) => {
+            const byStage = (name) => record.timeline.filter((item) => String(item.stage || '').includes(name))
+            const actorText = (name) => byStage(name).map((item) => item.actor).filter(Boolean).join(', ') || '-'
+            const timeText = record.timeline.map((item) => `${item.stage}: ${item.time || '-'}`).join(' | ')
+            const machineText = getHistoryMixingRows(record).map((item) => item.machine).filter(Boolean).join(', ') || '-'
+            return (
+              <tr key={record.order.id}>
+                <td>{record.order.lot || '-'}</td>
+                <td>{record.order.orderCode || record.order.id}</td>
+                <td>{record.order.productName || record.order.product || '-'}</td>
+                <td>{actorText('Cân hóa')}</td>
+                <td>{actorText('Cân rắn')}</td>
+                <td>{actorText('Phối trộn')}</td>
+                <td>{actorText('QC')}</td>
+                <td>{actorText('Đóng gói')}</td>
+                <td>{actorText('kho')}</td>
+                <td>{timeText || '-'}</td>
+                <td>{machineText}</td>
+              </tr>
+            )
+          })} empty="Chưa có dữ liệu truy xuất cho LOT đã chọn." />
+        </section>
+      </>
     )
     const baseData = {
       ...seed,
