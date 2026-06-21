@@ -591,19 +591,46 @@ tbody tr:hover {
   min-height: 38px;
 }
 
-.production-order-form {
-  grid-template-columns:
-    170px
-    minmax(90px, 110px)
-    minmax(160px, 180px)
-    minmax(360px, 1.6fr)
-    minmax(140px, 160px)
-    minmax(180px, 220px)
-    minmax(260px, 1fr);
+.production-order-form-grid {
+  display: grid;
+  grid-template-columns: 190px 110px 160px minmax(420px, 2fr) 150px 200px minmax(280px, 1fr);
+  gap: 12px;
   align-items: end;
+  margin-bottom: 16px;
 }
 
-.production-order-form > label {
+.production-order-form-grid label {
+  display: grid;
+  gap: 6px;
+  color: #38564a;
+  font-size: 0.9rem;
+  font-weight: 700;
+  min-width: 0;
+}
+
+.production-order-form-grid input,
+.production-order-form-grid select,
+.production-order-form-grid textarea {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid rgba(7, 34, 26, 0.16);
+  border-radius: 6px;
+  background: #fff;
+  color: #173d2d;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.production-order-form-grid textarea {
+  resize: vertical;
+  min-height: 38px;
+}
+
+.production-order-form-grid .customer-field {
+  min-width: 420px;
+}
+
+.production-order-form-grid .customer-field .customer-combobox {
   min-width: 0;
 }
 
@@ -11440,14 +11467,18 @@ body,
   }
 }
 
-@media (max-width: 1200px) {
-  .production-order-form {
-    grid-template-columns: repeat(2, minmax(240px, 1fr)) !important;
+@media (max-width: 1400px) {
+  .production-order-form-grid {
+    grid-template-columns: 190px 110px 160px minmax(360px, 1fr) 150px;
   }
 }
 
-@media (max-width: 768px) {
-  .production-order-form {
-    grid-template-columns: 1fr !important;
+@media (max-width: 900px) {
+  .production-order-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .production-order-form-grid .customer-field {
+    min-width: 0;
   }
 }

@@ -2246,7 +2246,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
       return
     }
     if (!Number.isFinite(Number(form.quantityKg)) || Number(form.quantityKg) <= 0) {
-      setWarning('Khối lượng đơn hàng không hợp lệ')
+      setWarning('Khối lượng (kg) không hợp lệ')
       return
     }
     if (!selectedCustomer) {
@@ -2338,11 +2338,11 @@ function OrdersPage({ data, setData, permissions = [] }) {
         <div className="panel-header-row"><div><h2>Lệnh sản xuất</h2><p className="panel-text">Phòng SX tạo lệnh từ công thức gốc. Hệ thống tự quy đổi khối lượng từng nguyên liệu theo khối lượng yêu cầu.</p></div></div>
         {warning && <div className="process-alert">{warning}</div>}
         {message && <div className="formula-ratio-ok">{message}</div>}
-        <div className="production-form-grid order-create-form production-order-form">
+        <div className="production-order-form-grid">
           <label>Công thức gốc<select value={form.formulaId} onChange={(event) => setForm({ ...form, formulaId: event.target.value })}>{data.formulas.map((item) => <option value={item.id} key={item.id}>{item.code} - {item.version}</option>)}</select></label>
-          <label>Khối lượng đơn hàng<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value })} /></label>
+          <label>Khối lượng (kg)<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value })} /></label>
           <label>Mã LOT<input value={form.lot} onChange={(event) => setForm({ ...form, lot: event.target.value })} /></label>
-          <label>Khách hàng *
+          <label className="customer-field">Khách hàng *
             <CustomerSearchCombobox
               customers={customerOptions}
               value={selectedCustomer}
@@ -2353,7 +2353,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
           </label>
           <label>Máy phối trộn *<select value={form.mixerMachine} onChange={(event) => setForm({ ...form, mixerMachine: event.target.value })}><option value="">Chọn máy</option>{machines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}</select></label>
           <label>Phiếu yêu cầu SX<input value={form.productionRequestNo} placeholder="Nhập số phiếu yêu cầu sản xuất" onChange={(event) => setForm({ ...form, productionRequestNo: event.target.value })} /></label>
-          <label className="wide-field">Ghi chú<textarea value={form.note} placeholder="Ví dụ: Giống mẫu đã duyệt ngày .../..." onChange={(event) => setForm({ ...form, note: event.target.value })} /></label>
+          <label>Ghi chú<textarea value={form.note} placeholder="Ví dụ: Giống mẫu đã duyệt ngày .../..." onChange={(event) => setForm({ ...form, note: event.target.value })} /></label>
         </div>
         <button className="primary-button" onClick={create}>Tạo lệnh sản xuất</button>
       </section>
