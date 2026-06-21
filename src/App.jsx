@@ -5677,7 +5677,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
             <div className="assignment-employee-checklist">
               {selectableEmployees.length === 0 && <div className="assignment-empty">Chưa có nhân viên phù hợp</div>}
               {selectableEmployees.map((employee) => (
-                <label className="assignment-employee-option" key={employee.code}>
+                <label className="employee-row" key={employee.code}>
                   <input
                     type="checkbox"
                     checked={(form.employeeCodes || []).includes(employee.code)}

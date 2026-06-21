@@ -616,27 +616,35 @@ tbody tr:hover {
   background: #fff;
 }
 
-.assignment-employee-option {
+.production-form-grid .employee-row,
+.employee-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 28px;
+  width: 100%;
+  min-height: 32px;
   margin: 0;
   color: #173d2d;
+  cursor: pointer;
   font-size: 14px;
+  font-weight: 600;
   line-height: 1.35;
   white-space: nowrap;
 }
 
-.assignment-employee-option input[type="checkbox"] {
+.production-form-grid .employee-row input[type="checkbox"],
+.employee-row input[type="checkbox"] {
   flex: 0 0 auto;
+  flex-shrink: 0;
   width: 16px !important;
   min-width: 16px !important;
   height: 16px;
   margin: 0;
 }
 
-.assignment-employee-option span {
+.production-form-grid .employee-row span,
+.employee-row span {
+  display: block;
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
