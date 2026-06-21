@@ -510,6 +510,7 @@ function expandLegacyPermissions(permissions = []) {
     'admin-users': ['admin'],
     'admin-roles': ['admin'],
     'admin-permissions': ['admin'],
+    'admin-system-logs': ['admin'],
   }
   permissions.forEach((permission) => {
     ;(legacyMap[permission] || []).forEach((item) => expanded.add(item))
@@ -574,8 +575,20 @@ function loadStored(key, fallback) {
   }
 }
 
-function addLogToData(data, entry) {
-  const log = { id: uid('log'), time: nowText(), entry }
+function operationLogMeta(user, { employee = '', stage = '', order, result = '' } = {}) {
+  return {
+    username: user?.username || '',
+    user: user?.fullName || user?.username || '',
+    employee,
+    role: user?.role || '',
+    stage,
+    orderCode: typeof order === 'string' ? order : (order?.orderCode || order?.id || ''),
+    result,
+  }
+}
+
+function addLogToData(data, entry, meta = {}) {
+  const log = { id: uid('log'), time: nowText(), entry, ...meta }
   return {
     ...data,
     logs: [...(data.logs || []), log],
@@ -2206,13 +2219,13 @@ function OrderDetailTabs({ order, tab, productionLogs, qc2Logs, permissions = []
   return <SimpleTable headers={['Thời gian', 'Nội dung']} rows={relatedLogs.map((log) => <tr key={log.id}><td>{log.time}</td><td>{log.entry}</td></tr>)} />
 }
 
-function QCPage({ data, setData }) {
+function QCPage({ data, setData, user }) {
   return (
-    <QC1 data={data} setData={setData} />
+    <QC1 data={data} setData={setData} user={user} />
   )
 }
 
-function QC1({ data, setData }) {
+function QC1({ data, setData, user }) {
   const waitingOrders = data.orders.filter((order) => order.stage === 'qc1')
   const [activeOrderId, setActiveOrderId] = useState(waitingOrders[0]?.id || '')
   const [showAddMaterial, setShowAddMaterial] = useState(false)
@@ -2220,12 +2233,18 @@ function QC1({ data, setData }) {
   const activeOrder = data.orders.find((order) => order.id === activeOrderId && order.stage === 'qc1') || waitingOrders[0]
   const completedOrders = data.orders.filter((order) => order.qc1Result && order.stage !== 'qc1')
 
-  const patchOrder = (orderId, updater, log) => setData((current) => addLogToData({ ...current, orders: current.orders.map((order) => order.id === orderId ? { ...updater(order), updatedAt: nowText() } : order) }, log))
+  const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'QC')
+  const assignmentEmployeeText = currentAssignments.map((item) => item.employeeName).join(', ')
+  const patchOrder = (orderId, updater, log, result = 'Cập nhật QC') => setData((current) => addLogToData(
+    { ...current, orders: current.orders.map((order) => order.id === orderId ? { ...updater(order), updatedAt: nowText() } : order) },
+    log,
+    operationLogMeta(user, { employee: assignmentEmployeeText, stage: 'QC', order: orderId, result }),
+  ))
   const updateItem = (orderId, itemId, field, value) => {
     patchOrder(orderId, (order) => ({
       ...order,
       activeProductionFormula: getEffectiveFormula(order).map((item) => item.id === itemId ? { ...item, [field]: value } : item),
-    }), `QC1 ghi nhận thao tác trên ${orderId} - ${itemId}.`)
+    }), `QC1 ghi nhận thao tác trên ${orderId} - ${itemId}.`, 'Cập nhật chỉ tiêu QC')
   }
   const saveNewMaterial = () => {
     if (!activeOrder || !newMaterial.materialCode) return
@@ -2255,7 +2274,7 @@ function QC1({ data, setData }) {
     patchOrder(activeOrder.id, (order) => ({
       ...order,
       activeProductionFormula: [...getEffectiveFormula(order), material],
-    }), `QC sản xuất thử bổ sung NVL mới ${material.materialCode} - ${material.materialName}, khối lượng ${kg(material.qcAdjustKg)}, thời gian ${addedAt}.`)
+    }), `QC sản xuất thử bổ sung NVL mới ${material.materialCode} - ${material.materialName}, khối lượng ${kg(material.qcAdjustKg)}, thời gian ${addedAt}.`, 'Bổ sung NVL')
     setNewMaterial({ materialCode: '', materialName: '', materialGroup: CHEMICAL, requiredKg: 0, reason: '', note: '' })
     setShowAddMaterial(false)
   }
@@ -2300,7 +2319,7 @@ function QC1({ data, setData }) {
         solidStatus: 'Ready',
         scaleStatus: { chemical: 'Ready', solid: 'Ready' },
       }
-    }, adjusted ? `Điều chỉnh sau QC sản xuất thử lệnh SX ${order.id}, tự động có hiệu lực sau duyệt và chuyển sang Chờ cân.` : `QC sản xuất thử đạt lệnh ${order.id}, tách nguyên liệu sang tổ cân hóa và tổ cân rắn.`)
+    }, adjusted ? `Điều chỉnh sau QC sản xuất thử lệnh SX ${order.id}, tự động có hiệu lực sau duyệt và chuyển sang Chờ cân.` : `QC sản xuất thử đạt lệnh ${order.id}, tách nguyên liệu sang tổ cân hóa và tổ cân rắn.`, adjusted ? 'Duyệt có điều chỉnh' : 'Đạt')
     moveNext(order.id)
   }
 
@@ -2519,6 +2538,8 @@ function FinishedProductQcPage({ data, setData, user }) {
   const activeAdjustments = activeOrder ? getQc2Adjustments(activeOrder) : []
   const activeItems = activeAdjustments.flatMap((ticket) => getAdjustmentItems(ticket).map((item) => ({ ...item, ticket })))
   const qc2Rows = activeOrder ? buildQc2Rows(activeOrder, form.adjustments) : []
+  const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'QC')
+  const assignmentEmployeeText = currentAssignments.map((item) => item.employeeName).join(', ')
 
   const createDemoData = () => {
     const payload = createQc2DemoPayload(data)
@@ -2555,7 +2576,7 @@ function FinishedProductQcPage({ data, setData, user }) {
       ...current,
       orders: current.orders.map((item) => item.id === order.id ? { ...item, status: 'Đang QC thành phẩm', qc2Status: 'Đang QC', updatedAt: nowText() } : item),
       qc2Logs: [...(current.qc2Logs || []), { id: uid('qc2'), orderId: order.id, time: nowText(), action: 'Bắt đầu QC thành phẩm' }],
-    }, `Bắt đầu QC thành phẩm lệnh ${order.id}.`))
+    }, `Bắt đầu QC thành phẩm lệnh ${order.id}.`, operationLogMeta(user, { employee: assignmentEmployeeText, stage: 'QC', order, result: 'Bắt đầu QC thành phẩm' })))
   }
 
   const updateExistingAdjustment = (row, field, value) => {
@@ -2607,7 +2628,7 @@ function FinishedProductQcPage({ data, setData, user }) {
             updatedAt: checkedAt,
           } : item),
           qc2Logs: [...(current.qc2Logs || []), { id: uid('qc2'), orderId: activeOrder.id, time: checkedAt, action: 'QC2 đạt', result: 'Đạt' }],
-        }, `QC2 đạt lệnh ${activeOrder.id}. Chuyển đóng gói.`)
+        }, `QC2 đạt lệnh ${activeOrder.id}. Chuyển đóng gói.`, operationLogMeta(user, { employee: assignmentEmployeeText, stage: 'QC', order: activeOrder, result: 'QC2 đạt' }))
       }
 
       if (form.result === 'Không đạt') {
@@ -2622,7 +2643,7 @@ function FinishedProductQcPage({ data, setData, user }) {
             updatedAt: checkedAt,
           } : item),
           qc2Logs: [...(current.qc2Logs || []), { id: uid('qc2'), orderId: activeOrder.id, time: checkedAt, action: 'QC2 không đạt', result: 'Không đạt' }],
-        }, `QC thành phẩm không đạt lệnh ${activeOrder.id}.`)
+        }, `QC thành phẩm không đạt lệnh ${activeOrder.id}.`, operationLogMeta(user, { employee: assignmentEmployeeText, stage: 'QC', order: activeOrder, result: 'QC2 không đạt' }))
       }
 
       const adjustmentNo = nextQc2AdjustmentNo(current)
@@ -2722,7 +2743,7 @@ function FinishedProductQcPage({ data, setData, user }) {
         qc2AdjustmentTickets: [...(current.qc2AdjustmentTickets || []), adjustmentTicket],
         supplementalWeighing: [...(current.supplementalWeighing || []), { ...ticket, orderId: activeOrder.id }],
         qc2Logs: [...(current.qc2Logs || []), { id: uid('qc2'), orderId: activeOrder.id, time: checkedAt, action: 'QC2 cần điều chỉnh', result: 'Cần điều chỉnh', adjustmentId }],
-      }, `QC2 cần điều chỉnh lệnh ${activeOrder.id}. Tạo phiếu điều chỉnh ${adjustmentId} và phiếu cân bổ sung ${ticket.id}.`)
+      }, `QC2 cần điều chỉnh lệnh ${activeOrder.id}. Tạo phiếu điều chỉnh ${adjustmentId} và phiếu cân bổ sung ${ticket.id}.`, operationLogMeta(user, { employee: assignmentEmployeeText, stage: 'QC', order: activeOrder, result: 'QC2 cần điều chỉnh' }))
     })
   }
 
@@ -2897,7 +2918,7 @@ function FinishedProductQcPage({ data, setData, user }) {
   )
 }
 
-function WeighingPage({ data, setData, group }) {
+function WeighingPage({ data, setData, group, user }) {
   const label = group === CHEMICAL ? 'Cân hóa chất' : 'Cân nguyên liệu rắn'
   const activeTitle = group === CHEMICAL ? 'Lệnh đang cân hóa' : 'Lệnh đang cân rắn'
   const completionKey = group === CHEMICAL ? 'ChemicalCompleted' : 'SolidCompleted'
@@ -2945,6 +2966,7 @@ function WeighingPage({ data, setData, group }) {
   const latestContainer = completedWeighingContainers[0]
   const assignmentStage = group === CHEMICAL ? 'Cân hóa' : 'Cân rắn'
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], assignmentStage)
+  const assignmentEmployeeText = currentAssignments.map((item) => item.employeeName).join(', ')
 
   useEffect(() => {
     setScaleSupported(typeof navigator !== 'undefined' && Boolean(navigator.serial))
@@ -3017,15 +3039,15 @@ function WeighingPage({ data, setData, group }) {
 
   const handleViewWeighingDetail = (container) => {
     setWeighingDetailModal(container)
-    setData((current) => addLogToData(current, `Xem chi tiết cân ${container.materialGroup} ${container.qrCode} cho lệnh ${container.orderCode}.`))
+    setData((current) => addLogToData(current, `Xem chi tiết cân ${container.materialGroup} ${container.qrCode} cho lệnh ${container.orderCode}.`, operationLogMeta(user, { employee: assignmentEmployeeText, stage: assignmentStage, order: container.orderCode, result: 'Xem chi tiết cân' })))
   }
   const handlePrintQr = (container) => {
     setPrintQrModal(container)
-    setData((current) => addLogToData(current, `In QR hỗn hợp ${container.materialGroup} ${container.qrCode} cho lệnh ${container.orderCode}.`))
+    setData((current) => addLogToData(current, `In QR hỗn hợp ${container.materialGroup} ${container.qrCode} cho lệnh ${container.orderCode}.`, operationLogMeta(user, { employee: assignmentEmployeeText, stage: assignmentStage, order: container.orderCode, result: 'In QR hỗn hợp' })))
     setTimeout(() => window.print(), 80)
   }
   const printSelectedContainer = (container) => {
-    setData((current) => addLogToData(current, `In QR hỗn hợp ${container.materialGroup} ${container.qrCode} cho lệnh ${container.orderCode}.`))
+    setData((current) => addLogToData(current, `In QR hỗn hợp ${container.materialGroup} ${container.qrCode} cho lệnh ${container.orderCode}.`, operationLogMeta(user, { employee: assignmentEmployeeText, stage: assignmentStage, order: container.orderCode, result: 'In QR hỗn hợp' })))
     setTimeout(() => window.print(), 50)
   }
 
@@ -3058,7 +3080,7 @@ function WeighingPage({ data, setData, group }) {
       }
       const apply = (rows) => rows.map((row) => row.id === item.id ? { ...row, ...patch } : row)
       return { ...currentOrder, activeProductionFormula: apply(getEffectiveFormula(currentOrder)), qc1AdjustedFormula: currentOrder.qc1AdjustedFormula ? apply(currentOrder.qc1AdjustedFormula) : currentOrder.qc1AdjustedFormula, updatedAt: nowText() }
-    }), supplementalWeighing: (current.supplementalWeighing || []).map((ticket) => ticket.id === item.ticketId ? { ...ticket, items: getTicketItems(ticket).map((row) => row.id === item.id ? { ...row, ...patch } : row) } : ticket) }, log)
+    }), supplementalWeighing: (current.supplementalWeighing || []).map((ticket) => ticket.id === item.ticketId ? { ...ticket, items: getTicketItems(ticket).map((row) => row.id === item.id ? { ...row, ...patch } : row) } : ticket) }, log, operationLogMeta(user, { employee: assignmentEmployeeText, stage: assignmentStage, order, result: patch.weighStatus || patch.qrStatus || 'Cập nhật cân' }))
   })
 
   const finishIfReady = (order) => setData((current) => {
@@ -3137,7 +3159,7 @@ function WeighingPage({ data, setData, group }) {
       orders,
       supplementalWeighing,
       weighedContainers: groupContainer ? [...normalizedContainers, groupContainer] : normalizedContainers,
-    }, logText)
+    }, logText, operationLogMeta(user, { employee: assignmentEmployeeText, stage: assignmentStage, order, result: 'Hoàn thành cân' }))
   })
 
   const startOrder = (order) => {
@@ -3165,7 +3187,7 @@ function WeighingPage({ data, setData, group }) {
             updatedAt: startedAt,
           }
         }),
-      }, `${label} bắt đầu cân lệnh ${order.id}.`))
+      }, `${label} bắt đầu cân lệnh ${order.id}.`, operationLogMeta(user, { employee: assignmentEmployeeText, stage: assignmentStage, order, result: 'Bắt đầu cân' })))
       setActiveOrderId(order.id)
       setWarning('')
     }
@@ -3524,7 +3546,7 @@ function getMixingProgress(order) {
   return Math.round((steps.filter(Boolean).length / 6) * 100)
 }
 
-function MixingPage({ data, setData }) {
+function MixingPage({ data, setData, user }) {
   const machines = normalizeMixingMachines(data.mixingMachines)
   const activeMachines = getActiveMixingMachines(machines)
   const orders = data.orders
@@ -3532,6 +3554,7 @@ function MixingPage({ data, setData }) {
   const [changeRequestDraft, setChangeRequestDraft] = useState(null)
   const [warning, setWarning] = useState('')
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'Phối trộn')
+  const assignmentEmployeeText = currentAssignments.map((item) => item.employeeName).join(', ')
   const activeMixingOrders = orders.filter((order) => order.mixing?.status === 'Active' || order.mixingStatus === 'Active')
   const readyOrders = orders.filter((order) => getOrderAssignedMachineCode(order))
   const mixingHistory = orders.filter((order) => order.mixingStatus === 'completed' || order.mixing?.status === 'Completed' || order.mixingCompletedAt)
@@ -3600,7 +3623,8 @@ function MixingPage({ data, setData }) {
       const resultLog = result.pass
         ? `Xác nhận QR hỗn hợp PASS cho lệnh ${order.orderCode || order.id}.`
         : `Xác nhận QR hỗn hợp FAIL cho lệnh ${order.orderCode || order.id}: QR hỗn hợp không đúng lệnh sản xuất hoặc không đúng nhóm nguyên liệu.`
-      return addLogToData(addLogToData({ ...current, orders }, scanLog), resultLog)
+      const meta = operationLogMeta(user, { employee: assignmentEmployeeText, stage: 'Phối trộn', order, result: result.pass ? 'QR PASS' : 'QR FAIL' })
+      return addLogToData(addLogToData({ ...current, orders }, scanLog, meta), resultLog, meta)
     })
     setWarning(result.pass ? '' : 'QR hỗn hợp không đúng lệnh sản xuất hoặc không đúng nhóm nguyên liệu.')
   }
@@ -3643,7 +3667,7 @@ function MixingPage({ data, setData }) {
         },
         updatedAt: requestedAt,
       } : item),
-    }, `Tổ phối trộn đề nghị đổi máy lệnh ${changeRequestDraft.orderCode} từ ${machineLabelByCode(changeRequestDraft.currentMachine)} sang ${machineLabelByCode(changeRequestDraft.requestedMachine)}. Lý do: ${changeRequestDraft.reason.trim()}`))
+    }, `Tổ phối trộn đề nghị đổi máy lệnh ${changeRequestDraft.orderCode} từ ${machineLabelByCode(changeRequestDraft.currentMachine)} sang ${machineLabelByCode(changeRequestDraft.requestedMachine)}. Lý do: ${changeRequestDraft.reason.trim()}`, operationLogMeta(user, { employee: assignmentEmployeeText, stage: 'Phối trộn', order: changeRequestDraft.orderCode, result: 'Đề nghị đổi máy' })))
     setChangeRequestDraft(null)
     setWarning('Đã gửi đề nghị đổi máy, chờ Phòng SX/Admin xác nhận.')
   }
@@ -3704,7 +3728,7 @@ function MixingPage({ data, setData }) {
         }],
         updatedAt: startedAt,
       } : item),
-    }, supplement ? `Bắt đầu phối trộn bổ sung sau khi xác nhận QR hỗn hợp lệnh ${order.id} trên máy ${machineLabelByCode(machineCode)}.` : `Bắt đầu phối trộn sau khi xác nhận QR hỗn hợp lệnh ${order.id} trên máy ${machineLabelByCode(machineCode)}.`))
+    }, supplement ? `Bắt đầu phối trộn bổ sung sau khi xác nhận QR hỗn hợp lệnh ${order.id} trên máy ${machineLabelByCode(machineCode)}.` : `Bắt đầu phối trộn sau khi xác nhận QR hỗn hợp lệnh ${order.id} trên máy ${machineLabelByCode(machineCode)}.`, operationLogMeta(user, { employee: assignmentEmployeeText, stage: 'Phối trộn', order, result: 'Bắt đầu phối trộn' })))
   }
   const completeMixing = (order, supplement) => setData((current) => addLogToData({
     ...current,
@@ -3719,7 +3743,7 @@ function MixingPage({ data, setData }) {
       mixing: { ...(item.mixing || {}), status: 'Completed', finalWeightKg: item.quantityKg, completedAt: nowText(), operator: 'Tổ phối trộn', supplement },
       updatedAt: nowText(),
     } : item),
-  }, supplement ? `Hoàn thành phối trộn bổ sung ${order.id} và cập nhật QR hỗn hợp đã phối trộn. Chuyển QC thành phẩm.` : `Hoàn thành phối trộn chính ${order.id} và cập nhật QR hỗn hợp đã phối trộn. Chuyển QC thành phẩm.`))
+  }, supplement ? `Hoàn thành phối trộn bổ sung ${order.id} và cập nhật QR hỗn hợp đã phối trộn. Chuyển QC thành phẩm.` : `Hoàn thành phối trộn chính ${order.id} và cập nhật QR hỗn hợp đã phối trộn. Chuyển QC thành phẩm.`, operationLogMeta(user, { employee: assignmentEmployeeText, stage: 'Phối trộn', order, result: 'Hoàn thành phối trộn' })))
 
   return (
     <div className="page-content mixing-page-v2">
@@ -3909,7 +3933,7 @@ function MixingPage({ data, setData }) {
   )
 }
 
-function PackagingPage({ data, setData }) {
+function PackagingPage({ data, setData, user }) {
   const orders = data.orders
     .filter((order) => (
       order.stage === 'packaging'
@@ -3924,6 +3948,8 @@ function PackagingPage({ data, setData }) {
   const activeOrder = orders.find((order) => order.id === activeOrderId) || orders[0]
   const form = activeOrder ? getPackingForm(forms, activeOrder) : { details: defaultPackingDetails() }
   const totals = activeOrder ? packingTotals(activeOrder, form) : { qcWeight: 0, totalPackedWeight: 0, remainingWeight: 0, differenceWeight: 0, totalTolerance: 0 }
+  const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'Đóng gói')
+  const assignmentEmployeeText = currentAssignments.map((item) => item.employeeName).join(', ')
 
   const updateForm = (patch) => {
     if (!activeOrder) return
@@ -3986,7 +4012,7 @@ function PackagingPage({ data, setData }) {
         packaging: nextForm,
         updatedAt: startedAt,
       } : order),
-    }, `Bắt đầu đóng gói lệnh ${activeOrder.id}.`))
+    }, `Bắt đầu đóng gói lệnh ${activeOrder.id}.`, operationLogMeta(user, { employee: assignmentEmployeeText, stage: 'Đóng gói', order: activeOrder, result: 'Bắt đầu đóng gói' })))
     setWarning('')
   }
   const saveDraft = () => {
@@ -4003,7 +4029,7 @@ function PackagingPage({ data, setData }) {
         packaging: nextForm,
         updatedAt: nowText(),
       } : order),
-    }, `Lưu tạm đóng gói lệnh ${activeOrder.id}.`))
+    }, `Lưu tạm đóng gói lệnh ${activeOrder.id}.`, operationLogMeta(user, { employee: assignmentEmployeeText, stage: 'Đóng gói', order: activeOrder, result: 'Lưu tạm đóng gói' })))
     setWarning('')
   }
   const completePackaging = () => {
@@ -4030,7 +4056,7 @@ function PackagingPage({ data, setData }) {
         updatedAt: completedAt,
       } : order),
       packingLogs: [...(current.packingLogs || []), packingLog],
-    }, `Hoàn tất đóng gói lệnh ${activeOrder.id}, chuyển Chờ nhập kho thành phẩm.`))
+    }, `Hoàn tất đóng gói lệnh ${activeOrder.id}, chuyển Chờ nhập kho thành phẩm.`, operationLogMeta(user, { employee: assignmentEmployeeText, stage: 'Đóng gói', order: activeOrder, result: 'Hoàn tất đóng gói' })))
     setWarning('')
   }
 
@@ -4585,6 +4611,87 @@ function historyInfoRows(record) {
     ['Khối lượng nhập kho', kg(imported)],
     ['Trạng thái cuối', order.orderStatus || order.status || '-'],
   ]
+}
+
+function inferLogStage(log = {}) {
+  if (log.stage) return log.stage
+  const text = String(log.entry || log.action || '')
+  if (/cân hóa|Hóa/i.test(text)) return 'Cân hóa'
+  if (/cân rắn|Rắn/i.test(text)) return 'Cân rắn'
+  if (/phối trộn/i.test(text)) return 'Phối trộn'
+  if (/QC|kiểm tra/i.test(text)) return 'QC'
+  if (/đóng gói/i.test(text)) return 'Đóng gói'
+  if (/nhập kho|thành phẩm/i.test(text)) return 'Kho thành phẩm'
+  return '-'
+}
+
+function inferLogOrder(log = {}) {
+  if (log.orderCode || log.orderId) return log.orderCode || log.orderId
+  const text = String(log.entry || log.action || '')
+  return text.match(/\b(?:LSX|ORD|HSS)-[A-Z0-9-]+/i)?.[0] || '-'
+}
+
+function normalizeSystemLogs(data = {}) {
+  const byId = new Map()
+  ;[...(data.logs || []), ...(data.productionLogs || [])].forEach((log) => {
+    if (!log) return
+    const id = log.id || `${log.time}-${log.entry || log.action}`
+    byId.set(id, {
+      id,
+      time: log.time || log.createdAt || '-',
+      username: log.username || log.user || log.actor || '-',
+      employee: log.employee || log.employeeName || '-',
+      role: log.role || '-',
+      stage: inferLogStage(log),
+      orderCode: inferLogOrder(log),
+      content: log.entry || log.action || '-',
+      result: log.result || log.status || '-',
+    })
+  })
+  return Array.from(byId.values()).sort((a, b) => String(b.time).localeCompare(String(a.time), 'vi', { numeric: true }))
+}
+
+function SystemLogsPage({ data }) {
+  const [filters, setFilters] = useState({ username: '', employee: '', role: '', stage: '', orderCode: '' })
+  const updateFilter = (field, value) => setFilters((current) => ({ ...current, [field]: value }))
+  const logs = normalizeSystemLogs(data)
+  const filtered = logs.filter((log) => (
+    (!filters.username || String(log.username).toLowerCase().includes(filters.username.toLowerCase()))
+    && (!filters.employee || String(log.employee).toLowerCase().includes(filters.employee.toLowerCase()))
+    && (!filters.role || String(log.role).toLowerCase().includes(filters.role.toLowerCase()))
+    && (!filters.stage || String(log.stage).toLowerCase().includes(filters.stage.toLowerCase()))
+    && (!filters.orderCode || String(log.orderCode).toLowerCase().includes(filters.orderCode.toLowerCase()))
+  ))
+  return (
+    <div className="page-content system-logs-page">
+      <section className="panel">
+        <div className="section-heading-row">
+          <div><span className="section-kicker">Quản trị hệ thống</span><h2>Nhật ký hệ thống</h2></div>
+        </div>
+        <div className="production-form-grid">
+          <label>Người dùng<input value={filters.username} onChange={(event) => updateFilter('username', event.target.value)} /></label>
+          <label>Nhân viên<input value={filters.employee} onChange={(event) => updateFilter('employee', event.target.value)} /></label>
+          <label>Vai trò<input value={filters.role} onChange={(event) => updateFilter('role', event.target.value)} /></label>
+          <label>Công đoạn<input value={filters.stage} onChange={(event) => updateFilter('stage', event.target.value)} /></label>
+          <label>Mã lệnh SX<input value={filters.orderCode} onChange={(event) => updateFilter('orderCode', event.target.value)} /></label>
+        </div>
+      </section>
+      <section className="panel">
+        <SimpleTable headers={['Người dùng', 'Nhân viên', 'Vai trò', 'Công đoạn', 'Lệnh sản xuất', 'Thời gian', 'Nội dung thao tác', 'Kết quả']} rows={filtered.map((log) => (
+          <tr key={log.id}>
+            <td>{log.username}</td>
+            <td>{log.employee}</td>
+            <td>{log.role}</td>
+            <td>{log.stage}</td>
+            <td>{log.orderCode}</td>
+            <td>{log.time}</td>
+            <td>{log.content}</td>
+            <td>{log.result}</td>
+          </tr>
+        ))} empty="Chưa có nhật ký thao tác." />
+      </section>
+    </div>
+  )
 }
 
 function LogsPage({ data }) {
@@ -5348,6 +5455,7 @@ function AdminPage({ authData, setAuthData }) {
     { label: 'Quản trị hệ thống / Người dùng', permissions: [{ action: 'Truy cập', id: 'admin' }] },
     { label: 'Quản trị hệ thống / Vai trò', permissions: [{ action: 'Truy cập', id: 'admin' }] },
     { label: 'Quản trị hệ thống / Ma trận phân quyền', permissions: [{ action: 'Truy cập', id: 'admin' }] },
+    { label: 'Quản trị hệ thống / Nhật ký hệ thống', permissions: [{ action: 'Truy cập', id: 'admin' }] },
     { label: 'Bảo mật công thức / Xem tỷ lệ đầy đủ', permissions: [{ action: 'Secure view', id: 'formula.secure.view' }] },
   ]
   const permissionRows = [...operationPermissionRows, ...productionPermissionRows, ...masterPermissionRows, ...systemPermissionRows]
@@ -5599,6 +5707,7 @@ const pageMeta = {
   'admin-users': ['Người dùng', 'Quản lý tài khoản hệ thống'],
   'admin-roles': ['Vai trò', 'Quản lý vai trò hệ thống'],
   'admin-permissions': ['Ma trận phân quyền', 'Phân quyền chi tiết theo chức năng'],
+  'admin-system-logs': ['Nhật ký hệ thống', 'Truy xuất nhật ký thao tác theo người dùng, nhân viên và công đoạn'],
   'master-materials': ['Danh mục vật tư', 'Dữ liệu gốc vật tư dùng trong sản xuất'],
   'master-products': ['Danh mục sản phẩm', 'Dữ liệu gốc sản phẩm'],
   'master-suppliers': ['Danh mục nhà cung cấp', 'Dữ liệu gốc nhà cung cấp'],
@@ -5731,12 +5840,12 @@ function App() {
     formulas: <FormulasPage data={data} setData={setData} permissions={userPermissions} />,
     orders: <OrdersPage data={data} setData={setData} permissions={userPermissions} />,
     'production-assignments': <ProductionAssignmentPage data={data} setData={setData} user={user} permissions={userPermissions} />,
-    qc: <QCPage data={data} setData={setData} />,
-    chemical: <WeighingPage data={data} setData={setData} group={CHEMICAL} />,
-    solid: <WeighingPage data={data} setData={setData} group={SOLID} />,
-    mixing: <MixingPage data={data} setData={setData} />,
+    qc: <QCPage data={data} setData={setData} user={user} />,
+    chemical: <WeighingPage data={data} setData={setData} group={CHEMICAL} user={user} />,
+    solid: <WeighingPage data={data} setData={setData} group={SOLID} user={user} />,
+    mixing: <MixingPage data={data} setData={setData} user={user} />,
     'finished-qc': <FinishedProductQcPage data={data} setData={setData} user={user} />,
-    packaging: <PackagingPage data={data} setData={setData} />,
+    packaging: <PackagingPage data={data} setData={setData} user={user} />,
     'finished-goods': <FinishedGoodsPage data={data} setData={setData} />,
     logs: <LogsPage data={data} />,
     reports: <ReportsPage data={data} />,
@@ -5744,6 +5853,7 @@ function App() {
     'admin-users': <AdminPage authData={authData} setAuthData={setAuthData} />,
     'admin-roles': <AdminPage authData={authData} setAuthData={setAuthData} />,
     'admin-permissions': <AdminPage authData={authData} setAuthData={setAuthData} />,
+    'admin-system-logs': <SystemLogsPage data={data} />,
     'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'materialGroup', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} />,
     'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'group', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,

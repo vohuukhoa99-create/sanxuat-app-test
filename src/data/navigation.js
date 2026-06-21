@@ -27,4 +27,5 @@ export const defaultNavItems = [
   { id: 'admin-users', label: 'Người dùng', parentId: 'admin', permission: 'admin' },
   { id: 'admin-roles', label: 'Vai trò', parentId: 'admin', permission: 'admin' },
   { id: 'admin-permissions', label: 'Ma trận phân quyền', parentId: 'admin', permission: 'admin' },
+  { id: 'admin-system-logs', label: 'Nhật ký hệ thống', parentId: 'admin', permission: 'admin' },
 ]
