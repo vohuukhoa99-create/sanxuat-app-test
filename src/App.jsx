@@ -60,12 +60,11 @@ const realCustomerFields = (index = 0) => {
     channelCode: customer.channelCode || '',
   }
 }
-const formatCustomerOption = (customer = {}) => [customer.customerCode, customer.customerName, customer.province].filter(Boolean).join(' - ')
+const formatCustomerOption = (customer = {}) => customer.customerName || ''
 const customerMatches = (customer = {}, query = '') => {
   const value = query.trim().toLowerCase()
   if (!value) return true
-  return [customer.customerCode, customer.customerName, customer.province, customer.channelCode]
-    .some((item) => String(item || '').toLowerCase().includes(value))
+  return String(customer.customerName || '').toLowerCase().includes(value)
 }
 const resolveOrderCustomer = (order = {}) => {
   const catalog = normalizeCustomerCatalog()
@@ -2218,7 +2217,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
 }
 
 function OrdersPage({ data, setData, permissions = [] }) {
-  const [form, setForm] = useState({ formulaId: data.formulas[0]?.id || '', quantityKg: 1000, lot: '', customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
+  const [form, setForm] = useState({ formulaId: data.formulas[0]?.id || '', quantityKg: 1000, lot: '', customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
   const [message, setMessage] = useState('')
   const [warning, setWarning] = useState('')
   const [detailOrderId, setDetailOrderId] = useState('')
@@ -2277,6 +2276,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
       customerCode: selectedCustomer.customerCode,
       province: selectedCustomer.province || '',
       channelCode: selectedCustomer.channelCode || '',
+      customerObject: selectedCustomer,
       mixerMachine: form.mixerMachine,
       assignedMachineCode: assignedMachine.machineCode,
       assignedMachineName: assignedMachine.machineName,
@@ -2329,7 +2329,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
     }
     setData((current) => addLogToData({ ...current, orders: [order, ...current.orders] }, `Sử dụng ${sourceLabel} của ${formula.code} để tạo lệnh SX ${id}, chỉ định máy ${formatMixingMachineLabel(assignedMachine)}.`))
     setMessage('Tạo lệnh sản xuất thành công')
-    setForm((current) => ({ ...current, lot: '', customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' }))
+    setForm((current) => ({ ...current, lot: '', customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' }))
   }
   const detailOrder = data.orders.find((order) => order.id === detailOrderId)
   return (
@@ -2347,8 +2347,8 @@ function OrdersPage({ data, setData, permissions = [] }) {
               customers={customerOptions}
               value={selectedCustomer}
               inputValue={form.customerSearch}
-              onInputChange={(value) => setForm({ ...form, customerSearch: value, customer: '', customerName: '', customerCode: '', province: '', channelCode: '' })}
-              onSelect={(customer) => setForm({ ...form, customerSearch: formatCustomerOption(customer), customer: customer.customerName, customerName: customer.customerName, customerCode: customer.customerCode, province: customer.province || '', channelCode: customer.channelCode || '' })}
+              onInputChange={(value) => setForm({ ...form, customerSearch: value, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null })}
+              onSelect={(customer) => setForm({ ...form, customerSearch: formatCustomerOption(customer), customer: customer.customerName, customerName: customer.customerName, customerCode: customer.customerCode, province: customer.province || '', channelCode: customer.channelCode || '', customerObject: customer })}
             />
           </label>
           <label>Máy phối trộn *<select value={form.mixerMachine} onChange={(event) => setForm({ ...form, mixerMachine: event.target.value })}><option value="">Chọn máy</option>{machines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}</select></label>
@@ -2416,7 +2416,7 @@ function CustomerSearchCombobox({ customers = [], value = {}, inputValue = '', o
     <div className="customer-combobox">
       <input
         value={query}
-        placeholder="Gõ mã, tên, tỉnh/thành hoặc kênh"
+        placeholder="Gõ tên khách hàng"
         onFocus={() => setOpen(true)}
         onChange={(event) => {
           onInputChange(event.target.value)
@@ -2426,14 +2426,11 @@ function CustomerSearchCombobox({ customers = [], value = {}, inputValue = '', o
         aria-autocomplete="list"
         aria-expanded={open}
       />
-      {value?.customerCode && <span className="customer-combobox-selected">{value.customerCode} / {value.customerName}</span>}
       {open && (
         <div className="customer-combobox-menu">
           {filteredCustomers.length ? filteredCustomers.map((customer) => (
             <button type="button" key={customer.customerCode || customer.id} onMouseDown={(event) => event.preventDefault()} onClick={() => selectCustomer(customer)}>
-              <strong>{customer.customerCode}</strong>
               <span>{customer.customerName}</span>
-              <em>{customer.province || '-'}</em>
             </button>
           )) : <div className="customer-combobox-empty">Không có khách hàng phù hợp</div>}
         </div>
@@ -2459,7 +2456,6 @@ function OrderDetailTabs({ order, tab, productionLogs, qc2Logs, permissions = []
           ['Mã lệnh SX', order.orderCode || order.id],
           ['Sản phẩm', order.productName || order.product],
           ['Khách hàng', order.customerName || order.customer || '-'],
-          ['Mã khách hàng', order.customerCode || '-'],
           ['Công thức gốc', order.formulaCode || order.originalFormulaId],
           ['Version', order.formulaVersion || order.originalFormulaVersion],
           ['LOT', order.lot],
@@ -4880,7 +4876,6 @@ function historyInfoRows(record) {
     ['Công thức gốc', order.formulaCode || order.originalFormulaId || '-'],
     ['Version', order.formulaVersion || order.originalFormulaVersion || '-'],
     ['Khách hàng', order.customerName || order.customer || '-'],
-    ['Mã khách hàng', order.customerCode || '-'],
     ['Sản phẩm', order.productName || order.product || '-'],
     ['LOT', order.lot || '-'],
     ['Khối lượng yêu cầu', kg(order.requestedWeight ?? order.quantityKg)],

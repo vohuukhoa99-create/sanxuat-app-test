@@ -600,17 +600,6 @@ tbody tr:hover {
   width: 100%;
 }
 
-.customer-combobox-selected {
-  display: block;
-  margin-top: 4px;
-  color: #256044;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .customer-combobox-menu {
   position: absolute;
   z-index: 40;
@@ -626,9 +615,7 @@ tbody tr:hover {
 }
 
 .customer-combobox-menu button {
-  display: grid;
-  grid-template-columns: 90px 1fr auto;
-  gap: 8px;
+  display: block;
   align-items: center;
   width: 100%;
   min-height: 38px;
@@ -648,14 +635,10 @@ tbody tr:hover {
 .customer-combobox-menu strong,
 .customer-combobox-menu span,
 .customer-combobox-menu em {
+  display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.customer-combobox-menu em {
-  color: #60766c;
-  font-style: normal;
 }
 
 .customer-combobox-empty {

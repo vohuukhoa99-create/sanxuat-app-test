@@ -9,12 +9,11 @@ const normalizedCustomerCatalog = (customerCatalog || []).map((customer, index) 
   channelCode: customer.channelCode || '',
   status: customer.status || '',
 })).filter((customer) => customer.customerCode || customer.customerName)
-const formatCustomerOption = (customer = {}) => [customer.customerCode, customer.customerName, customer.province].filter(Boolean).join(' - ')
+const formatCustomerOption = (customer = {}) => customer.customerName || ''
 const customerMatches = (customer = {}, query = '') => {
   const value = query.trim().toLowerCase()
   if (!value) return true
-  return [customer.customerCode, customer.customerName, customer.province, customer.channelCode]
-    .some((item) => String(item || '').toLowerCase().includes(value))
+  return String(customer.customerName || '').toLowerCase().includes(value)
 }
 
 const hssIngredients = [
@@ -38,6 +37,7 @@ const defaultOrder = () => ({
   customerCode: '',
   province: '',
   channelCode: '',
+  customerObject: null,
   customerSearch: '',
   product: 'HSS 251.023',
   formula: 'HSS 251.023',
@@ -86,7 +86,7 @@ function CustomerSearchCombobox({ value = {}, inputValue = '', onInputChange, on
     <div className="customer-combobox">
       <input
         value={inputValue}
-        placeholder="Gõ mã, tên, tỉnh/thành hoặc kênh"
+        placeholder="Gõ tên khách hàng"
         onFocus={() => setOpen(true)}
         onChange={(event) => {
           onInputChange(event.target.value)
@@ -96,14 +96,11 @@ function CustomerSearchCombobox({ value = {}, inputValue = '', onInputChange, on
         aria-autocomplete="list"
         aria-expanded={open}
       />
-      {value?.customerCode && <span className="customer-combobox-selected">{value.customerCode} / {value.customerName}</span>}
       {open && (
         <div className="customer-combobox-menu">
           {filteredCustomers.length ? filteredCustomers.map((customer) => (
             <button type="button" key={customer.customerCode || customer.id} onMouseDown={(event) => event.preventDefault()} onClick={() => { onSelect(customer); setOpen(false) }}>
-              <strong>{customer.customerCode}</strong>
               <span>{customer.customerName}</span>
-              <em>{customer.province || '-'}</em>
             </button>
           )) : <div className="customer-combobox-empty">Không có khách hàng phù hợp</div>}
         </div>
@@ -177,6 +174,7 @@ function OrderCreateModal({ onClose, onSave }) {
       customerCode: selectedCustomer.customerCode,
       province: selectedCustomer.province || '',
       channelCode: selectedCustomer.channelCode || '',
+      customerObject: selectedCustomer,
       quantityKg: Number(form.quantityKg) || 0,
       batchCount: Number(form.batchCount) || 0,
       createdAt: now,
@@ -214,8 +212,8 @@ function OrderCreateModal({ onClose, onSave }) {
                 <CustomerSearchCombobox
                   value={selectedCustomer}
                   inputValue={form.customerSearch}
-                  onInputChange={(value) => setForm((current) => ({ ...current, customerSearch: value, customer: '', customerName: '', customerCode: '', province: '', channelCode: '' }))}
-                  onSelect={(customer) => setForm((current) => ({ ...current, customerSearch: formatCustomerOption(customer), customer: customer.customerName, customerName: customer.customerName, customerCode: customer.customerCode, province: customer.province || '', channelCode: customer.channelCode || '' }))}
+                  onInputChange={(value) => setForm((current) => ({ ...current, customerSearch: value, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null }))}
+                  onSelect={(customer) => setForm((current) => ({ ...current, customerSearch: formatCustomerOption(customer), customer: customer.customerName, customerName: customer.customerName, customerCode: customer.customerCode, province: customer.province || '', channelCode: customer.channelCode || '', customerObject: customer }))}
                 />
               </label>
               <label>Tên sản phẩm<input value={form.product} onChange={(event) => updateField('product', event.target.value)} required /></label>
