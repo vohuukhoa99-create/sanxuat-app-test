@@ -1,0 +1,1227 @@
+[
+  {
+    "customerCode": "DA00005",
+    "customerName": "Công ty CP Xây Lắp Chợ Lớn",
+    "province": "HCM",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00014",
+    "customerName": "Công ty TNHH Vật liệu Xây dựng Diamond",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00016",
+    "customerName": "Công ty TNHH ĐT Tư vấn TK XD Kiến An",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00019",
+    "customerName": "Công ty TNHH XD TM DV Hùng Hưng",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00025",
+    "customerName": "Công ty TNHH DV & TM Tâm Thành Đạt",
+    "province": "BTB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00058",
+    "customerName": "Công ty Cổ phần Đầu tư Xây dựng Ricons",
+    "province": "HCM2",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00062",
+    "customerName": "Công ty TNHH TM & DV KPC",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00068",
+    "customerName": "Công ty TNHH ĐT và Phát triển sơn Thiên Phú",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00069",
+    "customerName": "Công ty TNHH MTV Hoàng Định",
+    "province": "MT2",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00074",
+    "customerName": "Công ty TNHH XD TM sơn Tin Cậy",
+    "province": "HCM",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00075",
+    "customerName": "Công ty Cổ phần Xây dựng Kiến Huy",
+    "province": "HCM3",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00076",
+    "customerName": "Công ty TNHH Xây dựng Phúc Mộc Decor",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00078",
+    "customerName": "Công ty TNHH TM-DV Xây dựng và TTNT Nguyên Hiếu",
+    "province": "HCM3",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00079",
+    "customerName": "Công ty TNHH Phát triển Xây dựng Tân Đức Phát",
+    "province": "ĐNB",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00080",
+    "customerName": "Công ty Cổ phần Xây dựng BGI",
+    "province": "MB",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00081",
+    "customerName": "Vương Sỹ Đức",
+    "province": "TN",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00082",
+    "customerName": "Công ty Cổ phần Phát triển và Đầu tư Xây Dựng Vincons",
+    "province": "MB",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00083",
+    "customerName": "Công ty Cổ phần Xây dựng số 1 Việt Quang",
+    "province": "HCM3",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00084",
+    "customerName": "Công ty TNHH ĐT TM và XD Phát Đạt",
+    "province": "MB",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00085",
+    "customerName": "Lại Phước Huy",
+    "province": "TN",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00086",
+    "customerName": "Công ty TNHH TM Tổng Hợp Win Win Việt Nam",
+    "province": "MB",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00087",
+    "customerName": "Công ty TNHH Felix Trading",
+    "province": "HCM",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00088",
+    "customerName": "Trần Thị Lệ Yến",
+    "province": "TN",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00002",
+    "customerName": "Công ty TNHH Sơn An Phú Cường",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00005",
+    "customerName": "Công ty TNHH Hải Vân",
+    "province": "NTB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00006",
+    "customerName": "Công ty TNHH  MTV TMDV Minh Trâm",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00008",
+    "customerName": "Công ty CP ĐT Hợp Thành Phát",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00009",
+    "customerName": "Công ty TNHH TMDV Hoàng Hải",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00012",
+    "customerName": "Công ty TNHH ĐT TM Nam Thiên Phú",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00024",
+    "customerName": "Công ty TNHH Sơn Nhà Việt",
+    "province": "NTB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00030",
+    "customerName": "Công ty TNHH TMDV Hồng Sơn Phát",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00031",
+    "customerName": "DNTN Minh Hương",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00039",
+    "customerName": "Công ty TNHH Solde",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00042",
+    "customerName": "Công ty TNHH SX và DVTM Sơn Ngọc Mỹ",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00043",
+    "customerName": "Công ty TNHH Địa ốc Đại Phú Thịnh",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00044",
+    "customerName": "Công ty CP XD TM DV Thành Vạn Phát",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00057",
+    "customerName": "Công ty TNHH XD Thương mại  Đức Huy Phú",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00070",
+    "customerName": "Công ty TNHH TM DV Hang Na",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00073",
+    "customerName": "Công ty TNHH TM và DV Gia Gia Phát",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00077",
+    "customerName": "Công ty TNHH XD TM Sơn Liên Sơn",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00084",
+    "customerName": "Công ty TNHH ĐT TM SUKA VINA",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00090",
+    "customerName": "Công ty TNHH XD TM DV Vận tải L.A.D",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00098",
+    "customerName": "Công ty TNHH An Tâm DECOR",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00101",
+    "customerName": "Công ty TNHH sơn nước Nguyễn Gia",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00102",
+    "customerName": "Công ty TNHH XD TM và DV Gia Phúc",
+    "province": "BTB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00104",
+    "customerName": "Công ty TNHH MTV Thương mại Dịch vụ Minh Tiến",
+    "province": "NTB",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00108",
+    "customerName": "Công ty TNHH Thiết kế - Xây dựng FUTU",
+    "province": "MT",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00110",
+    "customerName": "Công ty TNHH Kiến trúc và Xây dựng Hưng Việt",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00118",
+    "customerName": "Công ty TNHH SX TM DV Phúc Thái",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00121",
+    "customerName": "Hộ kinh doanh Nguyễn Văn Thạch",
+    "province": "NTB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00125",
+    "customerName": "Công ty TNHH Vật tư Xây dựng Phát Huy",
+    "province": "NTB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00126",
+    "customerName": "Công ty TNHH Sơn Khôi Nguyên",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00128",
+    "customerName": "Hộ kinh doanh Phan Thị Thủy Tiên",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00130",
+    "customerName": "Hộ kinh doanh Nguyễn Thị Lệ Thu",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00135",
+    "customerName": "Công ty TNHH TM Dịch vụ sơn Gia Bảo",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00137",
+    "customerName": "Công ty TNHH TM DV Tổng hợp Tâm Hồng Phát",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00139",
+    "customerName": "Công ty TNHH Sơn Huy Bảo",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00140",
+    "customerName": "Công ty TNHH TM và DV VLUX HOME",
+    "province": "NTB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00141",
+    "customerName": "Công ty TNHH TM DV Xây dựng Trí Danh",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00142",
+    "customerName": "Hộ Kinh Doanh Hải Yến",
+    "province": "BTB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00143",
+    "customerName": "Công ty TNHH MTV TM Xây dựng Lộc Phúc",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00145",
+    "customerName": "Cửa hàng Sơn Thu",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00149",
+    "customerName": "Công ty TNHH TM DV Sơn Quốc Đại",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00151",
+    "customerName": "Hộ kinh doanh Cửa hàng sơn Lý Hải",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00153",
+    "customerName": "Công ty TNHH XD-TM- nội thất sơn giả đá Hiếu Việt",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00156",
+    "customerName": "Công ty TNHH XD TM Đại Phúc Thịnh",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00157",
+    "customerName": "Công ty TNHH Sản xuất Thương mại Ánh Dương",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00158",
+    "customerName": "Công ty TNHH TMDV Xây dựng Hoà Phát",
+    "province": "MT2",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00159",
+    "customerName": "Công ty TNHH TM DV XD sơn Tân Kim Phát",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00162",
+    "customerName": "Công ty TNHH TM DV Nhôm kính Quốc Việt",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00163",
+    "customerName": "Công ty TNHH K&C Biên Hoà",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00164",
+    "customerName": "Công Ty TNHH XD TM DV Sơn Tuấn",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00165",
+    "customerName": "CÔNG TY TNHH ĐẦU TƯ HẢI PHONG PHÁT",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00166",
+    "customerName": "Hộ kinh doanh cá thể Cát Nguyên",
+    "province": "NTB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00167",
+    "customerName": "Công ty  TNHH KING PAINT",
+    "province": "MT",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00168",
+    "customerName": "Công ty TNHH TM TV XD ĐT Đại Thịnh Phát",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00170",
+    "customerName": "Công ty TNHH TM DV Bất động sản Tỷ Phú",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00171",
+    "customerName": "Chi nhánh Công ty TNHH ĐT TM XD Thiện Phát",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00172",
+    "customerName": "Công ty TNHH Vật liệu Giá sỉ Trung Sơn",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00173",
+    "customerName": "Công ty TNHH TMDV Trường Phúc Thịnh 68",
+    "province": "NTB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00174",
+    "customerName": "Công ty TNHH Xuất nhập khẩu  Anh Nhật Huy",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00175",
+    "customerName": "Công ty TNHH Tư vấn Thiết kế XD Kiến Khương",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00176",
+    "customerName": "Hộ kinh doanh Thuận Phong",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00177",
+    "customerName": "Công ty TNHH MTV Lợi Phát Đạt",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00178",
+    "customerName": "Công ty TNHH TM DV và XD Kiến An Thịnh",
+    "province": "MT",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00180",
+    "customerName": "Công Ty TNHH MTV SIKATAYNINH",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "GC00001",
+    "customerName": "CÔNG TY TNHH NIPPON PAINT (VIỆT NAM)",
+    "province": "ĐNB",
+    "channelCode": "OEM",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00001",
+    "customerName": "Công ty TNHH Xây dựng Hằng Cương",
+    "province": "MT2",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00002",
+    "customerName": "Công ty TNHH TM DV Diệu Kỳ",
+    "province": "MT2",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00005",
+    "customerName": "Công ty TNHH Thuận Thanh TB",
+    "province": "MT2",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00006",
+    "customerName": "Hộ Kinh doanh Tứ Phương",
+    "province": "TN",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00007",
+    "customerName": "Công ty TNHH MTV Thiết kế và Xây dựng AKC",
+    "province": "BTB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00008",
+    "customerName": "Công ty TNHH Hai Yến",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00009",
+    "customerName": "Hộ kinh doanh Thiên Phú Hưng",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00010",
+    "customerName": "Cửa hàng Gia Viên Phát",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00011",
+    "customerName": "Hộ kinh doanh Nguyễn Văn Vạn",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00012",
+    "customerName": "Hộ kinh doanh Trương Văn Tuấn",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00013",
+    "customerName": "Hộ kinh doanh Vật liệu Xây dựng  Nam Sông Tiền 2",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00015",
+    "customerName": "Công ty TNHH MTV Long Huê",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00016",
+    "customerName": "HKD nhà máy cán TOLE VLXD TTNT Phước Thịnh",
+    "province": "MT2",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00017",
+    "customerName": "Công ty TNHH TMDV ĐT và Phát triển  Dream Home",
+    "province": "MT2",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00018",
+    "customerName": "Công ty TNHH Sơn Cường Phát An Giang",
+    "province": "MT2",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00020",
+    "customerName": "Công ty TNHH TM DV Xây dựng  Lee Paint",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00022",
+    "customerName": "Hộ kinh doanh Gia Khang Paint ( Sơn Gia Khang )",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00023",
+    "customerName": "Công ty TNHH Tiến Toại",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00024",
+    "customerName": "Công ty TNHH TMDV Nhà Đẹp",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00026",
+    "customerName": "Công ty TNHH MTV Trường Kiều Phát",
+    "province": "MT2",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00027",
+    "customerName": "Công ty TNHH Thanh Nhàn",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00029",
+    "customerName": "Công ty TNHH MTV Duy Phúc",
+    "province": "MT2",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00030",
+    "customerName": "Hợp tác xã Nông nghiệp Hữu cơ Long Hiệp",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00031",
+    "customerName": "Hộ kinh doanh Thiện Nhiên 2",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00032",
+    "customerName": "Công ty TNHH GVP Bình Phước",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00033",
+    "customerName": "Công ty TNHH Một thành viên Đại Tiến Bảo",
+    "province": "MT2",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00034",
+    "customerName": "Công ty Cổ phần Thiên Kim Kiên Giang",
+    "province": "MT2",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00035",
+    "customerName": "Công ty TNHH MTV XD TM Sông Tiền Chợ Gạo",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00036",
+    "customerName": "Công ty TNHH XD và TM Nhân Lực",
+    "province": "MT2",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00037",
+    "customerName": "Công ty TNHH TM & DV Thanh Tùng Amall",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HS00001",
+    "customerName": "Công ty TNHH TM DV XD và TTNT NECONT",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HS00003",
+    "customerName": "Công ty TNHH TM DV và Xây dựng Duẩn Thu",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HS00004",
+    "customerName": "Công ty TNHH MTV VLXD TTNT Hoàng Gia",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HS00007",
+    "customerName": "Công ty TNHH Đại lý sơn Vinh Hưng",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HS00008",
+    "customerName": "Công ty TNHH Xây dựng Thương mại ANDY",
+    "province": "MT2",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HS00009",
+    "customerName": "Hộ kinh doanh Thiện Nhiên",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KH001HB",
+    "customerName": "Công ty Cổ Phần Tập đoàn XD Hòa Bình",
+    "province": "HCM2",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0017",
+    "customerName": "Chi Nhánh Nha Trang - Công ty Cổ Phần VINPEARL",
+    "province": "NTB",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0049",
+    "customerName": "Công Ty Cổ Phần Thương Mại Dịch Vụ Xây Dựng Hải Khang",
+    "province": "MT2",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0052",
+    "customerName": "Ông Nguyễn Thái Học",
+    "province": "HCM",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0075",
+    "customerName": "CÔNG TY CỔ PHẦN VINWONDERS NHA TRANG",
+    "province": "NTB",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0077",
+    "customerName": "CÔNG TY CỔ PHẦN PHÁT TRIỂN GS CỦ CHI",
+    "province": "ĐNB",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0078",
+    "customerName": "CÔNG TY TNHH CƠ KHÍ VÀ XÂY LẮP TÙNG TRANG",
+    "province": "MB",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0079",
+    "customerName": "CÔNG TY CỔ PHẦN ĐIỆN ẢNH 12-9",
+    "province": "BTB",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0080",
+    "customerName": "CÔNG TY TNHH XÂY DỰNG HOÀNG LIÊN SƠN",
+    "province": "ĐNB",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0081",
+    "customerName": "CÔNG TY TNHH TƯ VẤN KỸ THUẬT BÁCH PHƯƠNG",
+    "province": "HCM2",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0082",
+    "customerName": "CÔNG TY CỔ PHẦN XÂY DỰNG CENTRAL",
+    "province": "HCM1",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0084",
+    "customerName": "CÔNG TY TNHH THIẾT KẾ VÀ THI CÔNG NỘI THẤT VPLUS",
+    "province": "HCM",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0088",
+    "customerName": "CÔNG TY ARTIFEX INTERIOR VIETNAM",
+    "province": "HCM1",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "LX0001",
+    "customerName": "Công ty CP Đầu tư và  Phát triển Việt Á Châu",
+    "province": "HCM2",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00184",
+    "customerName": "Công ty TNHH Dịch vụ và Thương mại TTĐ",
+    "province": "BTB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00095",
+    "customerName": "Công ty TNHH Khách sạn Nhà hàng Happy Life Grand",
+    "province": "ĐNB",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00038",
+    "customerName": "Công ty TNHH Linh Chín Đình",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00185",
+    "customerName": "Công ty TNHH sơn Duy Phương",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "GC00003",
+    "customerName": "Công ty TNHH Sơn Toa Việt Nam",
+    "province": "ĐNB",
+    "channelCode": "OEM",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00063",
+    "customerName": "Công ty TNHH SXTM và Dịch vụ Thanh Sơn",
+    "province": "MT2",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00040",
+    "customerName": "Công ty TNHH Thương mại Ngàn Vạn",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00183",
+    "customerName": "Công ty TNHH TM DV Vận tải Vương Gia Phát",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00039",
+    "customerName": "Công ty TNHH TM DV XD Thiên Phú Hưng",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00182",
+    "customerName": "Công ty TNHH TM TV XD Nam Việt Phát",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00181",
+    "customerName": "Công ty TNHH Trình Trình",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00055",
+    "customerName": "Công ty TNHH Xây dựng Long Thiên Vương",
+    "province": "ĐNB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "LX0002",
+    "customerName": "Công ty TNHH XD - TM - DV Thái Sanh",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00016",
+    "customerName": "Hộ Kinh Doanh nhà máy cán TOL VLXD Trang trí Nội thất Phước Thịnh",
+    "province": "MT2",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00093",
+    "customerName": "Nguyễn Trung Đăng",
+    "province": "HCM2",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00094",
+    "customerName": "Nguyễn Văn Quang",
+    "province": "BTB",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00092",
+    "customerName": "Thạch Thia",
+    "province": "MT2",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0086",
+    "customerName": "VÕ ĐỨC CƯỜNG",
+    "province": "HCM2",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00091",
+    "customerName": "Võ Quang Vy",
+    "province": "MT",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "GC00006",
+    "customerName": "Công ty Cổ phần Tropical Center Group",
+    "province": "MB",
+    "channelCode": "OEM",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00187",
+    "customerName": "Hộ kinh doanh Nguyễn Minh Tuấn",
+    "province": "NTB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00186",
+    "customerName": "Công ty CP Đầu tư xây dựng và Thương mại Hải Minh",
+    "province": "BTB",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0073",
+    "customerName": "CÔNG TY CỔ PHẦN VINHOMES",
+    "province": "MB",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0085",
+    "customerName": "CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ LONG HƯNG",
+    "province": "HCM",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00096",
+    "customerName": "Công ty Cổ phần Thương mại PT Phúc Thịnh",
+    "province": "HCM",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00014",
+    "customerName": "HKD Nguyễn Thị Lan",
+    "province": "MT",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0087",
+    "customerName": "Võ Tấn Thịnh",
+    "province": "HCM",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00098",
+    "customerName": "Nguyễn Truy Long",
+    "province": "HCM",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00097",
+    "customerName": "Tạ Quang Huy",
+    "province": "HCM",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00188",
+    "customerName": "Công ty TNHH TM DV XD Khang Thịnh Phát",
+    "province": "HCM",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00189",
+    "customerName": "Công ty TNHH Phát triển Thanh Thành",
+    "province": "",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DL00190",
+    "customerName": "Hộ kinh doanh Tống Thị Kim Phụng",
+    "province": "MT1",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00099",
+    "customerName": "Công ty TNHH TM DV Thịnh Gia Phát",
+    "province": "",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00090",
+    "customerName": "Nguyễn Văn Việt",
+    "province": "",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0022",
+    "customerName": "Công Ty Cổ Phần Đầu Tư Xây Dựng Số 14",
+    "province": "",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "DA00100",
+    "customerName": "Công ty Cổ phần SX và TM VinaGreen",
+    "province": "",
+    "channelCode": "DA",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "HP00041",
+    "customerName": "",
+    "province": "",
+    "channelCode": "DL",
+    "status": "Hoạt động"
+  },
+  {
+    "customerCode": "KHCT0070",
+    "customerName": "",
+    "province": "",
+    "channelCode": "TK",
+    "status": "Hoạt động"
+  }
+]

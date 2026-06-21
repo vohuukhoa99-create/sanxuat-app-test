@@ -5,6 +5,7 @@ import autoTable from 'jspdf-autotable'
 import { QRCodeCanvas } from 'qrcode.react'
 import { Sidebar } from './components/Sidebar.jsx'
 import { TopBar } from './components/TopBar.jsx'
+import * as customerCatalogSource from './data/customerCatalog.js'
 import { defaultNavItems } from './data/navigation.js'
 import { USE_SUPABASE } from './utils/supabaseMode.js'
 import './App.css'
@@ -30,6 +31,21 @@ const nowText = () => new Date().toISOString().slice(0, 16).replace('T', ' ')
 const todayText = () => new Date().toISOString().slice(0, 10)
 const num = (value) => Number(value) || 0
 const kg = (value) => `${num(value).toLocaleString('vi-VN', { maximumFractionDigits: 3 })} kg`
+const importedCustomerCatalog = customerCatalogSource['customerCatalog'] || customerCatalogSource['default'] || []
+const normalizeCustomerCatalog = (items = importedCustomerCatalog) => (Array.isArray(items) ? items : []).map((item, index) => {
+  const code = item.customerCode || item.code || item.customerId || ''
+  const name = item.customerName || item.name || ''
+  return {
+    id: item.id || `CUS-${code || String(index + 1).padStart(3, '0')}`,
+    code,
+    name,
+    customerCode: code,
+    customerName: name,
+    province: item.province || '',
+    channelCode: item.channelCode || '',
+    status: item.status || 'Hoạt động',
+  }
+}).filter((item) => item.code || item.name)
 const uid = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
 const RAW_MATERIAL_QR_TYPE = 'RAW_MATERIAL_LOT'
 
@@ -409,10 +425,7 @@ const initialData = {
     { id: 'SUP-HB-CHEM', code: 'HB-CHEM', name: 'HB Chemical', phone: '', address: '', status: 'Hoạt động', note: '' },
     { id: 'SUP-SILICA-VIET', code: 'SILICA-VIET', name: 'Silica Việt', phone: '', address: '', status: 'Hoạt động', note: '' },
   ],
-  customerCatalog: [
-    { id: 'CUS-DEMO', code: 'CUS-DEMO', name: 'Đơn hàng demo', phone: '', address: '', status: 'Hoạt động', note: '' },
-    { id: 'CUS-QC2', code: 'CUS-QC2', name: 'Đơn hàng mẫu QC2', phone: '', address: '', status: 'Hoạt động', note: '' },
-  ],
+  customerCatalog: normalizeCustomerCatalog(),
   employeeCatalog: productionEmployeeCatalog,
   teamCatalog: [
     { id: 'TEAM-TP1', code: 'TP1', name: 'Tổ phối trộn 1', leader: 'Lê Phương Bình', note: '', status: 'Hoạt động' },
@@ -6920,6 +6933,7 @@ function App() {
       finishedGoods,
       rawMaterials,
       materialCatalog,
+      customerCatalog: normalizeCustomerCatalog(),
       employeeCatalog: productionEmployeeCatalog,
       teamCatalog: [
         ...(saved.teamCatalog || []),
@@ -7029,7 +7043,7 @@ function App() {
     'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'materialGroup', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} />,
     'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'group', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
-    'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã KH', 'Tên KH', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['customerCode', 'customerName', 'province', 'channelCode', 'status']} labels={['Mã khách hàng', 'Tên khách hàng', 'Tỉnh/Thành', 'Mã kênh', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
     'master-employees': <MasterCatalogPage title="Danh sách nhân viên" storageKey="employeeCatalog" fields={['code', 'name', 'productionTeam', 'title', 'operationRole', 'status', 'qrEmployee']} labels={['Mã NV', 'Họ tên', 'Tổ sản xuất', 'Chức danh', 'Vai trò vận hành', 'Trạng thái', 'QR nhân viên']} data={data} setData={setData} permissions={userPermissions} />,
     'master-teams': <MasterCatalogPage title="Danh mục tổ sản xuất" storageKey="teamCatalog" permissionKey="team" fields={['code', 'name', 'leader', 'note', 'status']} labels={['Mã tổ', 'Tên tổ', 'Tổ trưởng', 'Ghi chú', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
     'master-shifts': <MasterCatalogPage title="Danh mục ca làm việc" storageKey="shiftCatalog" permissionKey="shift" fields={['code', 'name', 'startTime', 'endTime', 'note', 'status']} labels={['Mã ca', 'Tên ca', 'Giờ bắt đầu', 'Giờ kết thúc', 'Ghi chú', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
