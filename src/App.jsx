@@ -447,10 +447,11 @@ const defaultRoles = {
   'Cân rắn': ['dashboard', 'solid', 'logs', ...productionView('assignment')],
   'Phối trộn': ['dashboard', 'mixing', 'logs', ...productionView('assignment'), ...masterView('machine')],
   'Đóng gói': ['dashboard', 'packaging', 'logs'],
-  'Kho TP': ['dashboard', 'finished-goods', 'logs'],
+  'Kho TP': ['dashboard', 'finished-goods', 'logs', 'reports'],
   'Quản đốc': ['dashboard', 'orders', 'qc', 'chemical', 'solid', 'mixing', 'finished-qc', 'packaging', 'finished-goods', 'logs', 'reports', ...productionView('assignment'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('product'), ...masterView('customer')],
-  'Ban giám đốc': ['dashboard', 'raw-materials', 'orders', 'qc', 'chemical', 'solid', 'mixing', 'finished-qc', 'packaging', 'finished-goods', 'logs', 'reports', ...productionView('assignment'), ...masterView('material'), ...masterView('product'), ...masterView('supplier'), ...masterView('customer'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('formula')],
+  'Ban giám đốc': ['dashboard', 'logs', 'reports', ...productionView('assignment'), ...masterView('material'), ...masterView('product'), ...masterView('supplier'), ...masterView('customer'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('formula')],
 }
+const officialRoleNames = Object.keys(defaultRoles)
 
 const ACTIVE_STATUS = 'Hoạt động'
 const LOCKED_STATUS = 'Khóa'
@@ -472,6 +473,12 @@ const defaultUsers = [
   { username: 'quandoc', password: DEFAULT_PASSWORD, role: 'Quản đốc', fullName: 'Quản đốc' },
   { username: 'giamdoc', password: DEFAULT_PASSWORD, role: 'Ban giám đốc', fullName: 'Ban giám đốc' },
 ].map((user) => ({ ...user, department: user.role, status: ACTIVE_STATUS }))
+
+const enforcedDefaultUserRoles = {
+  'kho.tp': 'Kho TP',
+  quandoc: 'Quản đốc',
+  giamdoc: 'Ban giám đốc',
+}
 
 const legacyRoleMap = {
   'Kho nguyên liệu': 'Kho NL',
@@ -530,13 +537,13 @@ function normalizeAuthData(saved = {}) {
   const seededUsers = defaultUsers.map((user) => {
     const savedUser = savedUsersByUsername.get(user.username)
     if (!savedUser) return user
-    const role = legacyRoleMap[savedUser.role] || savedUser.role || user.role
+    const role = enforcedDefaultUserRoles[user.username] || legacyRoleMap[savedUser.role] || savedUser.role || user.role
     return {
       ...user,
       ...savedUser,
       password: DEFAULT_PASSWORD,
       role,
-      department: legacyRoleMap[savedUser.department] || savedUser.department || role,
+      department: role,
       status: savedUser.status || ACTIVE_STATUS,
     }
   })
@@ -545,11 +552,12 @@ function normalizeAuthData(saved = {}) {
     .filter((user) => user?.username && !defaultUsernames.has(user.username))
     .map((user) => {
       const role = legacyRoleMap[user.role] || user.role || 'Sản xuất'
+      const nextRole = officialRoleNames.includes(role) ? role : 'Sản xuất'
       return {
         ...user,
         password: user.password || DEFAULT_PASSWORD,
-        role,
-        department: legacyRoleMap[user.department] || user.department || role,
+        role: nextRole,
+        department: nextRole,
         status: user.status || ACTIVE_STATUS,
       }
     })
@@ -5431,13 +5439,8 @@ function AdminPage({ authData, setAuthData, section = 'users' }) {
     ['Quản đốc', 'Quản đốc'],
     ['Ban giám đốc', 'Ban giám đốc'],
   ]
-  const baseRoleNames = baseRoles.map(([role]) => role)
-  const extraRoles = Object.keys(authData.roles || {})
-    .filter((role) => !baseRoleNames.includes(role))
-    .map((role) => [role, role])
   const roles = [
     ...baseRoles.filter(([role]) => authData.roles?.[role]),
-    ...extraRoles,
   ]
   const operationPermissionRows = defaultNavItems
     .filter((item) => !item.parentId && item.permission && item.type !== 'group')
@@ -5584,7 +5587,7 @@ function AdminPage({ authData, setAuthData, section = 'users' }) {
                   <td data-label="Họ tên"><input value={user.fullName || ''} onChange={(event) => updateUser(user.username, { fullName: event.target.value })} /></td>
                   <td data-label="Vai trò">
                     <select value={user.role} onChange={(event) => updateUser(user.username, { role: event.target.value })}>
-                      {Object.keys(authData.roles || {}).map((role) => <option key={role} value={role}>{role}</option>)}
+                      {officialRoleNames.map((role) => <option key={role} value={role}>{role}</option>)}
                     </select>
                   </td>
                   <td data-label="Trạng thái"><span className={`status-pill ${user.status === ACTIVE_STATUS ? 'pass' : 'locked'}`}>{user.status}</span></td>
