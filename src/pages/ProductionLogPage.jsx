@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
+import { customerCatalog } from '../data/customerCatalog.js'
 
 const emptyText = '-'
+const customerOptions = Array.from(new Set((customerCatalog || []).map((customer) => customer.customerName).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
 
 function isChemicalGroup(group = '') {
   const value = String(group).toLowerCase()
@@ -382,7 +384,7 @@ export function ProductionLogPage({ orders = [], logs = [] }) {
     return (!filters.fromDate || date >= filters.fromDate)
       && (!filters.toDate || date <= filters.toDate)
       && (!filters.orderId || order.id.toLowerCase().includes(filters.orderId.toLowerCase()))
-      && (!filters.customer || order.customer.toLowerCase().includes(filters.customer.toLowerCase()))
+      && (!filters.customer || order.customer === filters.customer)
       && (!filters.product || String(order.product).toLowerCase().includes(filters.product.toLowerCase()))
       && (!filters.status || String(order.status).toLowerCase().includes(filters.status.toLowerCase()))
       && (!filters.actor || actorText.includes(filters.actor.toLowerCase()))
@@ -409,7 +411,10 @@ export function ProductionLogPage({ orders = [], logs = [] }) {
           <label>Từ ngày<input type="date" value={filters.fromDate} onChange={(event) => updateFilter('fromDate', event.target.value)} /></label>
           <label>Đến ngày<input type="date" value={filters.toDate} onChange={(event) => updateFilter('toDate', event.target.value)} /></label>
           <label>Mã lệnh SX<input value={filters.orderId} onChange={(event) => updateFilter('orderId', event.target.value)} /></label>
-          <label>Khách hàng<input value={filters.customer} onChange={(event) => updateFilter('customer', event.target.value)} /></label>
+          <label>Khách hàng<select value={filters.customer} onChange={(event) => updateFilter('customer', event.target.value)}>
+            <option value="">Tất cả khách hàng</option>
+            {customerOptions.map((customer) => <option key={customer} value={customer}>{customer}</option>)}
+          </select></label>
           <label>Sản phẩm<input value={filters.product} onChange={(event) => updateFilter('product', event.target.value)} /></label>
           <label>Trạng thái<input value={filters.status} onChange={(event) => updateFilter('status', event.target.value)} /></label>
           <label>Người thực hiện<input value={filters.actor} onChange={(event) => updateFilter('actor', event.target.value)} /></label>

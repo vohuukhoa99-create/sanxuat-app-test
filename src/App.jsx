@@ -5,7 +5,7 @@ import autoTable from 'jspdf-autotable'
 import { QRCodeCanvas } from 'qrcode.react'
 import { Sidebar } from './components/Sidebar.jsx'
 import { TopBar } from './components/TopBar.jsx'
-import * as customerCatalogSource from './data/customerCatalog.js'
+import { customerCatalog as customerCatalogSeed } from './data/customerCatalog.js'
 import { defaultNavItems } from './data/navigation.js'
 import { USE_SUPABASE } from './utils/supabaseMode.js'
 import './App.css'
@@ -31,7 +31,7 @@ const nowText = () => new Date().toISOString().slice(0, 16).replace('T', ' ')
 const todayText = () => new Date().toISOString().slice(0, 10)
 const num = (value) => Number(value) || 0
 const kg = (value) => `${num(value).toLocaleString('vi-VN', { maximumFractionDigits: 3 })} kg`
-const importedCustomerCatalog = customerCatalogSource['customerCatalog'] || customerCatalogSource['default'] || []
+const importedCustomerCatalog = Array.isArray(customerCatalogSeed) ? customerCatalogSeed : []
 const normalizeCustomerCatalog = (items = importedCustomerCatalog) => (Array.isArray(items) ? items : []).map((item, index) => {
   const code = item.customerCode || item.code || item.customerId || ''
   const name = item.customerName || item.name || ''
@@ -46,6 +46,20 @@ const normalizeCustomerCatalog = (items = importedCustomerCatalog) => (Array.isA
     status: item.status || 'Hoạt động',
   }
 }).filter((item) => item.code || item.name)
+const getRealCustomer = (index = 0) => {
+  if (!importedCustomerCatalog.length) return { customerCode: '', customerName: '', province: '', channelCode: '', status: '' }
+  return importedCustomerCatalog[((index % importedCustomerCatalog.length) + importedCustomerCatalog.length) % importedCustomerCatalog.length]
+}
+const realCustomerFields = (index = 0) => {
+  const customer = getRealCustomer(index)
+  return {
+    customer: customer.customerName || '',
+    customerName: customer.customerName || '',
+    customerCode: customer.customerCode || '',
+    province: customer.province || '',
+    channelCode: customer.channelCode || '',
+  }
+}
 const uid = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
 const RAW_MATERIAL_QR_TYPE = 'RAW_MATERIAL_LOT'
 
@@ -454,7 +468,7 @@ function seedData() {
         id: 'LSX-260613-001',
         product: formula.product,
         lot: 'LOT-HNS-G1-001',
-        customer: 'Đơn hàng demo',
+        ...realCustomerFields(0),
         quantityKg: 1000,
         stage: 'qc1',
         status: 'Chờ QC sản xuất thử',
@@ -472,7 +486,7 @@ function seedData() {
         id: 'LSX-260613-002',
         product: 'HNS 252.R2',
         lot: 'LOT-HNS-R2-001',
-        customer: 'Đơn hàng mẫu QC2',
+        ...realCustomerFields(1),
         quantityKg: 750,
         stage: 'finished-qc',
         status: 'Chờ QC thành phẩm',
@@ -489,6 +503,37 @@ function seedData() {
       },
     ],
   }
+}
+
+function applyRealCustomersToDemoOrders(orders = []) {
+  const customerIndexByOrder = {
+    'LSX-260613-001': 0,
+    'LSX-260613-002': 1,
+    'LSX-20260613-003': 2,
+    'LSX-20260613-024': 3,
+    'LSX-20260613-025': 4,
+    'LSX-QC2-DEMO-001': 5,
+    'LSX-KTP-DEMO-001': 6,
+    'LSX-KTP-DEMO-002': 7,
+    'LSX-KTP-DEMO-003': 8,
+    'LSX-KTP-DEMO-004': 9,
+    'LSX-KTP-DEMO-005': 10,
+    'LSX-QC2-DEMO-002': 12,
+    'LSX-QC2-DEMO-003': 13,
+    'LSX-QC2-DEMO-004': 14,
+    'LSX-QC2-DEMO-005': 15,
+    'LSX-QC2-DEMO-006': 16,
+  }
+  return (orders || []).map((order, index) => {
+    const orderCode = order.orderCode || order.id
+    const customerText = String(order.customer || order.customerName || '')
+    const hasDemoCustomerName = /Demo QR|Đơn hàng demo|Đơn hàng mẫu/i.test(customerText)
+    if (!Object.prototype.hasOwnProperty.call(customerIndexByOrder, orderCode) && !hasDemoCustomerName) return order
+    return {
+      ...order,
+      ...realCustomerFields(customerIndexByOrder[orderCode] ?? index),
+    }
+  })
 }
 
 function ensureQcDemoOrders(orders = [], seedOrders = []) {
@@ -1189,13 +1234,18 @@ function buildDemoQrContainers() {
 }
 
 function buildDemoQrOrder(config) {
+  const customer = config.customerRecord || getRealCustomer(config.customerIndex || 0)
   return {
     id: config.id,
     orderCode: config.id,
     product: 'HNS 252.G1',
     productName: 'HNS 252.G1',
     lot: config.lot,
-    customer: config.customer || 'Demo QR hỗn hợp',
+    customer: config.customer || customer.customerName || '',
+    customerName: config.customerName || customer.customerName || '',
+    customerCode: config.customerCode || customer.customerCode || '',
+    province: config.province || customer.province || '',
+    channelCode: config.channelCode || customer.channelCode || '',
     quantityKg: config.quantityKg || 1000,
     requestedWeight: config.quantityKg || 1000,
     stage: config.stage || 'mixing',
@@ -1251,10 +1301,10 @@ function applyDemoQrData(data = {}) {
   const demoContainers = buildDemoQrContainers().filter((item) => !existingQrCodes.has(item.qrCode))
   const existingOrderCodes = new Set((data.orders || []).map((order) => order.orderCode || order.id))
   const demoOrders = [
-    buildDemoQrOrder({ id: 'LSX-20260613-003', lot: 'LOT-LSX-20260613-003', chemicalQr: 'MIX-HOA-LSX-20260614-001', solidQr: 'MIX-RAN-LSX-20260614-001', customer: 'Demo QR PASS', createdAt: '2026-06-13 08:03' }),
-    buildDemoQrOrder({ id: 'LSX-20260613-024', lot: 'LOT-LSX-20260613-024', chemicalQr: 'MIX-HOA-LSX-20260614-001', solidQr: 'MIX-RAN-LSX-20260614-002', customer: 'Demo QR sai LOT', createdAt: '2026-06-13 08:24' }),
-    buildDemoQrOrder({ id: 'LSX-20260613-025', lot: 'LOT-LSX-20260613-003', chemicalQr: 'MIX-HOA-LSX-20260614-001', solidQr: 'MIX-HOA-LSX-20260614-002', customer: 'Demo QR sai nhóm', createdAt: '2026-06-13 08:25' }),
-    buildDemoQrOrder({ id: 'LSX-QC2-DEMO-001', lot: 'LOT-QC2-G1-001', chemicalQr: 'MIX-HOA-LSX-20260614-003', solidQr: 'MIX-RAN-LSX-20260614-003', customer: 'Demo QR bổ sung QC2', quantityKg: 10.8, stage: 'mixing-supplement', createdAt: '2026-06-13 09:00' }),
+    buildDemoQrOrder({ id: 'LSX-20260613-003', lot: 'LOT-LSX-20260613-003', chemicalQr: 'MIX-HOA-LSX-20260614-001', solidQr: 'MIX-RAN-LSX-20260614-001', customerIndex: 2, createdAt: '2026-06-13 08:03' }),
+    buildDemoQrOrder({ id: 'LSX-20260613-024', lot: 'LOT-LSX-20260613-024', chemicalQr: 'MIX-HOA-LSX-20260614-001', solidQr: 'MIX-RAN-LSX-20260614-002', customerIndex: 3, createdAt: '2026-06-13 08:24' }),
+    buildDemoQrOrder({ id: 'LSX-20260613-025', lot: 'LOT-LSX-20260613-003', chemicalQr: 'MIX-HOA-LSX-20260614-001', solidQr: 'MIX-HOA-LSX-20260614-002', customerIndex: 4, createdAt: '2026-06-13 08:25' }),
+    buildDemoQrOrder({ id: 'LSX-QC2-DEMO-001', lot: 'LOT-QC2-G1-001', chemicalQr: 'MIX-HOA-LSX-20260614-003', solidQr: 'MIX-RAN-LSX-20260614-003', customerIndex: 5, quantityKg: 10.8, stage: 'mixing-supplement', createdAt: '2026-06-13 09:00' }),
   ].filter((order) => !existingOrderCodes.has(order.orderCode || order.id))
   const existingLogIds = new Set((data.productionLogs || data.logs || []).map((log) => log.id))
   const demoLogs = buildDemoQrLogs().filter((log) => !existingLogIds.has(log.id))
@@ -1367,6 +1417,7 @@ function filterFinishedGoods(items, filters) {
 }
 
 function buildFinishedGoodsDemoOrder(config) {
+  const customer = config.customerRecord || getRealCustomer(config.customerIndex || 0)
   const details = config.details.map((item) => ({
     id: `pkg-${item.sizeKg}`,
     spec: `Thùng ${item.sizeKg} kg`,
@@ -1401,7 +1452,11 @@ function buildFinishedGoodsDemoOrder(config) {
   const order = {
     id: config.id,
     orderCode: config.id,
-    customer: config.customer,
+    customer: config.customer || customer.customerName || '',
+    customerName: config.customerName || customer.customerName || '',
+    customerCode: config.customerCode || customer.customerCode || '',
+    province: config.province || customer.province || '',
+    channelCode: config.channelCode || customer.channelCode || '',
     product: config.productName,
     productName: config.productName,
     lot: config.lot,
@@ -1440,11 +1495,11 @@ function buildFinishedGoodsDemoOrder(config) {
 
 function createFinishedGoodsDemoPayload(current = {}) {
   const waitingConfigs = [
-    { id: 'LSX-KTP-DEMO-001', customer: 'Công ty Minh Long', productName: 'HNS 252.G1', lot: 'LOT-KTP-001', qc2FinalWeight: 1000, details: [{ sizeKg: 25, boxes: 40, weight: 1000 }], packer: 'Tổ đóng gói A', startedAt: '2026-06-13 14:00', completedAt: '2026-06-13 15:10', createdAt: '2026-06-13 08:00' },
-    { id: 'LSX-KTP-DEMO-002', customer: 'Công ty An Phú', productName: 'HNS 252.G1', lot: 'LOT-KTP-002', qc2FinalWeight: 800, details: [{ sizeKg: 10, boxes: 80, weight: 800 }], packer: 'Tổ đóng gói B', startedAt: '2026-06-13 14:20', completedAt: '2026-06-13 15:30', createdAt: '2026-06-13 08:20' },
-    { id: 'LSX-KTP-DEMO-003', customer: 'Nhà máy Đông Á', productName: 'HNS 252.G1', lot: 'LOT-KTP-003', qc2FinalWeight: 500, details: [{ sizeKg: 5, boxes: 100, weight: 500 }], packer: 'Tổ đóng gói A', startedAt: '2026-06-13 14:40', completedAt: '2026-06-13 15:45', createdAt: '2026-06-13 08:40' },
-    { id: 'LSX-KTP-DEMO-004', customer: 'Công ty Việt Sơn', productName: 'HNS 252.G1', lot: 'LOT-KTP-004', qc2FinalWeight: 1250, details: [{ sizeKg: 25, boxes: 40, weight: 1000 }, { sizeKg: 10, boxes: 25, weight: 250 }], packer: 'Tổ đóng gói C', startedAt: '2026-06-13 15:00', completedAt: '2026-06-13 16:10', createdAt: '2026-06-13 09:00' },
-    { id: 'LSX-KTP-DEMO-005', customer: 'Công ty Nam Hải', productName: 'HNS 252.G1', lot: 'LOT-KTP-005', qc2FinalWeight: 650, details: [{ sizeKg: 10, boxes: 50, weight: 500 }, { sizeKg: 5, boxes: 30, weight: 150 }], packer: 'Tổ đóng gói B', startedAt: '2026-06-13 15:20', completedAt: '2026-06-13 16:25', createdAt: '2026-06-13 09:20' },
+    { id: 'LSX-KTP-DEMO-001', customerIndex: 6, productName: 'HNS 252.G1', lot: 'LOT-KTP-001', qc2FinalWeight: 1000, details: [{ sizeKg: 25, boxes: 40, weight: 1000 }], packer: 'Tổ đóng gói A', startedAt: '2026-06-13 14:00', completedAt: '2026-06-13 15:10', createdAt: '2026-06-13 08:00' },
+    { id: 'LSX-KTP-DEMO-002', customerIndex: 7, productName: 'HNS 252.G1', lot: 'LOT-KTP-002', qc2FinalWeight: 800, details: [{ sizeKg: 10, boxes: 80, weight: 800 }], packer: 'Tổ đóng gói B', startedAt: '2026-06-13 14:20', completedAt: '2026-06-13 15:30', createdAt: '2026-06-13 08:20' },
+    { id: 'LSX-KTP-DEMO-003', customerIndex: 8, productName: 'HNS 252.G1', lot: 'LOT-KTP-003', qc2FinalWeight: 500, details: [{ sizeKg: 5, boxes: 100, weight: 500 }], packer: 'Tổ đóng gói A', startedAt: '2026-06-13 14:40', completedAt: '2026-06-13 15:45', createdAt: '2026-06-13 08:40' },
+    { id: 'LSX-KTP-DEMO-004', customerIndex: 9, productName: 'HNS 252.G1', lot: 'LOT-KTP-004', qc2FinalWeight: 1250, details: [{ sizeKg: 25, boxes: 40, weight: 1000 }, { sizeKg: 10, boxes: 25, weight: 250 }], packer: 'Tổ đóng gói C', startedAt: '2026-06-13 15:00', completedAt: '2026-06-13 16:10', createdAt: '2026-06-13 09:00' },
+    { id: 'LSX-KTP-DEMO-005', customerIndex: 10, productName: 'HNS 252.G1', lot: 'LOT-KTP-005', qc2FinalWeight: 650, details: [{ sizeKg: 10, boxes: 50, weight: 500 }, { sizeKg: 5, boxes: 30, weight: 150 }], packer: 'Tổ đóng gói B', startedAt: '2026-06-13 15:20', completedAt: '2026-06-13 16:25', createdAt: '2026-06-13 09:20' },
   ]
   const built = waitingConfigs.map(buildFinishedGoodsDemoOrder)
   const importedGoods = [
@@ -1500,10 +1555,15 @@ function buildQc2DemoOrder(config) {
   const { original, active, changes } = buildQc2DemoFormula(config.quantityKg, config.qc1Changes)
   const baseTime = config.createdAt || '2026-06-13 08:00'
   const mixingCompletedAt = config.mixingCompletedAt || '2026-06-13 12:00'
+  const customer = config.customerRecord || getRealCustomer(config.customerIndex || 0)
   return {
     id: config.id,
     orderCode: config.id,
-    customer: config.customer,
+    customer: config.customer || customer.customerName || '',
+    customerName: config.customerName || customer.customerName || '',
+    customerCode: config.customerCode || customer.customerCode || '',
+    province: config.province || customer.province || '',
+    channelCode: config.channelCode || customer.channelCode || '',
     product: 'HNS 252.G1',
     productName: 'HNS 252.G1',
     lot: config.lot,
@@ -1604,12 +1664,12 @@ function createQc2DemoPayload(current = {}) {
     items: adjustedItems.map((item) => ({ ...item, id: `${item.id}-CAN`, toleranceKg: 0.01, qrScanned: item.materialCode, qrStatus: 'PASS', actualWeight: item.requiredKg, weighStatus: 'PASS', confirmedAt: '2026-06-13 13:35' })),
   }
   const demoOrders = [
-    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-001', customer: 'Công ty Minh Long', lot: 'LOT-QC2-G1-001', quantityKg: 1000, finalWeightKg: 998.6, machineCode: 'M01', createdAt: '2026-06-13 07:30', mixingCompletedAt: '2026-06-13 11:35', qc2Status: 'waiting' }),
-    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-002', customer: 'Công ty An Phú', lot: 'LOT-QC2-G1-002', quantityKg: 750, finalWeightKg: 749.2, machineCode: 'M02', createdAt: '2026-06-13 07:50', mixingCompletedAt: '2026-06-13 11:55', qc1Changes: { 'SW34': 0.5 }, qc2Status: 'pending' }),
-    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-003', customer: 'Nhà máy Đông Á', lot: 'LOT-QC2-G1-003', quantityKg: 1200, finalWeightKg: 1201.1, machineCode: 'M03', createdAt: '2026-06-13 08:10', mixingCompletedAt: '2026-06-13 12:15', qc1Changes: { 'PASTE 02': 0.8, IN03: 0.05 }, qc2Status: 'waiting', qc2: adjustmentTicket.qc2Record, qc2Adjustments: [adjustmentTicket], qc2SupplementTickets: [supplementTicket] }),
-    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-004', customer: 'Công ty Việt Sơn', lot: 'LOT-QC2-G1-004', quantityKg: 500, finalWeightKg: 499.7, machineCode: 'M04', createdAt: '2026-06-13 08:35', mixingCompletedAt: '2026-06-13 12:40', qc2Status: 'pending' }),
-    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-005', customer: 'Công ty Nam Hải', lot: 'LOT-QC2-G1-005', quantityKg: 900, finalWeightKg: 900.4, machineCode: 'M05', createdAt: '2026-06-13 08:55', mixingCompletedAt: '2026-06-13 13:00', qc1Changes: { KT01: 0.1 }, qc2Status: 'waiting' }),
-    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-006', customer: 'Công ty Bình Minh', lot: 'LOT-QC2-G1-006', quantityKg: 650, finalWeightKg: 649.8, machineCode: 'M06', createdAt: '2026-06-13 09:15', mixingCompletedAt: '2026-06-13 13:20', stage: 'packaging', status: 'Hoàn thành', qc2Status: 'Đạt', qc2: { result: 'Đạt', color: 'Đạt', ph: '7.1', viscosity: '95 KU', density: '1.30', coverage: 'Đạt', fineness: 'Đạt', note: 'Đạt QC2 lần đầu', checkedAt: '2026-06-13 13:45', orderId: 'LSX-QC2-DEMO-006' } }),
+    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-001', customerIndex: 11, lot: 'LOT-QC2-G1-001', quantityKg: 1000, finalWeightKg: 998.6, machineCode: 'M01', createdAt: '2026-06-13 07:30', mixingCompletedAt: '2026-06-13 11:35', qc2Status: 'waiting' }),
+    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-002', customerIndex: 12, lot: 'LOT-QC2-G1-002', quantityKg: 750, finalWeightKg: 749.2, machineCode: 'M02', createdAt: '2026-06-13 07:50', mixingCompletedAt: '2026-06-13 11:55', qc1Changes: { 'SW34': 0.5 }, qc2Status: 'pending' }),
+    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-003', customerIndex: 13, lot: 'LOT-QC2-G1-003', quantityKg: 1200, finalWeightKg: 1201.1, machineCode: 'M03', createdAt: '2026-06-13 08:10', mixingCompletedAt: '2026-06-13 12:15', qc1Changes: { 'PASTE 02': 0.8, IN03: 0.05 }, qc2Status: 'waiting', qc2: adjustmentTicket.qc2Record, qc2Adjustments: [adjustmentTicket], qc2SupplementTickets: [supplementTicket] }),
+    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-004', customerIndex: 14, lot: 'LOT-QC2-G1-004', quantityKg: 500, finalWeightKg: 499.7, machineCode: 'M04', createdAt: '2026-06-13 08:35', mixingCompletedAt: '2026-06-13 12:40', qc2Status: 'pending' }),
+    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-005', customerIndex: 15, lot: 'LOT-QC2-G1-005', quantityKg: 900, finalWeightKg: 900.4, machineCode: 'M05', createdAt: '2026-06-13 08:55', mixingCompletedAt: '2026-06-13 13:00', qc1Changes: { KT01: 0.1 }, qc2Status: 'waiting' }),
+    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-006', customerIndex: 16, lot: 'LOT-QC2-G1-006', quantityKg: 650, finalWeightKg: 649.8, machineCode: 'M06', createdAt: '2026-06-13 09:15', mixingCompletedAt: '2026-06-13 13:20', stage: 'packaging', status: 'Hoàn thành', qc2Status: 'Đạt', qc2: { result: 'Đạt', color: 'Đạt', ph: '7.1', viscosity: '95 KU', density: '1.30', coverage: 'Đạt', fineness: 'Đạt', note: 'Đạt QC2 lần đầu', checkedAt: '2026-06-13 13:45', orderId: 'LSX-QC2-DEMO-006' } }),
   ]
   const existingIds = new Set((current.orders || []).map((order) => order.id))
   const newOrders = demoOrders.filter((order) => !existingIds.has(order.id))
@@ -4836,6 +4896,7 @@ function LogsPage({ data }) {
   const [selectedId, setSelectedId] = useState('')
   const [tab, setTab] = useState('info')
   const history = normalizeProductionHistory(data)
+  const customerOptions = Array.from(new Set(normalizeCustomerCatalog(data.customerCatalog).map((customer) => customer.customerName || customer.name))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const filtered = history.filter((record) => {
     const order = record.order
     if (filters.fromDate && String(order.createdAt || '').slice(0, 10) < filters.fromDate) return false
@@ -4843,7 +4904,7 @@ function LogsPage({ data }) {
     if (filters.orderCode && !String(order.orderCode || order.id).toLowerCase().includes(filters.orderCode.toLowerCase())) return false
     if (filters.product && !String(order.productName || order.product || '').toLowerCase().includes(filters.product.toLowerCase())) return false
     if (filters.lot && !String(order.lot || '').toLowerCase().includes(filters.lot.toLowerCase())) return false
-    if (filters.customer && !String(order.customer || '').toLowerCase().includes(filters.customer.toLowerCase())) return false
+    if (filters.customer && String(order.customer || order.customerName || '') !== filters.customer) return false
     if (filters.status && !String(order.status || order.orderStatus || '').toLowerCase().includes(filters.status.toLowerCase())) return false
     if (filters.stage && !String(record.currentStage || '').toLowerCase().includes(filters.stage.toLowerCase())) return false
     if (filters.actor && !record.timeline.some((item) => String(item.actor || '').toLowerCase().includes(filters.actor.toLowerCase()))) return false
@@ -4912,7 +4973,10 @@ function LogsPage({ data }) {
           <label>Mã lệnh SX<input value={filters.orderCode} onChange={(event) => setFilters({ ...filters, orderCode: event.target.value })} /></label>
           <label>Sản phẩm<input value={filters.product} onChange={(event) => setFilters({ ...filters, product: event.target.value })} /></label>
           <label>LOT<input value={filters.lot} onChange={(event) => setFilters({ ...filters, lot: event.target.value })} /></label>
-          <label>Khách hàng<input value={filters.customer} onChange={(event) => setFilters({ ...filters, customer: event.target.value })} /></label>
+          <label>Khách hàng<select value={filters.customer} onChange={(event) => setFilters({ ...filters, customer: event.target.value })}>
+            <option value="">Tất cả khách hàng</option>
+            {customerOptions.map((customer) => <option key={customer} value={customer}>{customer}</option>)}
+          </select></label>
           <label>Trạng thái<input value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })} /></label>
           <label>Công đoạn<input value={filters.stage} onChange={(event) => setFilters({ ...filters, stage: event.target.value })} /></label>
           <label>Người thực hiện<input value={filters.actor} onChange={(event) => setFilters({ ...filters, actor: event.target.value })} /></label>
@@ -5096,7 +5160,7 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
   const productOptions = Array.from(new Set(orders.map(orderProductText))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const formulaOptions = Array.from(new Set(orders.map(orderFormulaText))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const orderStatusOptions = Array.from(new Set(orders.map(orderStatusText))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
-  const customerOptions = Array.from(new Set(orders.map(orderCustomerText))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const customerOptions = Array.from(new Set(normalizeCustomerCatalog(data.customerCatalog).map((customer) => customer.customerName || customer.name))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const shiftOptions = data.shiftCatalog || []
   const filteredProductionOrders = orders.filter((order) => {
     const filters = productionFilters
@@ -6915,10 +6979,10 @@ function App() {
     })
     const storedOrders = loadStored(PRODUCTION_ORDERS_KEY, null)
     const orderSource = nonEmptyArray(storedOrders, saved.productionOrders, saved.orders, seed.orders)
-    const orders = ensureQcDemoOrders(
+    const orders = applyRealCustomersToDemoOrders(ensureQcDemoOrders(
       normalizeProductionOrders(orderSource, formulas),
       normalizeProductionOrders(seed.orders, formulas),
-    )
+    ))
     const baseData = {
       ...seed,
       ...saved,

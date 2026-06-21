@@ -1,4 +1,7 @@
 import { useMemo, useState } from 'react'
+import { customerCatalog } from '../data/customerCatalog.js'
+
+const customerOptions = Array.from(new Set((customerCatalog || []).map((customer) => customer.customerName).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
 
 const pipelineStages = ['Nhận lệnh', 'Cân hóa', 'Cân rắn', 'Phối trộn', 'QC', 'Hoàn thành']
 const statusLabels = ['Chờ cân', 'Đang cân', 'Ready phối trộn', 'Đang phối trộn', 'QC', 'Hoàn thành', 'Lỗi']
@@ -216,7 +219,7 @@ export function DashboardPage({ orders }) {
     return (!filters.fromDate || date >= filters.fromDate)
       && (!filters.toDate || date <= filters.toDate)
       && (!filters.productGroup || order.productGroup === filters.productGroup)
-      && (!filters.customer || order.customer.toLowerCase().includes(filters.customer.toLowerCase()))
+      && (!filters.customer || order.customer === filters.customer)
       && (!filters.status || order.currentStage === filters.status)
       && (!filters.stage || pipelineStage(order) === filters.stage)
       && (!filters.owner || order.owner.toLowerCase().includes(filters.owner.toLowerCase()))
@@ -299,7 +302,10 @@ export function DashboardPage({ orders }) {
           <label>Đến ngày<input type="date" value={filters.toDate} onChange={(event) => updateFilter('toDate', event.target.value)} /></label>
           <label>Ca sản xuất<select value={filters.shift} onChange={(event) => updateFilter('shift', event.target.value)}><option value="">Tất cả</option><option>Ca 1</option><option>Ca 2</option><option>Ca 3</option></select></label>
           <label>Nhóm sản phẩm<select value={filters.productGroup} onChange={(event) => updateFilter('productGroup', event.target.value)}><option value="">Tất cả</option><option>Sơn công nghiệp</option><option>Sơn dân dụng</option></select></label>
-          <label>Khách hàng<input value={filters.customer} onChange={(event) => updateFilter('customer', event.target.value)} /></label>
+          <label>Khách hàng<select value={filters.customer} onChange={(event) => updateFilter('customer', event.target.value)}>
+            <option value="">Tất cả khách hàng</option>
+            {customerOptions.map((customer) => <option key={customer} value={customer}>{customer}</option>)}
+          </select></label>
           <label>Trạng thái lệnh<select value={filters.status} onChange={(event) => updateFilter('status', event.target.value)}><option value="">Tất cả</option>{statusLabels.map((status) => <option key={status}>{status}</option>)}</select></label>
           <label>Công đoạn<select value={filters.stage} onChange={(event) => updateFilter('stage', event.target.value)}><option value="">Tất cả</option>{pipelineStages.map((stage) => <option key={stage}>{stage}</option>)}</select></label>
           <label>Người phụ trách<input value={filters.owner} onChange={(event) => updateFilter('owner', event.target.value)} /></label>
