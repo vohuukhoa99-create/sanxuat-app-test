@@ -5414,7 +5414,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   )
 }
 
-function AdminPage({ authData, setAuthData }) {
+function AdminPage({ authData, setAuthData, section = 'users' }) {
   const [showCreateRole, setShowCreateRole] = useState(false)
   const [newRoleName, setNewRoleName] = useState('')
   const [notice, setNotice] = useState('')
@@ -5550,7 +5550,7 @@ function AdminPage({ authData, setAuthData }) {
   }
   return (
     <div className="page-content admin-page">
-      <section className="panel">
+      {section === 'users' && <section className="panel">
         <div className="section-heading-row">
           <div><span className="section-kicker">Quản trị hệ thống</span><h2>Danh sách người dùng</h2></div>
           <div className="action-row">
@@ -5602,12 +5602,45 @@ function AdminPage({ authData, setAuthData }) {
             </tbody>
           </table>
         </div>
-      </section>
-      <section className="panel permission-matrix-panel">
+      </section>}
+      {section === 'roles' && <section className="panel">
+        <div className="section-heading-row">
+          <div><span className="section-kicker">Quản trị hệ thống</span><h2>Vai trò</h2></div>
+          <button className="primary-button" type="button" onClick={() => setShowCreateRole(true)}>Thêm vai trò</button>
+        </div>
+        {notice && <p className="empty-alert">{notice}</p>}
+        <div className="table-wrapper">
+          <table className="admin-wide-table">
+            <thead>
+              <tr>
+                <th>Vai trò</th>
+                <th>Số quyền</th>
+                <th>Số người dùng</th>
+                <th>Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              {roles.map(([role, label]) => (
+                <tr key={role}>
+                  <td>{label}</td>
+                  <td>{role === 'Admin' ? allPermissionIds.length : (authData.roles[role] || []).length}</td>
+                  <td>{(authData.users || []).filter((user) => user.role === role).length}</td>
+                  <td>
+                    <div className="user-action-group">
+                      <button type="button" className="secondary-button" disabled={role === 'Admin'} onClick={() => renameRole(role)}>Sửa tên</button>
+                      <button type="button" className="danger-button" disabled={role === 'Admin'} onClick={() => deleteRole(role)}>Xóa</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>}
+      {section === 'permissions' && <section className="panel permission-matrix-panel">
         <div className="section-heading-row">
           <div><span className="section-kicker">Quản trị hệ thống</span><h2>Phân quyền V3</h2></div>
           <div className="permission-toolbar">
-            <button className="secondary-button" type="button" onClick={() => setShowCreateRole(true)}>+ Vai trò</button>
             <button className="primary-button" type="button" onClick={savePermissions}>Lưu phân quyền</button>
           </div>
         </div>
@@ -5621,10 +5654,6 @@ function AdminPage({ authData, setAuthData }) {
                   <th key={role}>
                     <div className="role-column-header">
                       <strong>{label}</strong>
-                      <span>
-                        <button type="button" className="icon-button" disabled={role === 'Admin'} onClick={() => renameRole(role)} aria-label={`Sửa ${role}`}>✎</button>
-                        <button type="button" className="icon-button danger-icon" disabled={role === 'Admin'} onClick={() => deleteRole(role)} aria-label={`Xóa ${role}`}>×</button>
-                      </span>
                     </div>
                     <div className="role-quick-actions">
                       <button type="button" disabled={role === 'Admin'} onClick={() => setRolePermissions(role, allPermissionIds)}>✓ Chọn tất cả</button>
@@ -5668,8 +5697,8 @@ function AdminPage({ authData, setAuthData }) {
             </tbody>
           </table>
         </div>
-      </section>
-      {showCreateRole && (
+      </section>}
+      {section === 'roles' && showCreateRole && (
         <div className="modal-backdrop" role="presentation">
           <div className="mixing-modal role-modal" role="dialog" aria-modal="true">
             <div className="modal-header">
@@ -5849,10 +5878,10 @@ function App() {
     'finished-goods': <FinishedGoodsPage data={data} setData={setData} />,
     logs: <LogsPage data={data} />,
     reports: <ReportsPage data={data} />,
-    admin: <AdminPage authData={authData} setAuthData={setAuthData} />,
-    'admin-users': <AdminPage authData={authData} setAuthData={setAuthData} />,
-    'admin-roles': <AdminPage authData={authData} setAuthData={setAuthData} />,
-    'admin-permissions': <AdminPage authData={authData} setAuthData={setAuthData} />,
+    admin: <AdminPage authData={authData} setAuthData={setAuthData} section="users" />,
+    'admin-users': <AdminPage authData={authData} setAuthData={setAuthData} section="users" />,
+    'admin-roles': <AdminPage authData={authData} setAuthData={setAuthData} section="roles" />,
+    'admin-permissions': <AdminPage authData={authData} setAuthData={setAuthData} section="permissions" />,
     'admin-system-logs': <SystemLogsPage data={data} />,
     'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'materialGroup', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} />,
     'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'group', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
