@@ -474,15 +474,15 @@ const pagePermission = (item) => item.permission || item.id
 
 const defaultRoles = {
   Admin: allSystemPermissionIds,
-  'Kho NL': ['dashboard', 'raw-materials', 'logs', ...masterView('material'), ...masterView('supplier')],
-  'Kỹ thuật': ['dashboard', 'logs', ...masterFull('material'), ...masterFull('product'), ...masterFull('formula'), ...masterView('machine'), ...masterView('supplier'), 'formula.secure.view'],
+  'Kho NL': ['dashboard', 'raw-materials', 'production.log.view', ...masterView('material'), ...masterView('supplier')],
+  'Kỹ thuật': ['dashboard', 'production.log.view', ...masterFull('material'), ...masterFull('product'), ...masterFull('formula'), ...masterView('machine'), ...masterView('supplier'), 'formula.secure.view'],
   'Sản xuất': ['dashboard', 'orders', 'logs', 'production.log.view', ...productionFull('assignment'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('product'), ...masterView('machine'), ...masterView('customer')],
-  QC: ['dashboard', 'qc', 'finished-qc', 'logs', 'reports', ...masterView('product'), ...masterView('formula')],
+  QC: ['dashboard', 'qc', 'finished-qc', 'production.log.view', 'reports', ...masterView('product'), ...masterView('formula')],
   'Cân hóa': ['dashboard', 'chemical', 'logs', 'production.log.view', ...productionView('assignment')],
   'Cân rắn': ['dashboard', 'solid', 'logs', 'production.log.view', ...productionView('assignment')],
   'Phối trộn': ['dashboard', 'mixing', 'logs', 'production.log.view', ...productionView('assignment'), ...masterView('machine')],
-  'Đóng gói': ['dashboard', 'packaging', 'logs'],
-  'Kho TP': ['dashboard', 'finished-goods', 'logs', 'reports'],
+  'Đóng gói': ['dashboard', 'packaging', 'production.log.view'],
+  'Kho TP': ['dashboard', 'finished-goods', 'production.log.view', 'reports'],
   'Quản đốc': ['dashboard', 'orders', 'qc', 'chemical', 'solid', 'mixing', 'finished-qc', 'packaging', 'finished-goods', 'logs', 'reports', 'production.trace.view', 'production.log.view', 'production.assignment.view', 'production.assignment.create', 'production.assignment.edit', ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('product'), ...masterView('customer')],
   'Ban giám đốc': ['dashboard', 'logs', 'reports', 'production.trace.view', 'production.log.view', ...productionView('assignment'), ...masterView('material'), ...masterView('product'), ...masterView('supplier'), ...masterView('customer'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('formula')],
 }
@@ -546,6 +546,8 @@ function expandLegacyPermissions(permissions = []) {
     'master-teams': masterFull('team'),
     'master-shifts': masterFull('shift'),
     'production-assignments': productionFull('assignment'),
+    logs: ['production.log.view'],
+    'reports-trace': ['production.trace.view'],
     admin: ['admin'],
     'admin-users': ['admin'],
     'admin-roles': ['admin'],
@@ -4912,9 +4914,12 @@ function ProductionHistoryModal({ record, tab, setTab, onClose }) {
   )
 }
 
-function ReportsPage({ data }) {
-  const [tab, setTab] = useState('production')
+function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
+  const [tab, setTab] = useState(initialTab)
   const [traceLot, setTraceLot] = useState('')
+  useEffect(() => {
+    setTab(initialTab)
+  }, [initialTab])
   const orders = normalizeProductionOrders(data.orders || [], data.formulas || [])
   const packingLogs = data.packingLogs || []
   const finishedGoods = normalizeFinishedGoodsData(data.finishedGoods || [])
@@ -5085,9 +5090,91 @@ function ReportsPage({ data }) {
         <div className="section-heading-row">
           <div><span className="section-kicker">Phân tích chi tiết</span><h2>Báo cáo sản xuất</h2></div>
         </div>
-        <div className="log-tabs report-tabs">{tabs.map(([id, label]) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>)}</div>
+        {!lockedTab && <div className="log-tabs report-tabs">{tabs.map(([id, label]) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>)}</div>}
       </section>
       {renderTab()}
+    </div>
+  )
+}
+
+function StaffPerformanceReportPage({ data }) {
+  const employees = data.employeeCatalog || []
+  const assignments = data.productionAssignments || []
+  const logs = normalizeSystemLogs(data)
+  const rows = employees.map((employee) => {
+    const employeeAssignments = assignments.filter((item) => item.employeeCode === employee.code || item.employeeName === employee.name)
+    const employeeLogs = logs.filter((log) => log.employeeCode === employee.code || log.employee === employee.name)
+    return {
+      employee,
+      assigned: employeeAssignments.length,
+      completed: employeeAssignments.filter((item) => item.status === 'Hoàn thành').length,
+      actions: employeeLogs.length,
+      lastAction: employeeLogs[0]?.time || employeeAssignments[0]?.assignedAt || '-',
+    }
+  })
+  return (
+    <div className="page-content reports-page">
+      <section className="panel">
+        <div className="section-heading-row">
+          <div><span className="section-kicker">Báo cáo</span><h2>Hiệu suất nhân sự</h2></div>
+        </div>
+        <SimpleTable
+          tableClassName="report-wide-table"
+          headers={['Mã NV', 'Nhân viên', 'Tổ sản xuất', 'Vai trò vận hành', 'Số phân công', 'Hoàn thành', 'Số thao tác', 'Thao tác gần nhất']}
+          rows={rows.map(({ employee, assigned, completed, actions, lastAction }) => (
+            <tr key={employee.code}>
+              <td>{employee.code}</td>
+              <td>{employee.name}</td>
+              <td>{employee.productionTeam}</td>
+              <td>{employee.operationRole}</td>
+              <td>{assigned}</td>
+              <td>{completed}</td>
+              <td>{actions}</td>
+              <td>{lastAction}</td>
+            </tr>
+          ))}
+        />
+      </section>
+    </div>
+  )
+}
+
+function MachinePerformanceReportPage({ data }) {
+  const machines = normalizeMixingMachines(data.mixingMachines || [])
+  const orders = normalizeProductionOrders(data.orders || [], data.formulas || [])
+  const rows = machines.map((machine) => {
+    const machineOrders = orders.filter((order) => (order.mixingMachine || order.mixing?.machineCode) === machine.machineCode)
+    return {
+      machine,
+      orderCount: machineOrders.length,
+      activeCount: machineOrders.filter((order) => order.mixing?.status === 'Active' || order.mixingStatus === 'Active').length,
+      completedCount: machineOrders.filter((order) => order.mixingCompletedAt || order.mixing?.completedAt).length,
+      lastOrder: machineOrders[0]?.orderCode || machineOrders[0]?.id || '-',
+    }
+  })
+  return (
+    <div className="page-content reports-page">
+      <section className="panel">
+        <div className="section-heading-row">
+          <div><span className="section-kicker">Báo cáo</span><h2>Hiệu suất máy</h2></div>
+        </div>
+        <SimpleTable
+          tableClassName="report-wide-table"
+          headers={['Mã máy', 'Tên máy', 'Công suất kg/mẻ', 'Trạng thái', 'Số lệnh', 'Đang chạy', 'Đã hoàn thành phối trộn', 'Lệnh gần nhất']}
+          rows={rows.map(({ machine, orderCount, activeCount, completedCount, lastOrder }) => (
+            <tr key={machine.machineCode}>
+              <td>{machine.machineCode}</td>
+              <td>{formatMixingMachineLabel(machine)}</td>
+              <td>{machine.capacityKg || '-'}</td>
+              <td>{machine.status || '-'}</td>
+              <td>{orderCount}</td>
+              <td>{activeCount}</td>
+              <td>{completedCount}</td>
+              <td>{lastOrder}</td>
+            </tr>
+          ))}
+        />
+      </section>
     </div>
   )
 }
@@ -5591,7 +5678,7 @@ function AdminPage({ authData, setAuthData, section = 'users' }) {
     ...baseRoles.filter(([role]) => authData.roles?.[role]),
   ]
   const operationPermissionRows = defaultNavItems
-    .filter((item) => !item.parentId && item.permission && item.type !== 'group')
+    .filter((item) => item.permission && item.type !== 'group')
     .map((item) => ({ label: item.label, permissions: [{ action: 'Truy cập', id: item.permission }] }))
   const masterPermissionRows = masterPermissionGroups.map(([key, label]) => ({
     label,
@@ -5886,6 +5973,10 @@ const pageMeta = {
   'finished-goods': ['Kho thành phẩm', 'Nhập kho TP và hoàn thành lệnh'],
   logs: ['Nhật ký sản xuất', 'Lịch sử thao tác toàn quy trình'],
   reports: ['Báo cáo', 'Dashboard và báo cáo V3'],
+  'reports-production': ['Báo cáo sản xuất', 'Tổng hợp pipeline, lệnh sản xuất và sản lượng'],
+  'reports-trace': ['Truy xuất lô sản xuất', 'Tra cứu người thao tác, công đoạn, thời gian và máy theo LOT'],
+  'reports-staff-performance': ['Hiệu suất nhân sự', 'Theo dõi phân công và thao tác của nhân sự sản xuất'],
+  'reports-machine-performance': ['Hiệu suất máy', 'Theo dõi trạng thái và lệnh phối trộn theo máy'],
   admin: ['Quản trị hệ thống', 'Vai trò và phân quyền'],
   'admin-users': ['Người dùng', 'Quản lý tài khoản hệ thống'],
   'admin-roles': ['Vai trò', 'Quản lý vai trò hệ thống'],
@@ -6033,6 +6124,10 @@ function App() {
     'finished-goods': <FinishedGoodsPage data={data} setData={setData} />,
     logs: <LogsPage data={data} />,
     reports: <ReportsPage data={data} />,
+    'reports-production': <ReportsPage data={data} initialTab="production" lockedTab />,
+    'reports-trace': <ReportsPage data={data} initialTab="trace" lockedTab />,
+    'reports-staff-performance': <StaffPerformanceReportPage data={data} />,
+    'reports-machine-performance': <MachinePerformanceReportPage data={data} />,
     admin: <AdminPage authData={authData} setAuthData={setAuthData} section="users" />,
     'admin-users': <AdminPage authData={authData} setAuthData={setAuthData} section="users" />,
     'admin-roles': <AdminPage authData={authData} setAuthData={setAuthData} section="roles" />,
