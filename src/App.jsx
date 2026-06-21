@@ -4992,8 +4992,6 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
   const topMaterials = countBy(qc2AdjustmentItems, (item) => item.materialCode, (item) => Math.max(0, num(item.adjustmentKg ?? item.requiredKg))).slice(0, 5)
   const topQc = countBy(qc2AdjustmentRows, ({ ticket }) => ticket.createdBy).slice(0, 5)
   const qrFailLogs = (data.productionLogs || data.logs || []).filter((log) => String(log.entry || '').includes('QR') && String(log.entry || '').includes('FAIL'))
-  const traceRecords = normalizeProductionHistory(data)
-    .filter((record) => !traceLot || String(record.order.lot || '').toLowerCase().includes(traceLot.toLowerCase()))
   const pipelineStages = [
     ['qc1', 'QC sản xuất thử'],
     ['weighing', 'Tổ cân'],
@@ -5157,6 +5155,127 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
     XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(sheetRows), 'Bao cao san xuat')
     XLSX.writeFile(book, `bao-cao-san-xuat-${todayText().replaceAll('-', '')}.xlsx`)
   }
+  const traceDefaultFilters = {
+    fromDate: '',
+    toDate: '',
+    lot: '',
+    orderCode: '',
+    customer: 'all',
+    product: 'all',
+    productGroup: 'all',
+    formula: 'all',
+    orderStatus: 'all',
+    stage: 'all',
+    machineCode: 'all',
+    operator: '',
+    team: 'all',
+  }
+  const [traceDraftFilters, setTraceDraftFilters] = useState(traceDefaultFilters)
+  const [traceFilters, setTraceFilters] = useState(traceDefaultFilters)
+  const updateTraceFilter = (field, value) => {
+    setTraceDraftFilters((current) => ({ ...current, [field]: value }))
+    if (field === 'lot') {
+      setTraceLot(value)
+      setTraceFilters((current) => ({ ...current, lot: value }))
+    }
+  }
+  const applyTraceFilters = () => setTraceFilters({ ...traceDraftFilters, lot: traceLot || traceDraftFilters.lot })
+  const clearTraceFilters = () => {
+    setTraceLot('')
+    setTraceDraftFilters(traceDefaultFilters)
+    setTraceFilters(traceDefaultFilters)
+  }
+  const productGroupText = (order = {}) => String(order.productGroup || order.group || orderProductText(order).split(/[.\s-]/)[0] || 'Khác')
+  const teamOptionsForTrace = Array.from(new Set([
+    ...(data.teamCatalog || []).map((team) => team.name),
+    ...(data.productionAssignments || []).map((assignment) => assignment.teamName || assignment.productionTeamName || assignment.productionTeam),
+  ])).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const productGroupOptions = Array.from(new Set(orders.map(productGroupText))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const traceAssignmentDateText = (assignment = {}) => String(assignment.workDate || assignment.date || assignment.assignedAt || '').slice(0, 10)
+  const traceAssignmentStageText = (assignment = {}) => assignment.processName || assignment.stage || ''
+  const recordTeamNames = (record = {}) => {
+    const orderDate = orderDateText(record.order)
+    const timelineStages = new Set((record.timeline || []).map((item) => item.stage))
+    return [...new Set((data.productionAssignments || [])
+      .filter((assignment) => !orderDate || traceAssignmentDateText(assignment) === orderDate)
+      .filter((assignment) => !traceAssignmentStageText(assignment) || timelineStages.has(traceAssignmentStageText(assignment)))
+      .map((assignment) => assignment.teamName || assignment.productionTeamName || assignment.productionTeam)
+      .filter(Boolean))]
+  }
+  const actorTextByStage = (record, pattern) => (record.timeline || [])
+    .filter((item) => pattern.test(String(item.stage || '')))
+    .map((item) => item.actor || item.employeeName || item.employee || '')
+    .filter(Boolean)
+    .join(', ') || '-'
+  const activeTraceFilters = { ...traceFilters, lot: traceLot || traceFilters.lot }
+  const traceRecords = productionHistory.filter((record) => {
+    const order = record.order
+    const dateText = orderDateText(order)
+    const machineCode = getOrderAssignedMachineCode(order) || order.mixingMachine || order.mixing?.machineCode || ''
+    const actorText = (record.timeline || []).map((item) => `${item.actor || ''} ${item.employeeName || ''} ${item.employeeCode || ''}`).join(' ')
+    const teams = recordTeamNames(record)
+    if (activeTraceFilters.fromDate && dateText && dateText < activeTraceFilters.fromDate) return false
+    if (activeTraceFilters.toDate && dateText && dateText > activeTraceFilters.toDate) return false
+    if (activeTraceFilters.lot && !String(order.lot || '').toLowerCase().includes(activeTraceFilters.lot.toLowerCase())) return false
+    if (activeTraceFilters.orderCode && !orderCodeText(order).toLowerCase().includes(activeTraceFilters.orderCode.toLowerCase())) return false
+    if (activeTraceFilters.customer !== 'all' && orderCustomerText(order) !== activeTraceFilters.customer) return false
+    if (activeTraceFilters.product !== 'all' && orderProductText(order) !== activeTraceFilters.product) return false
+    if (activeTraceFilters.productGroup !== 'all' && productGroupText(order) !== activeTraceFilters.productGroup) return false
+    if (activeTraceFilters.formula !== 'all' && orderFormulaText(order) !== activeTraceFilters.formula) return false
+    if (activeTraceFilters.orderStatus !== 'all' && orderStatusText(order) !== activeTraceFilters.orderStatus) return false
+    if (activeTraceFilters.stage !== 'all' && order.stage !== activeTraceFilters.stage) return false
+    if (activeTraceFilters.machineCode !== 'all' && machineCode !== activeTraceFilters.machineCode) return false
+    if (activeTraceFilters.operator && !actorText.toLowerCase().includes(activeTraceFilters.operator.toLowerCase())) return false
+    if (activeTraceFilters.team !== 'all' && !teams.includes(activeTraceFilters.team)) return false
+    return true
+  })
+  const traceRows = traceRecords.map((record) => {
+    const order = record.order
+    const latestAction = record.timeline?.slice().reverse().find((item) => item.time || item.actor) || {}
+    return {
+      record,
+      lot: order.lot || '-',
+      orderCode: orderCodeText(order),
+      createdAt: order.createdAt || '-',
+      customer: orderCustomerText(order) || '-',
+      product: orderProductText(order),
+      productGroup: productGroupText(order),
+      formula: orderFormulaText(order),
+      quantity: num(order.quantityKg || order.requestedWeight),
+      machine: getOrderAssignedMachineLabel(order, machines),
+      chemicalActor: actorTextByStage(record, /Cân hóa/i),
+      solidActor: actorTextByStage(record, /Cân rắn/i),
+      mixingActor: actorTextByStage(record, /Phối trộn/i),
+      qcActor: actorTextByStage(record, /QC/i),
+      packingActor: actorTextByStage(record, /Đóng gói/i),
+      warehouseActor: actorTextByStage(record, /Nhập kho|Kho thành phẩm/i),
+      stage: orderStageText(order),
+      status: orderStatusText(order),
+      latestTime: latestAction.time || '-',
+    }
+  })
+  const traceFilterSummary = [
+    `Từ ngày: ${activeTraceFilters.fromDate || '-'}`,
+    `Đến ngày: ${activeTraceFilters.toDate || '-'}`,
+    `LOT: ${activeTraceFilters.lot || 'Tất cả'}`,
+    `Lệnh: ${activeTraceFilters.orderCode || 'Tất cả'}`,
+    `Sản phẩm: ${activeTraceFilters.product === 'all' ? 'Tất cả' : activeTraceFilters.product}`,
+    `Máy: ${activeTraceFilters.machineCode === 'all' ? 'Tất cả' : activeTraceFilters.machineCode}`,
+  ].join(' | ')
+  const exportTraceExcel = () => {
+    const headers = ['LOT', 'Lệnh sản xuất', 'Ngày tạo', 'Khách hàng', 'Sản phẩm', 'Nhóm sản phẩm', 'Công thức', 'Khối lượng', 'Máy phối trộn', 'Người cân hóa', 'Người cân rắn', 'Người phối trộn', 'Người QC', 'Người đóng gói', 'Người nhập kho TP', 'Công đoạn hiện tại', 'Trạng thái', 'Thời gian thao tác gần nhất']
+    const sheetRows = [
+      ['Truy xuất lô sản xuất'],
+      [traceFilterSummary],
+      [`Ngày xuất: ${nowText()}`],
+      [],
+      headers,
+      ...traceRows.map((row) => [row.lot, row.orderCode, row.createdAt, row.customer, row.product, row.productGroup, row.formula, row.quantity, row.machine, row.chemicalActor, row.solidActor, row.mixingActor, row.qcActor, row.packingActor, row.warehouseActor, row.stage, row.status, row.latestTime]),
+    ]
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(sheetRows), 'Truy xuat lo')
+    XLSX.writeFile(book, `truy-xuat-lo-san-xuat-${todayText().replaceAll('-', '')}.xlsx`)
+  }
   const tabs = [
     ['production', 'Sản xuất'],
     ['qc', 'QC'],
@@ -5303,33 +5422,79 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
     if (tab === 'trace') return (
       <>
         <section className="panel">
-          <div className="section-heading-row"><h2>Truy xuất lô sản xuất</h2></div>
-          <div className="production-form-grid">
-            <label>Nhập LOT<input value={traceLot} onChange={(event) => setTraceLot(event.target.value)} placeholder="VD: LOT-HNS-G1-001" /></label>
+          <div className="section-heading-row">
+            <div><span className="section-kicker">Truy xuất</span><h2>Truy xuất lô sản xuất</h2></div>
+            <button className="secondary-button" type="button" onClick={exportTraceExcel}>Xuất Excel</button>
           </div>
+          <div className="report-filters">
+            <label>Từ ngày<input type="date" value={traceDraftFilters.fromDate} onChange={(event) => updateTraceFilter('fromDate', event.target.value)} /></label>
+            <label>Đến ngày<input type="date" value={traceDraftFilters.toDate} onChange={(event) => updateTraceFilter('toDate', event.target.value)} /></label>
+            <label>LOT<input value={traceLot} onChange={(event) => updateTraceFilter('lot', event.target.value)} placeholder="VD: LOT-HNS-G1-001" /></label>
+            <label>Lệnh sản xuất<input value={traceDraftFilters.orderCode} onChange={(event) => updateTraceFilter('orderCode', event.target.value)} placeholder="Mã lệnh SX" /></label>
+            <label>Khách hàng<select value={traceDraftFilters.customer} onChange={(event) => updateTraceFilter('customer', event.target.value)}>
+              <option value="all">Tất cả khách hàng</option>
+              {customerOptions.map((customer) => <option key={customer} value={customer}>{customer}</option>)}
+            </select></label>
+            <label>Sản phẩm<select value={traceDraftFilters.product} onChange={(event) => updateTraceFilter('product', event.target.value)}>
+              <option value="all">Tất cả sản phẩm</option>
+              {productOptions.map((product) => <option key={product} value={product}>{product}</option>)}
+            </select></label>
+            <label>Nhóm sản phẩm<select value={traceDraftFilters.productGroup} onChange={(event) => updateTraceFilter('productGroup', event.target.value)}>
+              <option value="all">Tất cả nhóm</option>
+              {productGroupOptions.map((group) => <option key={group} value={group}>{group}</option>)}
+            </select></label>
+            <label>Công thức<select value={traceDraftFilters.formula} onChange={(event) => updateTraceFilter('formula', event.target.value)}>
+              <option value="all">Tất cả công thức</option>
+              {formulaOptions.map((formula) => <option key={formula} value={formula}>{formula}</option>)}
+            </select></label>
+            <label>Trạng thái lệnh<select value={traceDraftFilters.orderStatus} onChange={(event) => updateTraceFilter('orderStatus', event.target.value)}>
+              <option value="all">Tất cả trạng thái</option>
+              {orderStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+            </select></label>
+            <label>Công đoạn hiện tại<select value={traceDraftFilters.stage} onChange={(event) => updateTraceFilter('stage', event.target.value)}>
+              <option value="all">Tất cả công đoạn</option>
+              {pipelineStages.map(([stage, label]) => <option key={stage} value={stage}>{label}</option>)}
+            </select></label>
+            <label>Máy phối trộn<select value={traceDraftFilters.machineCode} onChange={(event) => updateTraceFilter('machineCode', event.target.value)}>
+              <option value="all">Tất cả máy</option>
+              {machines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{formatMixingMachineLabel(machine)}</option>)}
+            </select></label>
+            <label>Người thao tác<input value={traceDraftFilters.operator} onChange={(event) => updateTraceFilter('operator', event.target.value)} placeholder="Tên hoặc mã NV" /></label>
+            <label>Tổ sản xuất<select value={traceDraftFilters.team} onChange={(event) => updateTraceFilter('team', event.target.value)}>
+              <option value="all">Tất cả tổ</option>
+              {teamOptionsForTrace.map((team) => <option key={team} value={team}>{team}</option>)}
+            </select></label>
+          </div>
+          <div className="action-row">
+            <button className="primary-button" type="button" onClick={applyTraceFilters}>Lọc dữ liệu</button>
+            <button className="secondary-button" type="button" onClick={clearTraceFilters}>Xóa lọc</button>
+            <button className="secondary-button" type="button" onClick={exportTraceExcel}>Xuất Excel</button>
+          </div>
+          <p className="panel-text">{traceFilterSummary}</p>
         </section>
         <section className="panel report-table-panel">
-          <SimpleTable tableClassName="report-wide-table" headers={['LOT', 'Lệnh sản xuất', 'Sản phẩm', 'Người cân hóa', 'Người cân rắn', 'Người phối trộn', 'Người QC', 'Người đóng gói', 'Người nhập kho TP', 'Thời gian công đoạn', 'Máy phối trộn']} rows={traceRecords.map((record) => {
-            const byStage = (name) => record.timeline.filter((item) => String(item.stage || '').includes(name))
-            const actorText = (name) => byStage(name).map((item) => item.actor).filter(Boolean).join(', ') || '-'
-            const timeText = record.timeline.map((item) => `${item.stage}: ${item.time || '-'}`).join(' | ')
-            const machineText = getHistoryMixingRows(record).map((item) => item.machine).filter(Boolean).join(', ') || '-'
-            return (
-              <tr key={record.order.id}>
-                <td>{record.order.lot || '-'}</td>
-                <td>{record.order.orderCode || record.order.id}</td>
-                <td>{record.order.productName || record.order.product || '-'}</td>
-                <td>{actorText('Cân hóa')}</td>
-                <td>{actorText('Cân rắn')}</td>
-                <td>{actorText('Phối trộn')}</td>
-                <td>{actorText('QC')}</td>
-                <td>{actorText('Đóng gói')}</td>
-                <td>{actorText('kho')}</td>
-                <td>{timeText || '-'}</td>
-                <td>{machineText}</td>
-              </tr>
-            )
-          })} empty="Chưa có dữ liệu truy xuất cho LOT đã chọn." />
+          <SimpleTable tableClassName="report-wide-table" headers={['LOT', 'Lệnh sản xuất', 'Ngày tạo', 'Khách hàng', 'Sản phẩm', 'Nhóm sản phẩm', 'Công thức', 'Khối lượng', 'Máy phối trộn', 'Người cân hóa', 'Người cân rắn', 'Người phối trộn', 'Người QC', 'Người đóng gói', 'Người nhập kho TP', 'Công đoạn hiện tại', 'Trạng thái', 'Thời gian thao tác gần nhất']} rows={traceRows.map((row) => (
+            <tr key={row.record.order.id}>
+              <td>{row.lot}</td>
+              <td>{row.orderCode}</td>
+              <td>{row.createdAt}</td>
+              <td>{row.customer}</td>
+              <td>{row.product}</td>
+              <td>{row.productGroup}</td>
+              <td>{row.formula}</td>
+              <td>{kg(row.quantity)}</td>
+              <td>{row.machine}</td>
+              <td>{row.chemicalActor}</td>
+              <td>{row.solidActor}</td>
+              <td>{row.mixingActor}</td>
+              <td>{row.qcActor}</td>
+              <td>{row.packingActor}</td>
+              <td>{row.warehouseActor}</td>
+              <td>{row.stage}</td>
+              <td>{row.status}</td>
+              <td>{row.latestTime}</td>
+            </tr>
+          ))} empty="Chưa có dữ liệu truy xuất phù hợp bộ lọc." />
         </section>
       </>
     )
