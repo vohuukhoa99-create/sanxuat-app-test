@@ -448,13 +448,15 @@ const defaultRoles = {
   'Phối trộn': ['dashboard', 'mixing', 'logs', ...productionView('assignment'), ...masterView('machine')],
   'Đóng gói': ['dashboard', 'packaging', 'logs'],
   'Kho TP': ['dashboard', 'finished-goods', 'logs'],
+  'Quản đốc': ['dashboard', 'orders', 'qc', 'chemical', 'solid', 'mixing', 'finished-qc', 'packaging', 'finished-goods', 'logs', 'reports', ...productionView('assignment'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('product'), ...masterView('customer')],
+  'Ban giám đốc': ['dashboard', 'raw-materials', 'orders', 'qc', 'chemical', 'solid', 'mixing', 'finished-qc', 'packaging', 'finished-goods', 'logs', 'reports', ...productionView('assignment'), ...masterView('material'), ...masterView('product'), ...masterView('supplier'), ...masterView('customer'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('formula')],
 }
 
 const ACTIVE_STATUS = 'Hoạt động'
 const LOCKED_STATUS = 'Khóa'
 const DEFAULT_PASSWORD = '123456'
 const AUTH_VERSION = 3
-const removedDefaultUsernames = new Set(['kho-nvl', 'kho-tp'])
+const removedDefaultUsernames = new Set(['kho-nvl', 'kho-tp', 'hcns', 'kinhdoanh'])
 
 const defaultUsers = [
   { username: 'admin', password: DEFAULT_PASSWORD, role: 'Admin', fullName: 'Quản trị hệ thống' },
@@ -467,10 +469,8 @@ const defaultUsers = [
   { username: 'phoitron', password: DEFAULT_PASSWORD, role: 'Phối trộn', fullName: 'Tổ phối trộn' },
   { username: 'donggoi', password: DEFAULT_PASSWORD, role: 'Đóng gói', fullName: 'Tổ đóng gói' },
   { username: 'kho.tp', password: DEFAULT_PASSWORD, role: 'Kho TP', fullName: 'Kho thành phẩm' },
-  { username: 'quandoc', password: DEFAULT_PASSWORD, role: 'Sản xuất', fullName: 'Quản đốc' },
-  { username: 'giamdoc', password: DEFAULT_PASSWORD, role: 'Admin', fullName: 'Ban giám đốc' },
-  { username: 'hcns', password: DEFAULT_PASSWORD, role: 'Sản xuất', fullName: 'HCNS' },
-  { username: 'kinhdoanh', password: DEFAULT_PASSWORD, role: 'Admin', fullName: 'Kinh doanh' },
+  { username: 'quandoc', password: DEFAULT_PASSWORD, role: 'Quản đốc', fullName: 'Quản đốc' },
+  { username: 'giamdoc', password: DEFAULT_PASSWORD, role: 'Ban giám đốc', fullName: 'Ban giám đốc' },
 ].map((user) => ({ ...user, department: user.role, status: ACTIVE_STATUS }))
 
 const legacyRoleMap = {
@@ -481,8 +481,6 @@ const legacyRoleMap = {
   'Tổ cân rắn': 'Cân rắn',
   'Tổ phối trộn': 'Phối trộn',
   'Kho thành phẩm': 'Kho TP',
-  'Quản đốc': 'Sản xuất',
-  'Ban giám đốc': 'Admin',
   HCNS: 'Sản xuất',
   'Kinh doanh': 'Admin',
 }
@@ -5430,10 +5428,12 @@ function AdminPage({ authData, setAuthData, section = 'users' }) {
     ['Phối trộn', 'Phối trộn'],
     ['Đóng gói', 'Đóng gói'],
     ['Kho TP', 'Kho TP'],
+    ['Quản đốc', 'Quản đốc'],
+    ['Ban giám đốc', 'Ban giám đốc'],
   ]
   const baseRoleNames = baseRoles.map(([role]) => role)
   const extraRoles = Object.keys(authData.roles || {})
-    .filter((role) => !baseRoleNames.includes(role) && !['Quản đốc', 'Ban giám đốc'].includes(role))
+    .filter((role) => !baseRoleNames.includes(role))
     .map((role) => [role, role])
   const roles = [
     ...baseRoles.filter(([role]) => authData.roles?.[role]),
