@@ -1909,6 +1909,8 @@ tbody tr:hover {
 .permission-matrix-panel {
   display: grid;
   gap: 4px;
+  width: 100%;
+  max-width: none;
 }
 
 .admin-action-bar,
@@ -1923,12 +1925,13 @@ tbody tr:hover {
 
 .permission-matrix-wrapper {
   width: 100%;
-  max-width: 100%;
+  max-width: none;
   overflow: auto;
   background: #fff;
   border: 1px solid #dfe8e3;
   border-radius: 10px;
   max-height: calc(100vh - 190px);
+  overscroll-behavior: contain;
 }
 
 .permission-matrix {
@@ -1943,9 +1946,9 @@ tbody tr:hover {
 .permission-matrix td {
   border-bottom: 1px solid #e5eee9;
   border-right: 1px solid #eef3f0;
-  height: 32px !important;
-  min-height: 32px !important;
-  padding: 2px 4px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 4px 8px !important;
   line-height: 1.15 !important;
   text-align: center !important;
   vertical-align: middle !important;
@@ -1954,9 +1957,9 @@ tbody tr:hover {
 .permission-matrix th:first-child,
 .permission-matrix td:first-child {
   text-align: left !important;
-  min-width: 220px !important;
-  width: 220px !important;
-  max-width: 220px !important;
+  min-width: 300px !important;
+  width: 300px !important;
+  max-width: 300px !important;
   position: sticky;
   left: 0;
   z-index: 2;
@@ -1964,13 +1967,14 @@ tbody tr:hover {
   color: #073723;
   font-weight: 600;
   white-space: nowrap;
+  box-shadow: 8px 0 12px rgba(7, 34, 26, 0.06);
 }
 
 .permission-matrix th:not(:first-child),
 .permission-matrix td:not(:first-child) {
-  min-width: 70px !important;
-  max-width: 70px !important;
-  width: 70px !important;
+  min-width: 132px !important;
+  max-width: 132px !important;
+  width: 132px !important;
 }
 
 .permission-matrix th {
@@ -1979,10 +1983,10 @@ tbody tr:hover {
   z-index: 3;
   background: #eaf6f0;
   color: #073723;
-  height: 48px !important;
-  min-height: 48px !important;
-  padding: 2px !important;
-  font-size: 11px !important;
+  height: 64px !important;
+  min-height: 64px !important;
+  padding: 6px 8px !important;
+  font-size: 12px !important;
   font-weight: 600;
   white-space: normal;
   line-height: 1.2 !important;
@@ -1990,9 +1994,9 @@ tbody tr:hover {
 
 .permission-matrix thead th:not(:first-child) {
   position: sticky !important;
-  height: 48px !important;
-  min-height: 48px !important;
-  max-height: 48px !important;
+  height: 64px !important;
+  min-height: 64px !important;
+  max-height: 64px !important;
   overflow: visible !important;
 }
 
@@ -2010,15 +2014,15 @@ tbody tr:hover {
 }
 .role-column-header {
   display: grid;
-  gap: 2px;
+  gap: 4px;
   justify-items: center;
   align-items: center;
-  min-width: 70px !important;
-  max-width: 70px !important;
-  width: 70px !important;
-  height: 24px !important;
+  min-width: 116px !important;
+  max-width: 116px !important;
+  width: 116px !important;
+  height: 32px !important;
   min-height: 0 !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   line-height: 1.2 !important;
 }
 
@@ -2048,24 +2052,24 @@ tbody tr:hover {
 
 .role-quick-actions {
   position: absolute;
-  left: 2px;
-  right: 2px;
-  bottom: 2px;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
   display: flex;
-  gap: 2px;
+  gap: 4px;
   justify-items: center;
   margin-top: 0;
 }
 
 .role-quick-actions button {
-  height: 18px !important;
-  min-height: 18px !important;
-  padding: 0 4px !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  padding: 0 6px !important;
   border: 1px solid rgba(7, 34, 26, 0.12);
   border-radius: 6px;
   background: #fff;
   color: #38564a;
-  font-size: 9px !important;
+  font-size: 10px !important;
   line-height: 1;
   white-space: nowrap;
   overflow: hidden;
@@ -2077,14 +2081,14 @@ tbody tr:hover {
 .permission-action-checks {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 2px;
+  gap: 8px;
   align-items: center;
 }
 
 .permission-action-row {
-  margin-top: 3px;
+  margin-top: 4px;
   color: #60766b;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -2093,14 +2097,14 @@ tbody tr:hover {
 }
 
 .permission-matrix input[type='checkbox'] {
-  width: 12px !important;
-  min-width: 12px !important;
-  max-width: 12px !important;
-  height: 12px !important;
-  min-height: 12px !important;
-  max-height: 12px !important;
+  width: 16px !important;
+  min-width: 16px !important;
+  max-width: 16px !important;
+  height: 16px !important;
+  min-height: 16px !important;
+  max-height: 16px !important;
   margin: 0 auto !important;
-  transform: scale(0.65) !important;
+  transform: none !important;
   cursor: pointer;
   display: block !important;
   vertical-align: middle !important;
@@ -2109,6 +2113,33 @@ tbody tr:hover {
 .permission-matrix input[type='checkbox']:disabled {
   cursor: not-allowed;
   opacity: 0.7;
+}
+
+.admin-page .permission-matrix-panel {
+  margin-right: 0;
+}
+
+.admin-page .permission-matrix-wrapper {
+  scrollbar-gutter: stable;
+}
+
+.permission-matrix thead th:first-child {
+  z-index: 5;
+}
+
+.permission-matrix tbody td:first-child {
+  z-index: 2;
+}
+
+@media (min-width: 1200px) {
+  .admin-page:has(.permission-matrix-panel) {
+    width: calc(100vw - 300px);
+    max-width: none;
+  }
+
+  .admin-page:has(.permission-matrix-panel) .permission-matrix-panel {
+    width: 100%;
+  }
 }
 
 .role-modal {
