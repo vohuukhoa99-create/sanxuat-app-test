@@ -2338,7 +2338,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
         <div className="panel-header-row"><div><h2>Lệnh sản xuất</h2><p className="panel-text">Phòng SX tạo lệnh từ công thức gốc. Hệ thống tự quy đổi khối lượng từng nguyên liệu theo khối lượng yêu cầu.</p></div></div>
         {warning && <div className="process-alert">{warning}</div>}
         {message && <div className="formula-ratio-ok">{message}</div>}
-        <div className="production-form-grid order-create-form">
+        <div className="production-form-grid order-create-form production-order-form">
           <label>Công thức gốc<select value={form.formulaId} onChange={(event) => setForm({ ...form, formulaId: event.target.value })}>{data.formulas.map((item) => <option value={item.id} key={item.id}>{item.code} - {item.version}</option>)}</select></label>
           <label>Khối lượng đơn hàng<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value })} /></label>
           <label>Mã LOT<input value={form.lot} onChange={(event) => setForm({ ...form, lot: event.target.value })} /></label>

@@ -591,6 +591,22 @@ tbody tr:hover {
   min-height: 38px;
 }
 
+.production-order-form {
+  grid-template-columns:
+    170px
+    minmax(90px, 110px)
+    minmax(160px, 180px)
+    minmax(360px, 1.6fr)
+    minmax(140px, 160px)
+    minmax(180px, 220px)
+    minmax(260px, 1fr);
+  align-items: end;
+}
+
+.production-order-form > label {
+  min-width: 0;
+}
+
 .customer-combobox {
   position: relative;
   min-width: 0;
@@ -11421,5 +11437,17 @@ body,
 @media (max-width: 900px) {
   .scale-serial-panel {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1200px) {
+  .production-order-form {
+    grid-template-columns: repeat(2, minmax(240px, 1fr)) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .production-order-form {
+    grid-template-columns: 1fr !important;
   }
 }

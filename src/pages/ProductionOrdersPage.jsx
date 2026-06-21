@@ -205,7 +205,7 @@ function OrderCreateModal({ onClose, onSave }) {
 
           <section className="form-section">
             <h3>A. Thông tin chung</h3>
-            <div className="production-form-grid">
+            <div className="production-form-grid production-order-form">
               <label>Mã lệnh sản xuất<input value={form.id} onChange={(event) => updateField('id', event.target.value)} required /></label>
               <label>Ngày sản xuất<input type="date" value={form.productionDate} onChange={(event) => updateField('productionDate', event.target.value)} /></label>
               <label>Khách hàng / CT-KH
