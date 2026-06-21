@@ -25,7 +25,6 @@ export const defaultNavItems = [
   { id: 'formulas', label: 'Công thức gốc', parentId: 'master-data', permission: 'master.formula.view' },
   { id: 'admin', label: 'Quản trị hệ thống', type: 'group' },
   { id: 'admin-users', label: 'Người dùng', parentId: 'admin', permission: 'admin' },
-  { id: 'admin-roles', label: 'Vai trò', parentId: 'admin', permission: 'admin' },
   { id: 'admin-permissions', label: 'Ma trận phân quyền', parentId: 'admin', permission: 'admin' },
   { id: 'admin-system-logs', label: 'Nhật ký hệ thống', parentId: 'admin', permission: 'admin' },
 ]
