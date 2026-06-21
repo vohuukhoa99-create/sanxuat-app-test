@@ -286,6 +286,35 @@ const getActiveAssignments = (assignments = [], stage, date = todayText(), shift
   ))
 )
 
+const productionEmployeeCatalog = [
+  ['NV001', 'LÊ PHƯƠNG BÌNH', 'Tổ trộn 1', 'Tổ trưởng', 'Phối trộn'],
+  ['NV002', 'NGUYỄN HỮU CHÍ', 'Tổ trộn 1', 'Công nhân', 'Phối trộn'],
+  ['NV003', 'LÊ VĂN TRỌNG', 'Tổ trộn 1', 'Công nhân', 'Phối trộn'],
+  ['NV004', 'ĐÀM ANH TUẤN', 'Tổ trộn 1', 'Công nhân', 'Phối trộn'],
+  ['NV005', 'NGUYỄN VĂN TÂN', 'Tổ trộn 2', 'Tổ trưởng', 'Phối trộn'],
+  ['NV006', 'NGÔ ĐẠI ÂN', 'Tổ trộn 2', 'Công nhân', 'Phối trộn'],
+  ['NV007', 'NGUYỄN ĐÌNH PHI', 'Tổ trộn 2', 'Công nhân', 'Phối trộn'],
+  ['NV008', 'VÕ THANH SỰ', 'Tổ trộn 2', 'Công nhân', 'Phối trộn'],
+  ['NV009', 'NGUYỄN ĐẠI PHÚ', 'Tổ Hóa', 'Tổ trưởng', 'Cân hóa'],
+  ['NV010', 'NGUYỄN PHÙNG DŨNG', 'Tổ Hóa', 'Công nhân', 'Cân hóa'],
+  ['NV011', 'BÙI TÁ DUY', 'Tổ Hóa', 'Công nhân', 'Cân hóa'],
+  ['NV012', 'NGUYỄN THÀNH KHIÊN', 'Tổ Hóa', 'Công nhân', 'Cân hóa'],
+  ['NV013', 'SƠN HOÀNH', 'Tổ Hóa', 'Công nhân', 'Cân hóa'],
+  ['NV014', 'NGUYỄN KHÁNH TƯỜNG', 'Tổ Hóa', 'Công nhân', 'Cân hóa'],
+  ['NV015', 'TRẦN MINH KHA', 'Tổ Cát', 'Tổ trưởng', 'Cân rắn'],
+  ['NV016', 'TRƯƠNG MINH HOÀNG', 'Tổ Cát', 'Công nhân', 'Cân rắn'],
+  ['NV017', 'NGUYỄN VỸ', 'Tổ Cát', 'Công nhân', 'Cân rắn'],
+].map(([code, name, productionTeam, title, operationRole]) => ({
+  id: `EMP-${code}`,
+  code,
+  name,
+  productionTeam,
+  title,
+  operationRole,
+  status: 'Hoạt động',
+  qrEmployee: `EMP:${code}`,
+}))
+
 const initialData = {
   rawMaterials: [
     normalizeRawMaterialLot({ id: 'RM-001', materialCode: 'PASTE 02', materialName: 'Paste nền 02', materialGroup: CHEMICAL, lotCode: 'NVL-260613-01', importDate: '2026-06-13', supplier: 'HB Chemical', initialQty: 320, remainingQty: 320, unit: 'kg' }),
@@ -330,12 +359,7 @@ const initialData = {
     { id: 'CUS-DEMO', code: 'CUS-DEMO', name: 'Đơn hàng demo', phone: '', address: '', status: 'Hoạt động', note: '' },
     { id: 'CUS-QC2', code: 'CUS-QC2', name: 'Đơn hàng mẫu QC2', phone: '', address: '', status: 'Hoạt động', note: '' },
   ],
-  employeeCatalog: [
-    { id: 'EMP-CAN-HOA', code: 'EMP-CAN-HOA', name: 'Nguyễn Đại Phú', productionTeam: 'TH', title: 'Tổ trưởng', operationRole: 'Cân hóa', status: 'Hoạt động', qrEmployee: 'EMP-CAN-HOA' },
-    { id: 'EMP-CAN-RAN', code: 'EMP-CAN-RAN', name: 'Trần Minh Kha', productionTeam: 'TC', title: 'Tổ trưởng', operationRole: 'Cân rắn', status: 'Hoạt động', qrEmployee: 'EMP-CAN-RAN' },
-    { id: 'EMP-PHOI-TRON', code: 'EMP-PHOI-TRON', name: 'Lê Phương Bình', productionTeam: 'TP1', title: 'Tổ trưởng', operationRole: 'Phối trộn', status: 'Hoạt động', qrEmployee: 'EMP-PHOI-TRON' },
-    { id: 'EMP-PHOI-TRON-2', code: 'EMP-PHOI-TRON-2', name: 'Nguyễn Văn Tân', productionTeam: 'TP2', title: 'Tổ trưởng', operationRole: 'Phối trộn', status: 'Hoạt động', qrEmployee: 'EMP-PHOI-TRON-2' },
-  ],
+  employeeCatalog: productionEmployeeCatalog,
   teamCatalog: [
     { id: 'TEAM-TP1', code: 'TP1', name: 'Tổ phối trộn 1', leader: 'Lê Phương Bình', note: '', status: 'Hoạt động' },
     { id: 'TEAM-TP2', code: 'TP2', name: 'Tổ phối trộn 2', leader: 'Nguyễn Văn Tân', note: '', status: 'Hoạt động' },
@@ -5788,6 +5812,7 @@ function App() {
       finishedGoods,
       rawMaterials,
       materialCatalog,
+      employeeCatalog: productionEmployeeCatalog,
       stockTransactions: saved.stockTransactions || [],
       mixingMachines: normalizeMixingMachines(saved.mixingMachines),
       productionLogs,
