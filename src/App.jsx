@@ -314,6 +314,10 @@ const productionEmployeeCatalog = [
   ['NV015', 'TRẦN MINH KHA', 'Tổ Cát', 'Tổ trưởng', 'Cân rắn'],
   ['NV016', 'TRƯƠNG MINH HOÀNG', 'Tổ Cát', 'Công nhân', 'Cân rắn'],
   ['NV017', 'NGUYỄN VỸ', 'Tổ Cát', 'Công nhân', 'Cân rắn'],
+  ['NV018', 'PHẠM THỊ HẠNH', 'QC', 'QC sản xuất', 'QC sản xuất thử'],
+  ['NV019', 'TRẦN QUỐC BẢO', 'QC', 'QC thành phẩm', 'QC thành phẩm'],
+  ['NV020', 'LÊ MINH TÚ', 'Đóng gói', 'Công nhân', 'Đóng gói'],
+  ['NV021', 'VÕ THỊ LAN', 'Kho thành phẩm', 'Thủ kho', 'Kho thành phẩm'],
 ].map(([code, name, productionTeam, title, operationRole]) => ({
   id: `EMP-${code}`,
   code,
@@ -375,6 +379,9 @@ const initialData = {
     { id: 'TEAM-TP2', code: 'TP2', name: 'Tổ phối trộn 2', leader: 'Nguyễn Văn Tân', note: '', status: 'Hoạt động' },
     { id: 'TEAM-TH', code: 'TH', name: 'Tổ Hóa', leader: 'Nguyễn Đại Phú', note: '', status: 'Hoạt động' },
     { id: 'TEAM-TC', code: 'TC', name: 'Tổ Cát', leader: 'Trần Minh Kha', note: '', status: 'Hoạt động' },
+    { id: 'TEAM-QC', code: 'QC', name: 'QC', leader: 'Phạm Thị Hạnh', note: '', status: 'Hoạt động' },
+    { id: 'TEAM-DG', code: 'DG', name: 'Đóng gói', leader: 'Lê Minh Tú', note: '', status: 'Hoạt động' },
+    { id: 'TEAM-KTP', code: 'KTP', name: 'Kho thành phẩm', leader: 'Võ Thị Lan', note: '', status: 'Hoạt động' },
   ],
   shiftCatalog: [
     { id: 'SHIFT-C1', code: 'C1', name: 'Ca ngày', startTime: '07:00', endTime: '17:00', note: '', status: 'Hoạt động' },
@@ -5412,37 +5419,82 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
   const shifts = data.shiftCatalog || []
   const teams = data.teamCatalog || []
   const machines = getActiveMixingMachines(normalizeMixingMachines(data.mixingMachines || []))
-  const defaultStage = visibleStages[0] || productionAssignmentStages[0]
-  const [notice, setNotice] = useState('')
-  const [form, setForm] = useState({
-    date: todayText(),
-    shiftCode: shifts[0]?.code || '',
-    teamCode: teams[0]?.code || '',
-    stage: defaultStage,
-    machineCode: '',
-    employeeCode: activeEmployees[0]?.code || '',
-  })
-  const updateForm = (field, value) => {
-    setForm((current) => {
-      const next = { ...current, [field]: value }
-      if (field === 'stage' && value !== 'Phối trộn') next.machineCode = ''
-      return next
-    })
-  }
   const employeeByCode = (code) => activeEmployees.find((employee) => employee.code === code)
   const teamByCode = (code) => teams.find((team) => team.code === code)
   const shiftByCode = (code) => shifts.find((shift) => shift.code === code)
   const machineByCode = (code) => machines.find((machine) => machine.machineCode === code)
+  const teamStageOptions = {
+    TP1: ['Phối trộn'],
+    TP2: ['Phối trộn'],
+    TH: ['Cân hóa'],
+    TC: ['Cân rắn'],
+    QC: ['QC sản xuất thử', 'QC thành phẩm'],
+    DG: ['Đóng gói'],
+    KTP: ['Kho thành phẩm'],
+  }
   const teamEmployeeAliases = {
     TP1: ['TP1', 'Tổ trộn 1', 'Tổ phối trộn 1'],
     TP2: ['TP2', 'Tổ trộn 2', 'Tổ phối trộn 2'],
     TH: ['TH', 'Tổ Hóa'],
     TC: ['TC', 'Tổ Cát'],
+    QC: ['QC'],
+    DG: ['DG', 'Đóng gói'],
+    KTP: ['KTP', 'Kho thành phẩm'],
   }
+  const getAllowedStagesForTeam = (teamCode) => {
+    const stages = teamStageOptions[teamCode] || visibleStages
+    return stages.filter((stage) => visibleStages.includes(stage))
+  }
+  const availableTeams = teams.filter((team) => getAllowedStagesForTeam(team.code).length)
+  const defaultTeamCode = availableTeams[0]?.code || teams[0]?.code || ''
+  const defaultStage = getAllowedStagesForTeam(defaultTeamCode)[0] || visibleStages[0] || productionAssignmentStages[0]
   const employeesByTeam = (teamNameOrCode) => {
     const aliases = new Set([teamNameOrCode, teamByCode(teamNameOrCode)?.name, ...(teamEmployeeAliases[teamNameOrCode] || [])].filter(Boolean))
     return activeEmployees.filter((employee) => aliases.has(employee.productionTeam))
   }
+  const defaultEmployees = employeesByTeam(defaultTeamCode)
+  const [notice, setNotice] = useState('')
+  const [form, setForm] = useState({
+    date: todayText(),
+    shiftCode: shifts[0]?.code || '',
+    teamCode: defaultTeamCode,
+    stage: defaultStage,
+    machineCode: '',
+    employeeCode: defaultEmployees[0]?.code || '',
+  })
+  const updateForm = (field, value) => {
+    setForm((current) => {
+      const next = { ...current, [field]: value }
+      const nextAllowedStages = getAllowedStagesForTeam(next.teamCode)
+      if (field === 'teamCode') {
+        next.stage = nextAllowedStages.includes(current.stage) ? current.stage : nextAllowedStages[0] || ''
+        const teamEmployees = employeesByTeam(value)
+        next.employeeCode = teamEmployees[0]?.code || ''
+      }
+      if (field === 'stage' && !nextAllowedStages.includes(value)) next.stage = nextAllowedStages[0] || ''
+      if (next.stage !== 'Phối trộn') next.machineCode = ''
+      return next
+    })
+  }
+  const allowedStages = getAllowedStagesForTeam(form.teamCode)
+  const selectableEmployees = employeesByTeam(form.teamCode)
+  useEffect(() => {
+    setForm((current) => {
+      const normalizedTeamCode = getAllowedStagesForTeam(current.teamCode).length ? current.teamCode : defaultTeamCode
+      const nextAllowedStages = getAllowedStagesForTeam(normalizedTeamCode)
+      const nextEmployees = employeesByTeam(normalizedTeamCode)
+      const nextStage = nextAllowedStages.includes(current.stage) ? current.stage : nextAllowedStages[0] || ''
+      const nextEmployeeCode = nextEmployees.some((employee) => employee.code === current.employeeCode) ? current.employeeCode : nextEmployees[0]?.code || ''
+      const nextMachineCode = nextStage === 'Phối trộn' ? current.machineCode : ''
+      if (
+        normalizedTeamCode === current.teamCode
+        && nextStage === current.stage
+        && nextEmployeeCode === current.employeeCode
+        && nextMachineCode === current.machineCode
+      ) return current
+      return { ...current, teamCode: normalizedTeamCode, stage: nextStage, employeeCode: nextEmployeeCode, machineCode: nextMachineCode }
+    })
+  }, [data.employeeCatalog, data.teamCatalog, defaultTeamCode, visibleStages])
   const buildAssignment = ({ workDate, shift, team, processName, employee, machine = null, status = 'Chưa bắt đầu', assignmentNote = '' }) => {
     const assignedAt = nowText()
     return {
@@ -5480,8 +5532,18 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     const shift = shiftByCode(form.shiftCode)
     const team = teamByCode(form.teamCode)
     const machine = form.stage === 'Phối trộn' ? machineByCode(form.machineCode) : null
-    if (!employee || !shift || !form.date || !form.stage) {
-      setNotice('Vui lòng chọn đủ ngày, ca, công đoạn và nhân viên.')
+    const teamEmployees = employeesByTeam(form.teamCode)
+    const teamStages = getAllowedStagesForTeam(form.teamCode)
+    if (!team || !employee || !shift || !form.date || !form.stage) {
+      setNotice('Vui lòng chọn đủ ngày, ca, tổ sản xuất, công đoạn và nhân viên.')
+      return
+    }
+    if (!teamStages.includes(form.stage)) {
+      setNotice('Công đoạn không phù hợp với tổ sản xuất đã chọn.')
+      return
+    }
+    if (!teamEmployees.some((item) => item.code === employee.code)) {
+      setNotice('Nhân viên không thuộc tổ sản xuất đã chọn.')
       return
     }
     if (form.stage === 'Phối trộn' && !machine) {
@@ -5502,13 +5564,18 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       setNotice('Vui lòng chọn ngày và ca trước khi áp dụng mẫu.')
       return
     }
+    const selectedMachine = machineByCode(form.machineCode)
+    if (!selectedMachine) {
+      setNotice('Vui lòng chọn máy phối trộn trước khi áp dụng mẫu.')
+      return
+    }
     const templateRows = template === 'A'
-      ? [['TP1', 'Phối trộn', 'Tổ phối trộn chính'], ['TP2', 'Phối trộn', 'Cân phụ / phối trộn bổ sung'], ['TH', 'Cân hóa', 'Tổ cân hóa'], ['TC', 'Cân rắn', 'Tổ cân rắn']]
-      : [['TP2', 'Phối trộn', 'Tổ phối trộn chính'], ['TP1', 'Phối trộn', 'Cân phụ / phối trộn bổ sung'], ['TH', 'Cân hóa', 'Tổ cân hóa'], ['TC', 'Cân rắn', 'Tổ cân rắn']]
+      ? [['TP1', 'Phối trộn', 'Tổ phối trộn 1'], ['TP2', 'Phối trộn', 'Tổ phối trộn 2'], ['TH', 'Cân hóa', 'Tổ cân hóa'], ['TC', 'Cân rắn', 'Tổ cân rắn']]
+      : [['TP2', 'Phối trộn', 'Đổi máy/ca trong phạm vi phối trộn'], ['TP1', 'Phối trộn', 'Đổi máy/ca trong phạm vi phối trộn'], ['TH', 'Cân hóa', 'Tổ cân hóa'], ['TC', 'Cân rắn', 'Tổ cân rắn']]
     const assignments = templateRows.flatMap(([teamCode, processName, assignmentNote]) => {
       const team = teamByCode(teamCode)
       const employees = employeesByTeam(teamCode).length ? employeesByTeam(teamCode) : employeesByTeam(team?.name)
-      const machine = processName === 'Phối trộn' ? machines[0] : null
+      const machine = processName === 'Phối trộn' ? selectedMachine : null
       return employees.map((employee) => buildAssignment({ workDate: form.date, shift, team, processName, employee, machine, assignmentNote }))
     })
     setData((current) => addLogToData({
@@ -5546,12 +5613,15 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
         <div className="production-form-grid order-create-form">
           <label>Ngày<input type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} /></label>
           <label>Ca làm việc<select value={form.shiftCode} onChange={(event) => updateForm('shiftCode', event.target.value)}>{shifts.map((shift) => <option key={shift.code} value={shift.code}>{shift.code} / {shift.name}</option>)}</select></label>
-          <label>Tổ sản xuất<select value={form.teamCode} onChange={(event) => updateForm('teamCode', event.target.value)}>{teams.map((team) => <option key={team.code} value={team.code}>{team.code} / {team.name}</option>)}</select></label>
-          <label>Công đoạn<select value={form.stage} onChange={(event) => updateForm('stage', event.target.value)}>{visibleStages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select></label>
+          <label>Tổ sản xuất<select value={form.teamCode} onChange={(event) => updateForm('teamCode', event.target.value)}>{availableTeams.map((team) => <option key={team.code} value={team.code}>{team.code} / {team.name}</option>)}</select></label>
+          <label>Công đoạn<select value={form.stage} onChange={(event) => updateForm('stage', event.target.value)}>{allowedStages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select></label>
           {form.stage === 'Phối trộn' && (
             <label>Máy phối trộn<select value={form.machineCode} onChange={(event) => updateForm('machineCode', event.target.value)}><option value="">Chọn máy</option>{machines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}</select></label>
           )}
-          <label className={form.stage === 'Phối trộn' ? '' : 'wide-field'}>Nhân viên<select value={form.employeeCode} onChange={(event) => updateForm('employeeCode', event.target.value)}>{activeEmployees.map((employee) => <option key={employee.code} value={employee.code}>{employee.code} / {employee.name}</option>)}</select></label>
+          <label className={form.stage === 'Phối trộn' ? '' : 'wide-field'}>Nhân viên<select value={form.employeeCode} onChange={(event) => updateForm('employeeCode', event.target.value)}>
+            {selectableEmployees.length === 0 && <option value="">Chưa có nhân viên phù hợp</option>}
+            {selectableEmployees.map((employee) => <option key={employee.code} value={employee.code}>{employee.code} / {employee.name}</option>)}
+          </select></label>
         </div>
         <div className="action-row">
           <button className="secondary-button" type="button" disabled={!canCreate} onClick={() => applyTemplate('A')}>Áp dụng mẫu A</button>
@@ -6032,6 +6102,10 @@ function App() {
       rawMaterials,
       materialCatalog,
       employeeCatalog: productionEmployeeCatalog,
+      teamCatalog: [
+        ...(saved.teamCatalog || []),
+        ...seed.teamCatalog.filter((seedTeam) => !(saved.teamCatalog || []).some((team) => team.code === seedTeam.code)),
+      ],
       stockTransactions: saved.stockTransactions || [],
       mixingMachines: normalizeMixingMachines(saved.mixingMachines),
       productionLogs,
