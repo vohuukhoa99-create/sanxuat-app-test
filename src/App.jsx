@@ -163,6 +163,13 @@ function normalizeRawMaterialLots(items = []) {
   return items.map(normalizeRawMaterialLot)
 }
 
+function getCatalogCell(item = {}, names = []) {
+  const keys = Object.keys(item || {})
+  const normalizedNames = names.map(normalizeText)
+  const key = keys.find((itemKey) => normalizedNames.includes(normalizeText(itemKey)))
+  return key ? item[key] : ''
+}
+
 function normalizeMaterialCatalogItem(item = {}) {
   const materialCode = String(item.materialCode || item.code || item['Mã vật tư'] || item['Ma vat tu'] || item['Mã VT'] || item['Ma VT'] || '').trim()
   if (!materialCode) return null
@@ -179,7 +186,11 @@ function normalizeMaterialCatalog(items = []) {
   const byCode = new Map()
   ;(items || []).forEach((item) => {
     const normalized = normalizeMaterialCatalogItem(item)
-    if (normalized) byCode.set(normalized.materialCode.toUpperCase(), normalized)
+    if (normalized) {
+      normalized.manufacturer = String(item.manufacturer || item.maker || item.supplier || getCatalogCell(item, ['Nhà sản xuất', 'Nha san xuat']) || normalized.manufacturer || '').trim()
+      normalized.status = String(item.status || getCatalogCell(item, ['Trạng thái', 'Trang thai']) || normalized.status || 'Hoạt động').trim()
+      byCode.set(normalized.materialCode.toUpperCase(), normalized)
+    }
   })
   return Array.from(byCode.values()).sort((a, b) => a.materialCode.localeCompare(b.materialCode, 'vi', { numeric: true }))
 }
@@ -7146,6 +7157,70 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   const canCreate = hasPermission(permissions, `master.${key}.create`)
   const canEdit = hasPermission(permissions, `master.${key}.edit`)
   const canDelete = hasPermission(permissions, `master.${key}.delete`)
+  const importExcelRef = useRef(null)
+  const [notice, setNotice] = useState('')
+  const isMaterialCatalog = storageKey === 'materialCatalog'
+  const canImportMaterialCatalog = isMaterialCatalog && (canCreate || canEdit)
+  const materialExcelRows = () => (data.materialCatalog || []).map((row) => ({
+    'Mã vật tư': row.materialCode || '',
+    'Tên vật tư': row.materialName || '',
+    'Nhà sản xuất': row.manufacturer || '',
+    'Trạng thái': row.status || 'Hoạt động',
+  }))
+  const exportMaterialExcel = () => {
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(materialExcelRows()), 'Danh muc vat tu')
+    XLSX.writeFile(book, `danh-muc-vat-tu-${todayText().replaceAll('-', '')}.xlsx`)
+  }
+  const importMaterialExcel = (file) => {
+    if (!file || !canImportMaterialCatalog) return
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      let summary = { total: 0, created: 0, updated: 0, errors: 0 }
+      try {
+        const workbook = XLSX.read(event.target.result, { type: 'array' })
+        const sheet = workbook.Sheets[workbook.SheetNames[0]]
+        const excelRows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
+        summary.total = excelRows.length
+        setData((current) => {
+          const byCode = new Map((current.materialCatalog || []).map((row) => [String(row.materialCode || '').trim().toUpperCase(), row]))
+          excelRows.forEach((row) => {
+            const materialCode = String(row.materialCode || getCatalogCell(row, ['Mã vật tư', 'Ma vat tu']) || '').trim()
+            if (!materialCode) {
+              summary.errors += 1
+              return
+            }
+            const key = materialCode.toUpperCase()
+            const existing = byCode.get(key)
+            const next = normalizeMaterialCatalogItem({
+              ...(existing || {}),
+              materialCode,
+              materialName: row.materialName || getCatalogCell(row, ['Tên vật tư', 'Ten vat tu']) || existing?.materialName || materialCode,
+              manufacturer: row.manufacturer || getCatalogCell(row, ['Nhà sản xuất', 'Nha san xuat']) || existing?.manufacturer || '',
+              status: row.status || getCatalogCell(row, ['Trạng thái', 'Trang thai']) || existing?.status || 'Hoạt động',
+              materialGroup: existing?.materialGroup || CHEMICAL,
+              unit: existing?.unit || 'kg',
+            })
+            if (!next) {
+              summary.errors += 1
+              return
+            }
+            next.manufacturer = String(row.manufacturer || getCatalogCell(row, ['Nhà sản xuất', 'Nha san xuat']) || existing?.manufacturer || '').trim()
+            next.status = String(row.status || getCatalogCell(row, ['Trạng thái', 'Trang thai']) || existing?.status || 'Hoạt động').trim()
+            byCode.set(key, { ...(existing || {}), ...next, id: existing?.id || next.id })
+            if (existing) summary.updated += 1
+            else summary.created += 1
+          })
+          return { ...current, materialCatalog: normalizeMaterialCatalog(Array.from(byCode.values())) }
+        })
+        setNotice(`Import Excel: tổng ${summary.total} dòng, thêm mới ${summary.created}, cập nhật ${summary.updated}, lỗi ${summary.errors}.`)
+      } catch (error) {
+        setNotice(`Import Excel thất bại: ${error.message || error}`)
+      }
+    }
+    reader.readAsArrayBuffer(file)
+    if (importExcelRef.current) importExcelRef.current.value = ''
+  }
   const updateRow = (rowId, field, value) => {
     if (!canEdit) return
     setData((current) => ({
@@ -7177,8 +7252,18 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
       <section className="panel">
         <div className="section-heading-row">
           <div><span className="section-kicker">Dữ liệu gốc</span><h2>{title}</h2></div>
-          <button className="primary-button" type="button" disabled={!canCreate} onClick={addRow}>Thêm mới</button>
+          <div className="action-row">
+            {isMaterialCatalog && (
+              <>
+                <input ref={importExcelRef} type="file" accept=".xlsx,.xls" hidden onChange={(event) => importMaterialExcel(event.target.files?.[0])} />
+                <button className="secondary-button" type="button" disabled={!canImportMaterialCatalog} onClick={() => importExcelRef.current?.click()}>Import Excel</button>
+                <button className="secondary-button" type="button" onClick={exportMaterialExcel}>Export Excel</button>
+              </>
+            )}
+            <button className="primary-button" type="button" disabled={!canCreate} onClick={addRow}>Thêm mới</button>
+          </div>
         </div>
+        {notice && <div className="process-alert">{notice}</div>}
         <div className="table-wrapper">
           <table className="admin-wide-table">
             <thead>
@@ -7689,7 +7774,7 @@ function App() {
     'admin-roles': <AdminPage authData={authData} setAuthData={setAuthData} section="roles" />,
     'admin-permissions': <AdminPage authData={authData} setAuthData={setAuthData} section="permissions" />,
     'admin-system-logs': <SystemLogsPage data={data} />,
-    'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'materialGroup', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'materialGroup', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} />,
     'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'group', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['customerCode', 'customerName', 'province', 'channelCode', 'status']} labels={['Mã khách hàng', 'Tên khách hàng', 'Tỉnh/Thành', 'Mã kênh', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
