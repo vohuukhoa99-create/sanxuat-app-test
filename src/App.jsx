@@ -339,8 +339,8 @@ const canonicalProductionTeams = [
 ]
 const normalizeProductionTeamCode = (value = '') => {
   const text = normalizeText(value)
-  if (['th', 'to hoa', 'hoa'].includes(text)) return 'TH'
-  if (['tc', 'to cat', 'to can ran', 'can ran'].includes(text)) return 'TC'
+  if (['th', 'to hoa', 'to can hoa', 'hoa', 'can hoa'].includes(text)) return 'TH'
+  if (['tc', 'to cat', 'to can ran', 'to can ran', 'can ran'].includes(text)) return 'TC'
   if (['tp1', 'to tron 1', 'to phoi tron 1', 'phoi tron 1'].includes(text)) return 'TP1'
   if (['tp2', 'to tron 2', 'to phoi tron 2', 'phoi tron 2'].includes(text)) return 'TP2'
   if (['dg', 'dong goi'].includes(text)) return 'TP1'
@@ -484,6 +484,17 @@ const normalizeEmployeeCatalogData = (employees = productionEmployeeCatalog) => 
     status: employee.status || 'Hoạt động',
   }
 })
+const normalizeAssignmentRoleLabel = (value = '') => {
+  const text = normalizeText(value)
+  if (text.includes('to tren')) return 'Tổ trên'
+  if (text.includes('to duoi')) return 'Tổ dưới'
+  if (text.includes('can keo')) return 'Cân keo'
+  if (text.includes('can paste')) return 'Cân Paste'
+  if (text.includes('can tin')) return 'Cân Tin màu'
+  if (text.includes('can ran') || text.includes('to truong can ran')) return 'Cân rắn'
+  if (text.includes('qc')) return 'QC'
+  return value || '-'
+}
 const normalizeProductionAssignmentsData = (assignments = []) => (Array.isArray(assignments) ? assignments : []).map((assignment) => {
   const originalStage = assignment.stage || assignment.processName || ''
   const teamCode = normalizeProductionTeamCode(assignment.teamCode || assignment.productionTeam || assignment.teamName || assignment.productionTeamName || '')
@@ -494,6 +505,7 @@ const normalizeProductionAssignmentsData = (assignments = []) => (Array.isArray(
     : lowerTeam
       ? ['Đóng gói', 'Kho thành phẩm']
       : [originalStage].filter(Boolean)
+  const roleLabel = normalizeAssignmentRoleLabel(assignment.operationPositionLabel || assignment.operationPosition || (lowerTeam ? 'Tổ dưới' : upperTeam && ['TP1', 'TP2'].includes(teamCode) ? 'Tổ trên' : originalStage))
   return {
     ...assignment,
     teamCode,
@@ -503,8 +515,8 @@ const normalizeProductionAssignmentsData = (assignments = []) => (Array.isArray(
     processStages,
     weeklyRole: assignment.weeklyRole || (lowerTeam ? 'Tổ dưới' : upperTeam && ['TP1', 'TP2'].includes(teamCode) ? 'Tổ trên' : ''),
     weeklyRoleLabel: assignment.weeklyRoleLabel || assignment.weeklyRole || (lowerTeam ? 'Tổ dưới' : upperTeam && ['TP1', 'TP2'].includes(teamCode) ? 'Tổ trên' : ''),
-    operationPosition: assignment.operationPosition || (lowerTeam ? 'Đóng gói + Nhập kho TP' : originalStage),
-    operationPositionLabel: assignment.operationPositionLabel || assignment.operationPosition || (lowerTeam ? 'Tổ dưới - Đóng gói + Nhập kho TP' : originalStage),
+    operationPosition: roleLabel,
+    operationPositionLabel: roleLabel,
   }
 })
 
@@ -6572,12 +6584,12 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
   }
   const weeklyRoleOptions = {
     TP1: [
-      { value: 'upper', label: 'Tổ trên - Phối trộn', weeklyRole: 'Tổ trên', operationPosition: 'Phối trộn', stage: 'Phối trộn', processStages: ['Phối trộn'] },
-      { value: 'lower', label: 'Tổ dưới - Đóng gói + Nhập kho TP', weeklyRole: 'Tổ dưới', operationPosition: 'Đóng gói + Nhập kho TP', stage: 'Đóng gói', processStages: ['Đóng gói', 'Kho thành phẩm'] },
+      { value: 'upper', label: 'Tổ trên', weeklyRole: 'Tổ trên', operationPosition: 'Tổ trên', stage: 'Phối trộn', processStages: ['Phối trộn'] },
+      { value: 'lower', label: 'Tổ dưới', weeklyRole: 'Tổ dưới', operationPosition: 'Tổ dưới', stage: 'Đóng gói', processStages: ['Đóng gói', 'Kho thành phẩm'] },
     ],
     TP2: [
-      { value: 'upper', label: 'Tổ trên - Phối trộn', weeklyRole: 'Tổ trên', operationPosition: 'Phối trộn', stage: 'Phối trộn', processStages: ['Phối trộn'] },
-      { value: 'lower', label: 'Tổ dưới - Đóng gói + Nhập kho TP', weeklyRole: 'Tổ dưới', operationPosition: 'Đóng gói + Nhập kho TP', stage: 'Đóng gói', processStages: ['Đóng gói', 'Kho thành phẩm'] },
+      { value: 'upper', label: 'Tổ trên', weeklyRole: 'Tổ trên', operationPosition: 'Tổ trên', stage: 'Phối trộn', processStages: ['Phối trộn'] },
+      { value: 'lower', label: 'Tổ dưới', weeklyRole: 'Tổ dưới', operationPosition: 'Tổ dưới', stage: 'Đóng gói', processStages: ['Đóng gói', 'Kho thành phẩm'] },
     ],
     TH: [
       { value: 'glue-60', label: 'Cân keo', operationPosition: 'Cân keo', stage: 'Cân hóa', processStages: ['Cân hóa'] },
@@ -6585,11 +6597,11 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       { value: 'tint-5', label: 'Cân Tin màu', operationPosition: 'Cân Tin màu', stage: 'Cân hóa', processStages: ['Cân hóa'] },
     ],
     TC: [
-      { value: 'solid-lead', label: 'Tổ trưởng chịu trách nhiệm chính', operationPosition: 'Tổ trưởng cân rắn', stage: 'Cân rắn', processStages: ['Cân rắn'] },
+      { value: 'solid-lead', label: 'Cân rắn', operationPosition: 'Cân rắn', stage: 'Cân rắn', processStages: ['Cân rắn'] },
     ],
     QC: [
-      { value: 'qc-trial', label: 'QC sản xuất thử', operationPosition: 'QC sản xuất thử', stage: 'QC sản xuất thử', processStages: ['QC sản xuất thử'] },
-      { value: 'qc-finished', label: 'QC thành phẩm', operationPosition: 'QC thành phẩm', stage: 'QC thành phẩm', processStages: ['QC thành phẩm'] },
+      { value: 'qc-trial', label: 'QC', operationPosition: 'QC', stage: 'QC sản xuất thử', processStages: ['QC sản xuất thử'] },
+      { value: 'qc-finished', label: 'QC', operationPosition: 'QC', stage: 'QC thành phẩm', processStages: ['QC thành phẩm'] },
     ],
   }
   const roleOptionsForTeam = (teamCode) => weeklyRoleOptions[teamCode] || []
@@ -6712,7 +6724,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     const teamEmployees = employeesByTeam(form.teamCode)
     const teamStages = getAllowedStagesForTeam(form.teamCode)
     if (!team || selectedEmployees.length === 0 || !shift || !form.date || !roleConfig.stage) {
-      setNotice('Vui lòng chọn đủ ngày, ca, tổ sản xuất, vai trò tuần/vị trí vận hành và người phụ trách.')
+      setNotice('Vui lòng chọn đủ ngày, ca, tổ sản xuất, vai trò và người phụ trách.')
       return
     }
     if (!teamStages.includes(roleConfig.stage)) {
@@ -6761,7 +6773,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
           <label>Ngày<input type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} /></label>
           <label>Ca làm việc<select value={form.shiftCode} onChange={(event) => updateForm('shiftCode', event.target.value)}>{shifts.map((shift) => <option key={shift.code} value={shift.code}>{shift.code} / {shift.name}</option>)}</select></label>
           <label>Tổ sản xuất<select value={form.teamCode} onChange={(event) => updateForm('teamCode', event.target.value)}>{availableTeams.map((team) => <option key={team.code} value={team.code}>{team.name}</option>)}</select></label>
-          <label>Vai trò tuần / Vị trí vận hành<select value={form.operationRoleKey} onChange={(event) => updateForm('operationRoleKey', event.target.value)}>
+          <label>Vai trò<select value={form.operationRoleKey} onChange={(event) => updateForm('operationRoleKey', event.target.value)}>
             {roleOptionsForTeam(form.teamCode).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select></label>
           <label>Công đoạn<input value={(roleConfigForForm(form).processStages || [form.stage]).join(', ')} readOnly /></label>
@@ -6781,12 +6793,12 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       </section>
       <section className="panel">
         <h3>Bảng phân công</h3>
-        <SimpleTable tableClassName="production-assignment-table" headers={['Ngày', 'Ca', 'Tổ sản xuất', 'Vai trò / Vị trí vận hành', 'Công đoạn', 'Người phụ trách', 'Người phân công', 'Thời gian phân công', 'Trạng thái']} rows={visibleAssignments.map((item) => (
+        <SimpleTable tableClassName="production-assignment-table" headers={['Ngày', 'Ca', 'Tổ sản xuất', 'Vai trò', 'Công đoạn', 'Người phụ trách', 'Người phân công', 'Thời gian phân công', 'Trạng thái']} rows={visibleAssignments.map((item) => (
           <tr key={item.id || item.assignmentId}>
             <td>{item.workDate || item.date}</td>
             <td>{item.shiftCode} / {item.shiftName}</td>
             <td>{item.teamName || item.productionTeamName || item.productionTeam || '-'}</td>
-            <td>{item.operationPositionLabel || item.operationPosition || item.weeklyRole || '-'}</td>
+            <td>{normalizeAssignmentRoleLabel(item.operationPositionLabel || item.operationPosition || item.weeklyRole)}</td>
             <td>{assignmentStages(item).join(', ')}</td>
             <td>{assignmentEmployeeNames(item)[0] || item.employeeName || '-'}</td>
             <td>{item.assignedBy}</td>
