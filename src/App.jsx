@@ -330,6 +330,35 @@ const getOrderAssignedMachineLabel = (order = {}, machines = []) => {
 }
 
 const productionAssignmentStages = ['Cân hóa', 'Cân rắn', 'Phối trộn', 'QC sản xuất thử', 'QC thành phẩm', 'Đóng gói', 'Kho thành phẩm']
+const canonicalProductionTeams = [
+  { id: 'TEAM-TH', code: 'TH', name: 'Tổ Hóa', leader: 'Nguyễn Đại Phú', note: '', status: ACTIVE_STATUS },
+  { id: 'TEAM-TC', code: 'TC', name: 'Tổ Cát / Tổ cân rắn', leader: 'Trần Minh Kha', note: '', status: ACTIVE_STATUS },
+  { id: 'TEAM-TP1', code: 'TP1', name: 'Tổ phối trộn 1', leader: 'Lê Phương Bình', note: '', status: ACTIVE_STATUS },
+  { id: 'TEAM-TP2', code: 'TP2', name: 'Tổ phối trộn 2', leader: 'Nguyễn Văn Tân', note: '', status: ACTIVE_STATUS },
+  { id: 'TEAM-QC', code: 'QC', name: 'QC', leader: 'Phạm Thị Hạnh', note: '', status: ACTIVE_STATUS },
+]
+const normalizeProductionTeamCode = (value = '') => {
+  const text = normalizeText(value)
+  if (['th', 'to hoa', 'hoa'].includes(text)) return 'TH'
+  if (['tc', 'to cat', 'to can ran', 'can ran'].includes(text)) return 'TC'
+  if (['tp1', 'to tron 1', 'to phoi tron 1', 'phoi tron 1'].includes(text)) return 'TP1'
+  if (['tp2', 'to tron 2', 'to phoi tron 2', 'phoi tron 2'].includes(text)) return 'TP2'
+  if (['dg', 'dong goi'].includes(text)) return 'TP1'
+  if (['ktp', 'kho thanh pham', 'kho tp', 'nhap kho thanh pham'].includes(text)) return 'TP2'
+  if (text === 'qc') return 'QC'
+  return value
+}
+const teamNameByCode = (code) => canonicalProductionTeams.find((team) => team.code === code)?.name || code
+const normalizeTeamCatalogData = (teams = []) => {
+  const byCode = new Map((Array.isArray(teams) ? teams : [])
+    .map((team) => ({ ...team, code: normalizeProductionTeamCode(team.code || team.name) }))
+    .filter((team) => ['TH', 'TC', 'TP1', 'TP2', 'QC'].includes(team.code))
+    .map((team) => [team.code, { ...team, name: teamNameByCode(team.code), status: team.status || ACTIVE_STATUS }]))
+  canonicalProductionTeams.forEach((team) => {
+    byCode.set(team.code, { ...team, ...(byCode.get(team.code) || {}), id: team.id, code: team.code, name: team.name })
+  })
+  return Array.from(byCode.values()).sort((a, b) => ['TH', 'TC', 'TP1', 'TP2', 'QC'].indexOf(a.code) - ['TH', 'TC', 'TP1', 'TP2', 'QC'].indexOf(b.code))
+}
 const productionProcessOptions = [
   ['CHEMICAL_WEIGHING', 'Cân hóa'],
   ['SOLID_WEIGHING', 'Cân rắn'],
@@ -345,14 +374,19 @@ const roleAssignmentStageMap = {
   'Cân rắn': ['Cân rắn'],
   'Phối trộn': ['Phối trộn'],
 }
+const assignmentStages = (assignment = {}) => (
+  Array.isArray(assignment.processStages) && assignment.processStages.length
+    ? assignment.processStages
+    : [assignment.stage || assignment.processName].filter(Boolean)
+)
 const getStageAssignmentsForRole = (assignments = [], role = '') => {
   const stages = roleAssignmentStageMap[role]
-  return stages ? assignments.filter((item) => stages.includes(item.stage || item.processName)) : assignments
+  return stages ? assignments.filter((item) => assignmentStages(item).some((stage) => stages.includes(stage))) : assignments
 }
 const getActiveAssignments = (assignments = [], stage, date = todayText(), shiftCode = '') => (
   assignments.filter((item) => (
     (item.date || item.workDate) === date
-    && (item.stage || item.processName) === stage
+    && assignmentStages(item).includes(stage)
     && item.status !== 'Hủy'
     && (!shiftCode || item.shiftCode === shiftCode)
   ))
@@ -387,6 +421,11 @@ const getAssignmentLogContext = (assignments = []) => {
   const employeeCodes = [...new Set(activeAssignments.flatMap(assignmentEmployeeCodes))]
   const employeeNames = [...new Set(activeAssignments.flatMap(assignmentEmployeeNames))]
   const assignmentIds = activeAssignments.map((item) => item.assignmentId || item.id).filter(Boolean)
+  const teams = [...new Set(activeAssignments.map((item) => item.teamName || item.productionTeamName || item.productionTeam || item.teamCode).filter(Boolean))]
+  const weeklyRoles = [...new Set(activeAssignments.map((item) => item.weeklyRole || item.weeklyRoleLabel).filter(Boolean))]
+  const operationPositions = [...new Set(activeAssignments.map((item) => item.operationPosition || item.operationPositionLabel).filter(Boolean))]
+  const machineCodes = [...new Set(activeAssignments.flatMap((item) => Array.isArray(item.machineCodes) ? item.machineCodes : [item.machineCode].filter(Boolean)))]
+  const machineNames = [...new Set(activeAssignments.flatMap(assignmentMachineNames))]
   return {
     assignmentId: assignmentIds.join(', '),
     assignmentIds,
@@ -395,6 +434,11 @@ const getAssignmentLogContext = (assignments = []) => {
     employeeCode: employeeCodes.join(', '),
     employeeName: employeeNames.join(', '),
     employee: employeeNames.join(', '),
+    teamName: teams.join(', '),
+    weeklyRole: weeklyRoles.join(', '),
+    operationPosition: operationPositions.join(', '),
+    machineCodes,
+    machineNames,
   }
 }
 
@@ -418,8 +462,8 @@ const productionEmployeeCatalog = [
   ['NV017', 'NGUYỄN VỸ', 'Tổ Cát', 'Công nhân', 'Cân rắn'],
   ['NV018', 'PHẠM THỊ HẠNH', 'QC', 'QC sản xuất', 'QC sản xuất thử'],
   ['NV019', 'TRẦN QUỐC BẢO', 'QC', 'QC thành phẩm', 'QC thành phẩm'],
-  ['NV020', 'LÊ MINH TÚ', 'Đóng gói', 'Công nhân', 'Đóng gói'],
-  ['NV021', 'VÕ THỊ LAN', 'Kho thành phẩm', 'Thủ kho', 'Kho thành phẩm'],
+  ['NV020', 'LÊ MINH TÚ', 'Tổ phối trộn 1', 'Công nhân', 'Đóng gói'],
+  ['NV021', 'VÕ THỊ LAN', 'Tổ phối trộn 2', 'Thủ kho', 'Nhập kho thành phẩm'],
 ].map(([code, name, productionTeam, title, operationRole]) => ({
   id: `EMP-${code}`,
   code,
@@ -430,6 +474,16 @@ const productionEmployeeCatalog = [
   status: 'Hoạt động',
   qrEmployee: `EMP:${code}`,
 }))
+
+const normalizeEmployeeCatalogData = (employees = productionEmployeeCatalog) => (Array.isArray(employees) ? employees : []).map((employee) => {
+  const teamCode = normalizeProductionTeamCode(employee.productionTeam || employee.teamCode || '')
+  return {
+    ...employee,
+    productionTeam: teamNameByCode(teamCode),
+    operationRole: employee.operationRole === 'Kho thành phẩm' ? 'Nhập kho thành phẩm' : employee.operationRole,
+    status: employee.status || ACTIVE_STATUS,
+  }
+})
 
 const initialData = {
   rawMaterials: [
@@ -473,15 +527,7 @@ const initialData = {
   ],
   customerCatalog: normalizeCustomerCatalog(),
   employeeCatalog: productionEmployeeCatalog,
-  teamCatalog: [
-    { id: 'TEAM-TP1', code: 'TP1', name: 'Tổ phối trộn 1', leader: 'Lê Phương Bình', note: '', status: 'Hoạt động' },
-    { id: 'TEAM-TP2', code: 'TP2', name: 'Tổ phối trộn 2', leader: 'Nguyễn Văn Tân', note: '', status: 'Hoạt động' },
-    { id: 'TEAM-TH', code: 'TH', name: 'Tổ Hóa', leader: 'Nguyễn Đại Phú', note: '', status: 'Hoạt động' },
-    { id: 'TEAM-TC', code: 'TC', name: 'Tổ Cát', leader: 'Trần Minh Kha', note: '', status: 'Hoạt động' },
-    { id: 'TEAM-QC', code: 'QC', name: 'QC', leader: 'Phạm Thị Hạnh', note: '', status: 'Hoạt động' },
-    { id: 'TEAM-DG', code: 'DG', name: 'Đóng gói', leader: 'Lê Minh Tú', note: '', status: 'Hoạt động' },
-    { id: 'TEAM-KTP', code: 'KTP', name: 'Kho thành phẩm', leader: 'Võ Thị Lan', note: '', status: 'Hoạt động' },
-  ],
+  teamCatalog: canonicalProductionTeams,
   shiftCatalog: [
     { id: 'SHIFT-C1', code: 'C1', name: 'Ca ngày', startTime: '07:00', endTime: '17:00', note: '', status: 'Hoạt động' },
     { id: 'SHIFT-C2', code: 'C2', name: 'Ca tăng ca', startTime: '17:00', endTime: '21:00', note: '', status: 'Hoạt động' },
@@ -763,6 +809,8 @@ function operationLogMeta(user, { employee = '', employeeCode = '', employeeName
   const normalizedEmployeeNames = employeeNames.length ? employeeNames : assignmentContext.employeeNames
   const inferredEmployeeName = employeeName || normalizedEmployeeNames.join(', ') || employee || user?.fullName || user?.username || 'Chưa xác định'
   const normalizedAssignmentIds = assignmentIds.length ? assignmentIds : assignmentContext.assignmentIds
+  const machineCodes = machine.machineCode ? [machine.machineCode] : assignmentContext.machineCodes
+  const machineNames = machine.machineName || machine.name ? [machine.machineName || machine.name] : assignmentContext.machineNames
   return {
     username: user?.username || '',
     user: user?.fullName || user?.username || '',
@@ -778,6 +826,13 @@ function operationLogMeta(user, { employee = '', employeeCode = '', employeeName
     role: user?.role || '',
     stage,
     processName: stage || '',
+    workDate: todayText(),
+    shiftCode: assignments[0]?.shiftCode || '',
+    shiftName: assignments[0]?.shiftName || '',
+    teamName: assignmentContext.teamName,
+    productionTeamName: assignmentContext.teamName,
+    weeklyRole: assignmentContext.weeklyRole,
+    operationPosition: assignmentContext.operationPosition,
     orderCode,
     productionOrderCode: orderCode,
     lotCode: typeof order === 'object' ? (order?.lot || '') : '',
@@ -785,8 +840,10 @@ function operationLogMeta(user, { employee = '', employeeCode = '', employeeName
     materialName: material.materialName || '',
     targetQty,
     actualQty,
-    machineCode: machine.machineCode || '',
-    machineName: machine.machineName || machine.name || '',
+    machineCode: machineCodes.join(', '),
+    machineCodes,
+    machineName: machineNames.join(', '),
+    machineNames,
     actionType: actionType || result || 'Thao tác',
     actionDescription: actionType || result || '',
     actionTime: nowText(),
