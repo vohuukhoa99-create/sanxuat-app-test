@@ -484,14 +484,6 @@ const normalizeEmployeeCatalogData = (employees = productionEmployeeCatalog) => 
     status: employee.status || 'Hoạt động',
   }
 })
-const mergeEmployeeCatalogWithSeed = (employees = []) => {
-  const source = Array.isArray(employees) && employees.length ? employees : []
-  const existingCodes = new Set(source.map((employee) => employee.code).filter(Boolean))
-  return normalizeEmployeeCatalogData([
-    ...source,
-    ...productionEmployeeCatalog.filter((employee) => !existingCodes.has(employee.code)),
-  ])
-}
 const normalizeAssignmentRoleLabel = (value = '') => {
   const text = normalizeText(value)
   if (text.includes('to tren')) return 'Tổ trên'
@@ -569,7 +561,7 @@ const initialData = {
     { id: 'SUP-SILICA-VIET', code: 'SILICA-VIET', name: 'Silica Việt', phone: '', address: '', status: 'Hoạt động', note: '' },
   ],
   customerCatalog: normalizeCustomerCatalog(),
-  employeeCatalog: mergeEmployeeCatalogWithSeed(productionEmployeeCatalog),
+  employeeCatalog: normalizeEmployeeCatalogData(productionEmployeeCatalog),
   teamCatalog: canonicalProductionTeams,
   shiftCatalog: [
     { id: 'SHIFT-C1', code: 'C1', name: 'Ca ngày', startTime: '07:00', endTime: '17:00', note: '', status: 'Hoạt động' },
@@ -2607,7 +2599,7 @@ function EmployeeSearchCombobox({ employees = [], inputValue = '', onInputChange
     <div className="customer-combobox employee-combobox assignment-owner-dropdown">
       <input
         value={query}
-        placeholder="Gõ tên hoặc mã NV"
+        placeholder="Chọn nhân viên"
         onFocus={() => setOpen(true)}
         onChange={(event) => {
           onInputChange(event.target.value)
@@ -2623,7 +2615,7 @@ function EmployeeSearchCombobox({ employees = [], inputValue = '', onInputChange
             <button type="button" key={employee.code} onMouseDown={(event) => event.preventDefault()} onClick={() => { onSelect(employee); setOpen(false) }}>
               <span>{employee.name}</span>
             </button>
-          )) : <div className="customer-combobox-empty">Không có người phụ trách phù hợp</div>}
+          )) : <div className="customer-combobox-empty">Không có nhân viên phù hợp</div>}
         </div>
       )}
     </div>
@@ -6735,7 +6727,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     const teamEmployees = employeesByTeam(form.teamCode)
     const teamStages = getAllowedStagesForTeam(form.teamCode)
     if (!team || selectedEmployees.length === 0 || !shift || !form.date || !roleConfig.stage) {
-      setNotice('Vui lòng chọn đủ ngày, ca, tổ sản xuất, vai trò và người phụ trách.')
+      setNotice('Vui lòng chọn đủ ngày, ca, tổ sản xuất, vai trò và nhân viên.')
       return
     }
     if (!teamStages.includes(roleConfig.stage)) {
@@ -6743,7 +6735,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       return
     }
     if (selectedEmployees.some((employee) => !teamEmployees.some((item) => item.code === employee.code))) {
-      setNotice('Người phụ trách không thuộc tổ sản xuất đã chọn.')
+      setNotice('Nhân viên không thuộc tổ sản xuất đã chọn.')
       return
     }
     const assignment = buildAssignment({ workDate: form.date, shift, team, roleConfig, employees: selectedEmployees, assignedMachines: selectedMachines })
@@ -6788,7 +6780,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
             {roleOptionsForTeam(form.teamCode).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select></label>
           <label>Công đoạn<input value={(roleConfigForForm(form).processStages || [form.stage]).join(', ')} readOnly /></label>
-          <label className="assignment-owner-field">Người phụ trách
+          <label className="assignment-owner-field">Nhân viên
             <EmployeeSearchCombobox
               employees={selectableEmployees}
               inputValue={form.employeeSearch}
@@ -6798,13 +6790,13 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
           </label>
         </div>
         <div className="action-row">
-          <button className="secondary-button" type="button" disabled={!canCreate || !form.employeeCode} onClick={clearSelectedEmployee}>Bỏ chọn người phụ trách</button>
+          <button className="secondary-button" type="button" disabled={!canCreate || !form.employeeCode} onClick={clearSelectedEmployee}>Bỏ chọn nhân viên</button>
         </div>
         {notice && <div className="process-alert">{notice}</div>}
       </section>
       <section className="panel">
         <h3>Bảng phân công</h3>
-        <SimpleTable tableClassName="production-assignment-table" headers={['Ngày', 'Ca', 'Tổ sản xuất', 'Vai trò', 'Công đoạn', 'Người phụ trách', 'Người phân công', 'Thời gian phân công', 'Trạng thái']} rows={visibleAssignments.map((item) => (
+        <SimpleTable tableClassName="production-assignment-table" headers={['Ngày', 'Ca', 'Tổ sản xuất', 'Vai trò', 'Công đoạn', 'Nhân viên', 'Người phân công', 'Thời gian phân công', 'Trạng thái']} rows={visibleAssignments.map((item) => (
           <tr key={item.id || item.assignmentId}>
             <td>{item.workDate || item.date}</td>
             <td>{item.shiftCode} / {item.shiftName}</td>
@@ -7274,7 +7266,7 @@ function App() {
       rawMaterials,
       materialCatalog,
       customerCatalog: normalizeCustomerCatalog(),
-      employeeCatalog: mergeEmployeeCatalogWithSeed(saved.employeeCatalog || []),
+      employeeCatalog: normalizeEmployeeCatalogData(saved.employeeCatalog || productionEmployeeCatalog),
       teamCatalog: normalizeTeamCatalogData([...(saved.teamCatalog || []), ...seed.teamCatalog]),
       stockTransactions: saved.stockTransactions || [],
       mixingMachines: normalizeMixingMachines(saved.mixingMachines),
