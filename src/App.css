@@ -704,7 +704,7 @@ tbody tr:hover {
 
 .assignment-form-grid {
   display: grid;
-  grid-template-columns: 130px 150px 180px 180px 150px 420px;
+  grid-template-columns: 130px 150px 180px 180px 150px 360px;
   gap: 12px;
   align-items: end;
 }
@@ -732,9 +732,24 @@ tbody tr:hover {
   width: 100%;
 }
 
-.assignment-form-grid .assignment-person-in-charge {
-  width: 420px;
-  max-width: 420px;
+.assignment-form-grid .assignment-owner-field {
+  width: 360px;
+  max-width: 360px;
+  flex: 0 0 360px;
+}
+
+.assignment-form-grid .assignment-owner-field input {
+  width: 100%;
+}
+
+.assignment-owner-dropdown,
+.assignment-owner-dropdown .customer-combobox-menu {
+  width: 360px;
+  max-width: 360px;
+}
+
+.assignment-owner-dropdown .customer-combobox-menu {
+  right: auto;
 }
 
 .assignment-employee-field {

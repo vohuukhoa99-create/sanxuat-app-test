@@ -340,7 +340,7 @@ const canonicalProductionTeams = [
 const normalizeProductionTeamCode = (value = '') => {
   const text = normalizeText(value)
   if (['th', 'to hoa', 'to can hoa', 'hoa', 'can hoa'].includes(text)) return 'TH'
-  if (['tc', 'to cat', 'to can ran', 'to can ran', 'can ran'].includes(text)) return 'TC'
+  if (['tc', 'to cat', 'to cat / to can ran', 'to can ran', 'can ran'].includes(text)) return 'TC'
   if (['tp1', 'to tron 1', 'to phoi tron 1', 'phoi tron 1'].includes(text)) return 'TP1'
   if (['tp2', 'to tron 2', 'to phoi tron 2', 'phoi tron 2'].includes(text)) return 'TP2'
   if (['dg', 'dong goi'].includes(text)) return 'TP1'
@@ -484,6 +484,14 @@ const normalizeEmployeeCatalogData = (employees = productionEmployeeCatalog) => 
     status: employee.status || 'Hoạt động',
   }
 })
+const mergeEmployeeCatalogWithSeed = (employees = []) => {
+  const source = Array.isArray(employees) && employees.length ? employees : []
+  const existingCodes = new Set(source.map((employee) => employee.code).filter(Boolean))
+  return normalizeEmployeeCatalogData([
+    ...source,
+    ...productionEmployeeCatalog.filter((employee) => !existingCodes.has(employee.code)),
+  ])
+}
 const normalizeAssignmentRoleLabel = (value = '') => {
   const text = normalizeText(value)
   if (text.includes('to tren')) return 'Tổ trên'
@@ -561,7 +569,7 @@ const initialData = {
     { id: 'SUP-SILICA-VIET', code: 'SILICA-VIET', name: 'Silica Việt', phone: '', address: '', status: 'Hoạt động', note: '' },
   ],
   customerCatalog: normalizeCustomerCatalog(),
-  employeeCatalog: normalizeEmployeeCatalogData(productionEmployeeCatalog),
+  employeeCatalog: mergeEmployeeCatalogWithSeed(productionEmployeeCatalog),
   teamCatalog: canonicalProductionTeams,
   shiftCatalog: [
     { id: 'SHIFT-C1', code: 'C1', name: 'Ca ngày', startTime: '07:00', endTime: '17:00', note: '', status: 'Hoạt động' },
@@ -2596,7 +2604,7 @@ function EmployeeSearchCombobox({ employees = [], inputValue = '', onInputChange
   }, [employees, query])
 
   return (
-    <div className="customer-combobox employee-combobox">
+    <div className="customer-combobox employee-combobox assignment-owner-dropdown">
       <input
         value={query}
         placeholder="Gõ tên hoặc mã NV"
@@ -6606,10 +6614,19 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
   const availableTeams = teams.filter((team) => getAllowedStagesForTeam(team.code).length)
   const defaultTeamCode = availableTeams[0]?.code || teams[0]?.code || ''
   const defaultStage = getAllowedStagesForTeam(defaultTeamCode)[0] || visibleStages[0] || productionAssignmentStages[0]
+  const employeeTeamMatches = (employee, selectedTeamCode) => {
+    const employeeTeamCode = normalizeProductionTeamCode(employee.teamName || employee.productionTeam || employee.teamCode || '')
+    if (selectedTeamCode === 'TH') return employeeTeamCode === 'TH'
+    if (selectedTeamCode === 'TC') return employeeTeamCode === 'TC'
+    if (selectedTeamCode === 'TP1') return employeeTeamCode === 'TP1'
+    if (selectedTeamCode === 'TP2') return employeeTeamCode === 'TP2'
+    if (selectedTeamCode === 'QC') return employeeTeamCode === 'QC'
+    return false
+  }
   const employeesByTeam = (teamNameOrCode) => {
     const selectedTeam = teamByCode(teamNameOrCode)
     const selectedTeamCode = normalizeProductionTeamCode(selectedTeam?.code || selectedTeam?.name || teamNameOrCode)
-    return activeEmployees.filter((employee) => normalizeProductionTeamCode(employee.teamName || employee.productionTeam || employee.teamCode || '') === selectedTeamCode)
+    return activeEmployees.filter((employee) => employeeTeamMatches(employee, selectedTeamCode))
   }
   const [notice, setNotice] = useState('')
   const [form, setForm] = useState({
@@ -6771,7 +6788,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
             {roleOptionsForTeam(form.teamCode).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select></label>
           <label>Công đoạn<input value={(roleConfigForForm(form).processStages || [form.stage]).join(', ')} readOnly /></label>
-          <label className="assignment-person-in-charge">Người phụ trách
+          <label className="assignment-owner-field">Người phụ trách
             <EmployeeSearchCombobox
               employees={selectableEmployees}
               inputValue={form.employeeSearch}
@@ -7257,7 +7274,7 @@ function App() {
       rawMaterials,
       materialCatalog,
       customerCatalog: normalizeCustomerCatalog(),
-      employeeCatalog: normalizeEmployeeCatalogData(saved.employeeCatalog || productionEmployeeCatalog),
+      employeeCatalog: mergeEmployeeCatalogWithSeed(saved.employeeCatalog || []),
       teamCatalog: normalizeTeamCatalogData([...(saved.teamCatalog || []), ...seed.teamCatalog]),
       stockTransactions: saved.stockTransactions || [],
       mixingMachines: normalizeMixingMachines(saved.mixingMachines),
