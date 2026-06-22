@@ -331,11 +331,11 @@ const getOrderAssignedMachineLabel = (order = {}, machines = []) => {
 
 const productionAssignmentStages = ['Cân hóa', 'Cân rắn', 'Phối trộn', 'QC sản xuất thử', 'QC thành phẩm', 'Đóng gói', 'Kho thành phẩm']
 const canonicalProductionTeams = [
-  { id: 'TEAM-TH', code: 'TH', name: 'Tổ Hóa', leader: 'Nguyễn Đại Phú', note: '', status: ACTIVE_STATUS },
-  { id: 'TEAM-TC', code: 'TC', name: 'Tổ Cát / Tổ cân rắn', leader: 'Trần Minh Kha', note: '', status: ACTIVE_STATUS },
-  { id: 'TEAM-TP1', code: 'TP1', name: 'Tổ phối trộn 1', leader: 'Lê Phương Bình', note: '', status: ACTIVE_STATUS },
-  { id: 'TEAM-TP2', code: 'TP2', name: 'Tổ phối trộn 2', leader: 'Nguyễn Văn Tân', note: '', status: ACTIVE_STATUS },
-  { id: 'TEAM-QC', code: 'QC', name: 'QC', leader: 'Phạm Thị Hạnh', note: '', status: ACTIVE_STATUS },
+  { id: 'TEAM-TH', code: 'TH', name: 'Tổ Hóa', leader: 'Nguyễn Đại Phú', note: '', status: 'Hoạt động' },
+  { id: 'TEAM-TC', code: 'TC', name: 'Tổ Cát / Tổ cân rắn', leader: 'Trần Minh Kha', note: '', status: 'Hoạt động' },
+  { id: 'TEAM-TP1', code: 'TP1', name: 'Tổ phối trộn 1', leader: 'Lê Phương Bình', note: '', status: 'Hoạt động' },
+  { id: 'TEAM-TP2', code: 'TP2', name: 'Tổ phối trộn 2', leader: 'Nguyễn Văn Tân', note: '', status: 'Hoạt động' },
+  { id: 'TEAM-QC', code: 'QC', name: 'QC', leader: 'Phạm Thị Hạnh', note: '', status: 'Hoạt động' },
 ]
 const normalizeProductionTeamCode = (value = '') => {
   const text = normalizeText(value)
@@ -353,7 +353,7 @@ const normalizeTeamCatalogData = (teams = []) => {
   const byCode = new Map((Array.isArray(teams) ? teams : [])
     .map((team) => ({ ...team, code: normalizeProductionTeamCode(team.code || team.name) }))
     .filter((team) => ['TH', 'TC', 'TP1', 'TP2', 'QC'].includes(team.code))
-    .map((team) => [team.code, { ...team, name: teamNameByCode(team.code), status: team.status || ACTIVE_STATUS }]))
+    .map((team) => [team.code, { ...team, name: teamNameByCode(team.code), status: team.status || 'Hoạt động' }]))
   canonicalProductionTeams.forEach((team) => {
     byCode.set(team.code, { ...team, ...(byCode.get(team.code) || {}), id: team.id, code: team.code, name: team.name })
   })
@@ -481,7 +481,30 @@ const normalizeEmployeeCatalogData = (employees = productionEmployeeCatalog) => 
     ...employee,
     productionTeam: teamNameByCode(teamCode),
     operationRole: employee.operationRole === 'Kho thành phẩm' ? 'Nhập kho thành phẩm' : employee.operationRole,
-    status: employee.status || ACTIVE_STATUS,
+    status: employee.status || 'Hoạt động',
+  }
+})
+const normalizeProductionAssignmentsData = (assignments = []) => (Array.isArray(assignments) ? assignments : []).map((assignment) => {
+  const originalStage = assignment.stage || assignment.processName || ''
+  const teamCode = normalizeProductionTeamCode(assignment.teamCode || assignment.productionTeam || assignment.teamName || assignment.productionTeamName || '')
+  const lowerTeam = ['Đóng gói', 'Kho thành phẩm'].includes(originalStage) || ['DG', 'KTP'].includes(assignment.teamCode || assignment.productionTeam)
+  const upperTeam = originalStage === 'Phối trộn'
+  const processStages = Array.isArray(assignment.processStages) && assignment.processStages.length
+    ? assignment.processStages
+    : lowerTeam
+      ? ['Đóng gói', 'Kho thành phẩm']
+      : [originalStage].filter(Boolean)
+  return {
+    ...assignment,
+    teamCode,
+    teamName: teamNameByCode(teamCode),
+    productionTeam: teamCode,
+    productionTeamName: teamNameByCode(teamCode),
+    processStages,
+    weeklyRole: assignment.weeklyRole || (lowerTeam ? 'Tổ dưới' : upperTeam && ['TP1', 'TP2'].includes(teamCode) ? 'Tổ trên' : ''),
+    weeklyRoleLabel: assignment.weeklyRoleLabel || assignment.weeklyRole || (lowerTeam ? 'Tổ dưới' : upperTeam && ['TP1', 'TP2'].includes(teamCode) ? 'Tổ trên' : ''),
+    operationPosition: assignment.operationPosition || (lowerTeam ? 'Đóng gói + Nhập kho thành phẩm' : originalStage),
+    operationPositionLabel: assignment.operationPositionLabel || assignment.operationPosition || (lowerTeam ? 'Tổ dưới - Đóng gói + Nhập kho thành phẩm' : originalStage),
   }
 })
 
@@ -526,7 +549,7 @@ const initialData = {
     { id: 'SUP-SILICA-VIET', code: 'SILICA-VIET', name: 'Silica Việt', phone: '', address: '', status: 'Hoạt động', note: '' },
   ],
   customerCatalog: normalizeCustomerCatalog(),
-  employeeCatalog: productionEmployeeCatalog,
+  employeeCatalog: normalizeEmployeeCatalogData(productionEmployeeCatalog),
   teamCatalog: canonicalProductionTeams,
   shiftCatalog: [
     { id: 'SHIFT-C1', code: 'C1', name: 'Ca ngày', startTime: '07:00', endTime: '17:00', note: '', status: 'Hoạt động' },
@@ -4517,7 +4540,7 @@ function PackagingPage({ data, setData, user }) {
   )
 }
 
-function FinishedGoodsPage({ data, setData }) {
+function FinishedGoodsPage({ data, setData, user }) {
   const packingLogs = data.packingLogs || []
   const finishedGoods = normalizeFinishedGoodsData(data.finishedGoods || [])
   const waitingOrders = data.orders
@@ -4532,6 +4555,8 @@ function FinishedGoodsPage({ data, setData }) {
   const [filters, setFilters] = useState({ fromDate: '', toDate: '', orderCode: '', product: '', lot: '', location: '' })
   const [form, setForm] = useState(null)
   const [notice, setNotice] = useState('')
+  const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'Kho thành phẩm')
+  const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
   const filteredFinishedGoods = filterFinishedGoods(finishedGoods, filters)
 
   const createDemoData = () => {
@@ -4598,7 +4623,7 @@ function FinishedGoodsPage({ data, setData }) {
         completedAt,
         updatedAt: completedAt,
       } : order),
-    }, `Nhập kho thành phẩm ${activeOrder.id}, mã ${form.finishedCode}. Hoàn thành lệnh SX.`))
+    }, `Nhập kho thành phẩm ${activeOrder.id}, mã ${form.finishedCode}. Hoàn thành lệnh SX.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: 'Kho thành phẩm', order: activeOrder, result: 'Nhập kho thành phẩm' })))
     setActiveOrder(null)
     setForm(null)
   }
@@ -5466,13 +5491,12 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
   ])).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const productGroupOptions = Array.from(new Set(orders.map(productGroupText))).filter(Boolean).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const traceAssignmentDateText = (assignment = {}) => String(assignment.workDate || assignment.date || assignment.assignedAt || '').slice(0, 10)
-  const traceAssignmentStageText = (assignment = {}) => assignment.processName || assignment.stage || ''
   const recordTeamNames = (record = {}) => {
     const orderDate = orderDateText(record.order)
     const timelineStages = new Set((record.timeline || []).map((item) => item.stage))
     return [...new Set((data.productionAssignments || [])
       .filter((assignment) => !orderDate || traceAssignmentDateText(assignment) === orderDate)
-      .filter((assignment) => !traceAssignmentStageText(assignment) || timelineStages.has(traceAssignmentStageText(assignment)))
+      .filter((assignment) => assignmentStages(assignment).some((stage) => timelineStages.has(stage)))
       .map((assignment) => assignment.teamName || assignment.productionTeamName || assignment.productionTeam)
       .filter(Boolean))]
   }
@@ -6496,23 +6520,45 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
   const shiftByCode = (code) => shifts.find((shift) => shift.code === code)
   const machineByCode = (code) => machines.find((machine) => machine.machineCode === code)
   const teamStageOptions = {
-    TP1: ['Phối trộn'],
-    TP2: ['Phối trộn'],
+    TP1: ['Phối trộn', 'Đóng gói', 'Kho thành phẩm'],
+    TP2: ['Phối trộn', 'Đóng gói', 'Kho thành phẩm'],
     TH: ['Cân hóa'],
     TC: ['Cân rắn'],
     QC: ['QC sản xuất thử', 'QC thành phẩm'],
-    DG: ['Đóng gói'],
-    KTP: ['Kho thành phẩm'],
   }
   const teamEmployeeAliases = {
     TP1: ['TP1', 'Tổ trộn 1', 'Tổ phối trộn 1'],
     TP2: ['TP2', 'Tổ trộn 2', 'Tổ phối trộn 2'],
     TH: ['TH', 'Tổ Hóa'],
-    TC: ['TC', 'Tổ Cát'],
+    TC: ['TC', 'Tổ Cát', 'Tổ Cát / Tổ cân rắn'],
     QC: ['QC'],
-    DG: ['DG', 'Đóng gói'],
-    KTP: ['KTP', 'Kho thành phẩm'],
   }
+  const weeklyRoleOptions = {
+    TP1: [
+      { value: 'upper', label: 'Tổ trên - Phối trộn', weeklyRole: 'Tổ trên', operationPosition: 'Phối trộn', stage: 'Phối trộn', processStages: ['Phối trộn'] },
+      { value: 'lower', label: 'Tổ dưới - Đóng gói + Nhập kho thành phẩm', weeklyRole: 'Tổ dưới', operationPosition: 'Đóng gói + Nhập kho thành phẩm', stage: 'Đóng gói', processStages: ['Đóng gói', 'Kho thành phẩm'] },
+    ],
+    TP2: [
+      { value: 'upper', label: 'Tổ trên - Phối trộn', weeklyRole: 'Tổ trên', operationPosition: 'Phối trộn', stage: 'Phối trộn', processStages: ['Phối trộn'] },
+      { value: 'lower', label: 'Tổ dưới - Đóng gói + Nhập kho thành phẩm', weeklyRole: 'Tổ dưới', operationPosition: 'Đóng gói + Nhập kho thành phẩm', stage: 'Đóng gói', processStages: ['Đóng gói', 'Kho thành phẩm'] },
+    ],
+    TH: [
+      { value: 'glue-60', label: 'Cân keo 60kg', operationPosition: 'Cân keo 60kg', stage: 'Cân hóa', processStages: ['Cân hóa'] },
+      { value: 'paste-50', label: 'Cân paste 50kg', operationPosition: 'Cân paste 50kg', stage: 'Cân hóa', processStages: ['Cân hóa'] },
+      { value: 'tint-5', label: 'Cân tin màu 5kg', operationPosition: 'Cân tin màu 5kg', stage: 'Cân hóa', processStages: ['Cân hóa'] },
+    ],
+    TC: [
+      { value: 'solid-lead', label: 'Tổ trưởng chịu trách nhiệm chính', operationPosition: 'Tổ trưởng cân rắn', stage: 'Cân rắn', processStages: ['Cân rắn'] },
+    ],
+    QC: [
+      { value: 'qc-trial', label: 'QC sản xuất thử', operationPosition: 'QC sản xuất thử', stage: 'QC sản xuất thử', processStages: ['QC sản xuất thử'] },
+      { value: 'qc-finished', label: 'QC thành phẩm', operationPosition: 'QC thành phẩm', stage: 'QC thành phẩm', processStages: ['QC thành phẩm'] },
+    ],
+  }
+  const roleOptionsForTeam = (teamCode) => weeklyRoleOptions[teamCode] || []
+  const roleConfigForForm = (draft = form) => roleOptionsForTeam(draft.teamCode).find((option) => option.value === draft.operationRoleKey) || {}
+  const isMixingTeam = (teamCode) => ['TP1', 'TP2'].includes(teamCode)
+  const requiresMixingMachines = (draft = form) => isMixingTeam(draft.teamCode) && roleConfigForForm(draft).value === 'upper'
   const getAllowedStagesForTeam = (teamCode) => {
     const stages = teamStageOptions[teamCode] || visibleStages
     return stages.filter((stage) => visibleStages.includes(stage))
@@ -6530,6 +6576,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     shiftCode: shifts[0]?.code || '',
     teamCode: defaultTeamCode,
     stage: defaultStage,
+    operationRoleKey: roleOptionsForTeam(defaultTeamCode)[0]?.value || '',
     machineCodes: [],
     employeeCodes: [],
   })
@@ -6538,37 +6585,44 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       const next = { ...current, [field]: value }
       const nextAllowedStages = getAllowedStagesForTeam(next.teamCode)
       if (field === 'teamCode') {
-        next.stage = nextAllowedStages.includes(current.stage) ? current.stage : nextAllowedStages[0] || ''
+        next.operationRoleKey = roleOptionsForTeam(value)[0]?.value || ''
         next.employeeCodes = []
       }
-      if (field === 'stage' && !nextAllowedStages.includes(value)) next.stage = nextAllowedStages[0] || ''
-      if (next.stage !== 'Phối trộn') next.machineCodes = []
+      const roleConfig = roleConfigForForm(next)
+      next.stage = roleConfig.stage || (nextAllowedStages.includes(next.stage) ? next.stage : nextAllowedStages[0] || '')
+      if (!requiresMixingMachines(next)) next.machineCodes = []
       return next
     })
   }
-  const allowedStages = getAllowedStagesForTeam(form.teamCode)
   const selectableEmployees = employeesByTeam(form.teamCode)
   useEffect(() => {
     setForm((current) => {
       const normalizedTeamCode = getAllowedStagesForTeam(current.teamCode).length ? current.teamCode : defaultTeamCode
       const nextAllowedStages = getAllowedStagesForTeam(normalizedTeamCode)
       const nextEmployees = employeesByTeam(normalizedTeamCode)
-      const nextStage = nextAllowedStages.includes(current.stage) ? current.stage : nextAllowedStages[0] || ''
+      const nextOperationRoleKey = roleOptionsForTeam(normalizedTeamCode).some((option) => option.value === current.operationRoleKey)
+        ? current.operationRoleKey
+        : roleOptionsForTeam(normalizedTeamCode)[0]?.value || ''
+      const roleConfig = roleConfigForForm({ ...current, teamCode: normalizedTeamCode, operationRoleKey: nextOperationRoleKey })
+      const nextStage = roleConfig.stage || (nextAllowedStages.includes(current.stage) ? current.stage : nextAllowedStages[0] || '')
       const currentEmployeeCodes = Array.isArray(current.employeeCodes) ? current.employeeCodes : [current.employeeCode].filter(Boolean)
       const nextEmployeeCodes = currentEmployeeCodes.filter((code) => nextEmployees.some((employee) => employee.code === code))
       const currentMachineCodes = Array.isArray(current.machineCodes) ? current.machineCodes : [current.machineCode].filter(Boolean)
-      const nextMachineCodes = nextStage === 'Phối trộn' ? currentMachineCodes.filter((code) => machines.some((machine) => machine.machineCode === code)) : []
+      const nextMachineCodes = requiresMixingMachines({ ...current, teamCode: normalizedTeamCode, operationRoleKey: nextOperationRoleKey }) ? currentMachineCodes.filter((code) => machines.some((machine) => machine.machineCode === code)) : []
       if (
         normalizedTeamCode === current.teamCode
+        && nextOperationRoleKey === current.operationRoleKey
         && nextStage === current.stage
         && nextEmployeeCodes.join('|') === currentEmployeeCodes.join('|')
         && nextMachineCodes.join('|') === currentMachineCodes.join('|')
       ) return current
-      return { ...current, teamCode: normalizedTeamCode, stage: nextStage, employeeCodes: nextEmployeeCodes, machineCodes: nextMachineCodes }
+      return { ...current, teamCode: normalizedTeamCode, operationRoleKey: nextOperationRoleKey, stage: nextStage, employeeCodes: nextEmployeeCodes, machineCodes: nextMachineCodes }
     })
   }, [data.employeeCatalog, data.teamCatalog, defaultTeamCode, visibleStages])
-  const buildAssignment = ({ workDate, shift, team, processName, employees = [], assignedMachines = [], status = 'Chưa bắt đầu', assignmentNote = '' }) => {
+  const buildAssignment = ({ workDate, shift, team, roleConfig = {}, employees = [], assignedMachines = [], status = 'Chưa bắt đầu', assignmentNote = '' }) => {
     const assignedAt = nowText()
+    const processStages = roleConfig.processStages || [roleConfig.stage].filter(Boolean)
+    const processName = roleConfig.stage || processStages[0] || ''
     const employeeCodes = employees.map((employee) => employee.code)
     const employeeNames = employees.map((employee) => employee.name)
     const employeeQrs = employees.map((employee) => employee.qrEmployee || employee.qr || '').filter(Boolean)
@@ -6587,6 +6641,12 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       stage: processName,
       processCode: processCodeByName[processName] || processName,
       processName,
+      processStages,
+      weeklyRole: roleConfig.weeklyRole || '',
+      weeklyRoleLabel: roleConfig.weeklyRole || '',
+      operationRoleKey: roleConfig.value || '',
+      operationPosition: roleConfig.operationPosition || roleConfig.label || '',
+      operationPositionLabel: roleConfig.label || roleConfig.operationPosition || '',
       machineCodes,
       machineNames,
       machineCode: machineCodes.join(', '),
@@ -6614,14 +6674,15 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     const selectedEmployees = (form.employeeCodes || []).map(employeeByCode).filter(Boolean)
     const shift = shiftByCode(form.shiftCode)
     const team = teamByCode(form.teamCode)
-    const selectedMachines = form.stage === 'Phối trộn' ? (form.machineCodes || []).map(machineByCode).filter(Boolean) : []
+    const roleConfig = roleConfigForForm(form)
+    const selectedMachines = requiresMixingMachines(form) ? (form.machineCodes || []).map(machineByCode).filter(Boolean) : []
     const teamEmployees = employeesByTeam(form.teamCode)
     const teamStages = getAllowedStagesForTeam(form.teamCode)
-    if (!team || selectedEmployees.length === 0 || !shift || !form.date || !form.stage) {
-      setNotice('Vui lòng chọn đủ ngày, ca, tổ sản xuất, công đoạn và nhân viên.')
+    if (!team || selectedEmployees.length === 0 || !shift || !form.date || !roleConfig.stage) {
+      setNotice('Vui lòng chọn đủ ngày, ca, tổ sản xuất, vai trò tuần/vị trí vận hành và nhân viên.')
       return
     }
-    if (!teamStages.includes(form.stage)) {
+    if (!teamStages.includes(roleConfig.stage)) {
       setNotice('Công đoạn không phù hợp với tổ sản xuất đã chọn.')
       return
     }
@@ -6629,15 +6690,15 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       setNotice('Nhân viên không thuộc tổ sản xuất đã chọn.')
       return
     }
-    if (form.stage === 'Phối trộn' && selectedMachines.length === 0) {
+    if (requiresMixingMachines(form) && selectedMachines.length === 0) {
       setNotice('Vui lòng chọn ít nhất một máy phối trộn cho công đoạn Phối trộn.')
       return
     }
-    const assignment = buildAssignment({ workDate: form.date, shift, team, processName: form.stage, employees: selectedEmployees, assignedMachines: selectedMachines })
+    const assignment = buildAssignment({ workDate: form.date, shift, team, roleConfig, employees: selectedEmployees, assignedMachines: selectedMachines })
     setData((current) => addLogToData({
       ...current,
       productionAssignments: [assignment, ...(current.productionAssignments || [])],
-    }, `Phân công ${formatAssignmentEmployees(assignment)} vào ${assignment.stage} ca ${assignment.shiftCode} ngày ${assignment.date}.`))
+    }, `Phân công ${formatAssignmentEmployees(assignment)} vào ${assignment.operationPosition || assignment.stage} ca ${assignment.shiftCode} ngày ${assignment.date}.`, operationLogMeta(user, { assignments: [assignment], employee: formatAssignmentEmployees(assignment), stage: assignment.stage, result: 'Lưu phân công' })))
     setNotice('Đã lưu phân công.')
   }
   const updateAssignmentStatus = (assignmentId, status) => {
@@ -6684,8 +6745,11 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
           <label>Ngày<input type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} /></label>
           <label>Ca làm việc<select value={form.shiftCode} onChange={(event) => updateForm('shiftCode', event.target.value)}>{shifts.map((shift) => <option key={shift.code} value={shift.code}>{shift.code} / {shift.name}</option>)}</select></label>
           <label>Tổ sản xuất<select value={form.teamCode} onChange={(event) => updateForm('teamCode', event.target.value)}>{availableTeams.map((team) => <option key={team.code} value={team.code}>{team.code} / {team.name}</option>)}</select></label>
-          <label>Công đoạn<select value={form.stage} onChange={(event) => updateForm('stage', event.target.value)}>{allowedStages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select></label>
-          {form.stage === 'Phối trộn' && (
+          <label>Vai trò tuần / Vị trí vận hành<select value={form.operationRoleKey} onChange={(event) => updateForm('operationRoleKey', event.target.value)}>
+            {roleOptionsForTeam(form.teamCode).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select></label>
+          <label>Công đoạn<input value={(roleConfigForForm(form).processStages || [form.stage]).join(', ')} readOnly /></label>
+          {requiresMixingMachines(form) && (
             <div className="assignment-employee-field">
               <span>Máy phối trộn</span>
               <div className="assignment-employee-checklist">
@@ -6707,7 +6771,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
               </div>
             </div>
           )}
-          <div className={`assignment-employee-field ${form.stage === 'Phối trộn' ? '' : 'wide-field'}`}>
+          <div className={`assignment-employee-field ${requiresMixingMachines(form) ? '' : 'wide-field'}`}>
             <span>Nhân viên</span>
             <div className="assignment-employee-checklist">
               {selectableEmployees.length === 0 && <div className="assignment-empty">Chưa có nhân viên phù hợp</div>}
@@ -6732,12 +6796,13 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       </section>
       <section className="panel">
         <h3>Bảng phân công</h3>
-        <SimpleTable tableClassName="production-assignment-table" headers={['Ngày', 'Ca', 'Tổ sản xuất', 'Công đoạn', 'Máy được phân công', 'Nhân viên', 'Người phân công', 'Thời gian phân công', 'Trạng thái', 'Hành động']} rows={visibleAssignments.map((item) => (
+        <SimpleTable tableClassName="production-assignment-table" headers={['Ngày', 'Ca', 'Tổ sản xuất', 'Vai trò tuần / Vị trí vận hành', 'Công đoạn', 'Máy được phân công', 'Nhân viên', 'Người phân công', 'Thời gian phân công', 'Trạng thái', 'Hành động']} rows={visibleAssignments.map((item) => (
           <tr key={item.id || item.assignmentId}>
             <td>{item.workDate || item.date}</td>
             <td>{item.shiftCode} / {item.shiftName}</td>
             <td>{item.teamName || item.productionTeamName || item.productionTeam || '-'}</td>
-            <td>{item.processName || item.stage}</td>
+            <td>{item.operationPositionLabel || item.operationPosition || item.weeklyRole || '-'}</td>
+            <td>{assignmentStages(item).join(', ')}</td>
             <td>{formatAssignmentMachines(item)}</td>
             <td>{formatAssignmentEmployees(item)}</td>
             <td>{item.assignedBy}</td>
@@ -7203,13 +7268,11 @@ function App() {
       rawMaterials,
       materialCatalog,
       customerCatalog: normalizeCustomerCatalog(),
-      employeeCatalog: productionEmployeeCatalog,
-      teamCatalog: [
-        ...(saved.teamCatalog || []),
-        ...seed.teamCatalog.filter((seedTeam) => !(saved.teamCatalog || []).some((team) => team.code === seedTeam.code)),
-      ],
+      employeeCatalog: normalizeEmployeeCatalogData(saved.employeeCatalog || productionEmployeeCatalog),
+      teamCatalog: normalizeTeamCatalogData([...(saved.teamCatalog || []), ...seed.teamCatalog]),
       stockTransactions: saved.stockTransactions || [],
       mixingMachines: normalizeMixingMachines(saved.mixingMachines),
+      productionAssignments: normalizeProductionAssignmentsData(saved.productionAssignments || seed.productionAssignments || []),
       productionLogs,
     }
     return weighedContainers.length ? baseData : applyDemoQrData(baseData)
@@ -7297,7 +7360,7 @@ function App() {
     mixing: <MixingPage data={data} setData={setData} user={user} />,
     'finished-qc': <FinishedProductQcPage data={data} setData={setData} user={user} />,
     packaging: <PackagingPage data={data} setData={setData} user={user} />,
-    'finished-goods': <FinishedGoodsPage data={data} setData={setData} />,
+    'finished-goods': <FinishedGoodsPage data={data} setData={setData} user={user} />,
     logs: <LogsPage data={data} />,
     reports: <ReportsPage data={data} />,
     'reports-production': <ReportsPage data={data} initialTab="production" lockedTab />,
