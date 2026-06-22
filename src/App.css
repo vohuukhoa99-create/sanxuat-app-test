@@ -5,6 +5,18 @@
   background: linear-gradient(180deg, #edf6f3 0%, #eaf3ef 100%);
 }
 
+@media (max-width: 900px) {
+  .assignment-form-grid {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .assignment-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .sidebar {
   width: 260px;
   min-width: 260px;
@@ -688,6 +700,36 @@ tbody tr:hover {
   padding: 10px;
   color: #60766c;
   font-weight: 600;
+}
+
+.assignment-form-grid {
+  display: grid;
+  grid-template-columns: 130px 150px 180px 180px 150px minmax(280px, 1fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.assignment-form-grid label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: #38564a;
+  font-weight: 700;
+}
+
+.assignment-form-grid input,
+.assignment-form-grid select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid rgba(7, 34, 26, 0.16);
+  border-radius: 6px;
+  background: #fff;
+  color: #173d2d;
+  padding: 8px 10px;
+}
+
+.assignment-form-grid .customer-combobox {
+  width: 100%;
 }
 
 .assignment-employee-field {
@@ -11480,5 +11522,17 @@ body,
 
   .production-order-form-grid .customer-field {
     min-width: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .assignment-form-grid {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .assignment-form-grid {
+    grid-template-columns: 1fr;
   }
 }

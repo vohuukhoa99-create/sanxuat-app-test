@@ -331,10 +331,10 @@ const getOrderAssignedMachineLabel = (order = {}, machines = []) => {
 
 const productionAssignmentStages = ['Cân hóa', 'Cân rắn', 'Phối trộn', 'QC sản xuất thử', 'QC thành phẩm', 'Đóng gói', 'Kho thành phẩm']
 const canonicalProductionTeams = [
-  { id: 'TEAM-TH', code: 'TH', name: 'Tổ Hóa', leader: 'Nguyễn Đại Phú', note: '', status: 'Hoạt động' },
-  { id: 'TEAM-TC', code: 'TC', name: 'Tổ Cát / Tổ cân rắn', leader: 'Trần Minh Kha', note: '', status: 'Hoạt động' },
-  { id: 'TEAM-TP1', code: 'TP1', name: 'Tổ phối trộn 1', leader: 'Lê Phương Bình', note: '', status: 'Hoạt động' },
-  { id: 'TEAM-TP2', code: 'TP2', name: 'Tổ phối trộn 2', leader: 'Nguyễn Văn Tân', note: '', status: 'Hoạt động' },
+  { id: 'TEAM-TH', code: 'TH', name: 'Tổ Cân hóa', leader: 'Nguyễn Đại Phú', note: '', status: 'Hoạt động' },
+  { id: 'TEAM-TC', code: 'TC', name: 'Tổ Cân rắn', leader: 'Trần Minh Kha', note: '', status: 'Hoạt động' },
+  { id: 'TEAM-TP1', code: 'TP1', name: 'Tổ Phối trộn 1', leader: 'Lê Phương Bình', note: '', status: 'Hoạt động' },
+  { id: 'TEAM-TP2', code: 'TP2', name: 'Tổ Phối trộn 2', leader: 'Nguyễn Văn Tân', note: '', status: 'Hoạt động' },
   { id: 'TEAM-QC', code: 'QC', name: 'QC', leader: 'Phạm Thị Hạnh', note: '', status: 'Hoạt động' },
 ]
 const normalizeProductionTeamCode = (value = '') => {
@@ -503,8 +503,8 @@ const normalizeProductionAssignmentsData = (assignments = []) => (Array.isArray(
     processStages,
     weeklyRole: assignment.weeklyRole || (lowerTeam ? 'Tổ dưới' : upperTeam && ['TP1', 'TP2'].includes(teamCode) ? 'Tổ trên' : ''),
     weeklyRoleLabel: assignment.weeklyRoleLabel || assignment.weeklyRole || (lowerTeam ? 'Tổ dưới' : upperTeam && ['TP1', 'TP2'].includes(teamCode) ? 'Tổ trên' : ''),
-    operationPosition: assignment.operationPosition || (lowerTeam ? 'Đóng gói + Nhập kho thành phẩm' : originalStage),
-    operationPositionLabel: assignment.operationPositionLabel || assignment.operationPosition || (lowerTeam ? 'Tổ dưới - Đóng gói + Nhập kho thành phẩm' : originalStage),
+    operationPosition: assignment.operationPosition || (lowerTeam ? 'Đóng gói + Nhập kho TP' : originalStage),
+    operationPositionLabel: assignment.operationPositionLabel || assignment.operationPosition || (lowerTeam ? 'Tổ dưới - Đóng gói + Nhập kho TP' : originalStage),
   }
 })
 
@@ -2565,6 +2565,45 @@ function FormulaSearchCombobox({ formulas = [], inputValue = '', onInputChange, 
               <span>{formatFormulaSuggestion(formula)}</span>
             </button>
           )) : <div className="customer-combobox-empty">Không có công thức phù hợp</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EmployeeSearchCombobox({ employees = [], inputValue = '', onInputChange, onSelect }) {
+  const [open, setOpen] = useState(false)
+  const query = inputValue || ''
+  const filteredEmployees = useMemo(() => {
+    const keyword = normalizeText(query)
+    const source = Array.isArray(employees) ? employees : []
+    if (!keyword) return source.slice(0, 30)
+    return source
+      .filter((employee) => normalizeText(`${employee.code || ''} ${employee.name || ''}`).includes(keyword))
+      .slice(0, 50)
+  }, [employees, query])
+
+  return (
+    <div className="customer-combobox employee-combobox">
+      <input
+        value={query}
+        placeholder="Gõ tên hoặc mã NV"
+        onFocus={() => setOpen(true)}
+        onChange={(event) => {
+          onInputChange(event.target.value)
+          setOpen(true)
+        }}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        aria-autocomplete="list"
+        aria-expanded={open}
+      />
+      {open && (
+        <div className="customer-combobox-menu">
+          {filteredEmployees.length ? filteredEmployees.map((employee) => (
+            <button type="button" key={employee.code} onMouseDown={(event) => event.preventDefault()} onClick={() => { onSelect(employee); setOpen(false) }}>
+              <span>{employee.name}</span>
+            </button>
+          )) : <div className="customer-combobox-empty">Không có người phụ trách phù hợp</div>}
         </div>
       )}
     </div>
@@ -6514,11 +6553,9 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
   const activeEmployees = (data.employeeCatalog || []).filter((employee) => employee.status !== 'Ngừng sử dụng')
   const shifts = data.shiftCatalog || []
   const teams = data.teamCatalog || []
-  const machines = getActiveMixingMachines(normalizeMixingMachines(data.mixingMachines || []))
   const employeeByCode = (code) => activeEmployees.find((employee) => employee.code === code)
   const teamByCode = (code) => teams.find((team) => team.code === code)
   const shiftByCode = (code) => shifts.find((shift) => shift.code === code)
-  const machineByCode = (code) => machines.find((machine) => machine.machineCode === code)
   const teamStageOptions = {
     TP1: ['Phối trộn', 'Đóng gói', 'Kho thành phẩm'],
     TP2: ['Phối trộn', 'Đóng gói', 'Kho thành phẩm'],
@@ -6527,25 +6564,25 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     QC: ['QC sản xuất thử', 'QC thành phẩm'],
   }
   const teamEmployeeAliases = {
-    TP1: ['TP1', 'Tổ trộn 1', 'Tổ phối trộn 1'],
-    TP2: ['TP2', 'Tổ trộn 2', 'Tổ phối trộn 2'],
-    TH: ['TH', 'Tổ Hóa'],
-    TC: ['TC', 'Tổ Cát', 'Tổ Cát / Tổ cân rắn'],
+    TP1: ['TP1', 'Tổ trộn 1', 'Tổ phối trộn 1', 'Tổ Phối trộn 1'],
+    TP2: ['TP2', 'Tổ trộn 2', 'Tổ phối trộn 2', 'Tổ Phối trộn 2'],
+    TH: ['TH', 'Tổ Hóa', 'Tổ Cân hóa'],
+    TC: ['TC', 'Tổ Cát', 'Tổ Cát / Tổ cân rắn', 'Tổ Cân rắn'],
     QC: ['QC'],
   }
   const weeklyRoleOptions = {
     TP1: [
       { value: 'upper', label: 'Tổ trên - Phối trộn', weeklyRole: 'Tổ trên', operationPosition: 'Phối trộn', stage: 'Phối trộn', processStages: ['Phối trộn'] },
-      { value: 'lower', label: 'Tổ dưới - Đóng gói + Nhập kho thành phẩm', weeklyRole: 'Tổ dưới', operationPosition: 'Đóng gói + Nhập kho thành phẩm', stage: 'Đóng gói', processStages: ['Đóng gói', 'Kho thành phẩm'] },
+      { value: 'lower', label: 'Tổ dưới - Đóng gói + Nhập kho TP', weeklyRole: 'Tổ dưới', operationPosition: 'Đóng gói + Nhập kho TP', stage: 'Đóng gói', processStages: ['Đóng gói', 'Kho thành phẩm'] },
     ],
     TP2: [
       { value: 'upper', label: 'Tổ trên - Phối trộn', weeklyRole: 'Tổ trên', operationPosition: 'Phối trộn', stage: 'Phối trộn', processStages: ['Phối trộn'] },
-      { value: 'lower', label: 'Tổ dưới - Đóng gói + Nhập kho thành phẩm', weeklyRole: 'Tổ dưới', operationPosition: 'Đóng gói + Nhập kho thành phẩm', stage: 'Đóng gói', processStages: ['Đóng gói', 'Kho thành phẩm'] },
+      { value: 'lower', label: 'Tổ dưới - Đóng gói + Nhập kho TP', weeklyRole: 'Tổ dưới', operationPosition: 'Đóng gói + Nhập kho TP', stage: 'Đóng gói', processStages: ['Đóng gói', 'Kho thành phẩm'] },
     ],
     TH: [
-      { value: 'glue-60', label: 'Cân keo 60kg', operationPosition: 'Cân keo 60kg', stage: 'Cân hóa', processStages: ['Cân hóa'] },
-      { value: 'paste-50', label: 'Cân paste 50kg', operationPosition: 'Cân paste 50kg', stage: 'Cân hóa', processStages: ['Cân hóa'] },
-      { value: 'tint-5', label: 'Cân tin màu 5kg', operationPosition: 'Cân tin màu 5kg', stage: 'Cân hóa', processStages: ['Cân hóa'] },
+      { value: 'glue-60', label: 'Cân keo', operationPosition: 'Cân keo', stage: 'Cân hóa', processStages: ['Cân hóa'] },
+      { value: 'paste-50', label: 'Cân Paste', operationPosition: 'Cân Paste', stage: 'Cân hóa', processStages: ['Cân hóa'] },
+      { value: 'tint-5', label: 'Cân Tin màu', operationPosition: 'Cân Tin màu', stage: 'Cân hóa', processStages: ['Cân hóa'] },
     ],
     TC: [
       { value: 'solid-lead', label: 'Tổ trưởng chịu trách nhiệm chính', operationPosition: 'Tổ trưởng cân rắn', stage: 'Cân rắn', processStages: ['Cân rắn'] },
@@ -6557,8 +6594,6 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
   }
   const roleOptionsForTeam = (teamCode) => weeklyRoleOptions[teamCode] || []
   const roleConfigForForm = (draft = form) => roleOptionsForTeam(draft.teamCode).find((option) => option.value === draft.operationRoleKey) || {}
-  const isMixingTeam = (teamCode) => ['TP1', 'TP2'].includes(teamCode)
-  const requiresMixingMachines = (draft = form) => isMixingTeam(draft.teamCode) && roleConfigForForm(draft).value === 'upper'
   const getAllowedStagesForTeam = (teamCode) => {
     const stages = teamStageOptions[teamCode] || visibleStages
     return stages.filter((stage) => visibleStages.includes(stage))
@@ -6577,8 +6612,8 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     teamCode: defaultTeamCode,
     stage: defaultStage,
     operationRoleKey: roleOptionsForTeam(defaultTeamCode)[0]?.value || '',
-    machineCodes: [],
-    employeeCodes: [],
+    employeeCode: '',
+    employeeSearch: '',
   })
   const updateForm = (field, value) => {
     setForm((current) => {
@@ -6586,11 +6621,11 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       const nextAllowedStages = getAllowedStagesForTeam(next.teamCode)
       if (field === 'teamCode') {
         next.operationRoleKey = roleOptionsForTeam(value)[0]?.value || ''
-        next.employeeCodes = []
+        next.employeeCode = ''
+        next.employeeSearch = ''
       }
       const roleConfig = roleConfigForForm(next)
       next.stage = roleConfig.stage || (nextAllowedStages.includes(next.stage) ? next.stage : nextAllowedStages[0] || '')
-      if (!requiresMixingMachines(next)) next.machineCodes = []
       return next
     })
   }
@@ -6605,18 +6640,15 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
         : roleOptionsForTeam(normalizedTeamCode)[0]?.value || ''
       const roleConfig = roleConfigForForm({ ...current, teamCode: normalizedTeamCode, operationRoleKey: nextOperationRoleKey })
       const nextStage = roleConfig.stage || (nextAllowedStages.includes(current.stage) ? current.stage : nextAllowedStages[0] || '')
-      const currentEmployeeCodes = Array.isArray(current.employeeCodes) ? current.employeeCodes : [current.employeeCode].filter(Boolean)
-      const nextEmployeeCodes = currentEmployeeCodes.filter((code) => nextEmployees.some((employee) => employee.code === code))
-      const currentMachineCodes = Array.isArray(current.machineCodes) ? current.machineCodes : [current.machineCode].filter(Boolean)
-      const nextMachineCodes = requiresMixingMachines({ ...current, teamCode: normalizedTeamCode, operationRoleKey: nextOperationRoleKey }) ? currentMachineCodes.filter((code) => machines.some((machine) => machine.machineCode === code)) : []
+      const nextEmployeeCode = nextEmployees.some((employee) => employee.code === current.employeeCode) ? current.employeeCode : ''
+      const nextEmployeeSearch = nextEmployeeCode ? current.employeeSearch : ''
       if (
         normalizedTeamCode === current.teamCode
         && nextOperationRoleKey === current.operationRoleKey
         && nextStage === current.stage
-        && nextEmployeeCodes.join('|') === currentEmployeeCodes.join('|')
-        && nextMachineCodes.join('|') === currentMachineCodes.join('|')
+        && nextEmployeeCode === current.employeeCode
       ) return current
-      return { ...current, teamCode: normalizedTeamCode, operationRoleKey: nextOperationRoleKey, stage: nextStage, employeeCodes: nextEmployeeCodes, machineCodes: nextMachineCodes }
+      return { ...current, teamCode: normalizedTeamCode, operationRoleKey: nextOperationRoleKey, stage: nextStage, employeeCode: nextEmployeeCode, employeeSearch: nextEmployeeSearch }
     })
   }, [data.employeeCatalog, data.teamCatalog, defaultTeamCode, visibleStages])
   const buildAssignment = ({ workDate, shift, team, roleConfig = {}, employees = [], assignedMachines = [], status = 'Chưa bắt đầu', assignmentNote = '' }) => {
@@ -6671,15 +6703,16 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     .sort((a, b) => `${b.date} ${b.assignedAt}`.localeCompare(`${a.date} ${a.assignedAt}`, 'vi', { numeric: true }))
   const saveAssignment = () => {
     if (!canCreate) return
-    const selectedEmployees = (form.employeeCodes || []).map(employeeByCode).filter(Boolean)
+    const selectedEmployee = employeeByCode(form.employeeCode)
+    const selectedEmployees = selectedEmployee ? [selectedEmployee] : []
     const shift = shiftByCode(form.shiftCode)
     const team = teamByCode(form.teamCode)
     const roleConfig = roleConfigForForm(form)
-    const selectedMachines = requiresMixingMachines(form) ? (form.machineCodes || []).map(machineByCode).filter(Boolean) : []
+    const selectedMachines = []
     const teamEmployees = employeesByTeam(form.teamCode)
     const teamStages = getAllowedStagesForTeam(form.teamCode)
     if (!team || selectedEmployees.length === 0 || !shift || !form.date || !roleConfig.stage) {
-      setNotice('Vui lòng chọn đủ ngày, ca, tổ sản xuất, vai trò tuần/vị trí vận hành và nhân viên.')
+      setNotice('Vui lòng chọn đủ ngày, ca, tổ sản xuất, vai trò tuần/vị trí vận hành và người phụ trách.')
       return
     }
     if (!teamStages.includes(roleConfig.stage)) {
@@ -6687,11 +6720,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       return
     }
     if (selectedEmployees.some((employee) => !teamEmployees.some((item) => item.code === employee.code))) {
-      setNotice('Nhân viên không thuộc tổ sản xuất đã chọn.')
-      return
-    }
-    if (requiresMixingMachines(form) && selectedMachines.length === 0) {
-      setNotice('Vui lòng chọn ít nhất một máy phối trộn cho công đoạn Phối trộn.')
+      setNotice('Người phụ trách không thuộc tổ sản xuất đã chọn.')
       return
     }
     const assignment = buildAssignment({ workDate: form.date, shift, team, roleConfig, employees: selectedEmployees, assignedMachines: selectedMachines })
@@ -6715,20 +6744,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       productionAssignments: (current.productionAssignments || []).filter((item) => (item.id || item.assignmentId) !== assignmentId),
     }))
   }
-  const selectWholeTeam = () => updateForm('employeeCodes', selectableEmployees.map((employee) => employee.code))
-  const clearSelectedEmployees = () => updateForm('employeeCodes', [])
-  const selectAllMachines = () => updateForm('machineCodes', machines.map((machine) => machine.machineCode))
-  const clearSelectedMachines = () => updateForm('machineCodes', [])
-  const toggleEmployee = (employeeCode) => {
-    updateForm('employeeCodes', (form.employeeCodes || []).includes(employeeCode)
-      ? (form.employeeCodes || []).filter((code) => code !== employeeCode)
-      : [...(form.employeeCodes || []), employeeCode])
-  }
-  const toggleMachine = (machineCode) => {
-    updateForm('machineCodes', (form.machineCodes || []).includes(machineCode)
-      ? (form.machineCodes || []).filter((code) => code !== machineCode)
-      : [...(form.machineCodes || []), machineCode])
-  }
+  const clearSelectedEmployee = () => setForm((current) => ({ ...current, employeeCode: '', employeeSearch: '' }))
 
   return (
     <div className="page-content production-assignment-page">
@@ -6741,70 +6757,38 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
           </div>
           <button className="primary-button" type="button" disabled={!canCreate} onClick={saveAssignment}>Lưu phân công</button>
         </div>
-        <div className="production-form-grid order-create-form">
+        <div className="assignment-form-grid">
           <label>Ngày<input type="date" value={form.date} onChange={(event) => updateForm('date', event.target.value)} /></label>
           <label>Ca làm việc<select value={form.shiftCode} onChange={(event) => updateForm('shiftCode', event.target.value)}>{shifts.map((shift) => <option key={shift.code} value={shift.code}>{shift.code} / {shift.name}</option>)}</select></label>
-          <label>Tổ sản xuất<select value={form.teamCode} onChange={(event) => updateForm('teamCode', event.target.value)}>{availableTeams.map((team) => <option key={team.code} value={team.code}>{team.code} / {team.name}</option>)}</select></label>
+          <label>Tổ sản xuất<select value={form.teamCode} onChange={(event) => updateForm('teamCode', event.target.value)}>{availableTeams.map((team) => <option key={team.code} value={team.code}>{team.name}</option>)}</select></label>
           <label>Vai trò tuần / Vị trí vận hành<select value={form.operationRoleKey} onChange={(event) => updateForm('operationRoleKey', event.target.value)}>
             {roleOptionsForTeam(form.teamCode).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select></label>
           <label>Công đoạn<input value={(roleConfigForForm(form).processStages || [form.stage]).join(', ')} readOnly /></label>
-          {requiresMixingMachines(form) && (
-            <div className="assignment-employee-field">
-              <span>Máy phối trộn</span>
-              <div className="assignment-employee-checklist">
-                {machines.length === 0 && <div className="assignment-empty">Chưa có máy phối trộn khả dụng</div>}
-                {machines.map((machine) => (
-                  <label className="employee-row" key={machine.machineCode}>
-                    <input
-                      type="checkbox"
-                      checked={(form.machineCodes || []).includes(machine.machineCode)}
-                      onChange={() => toggleMachine(machine.machineCode)}
-                    />
-                    <span>{mixingMachineOptionLabel(machine)}</span>
-                  </label>
-                ))}
-              </div>
-              <div className="assignment-mini-actions">
-                <button className="secondary-button" type="button" disabled={!canCreate || machines.length === 0} onClick={selectAllMachines}>Chọn tất cả máy</button>
-                <button className="secondary-button" type="button" disabled={!canCreate || (form.machineCodes || []).length === 0} onClick={clearSelectedMachines}>Bỏ chọn máy</button>
-              </div>
-            </div>
-          )}
-          <div className={`assignment-employee-field ${requiresMixingMachines(form) ? '' : 'wide-field'}`}>
-            <span>Nhân viên</span>
-            <div className="assignment-employee-checklist">
-              {selectableEmployees.length === 0 && <div className="assignment-empty">Chưa có nhân viên phù hợp</div>}
-              {selectableEmployees.map((employee) => (
-                <label className="employee-row" key={employee.code}>
-                  <input
-                    type="checkbox"
-                    checked={(form.employeeCodes || []).includes(employee.code)}
-                    onChange={() => toggleEmployee(employee.code)}
-                  />
-                  <span>{employee.code} / {employee.name}</span>
-                </label>
-              ))}
-            </div>
-          </div>
+          <label>Người phụ trách
+            <EmployeeSearchCombobox
+              employees={selectableEmployees}
+              inputValue={form.employeeSearch}
+              onInputChange={(value) => setForm((current) => ({ ...current, employeeSearch: value, employeeCode: '' }))}
+              onSelect={(employee) => setForm((current) => ({ ...current, employeeCode: employee.code, employeeSearch: employee.name }))}
+            />
+          </label>
         </div>
         <div className="action-row">
-          <button className="secondary-button" type="button" disabled={!canCreate || selectableEmployees.length === 0} onClick={selectWholeTeam}>Chọn cả tổ</button>
-          <button className="secondary-button" type="button" disabled={!canCreate || (form.employeeCodes || []).length === 0} onClick={clearSelectedEmployees}>Bỏ chọn</button>
+          <button className="secondary-button" type="button" disabled={!canCreate || !form.employeeCode} onClick={clearSelectedEmployee}>Bỏ chọn người phụ trách</button>
         </div>
         {notice && <div className="process-alert">{notice}</div>}
       </section>
       <section className="panel">
         <h3>Bảng phân công</h3>
-        <SimpleTable tableClassName="production-assignment-table" headers={['Ngày', 'Ca', 'Tổ sản xuất', 'Vai trò tuần / Vị trí vận hành', 'Công đoạn', 'Máy được phân công', 'Nhân viên', 'Người phân công', 'Thời gian phân công', 'Trạng thái', 'Hành động']} rows={visibleAssignments.map((item) => (
+        <SimpleTable tableClassName="production-assignment-table" headers={['Ngày', 'Ca', 'Tổ sản xuất', 'Vai trò / Vị trí vận hành', 'Công đoạn', 'Người phụ trách', 'Người phân công', 'Thời gian phân công', 'Trạng thái']} rows={visibleAssignments.map((item) => (
           <tr key={item.id || item.assignmentId}>
             <td>{item.workDate || item.date}</td>
             <td>{item.shiftCode} / {item.shiftName}</td>
             <td>{item.teamName || item.productionTeamName || item.productionTeam || '-'}</td>
             <td>{item.operationPositionLabel || item.operationPosition || item.weeklyRole || '-'}</td>
             <td>{assignmentStages(item).join(', ')}</td>
-            <td>{formatAssignmentMachines(item)}</td>
-            <td>{formatAssignmentEmployees(item)}</td>
+            <td>{assignmentEmployeeNames(item)[0] || item.employeeName || '-'}</td>
             <td>{item.assignedBy}</td>
             <td>{item.assignedAt}</td>
             <td>
@@ -6815,7 +6799,6 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
                 <option>Hủy</option>
               </select>
             </td>
-            <td><button className="danger-button" type="button" disabled={!canDelete} onClick={() => deleteAssignment(item.id || item.assignmentId)}>Xóa</button></td>
           </tr>
         ))} empty="Chưa có phân công trong phạm vi được xem." />
       </section>
