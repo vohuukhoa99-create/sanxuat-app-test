@@ -2345,7 +2345,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
         {warning && <div className="process-alert">{warning}</div>}
         {message && <div className="formula-ratio-ok">{message}</div>}
         <div className="production-order-form-grid">
-          <label>Công thức gốc
+          <label>Mã sản phẩm
             <FormulaSearchCombobox
               formulas={data.formulas}
               inputValue={form.formulaSearch}
@@ -2372,7 +2372,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
       </section>
       <section className="panel">
         <h3>Danh sách lệnh</h3>
-        <SimpleTable tableClassName="orders-table" headers={['Mã lệnh SX', 'Sản phẩm', 'Khách hàng', 'Công thức gốc', 'Version', 'LOT', 'Khối lượng', 'Máy phối trộn', 'Phiếu yêu cầu SX', 'Ghi chú', 'Trạng thái', 'Ngày tạo', 'Hành động']} rows={data.orders.map((order) => (
+        <SimpleTable tableClassName="orders-table" headers={['Mã lệnh SX', 'Sản phẩm', 'Khách hàng', 'Mã sản phẩm', 'Version', 'LOT', 'Khối lượng', 'Máy phối trộn', 'Phiếu yêu cầu SX', 'Ghi chú', 'Trạng thái', 'Ngày tạo', 'Hành động']} rows={data.orders.map((order) => (
           <tr key={order.id}><td>{order.orderCode || order.id}</td><td>{order.productName || order.product}</td><td>{order.customerName || order.customer || '-'}</td><td>{order.formulaCode || order.originalFormulaId}</td><td>{order.formulaVersion || order.originalFormulaVersion}</td><td>{order.lot}</td><td>{kg(order.requestedWeight ?? order.quantityKg)}</td><td>{getOrderAssignedMachineLabel(order, machines)}</td><td>{order.productionRequestNo || '-'}</td><td className="ellipsis-cell" title={order.note || ''}>{order.note || '-'}</td><td><span className={`flow-pill ${statusClass(order.status)}`}>{displayQcTrialText(order.status)}</span></td><td>{order.createdAt}</td><td><button className="secondary-button" onClick={() => { setDetailOrderId(order.id); setDetailTab('info') }}>Chi tiết</button></td></tr>
         ))} />
       </section>
@@ -2468,7 +2468,7 @@ function FormulaSearchCombobox({ formulas = [], inputValue = '', onInputChange, 
     <div className="customer-combobox formula-combobox">
       <input
         value={query}
-        placeholder="Gõ tên sản phẩm hoặc mã công thức"
+        placeholder="Gõ mã sản phẩm hoặc tên sản phẩm"
         onFocus={() => setOpen(true)}
         onChange={(event) => {
           onInputChange(event.target.value)
