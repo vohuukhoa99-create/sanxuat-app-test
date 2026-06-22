@@ -704,7 +704,7 @@ tbody tr:hover {
 
 .assignment-form-grid {
   display: grid;
-  grid-template-columns: 130px 150px 180px 180px 150px minmax(280px, 1fr);
+  grid-template-columns: 130px 150px 180px 180px 150px 420px;
   gap: 12px;
   align-items: end;
 }
@@ -730,6 +730,11 @@ tbody tr:hover {
 
 .assignment-form-grid .customer-combobox {
   width: 100%;
+}
+
+.assignment-form-grid .assignment-person-in-charge {
+  width: 420px;
+  max-width: 420px;
 }
 
 .assignment-employee-field {

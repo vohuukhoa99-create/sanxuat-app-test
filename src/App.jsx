@@ -6575,13 +6575,6 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     TC: ['Cân rắn'],
     QC: ['QC sản xuất thử', 'QC thành phẩm'],
   }
-  const teamEmployeeAliases = {
-    TP1: ['TP1', 'Tổ trộn 1', 'Tổ phối trộn 1', 'Tổ Phối trộn 1'],
-    TP2: ['TP2', 'Tổ trộn 2', 'Tổ phối trộn 2', 'Tổ Phối trộn 2'],
-    TH: ['TH', 'Tổ Hóa', 'Tổ Cân hóa'],
-    TC: ['TC', 'Tổ Cát', 'Tổ Cát / Tổ cân rắn', 'Tổ Cân rắn'],
-    QC: ['QC'],
-  }
   const weeklyRoleOptions = {
     TP1: [
       { value: 'upper', label: 'Tổ trên', weeklyRole: 'Tổ trên', operationPosition: 'Tổ trên', stage: 'Phối trộn', processStages: ['Phối trộn'] },
@@ -6614,8 +6607,9 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
   const defaultTeamCode = availableTeams[0]?.code || teams[0]?.code || ''
   const defaultStage = getAllowedStagesForTeam(defaultTeamCode)[0] || visibleStages[0] || productionAssignmentStages[0]
   const employeesByTeam = (teamNameOrCode) => {
-    const aliases = new Set([teamNameOrCode, teamByCode(teamNameOrCode)?.name, ...(teamEmployeeAliases[teamNameOrCode] || [])].filter(Boolean))
-    return activeEmployees.filter((employee) => aliases.has(employee.productionTeam))
+    const selectedTeam = teamByCode(teamNameOrCode)
+    const selectedTeamCode = normalizeProductionTeamCode(selectedTeam?.code || selectedTeam?.name || teamNameOrCode)
+    return activeEmployees.filter((employee) => normalizeProductionTeamCode(employee.teamName || employee.productionTeam || employee.teamCode || '') === selectedTeamCode)
   }
   const [notice, setNotice] = useState('')
   const [form, setForm] = useState({
@@ -6777,7 +6771,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
             {roleOptionsForTeam(form.teamCode).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select></label>
           <label>Công đoạn<input value={(roleConfigForForm(form).processStages || [form.stage]).join(', ')} readOnly /></label>
-          <label>Người phụ trách
+          <label className="assignment-person-in-charge">Người phụ trách
             <EmployeeSearchCombobox
               employees={selectableEmployees}
               inputValue={form.employeeSearch}
