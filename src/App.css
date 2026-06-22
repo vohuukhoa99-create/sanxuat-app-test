@@ -732,6 +732,108 @@ tbody tr:hover {
   width: 100%;
 }
 
+.assignment-day-controls {
+  display: grid;
+  grid-template-columns: 130px 150px;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.assignment-day-controls label {
+  display: grid;
+  gap: 6px;
+  color: #38564a;
+  font-weight: 700;
+}
+
+.assignment-day-controls input,
+.assignment-day-controls select,
+.assignment-planning-table input,
+.assignment-planning-table select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid rgba(7, 34, 26, 0.16);
+  border-radius: 6px;
+  background: #fff;
+  color: #173d2d;
+  padding: 8px 10px;
+}
+
+.assignment-planning-table th:nth-child(1),
+.assignment-planning-table td:nth-child(1) {
+  width: 56px;
+  text-align: center;
+}
+
+.assignment-planning-table th:nth-child(5),
+.assignment-planning-table td:nth-child(5) {
+  min-width: 300px;
+}
+
+.assignment-multiselect {
+  position: relative;
+  width: 100%;
+}
+
+.assignment-multiselect-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid rgba(7, 34, 26, 0.16);
+  border-radius: 6px;
+  background: #fff;
+  color: #173d2d;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.assignment-multiselect-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assignment-multiselect-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 360px;
+  max-width: min(360px, 80vw);
+  padding: 8px;
+  border: 1px solid rgba(7, 34, 26, 0.16);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(7, 34, 26, 0.14);
+}
+
+.assignment-multiselect-actions {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.assignment-multiselect-actions button {
+  border: 1px solid rgba(7, 34, 26, 0.16);
+  border-radius: 6px;
+  background: #f5faf7;
+  color: #173d2d;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.assignment-multiselect-options {
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
 .assignment-form-grid .assignment-owner-field {
   width: 320px;
   max-width: 320px;

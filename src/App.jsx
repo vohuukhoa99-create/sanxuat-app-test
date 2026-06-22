@@ -2649,6 +2649,75 @@ function EmployeeSearchCombobox({ employees = [], inputValue = '', onInputChange
   )
 }
 
+function AssignmentEmployeeMultiSelect({ employees = [], selectedCodes = [], onChange }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const selectedSet = useMemo(() => new Set(selectedCodes), [selectedCodes])
+  const filteredEmployees = useMemo(() => {
+    const keyword = normalizeText(query)
+    const source = Array.isArray(employees) ? employees : []
+    if (!keyword) return source
+    return source.filter((employee) => (
+      normalizeText(employee.employeeName || employee.name).includes(keyword)
+      || normalizeText(employee.employeeCode || employee.code).includes(keyword)
+    ))
+  }, [employees, query])
+  const selectedEmployees = employees.filter((employee) => selectedSet.has(employee.employeeCode || employee.code))
+  const selectedText = selectedEmployees.length
+    ? selectedEmployees.map((employee) => employee.employeeName || employee.name).join(', ')
+    : 'Chọn nhân viên'
+  const toggleEmployee = (employee) => {
+    const code = employee.employeeCode || employee.code
+    if (!code) return
+    const next = selectedSet.has(code)
+      ? selectedCodes.filter((item) => item !== code)
+      : [...selectedCodes, code]
+    onChange(next)
+  }
+  const selectAll = () => onChange(employees.map((employee) => employee.employeeCode || employee.code).filter(Boolean))
+  const clearAll = () => onChange([])
+
+  return (
+    <div className="assignment-multiselect" onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) window.setTimeout(() => setOpen(false), 140)
+    }}>
+      <button className="assignment-multiselect-trigger" type="button" onClick={() => setOpen((current) => !current)}>
+        <span>{selectedText}</span>
+      </button>
+      {open && (
+        <div className="assignment-multiselect-menu">
+          <input
+            value={query}
+            placeholder="Tìm mã NV hoặc họ tên"
+            onChange={(event) => setQuery(event.target.value)}
+            onFocus={() => setOpen(true)}
+          />
+          <div className="assignment-multiselect-actions">
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={selectAll}>Chọn cả tổ</button>
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={clearAll}>Bỏ chọn</button>
+          </div>
+          <div className="assignment-multiselect-options">
+            {filteredEmployees.length ? filteredEmployees.map((employee) => {
+              const code = employee.employeeCode || employee.code
+              const name = employee.employeeName || employee.name
+              return (
+                <label className="employee-row" key={code}>
+                  <input
+                    type="checkbox"
+                    checked={selectedSet.has(code)}
+                    onChange={() => toggleEmployee(employee)}
+                  />
+                  <span>{code} - {name}</span>
+                </label>
+              )
+            }) : <div className="customer-combobox-empty">Không có nhân viên phù hợp</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function OrderDetailTabs({ order, tab, productionLogs, qc2Logs, permissions = [] }) {
   const materials = order.activeProductionFormula || order.productionFormulaSnapshot || []
   const originalMaterials = order.originalFormulaSnapshot || order.productionFormulaSnapshot || []
@@ -6585,6 +6654,231 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
 }
 
 function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
+  const canCreate = hasPermission(permissions, 'production.assignment.create')
+  const canEdit = hasPermission(permissions, 'production.assignment.edit')
+  const activeEmployees = (data.employeeCatalog || []).filter((employee) => employee.status !== 'Ngừng sử dụng')
+  const shifts = data.shiftCatalog || []
+  const teams = data.teamCatalog || []
+  const teamByCode = Object.fromEntries(teams.map((team) => [team.code, team]))
+  const employeesByCode = Object.fromEntries(activeEmployees.map((employee) => [employee.employeeCode || employee.code, employee]))
+  const shiftByCode = Object.fromEntries(shifts.map((shift) => [shift.code, shift]))
+  const getEmployeesByTeam = (teamNameOrCode) => {
+    const selectedTeam = teamByCode[teamNameOrCode]
+    const selectedTeamKey = normalizeTeamName(selectedTeam?.name || teamNameByCode(normalizeProductionTeamCode(teamNameOrCode)) || teamNameOrCode)
+    const allowedCodes = assignmentEmployeeCodesByTeamKey[selectedTeamKey]
+    return activeEmployees.filter((employee) => {
+      const employeeCode = employee.employeeCode || employee.code
+      return normalizeTeamName(employee.teamName || employee.team || employee.productionTeam || employee.productionTeamName || employee.teamCode) === selectedTeamKey
+        && (!allowedCodes || allowedCodes.has(employeeCode))
+    })
+  }
+  const assignmentRows = [
+    { id: 'chemical-glue', teamCode: 'TH', role: 'Cân keo', stage: 'Cân hóa', processStages: ['Cân hóa'] },
+    { id: 'chemical-paste', teamCode: 'TH', role: 'Cân Paste', stage: 'Cân hóa', processStages: ['Cân hóa'] },
+    { id: 'chemical-tint', teamCode: 'TH', role: 'Cân Tin màu', stage: 'Cân hóa', processStages: ['Cân hóa'] },
+    { id: 'solid', teamCode: 'TC', role: 'Cân rắn', stage: 'Cân rắn', processStages: ['Cân rắn'] },
+    { id: 'mixing-1', teamCode: 'TP1', role: 'Tổ trên', stage: 'Phối trộn', processStages: ['Phối trộn'], roleEditable: true },
+    { id: 'mixing-2', teamCode: 'TP2', role: 'Tổ dưới', stage: 'Đóng gói + Kho thành phẩm', processStages: ['Đóng gói', 'Kho thành phẩm'], roleEditable: true },
+    { id: 'qc-trial', teamCode: 'QC', role: 'QC sản xuất thử', stage: 'QC sản xuất thử', processStages: ['QC sản xuất thử'] },
+    { id: 'qc-finished', teamCode: 'QC', role: 'QC thành phẩm', stage: 'QC thành phẩm', processStages: ['QC thành phẩm'] },
+  ]
+  const buildDraftRows = () => Object.fromEntries(assignmentRows.map((row) => [row.id, {
+    role: row.role,
+    stage: row.stage,
+    processStages: row.processStages,
+    employeeCodes: [],
+    note: '',
+    status: 'Chưa bắt đầu',
+  }]))
+  const [notice, setNotice] = useState('')
+  const [header, setHeader] = useState({ date: todayText(), shiftCode: shifts[0]?.code || '' })
+  const [draftRows, setDraftRows] = useState(buildDraftRows)
+
+  useEffect(() => {
+    setHeader((current) => current.shiftCode ? current : { ...current, shiftCode: shifts[0]?.code || '' })
+  }, [shifts])
+
+  const updateDraftRow = (rowId, patch) => {
+    setDraftRows((current) => ({ ...current, [rowId]: { ...current[rowId], ...patch } }))
+  }
+  const updateMixingRole = (rowId, role) => {
+    const isUpper = role === 'Tổ trên'
+    updateDraftRow(rowId, {
+      role,
+      stage: isUpper ? 'Phối trộn' : 'Đóng gói + Kho thành phẩm',
+      processStages: isUpper ? ['Phối trộn'] : ['Đóng gói', 'Kho thành phẩm'],
+    })
+  }
+  const buildAssignment = (row, draft, shift) => {
+    const employees = (draft.employeeCodes || []).map((code) => employeesByCode[code]).filter(Boolean)
+    const employeeCodes = employees.map((employee) => employee.employeeCode || employee.code)
+    const employeeNames = employees.map((employee) => employee.employeeName || employee.name)
+    const employeeRoles = employees.map((employee) => employee.operationRole || employee.role || employee.title || '').filter(Boolean)
+    const team = teamByCode[row.teamCode] || { code: row.teamCode, name: teamNameByCode(row.teamCode) }
+    const assignedAt = nowText()
+    return {
+      id: uid('ASSIGN'),
+      assignmentId: uid('ASSIGN'),
+      assignmentRowId: row.id,
+      date: header.date,
+      workDate: header.date,
+      shiftCode: shift.code,
+      shiftName: shift.name,
+      teamCode: team.code,
+      teamName: team.name,
+      productionTeam: team.code,
+      productionTeamName: team.name,
+      weeklyRole: draft.role,
+      weeklyRoleLabel: draft.role,
+      operationRoleKey: draft.role,
+      operationPosition: draft.role,
+      operationPositionLabel: draft.role,
+      stage: draft.stage,
+      processCode: processCodeByName[draft.stage] || draft.stage,
+      processName: draft.stage,
+      processStages: draft.processStages,
+      employeeCodes,
+      employeeNames,
+      employeeCode: employeeCodes.join(', '),
+      employeeName: employeeNames.join(', '),
+      employeeRole: employeeRoles.join(', '),
+      role: employeeRoles.join(', '),
+      workStage: draft.stage,
+      assignedBy: user?.fullName || user?.username || 'Hệ thống',
+      assignedAt,
+      note: draft.note,
+      assignmentNote: draft.note,
+      status: draft.status,
+    }
+  }
+  const saveAssignments = () => {
+    if (!canCreate || !header.date || !header.shiftCode) return
+    const shift = shiftByCode[header.shiftCode]
+    if (!shift) {
+      setNotice('Vui lòng chọn ca làm việc.')
+      return
+    }
+    const assignments = assignmentRows.map((row) => buildAssignment(row, draftRows[row.id], shift))
+    setData((current) => {
+      const remainingAssignments = (current.productionAssignments || []).filter((item) => (
+        (item.workDate || item.date) !== header.date
+        || item.shiftCode !== header.shiftCode
+        || !assignmentRows.some((row) => row.id === item.assignmentRowId)
+      ))
+      return addLogToData({
+        ...current,
+        productionAssignments: [...assignments, ...remainingAssignments],
+      }, `Lưu bảng phân công nhân sự ca ${shift.code} ngày ${header.date}.`, operationLogMeta(user, { assignments, employee: assignments.flatMap(assignmentEmployeeNames).join(', '), stage: 'Phân công nhân sự', result: 'Lưu bảng phân công' }))
+    })
+    setNotice('Đã lưu bảng phân công nhân sự theo ngày/ca.')
+  }
+  const visibleAssignments = (data.productionAssignments || [])
+    .filter((item) => (item.workDate || item.date) === header.date && item.shiftCode === header.shiftCode)
+    .slice()
+    .sort((a, b) => `${a.assignedAt || ''}`.localeCompare(`${b.assignedAt || ''}`, 'vi', { numeric: true }))
+  const updateAssignmentStatus = (assignmentId, status) => {
+    if (!canEdit) return
+    setData((current) => ({
+      ...current,
+      productionAssignments: (current.productionAssignments || []).map((item) => (item.id || item.assignmentId) === assignmentId ? { ...item, status } : item),
+    }))
+  }
+
+  return (
+    <div className="page-content production-assignment-page">
+      <section className="panel">
+        <div className="section-heading-row">
+          <div>
+            <span className="section-kicker">Sản xuất</span>
+            <h2>Bảng phân công nhân sự theo ngày</h2>
+            <p className="panel-text">Chọn ngày, ca và phân công đồng thời cho toàn bộ tổ trong một bảng.</p>
+          </div>
+          <button className="primary-button" type="button" disabled={!canCreate} onClick={saveAssignments}>Lưu phân công</button>
+        </div>
+        <div className="assignment-day-controls">
+          <label>Ngày<input type="date" value={header.date} onChange={(event) => setHeader((current) => ({ ...current, date: event.target.value }))} /></label>
+          <label>Ca làm việc<select value={header.shiftCode} onChange={(event) => setHeader((current) => ({ ...current, shiftCode: event.target.value }))}>{shifts.map((shift) => <option key={shift.code} value={shift.code}>{shift.code} / {shift.name}</option>)}</select></label>
+        </div>
+        <div className="table-wrap">
+          <table className="production-table assignment-planning-table">
+            <thead>
+              <tr>
+                <th>STT</th>
+                <th>Tổ sản xuất</th>
+                <th>Vai trò</th>
+                <th>Công đoạn</th>
+                <th>Nhân viên</th>
+                <th>Ghi chú</th>
+                <th>Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody>
+              {assignmentRows.map((row, index) => {
+                const draft = draftRows[row.id]
+                const employees = getEmployeesByTeam(row.teamCode)
+                return (
+                  <tr key={row.id}>
+                    <td>{index + 1}</td>
+                    <td>{teamByCode[row.teamCode]?.name || teamNameByCode(row.teamCode)}</td>
+                    <td>{row.roleEditable ? (
+                      <select value={draft.role} onChange={(event) => updateMixingRole(row.id, event.target.value)}>
+                        <option>Tổ trên</option>
+                        <option>Tổ dưới</option>
+                      </select>
+                    ) : draft.role}</td>
+                    <td>{draft.stage}</td>
+                    <td>
+                      <AssignmentEmployeeMultiSelect
+                        employees={employees}
+                        selectedCodes={draft.employeeCodes}
+                        onChange={(employeeCodes) => updateDraftRow(row.id, { employeeCodes })}
+                      />
+                    </td>
+                    <td><input value={draft.note} onChange={(event) => updateDraftRow(row.id, { note: event.target.value })} placeholder="Ghi chú" /></td>
+                    <td>
+                      <select value={draft.status} onChange={(event) => updateDraftRow(row.id, { status: event.target.value })}>
+                        <option>Chưa bắt đầu</option>
+                        <option>Đang thực hiện</option>
+                        <option>Hoàn thành</option>
+                        <option>Hủy</option>
+                      </select>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        {notice && <div className="process-alert">{notice}</div>}
+      </section>
+      <section className="panel">
+        <h3>Bảng phân công đã lưu</h3>
+        <SimpleTable tableClassName="production-assignment-table" headers={['Ngày', 'Ca', 'Tổ sản xuất', 'Vai trò', 'Công đoạn', 'Nhân viên đã phân công', 'Người phân công', 'Thời gian phân công', 'Trạng thái']} rows={visibleAssignments.map((item) => (
+          <tr key={item.id || item.assignmentId}>
+            <td>{item.workDate || item.date}</td>
+            <td>{item.shiftCode} / {item.shiftName}</td>
+            <td>{item.teamName || item.productionTeamName || item.productionTeam || '-'}</td>
+            <td>{normalizeAssignmentRoleLabel(item.operationPositionLabel || item.operationPosition || item.weeklyRole)}</td>
+            <td>{assignmentStages(item).join(', ')}</td>
+            <td>{formatAssignmentEmployees(item)}</td>
+            <td>{item.assignedBy}</td>
+            <td>{item.assignedAt}</td>
+            <td>
+              <select value={item.status} disabled={!canEdit} onChange={(event) => updateAssignmentStatus(item.id || item.assignmentId, event.target.value)}>
+                <option>Chưa bắt đầu</option>
+                <option>Đang thực hiện</option>
+                <option>Hoàn thành</option>
+                <option>Hủy</option>
+              </select>
+            </td>
+          </tr>
+        ))} empty="Chưa có phân công cho ngày/ca đang chọn." />
+      </section>
+    </div>
+  )
+}
+
+function LegacyProductionAssignmentPage({ data, setData, user, permissions = [] }) {
   const canCreate = hasPermission(permissions, 'production.assignment.create')
   const canEdit = hasPermission(permissions, 'production.assignment.edit')
   const canDelete = hasPermission(permissions, 'production.assignment.delete')
