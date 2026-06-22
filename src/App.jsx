@@ -6,7 +6,7 @@ import { QRCodeCanvas } from 'qrcode.react'
 import { CustomerFilterCombobox } from './components/CustomerFilterCombobox.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { TopBar } from './components/TopBar.jsx'
-import { customerCatalog as customerCatalogSeed, filterCustomerCatalog } from './data/customerCatalog.js'
+import { customerCatalog as customerCatalogSeed, filterCustomerCatalog, normalizeText } from './data/customerCatalog.js'
 import { defaultNavItems } from './data/navigation.js'
 import { USE_SUPABASE } from './utils/supabaseMode.js'
 import './App.css'
@@ -62,6 +62,13 @@ const realCustomerFields = (index = 0) => {
   }
 }
 const formatCustomerOption = (customer = {}) => customer.customerName || ''
+const formatFormulaSuggestion = (formula = {}) => [formula.product, formula.code || formula.id, formula.version].filter(Boolean).join(' - ')
+const formatFormulaInput = (formula = {}) => [formula.product || formula.code || formula.id, formula.version].filter(Boolean).join(' - ')
+const formulaMatches = (formula = {}, query = '') => {
+  const keyword = normalizeText(query)
+  if (!keyword) return true
+  return normalizeText([formula.product, formula.code, formula.id, formula.version].filter(Boolean).join(' ')).includes(keyword)
+}
 const resolveOrderCustomer = (order = {}) => {
   const catalog = normalizeCustomerCatalog()
   const code = order.customerCode || ''
@@ -2213,7 +2220,8 @@ function FormulasPage({ data, setData, permissions = [] }) {
 }
 
 function OrdersPage({ data, setData, permissions = [] }) {
-  const [form, setForm] = useState({ formulaId: data.formulas[0]?.id || '', quantityKg: 1000, lot: '', customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
+  const initialFormula = data.formulas[0] || null
+  const [form, setForm] = useState({ formulaId: initialFormula?.id || '', formulaObject: initialFormula, formulaSearch: formatFormulaInput(initialFormula), quantityKg: 1000, lot: '', customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
   const [message, setMessage] = useState('')
   const [warning, setWarning] = useState('')
   const [detailOrderId, setDetailOrderId] = useState('')
@@ -2222,7 +2230,8 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const customerOptions = useMemo(() => normalizeCustomerCatalog(data.customerCatalog), [data.customerCatalog])
   const selectedCustomer = form.customerObject
     || customerOptions.find((customer) => customer.customerCode && customer.customerCode === form.customerCode)
-  const formula = data.formulas.find((item) => item.id === form.formulaId)
+  const formula = form.formulaObject
+    || data.formulas.find((item) => item.id && item.id === form.formulaId)
   const libraryItems = formula ? formula.items.map((item) => ({
     code: item.materialCode,
     name: item.materialName,
@@ -2239,7 +2248,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
     setMessage('')
     setWarning('')
     if (!formula) {
-      setWarning('Chưa chọn công thức')
+      setWarning('Vui lòng chọn công thức gốc từ danh mục')
       return
     }
     if (!Number.isFinite(Number(form.quantityKg)) || Number(form.quantityKg) <= 0) {
@@ -2336,7 +2345,14 @@ function OrdersPage({ data, setData, permissions = [] }) {
         {warning && <div className="process-alert">{warning}</div>}
         {message && <div className="formula-ratio-ok">{message}</div>}
         <div className="production-order-form-grid">
-          <label>Công thức gốc<select value={form.formulaId} onChange={(event) => setForm({ ...form, formulaId: event.target.value })}>{data.formulas.map((item) => <option value={item.id} key={item.id}>{item.code} - {item.version}</option>)}</select></label>
+          <label>Công thức gốc
+            <FormulaSearchCombobox
+              formulas={data.formulas}
+              inputValue={form.formulaSearch}
+              onInputChange={(value) => setForm({ ...form, formulaSearch: value, formulaId: '', formulaObject: null })}
+              onSelect={(selectedFormula) => setForm({ ...form, formulaSearch: formatFormulaInput(selectedFormula), formulaId: selectedFormula.id, formulaObject: selectedFormula })}
+            />
+          </label>
           <label>Khối lượng (kg)<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value })} /></label>
           <label>Mã LOT<input value={form.lot} onChange={(event) => setForm({ ...form, lot: event.target.value })} /></label>
           <label className="customer-field">Khách hàng *
@@ -2430,6 +2446,45 @@ function CustomerSearchCombobox({ customers = [], value = {}, inputValue = '', o
               <span>{customer.customerName}</span>
             </button>
           )) : <div className="customer-combobox-empty">Không có khách hàng phù hợp</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FormulaSearchCombobox({ formulas = [], inputValue = '', onInputChange, onSelect }) {
+  const [open, setOpen] = useState(false)
+  const query = inputValue || ''
+  const filteredFormulas = useMemo(() => {
+    const limit = normalizeText(query) ? 50 : 30
+    return formulas.filter((formula) => formulaMatches(formula, query)).slice(0, limit)
+  }, [formulas, query])
+  const selectFormula = (formula) => {
+    onSelect(formula)
+    setOpen(false)
+  }
+
+  return (
+    <div className="customer-combobox formula-combobox">
+      <input
+        value={query}
+        placeholder="Gõ tên sản phẩm hoặc mã công thức"
+        onFocus={() => setOpen(true)}
+        onChange={(event) => {
+          onInputChange(event.target.value)
+          setOpen(true)
+        }}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        aria-autocomplete="list"
+        aria-expanded={open}
+      />
+      {open && (
+        <div className="customer-combobox-menu">
+          {filteredFormulas.length ? filteredFormulas.map((formula) => (
+            <button type="button" key={formula.id || formula.code} onMouseDown={(event) => event.preventDefault()} onClick={() => selectFormula(formula)}>
+              <span>{formatFormulaSuggestion(formula)}</span>
+            </button>
+          )) : <div className="customer-combobox-empty">Không có công thức phù hợp</div>}
         </div>
       )}
     </div>
