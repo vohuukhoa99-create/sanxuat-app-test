@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { customerCatalog } from '../data/customerCatalog.js'
+import { customerCatalog, filterCustomerCatalog } from '../data/customerCatalog.js'
 
 const normalizedCustomerCatalog = (customerCatalog || []).map((customer, index) => ({
   id: customer.id || customer.customerCode || `CUS-${index}`,
@@ -10,11 +10,6 @@ const normalizedCustomerCatalog = (customerCatalog || []).map((customer, index) 
   status: customer.status || '',
 })).filter((customer) => customer.customerCode || customer.customerName)
 const formatCustomerOption = (customer = {}) => customer.customerName || ''
-const customerMatches = (customer = {}, query = '') => {
-  const value = query.trim().toLowerCase()
-  if (!value) return true
-  return String(customer.customerName || '').toLowerCase().includes(value)
-}
 
 const hssIngredients = [
   { materialCode: 'PASTE 02', materialName: 'PASTE 02', materialGroup: 'Hóa chế', ratioPercent: 4.61 },
@@ -81,7 +76,7 @@ const calcMaterialPerLot = (ratioPercent, quantityKg) =>
 
 function CustomerSearchCombobox({ value = {}, inputValue = '', onInputChange, onSelect }) {
   const [open, setOpen] = useState(false)
-  const filteredCustomers = useMemo(() => normalizedCustomerCatalog.filter((customer) => customerMatches(customer, inputValue)).slice(0, 30), [inputValue])
+  const filteredCustomers = useMemo(() => filterCustomerCatalog(normalizedCustomerCatalog, inputValue), [inputValue])
   return (
     <div className="customer-combobox">
       <input
@@ -111,7 +106,8 @@ function CustomerSearchCombobox({ value = {}, inputValue = '', onInputChange, on
 
 function OrderCreateModal({ onClose, onSave }) {
   const [form, setForm] = useState(defaultOrder)
-  const selectedCustomer = normalizedCustomerCatalog.find((customer) => customer.customerCode === form.customerCode)
+  const selectedCustomer = form.customerObject
+    || normalizedCustomerCatalog.find((customer) => customer.customerCode && customer.customerCode === form.customerCode)
 
   const updateField = (field, value) => {
     setForm((current) => {

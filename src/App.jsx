@@ -3,9 +3,10 @@ import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { QRCodeCanvas } from 'qrcode.react'
+import { CustomerFilterCombobox } from './components/CustomerFilterCombobox.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { TopBar } from './components/TopBar.jsx'
-import { customerCatalog as customerCatalogSeed } from './data/customerCatalog.js'
+import { customerCatalog as customerCatalogSeed, filterCustomerCatalog } from './data/customerCatalog.js'
 import { defaultNavItems } from './data/navigation.js'
 import { USE_SUPABASE } from './utils/supabaseMode.js'
 import './App.css'
@@ -61,11 +62,6 @@ const realCustomerFields = (index = 0) => {
   }
 }
 const formatCustomerOption = (customer = {}) => customer.customerName || ''
-const customerMatches = (customer = {}, query = '') => {
-  const value = query.trim().toLowerCase()
-  if (!value) return true
-  return String(customer.customerName || '').toLowerCase().includes(value)
-}
 const resolveOrderCustomer = (order = {}) => {
   const catalog = normalizeCustomerCatalog()
   const code = order.customerCode || ''
@@ -2224,7 +2220,8 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const [detailTab, setDetailTab] = useState('info')
   const machines = getActiveMixingMachines(normalizeMixingMachines(data.mixingMachines))
   const customerOptions = useMemo(() => normalizeCustomerCatalog(data.customerCatalog), [data.customerCatalog])
-  const selectedCustomer = customerOptions.find((customer) => customer.customerCode === form.customerCode)
+  const selectedCustomer = form.customerObject
+    || customerOptions.find((customer) => customer.customerCode && customer.customerCode === form.customerCode)
   const formula = data.formulas.find((item) => item.id === form.formulaId)
   const libraryItems = formula ? formula.items.map((item) => ({
     code: item.materialCode,
@@ -2407,7 +2404,7 @@ function FormulaTable({ items, secure = false }) {
 function CustomerSearchCombobox({ customers = [], value = {}, inputValue = '', onInputChange, onSelect }) {
   const [open, setOpen] = useState(false)
   const query = inputValue || ''
-  const filteredCustomers = useMemo(() => customers.filter((customer) => customerMatches(customer, query)).slice(0, 30), [customers, query])
+  const filteredCustomers = useMemo(() => filterCustomerCatalog(customers, query), [customers, query])
   const selectCustomer = (customer) => {
     onSelect(customer)
     setOpen(false)
@@ -5057,10 +5054,14 @@ function LogsPage({ data }) {
           <label>Mã lệnh SX<input value={filters.orderCode} onChange={(event) => setFilters({ ...filters, orderCode: event.target.value })} /></label>
           <label>Sản phẩm<input value={filters.product} onChange={(event) => setFilters({ ...filters, product: event.target.value })} /></label>
           <label>LOT<input value={filters.lot} onChange={(event) => setFilters({ ...filters, lot: event.target.value })} /></label>
-          <label>Khách hàng<select value={filters.customer} onChange={(event) => setFilters({ ...filters, customer: event.target.value })}>
-            <option value="">Tất cả khách hàng</option>
-            {customerOptions.map((customer) => <option key={customer} value={customer}>{customer}</option>)}
-          </select></label>
+          <label>Khách hàng
+            <CustomerFilterCombobox
+              options={customerOptions}
+              value={filters.customer}
+              emptyValue=""
+              onChange={(customer) => setFilters({ ...filters, customer })}
+            />
+          </label>
           <label>Trạng thái<input value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })} /></label>
           <label>Công đoạn<input value={filters.stage} onChange={(event) => setFilters({ ...filters, stage: event.target.value })} /></label>
           <label>Người thực hiện<input value={filters.actor} onChange={(event) => setFilters({ ...filters, actor: event.target.value })} /></label>
@@ -5521,10 +5522,14 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
               <option value="all">Tất cả máy</option>
               {machines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{formatMixingMachineLabel(machine)}</option>)}
             </select></label>
-            <label>Khách hàng<select value={productionDraftFilters.customer} onChange={(event) => updateProductionFilter('customer', event.target.value)}>
-              <option value="all">Tất cả khách hàng</option>
-              {customerOptions.map((customer) => <option key={customer} value={customer}>{customer}</option>)}
-            </select></label>
+            <label>Khách hàng
+              <CustomerFilterCombobox
+                options={customerOptions}
+                value={productionDraftFilters.customer}
+                emptyValue="all"
+                onChange={(customer) => updateProductionFilter('customer', customer)}
+              />
+            </label>
           </div>
           <div className="action-row">
             <button className="primary-button" type="button" onClick={applyProductionFilters}>Lọc báo cáo</button>
@@ -5592,10 +5597,14 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
             <label>Đến ngày<input type="date" value={traceDraftFilters.toDate} onChange={(event) => updateTraceFilter('toDate', event.target.value)} /></label>
             <label>LOT<input value={traceLot} onChange={(event) => updateTraceFilter('lot', event.target.value)} placeholder="VD: LOT-HNS-G1-001" /></label>
             <label>Lệnh sản xuất<input value={traceDraftFilters.orderCode} onChange={(event) => updateTraceFilter('orderCode', event.target.value)} placeholder="Mã lệnh SX" /></label>
-            <label>Khách hàng<select value={traceDraftFilters.customer} onChange={(event) => updateTraceFilter('customer', event.target.value)}>
-              <option value="all">Tất cả khách hàng</option>
-              {customerOptions.map((customer) => <option key={customer} value={customer}>{customer}</option>)}
-            </select></label>
+            <label>Khách hàng
+              <CustomerFilterCombobox
+                options={customerOptions}
+                value={traceDraftFilters.customer}
+                emptyValue="all"
+                onChange={(customer) => updateTraceFilter('customer', customer)}
+              />
+            </label>
             <label>Sản phẩm<select value={traceDraftFilters.product} onChange={(event) => updateTraceFilter('product', event.target.value)}>
               <option value="all">Tất cả sản phẩm</option>
               {productOptions.map((product) => <option key={product} value={product}>{product}</option>)}

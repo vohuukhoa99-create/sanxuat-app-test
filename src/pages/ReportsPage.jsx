@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { CustomerFilterCombobox } from '../components/CustomerFilterCombobox.jsx'
 import { customerCatalog } from '../data/customerCatalog.js'
 
 const stages = ['Lệnh sản xuất', 'Cân hóa', 'Cân rắn', 'Phối trộn', 'QC', 'Hoàn thành']
@@ -348,10 +349,14 @@ export function ReportsPage({ orders }) {
           <label>Từ ngày<input type="date" value={filters.fromDate} onChange={(event) => updateFilter('fromDate', event.target.value)} /></label>
           <label>Đến ngày<input type="date" value={filters.toDate} onChange={(event) => updateFilter('toDate', event.target.value)} /></label>
           <label>Mã lệnh SX<input value={filters.orderId} onChange={(event) => updateFilter('orderId', event.target.value)} /></label>
-          <label>Khách hàng<select value={filters.customer} onChange={(event) => updateFilter('customer', event.target.value)}>
-            <option value="">Tất cả khách hàng</option>
-            {customerOptions.map((customer) => <option key={customer} value={customer}>{customer}</option>)}
-          </select></label>
+          <label>Khách hàng
+            <CustomerFilterCombobox
+              options={customerOptions}
+              value={filters.customer}
+              emptyValue=""
+              onChange={(customer) => updateFilter('customer', customer)}
+            />
+          </label>
           <label>Sản phẩm<input value={filters.product} onChange={(event) => updateFilter('product', event.target.value)} /></label>
           <label>Trạng thái<input value={filters.status} onChange={(event) => updateFilter('status', event.target.value)} /></label>
           <label>Người thực hiện<input value={filters.actor} onChange={(event) => updateFilter('actor', event.target.value)} /></label>
