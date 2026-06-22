@@ -349,6 +349,23 @@ const normalizeProductionTeamCode = (value = '') => {
   return value
 }
 const teamNameByCode = (code) => canonicalProductionTeams.find((team) => team.code === code)?.name || code
+function normalizeTeamName(value) {
+  const text = normalizeText(value)
+
+  if (text.includes('phoi tron 1') || text.includes('tron 1') || text === 'tp1') return 'to phoi tron 1'
+  if (text.includes('phoi tron 2') || text.includes('tron 2') || text === 'tp2') return 'to phoi tron 2'
+  if (text.includes('can hoa') || text.includes('to hoa') || text === 'th') return 'to can hoa'
+  if (text.includes('can ran') || text.includes('to cat') || text === 'tc') return 'to can ran'
+  if (text.includes('qc')) return 'qc'
+
+  return text
+}
+const assignmentEmployeeCodesByTeamKey = {
+  'to phoi tron 1': new Set(['NV001', 'NV002', 'NV003', 'NV004']),
+  'to phoi tron 2': new Set(['NV005', 'NV006', 'NV007', 'NV008']),
+  'to can hoa': new Set(['NV009', 'NV010', 'NV011', 'NV012', 'NV013', 'NV014']),
+  'to can ran': new Set(['NV015', 'NV016', 'NV017']),
+}
 const normalizeTeamCatalogData = (teams = []) => {
   const byCode = new Map((Array.isArray(teams) ? teams : [])
     .map((team) => ({ ...team, code: normalizeProductionTeamCode(team.code || team.name) }))
@@ -476,9 +493,17 @@ const productionEmployeeCatalog = [
 }))
 
 const normalizeEmployeeCatalogData = (employees = productionEmployeeCatalog) => (Array.isArray(employees) ? employees : []).map((employee) => {
-  const teamCode = normalizeProductionTeamCode(employee.productionTeam || employee.teamCode || '')
+  const rawTeamName = employee.teamName || employee.team || employee.productionTeam || employee.productionTeamName || employee.teamCode || ''
+  const teamCode = normalizeProductionTeamCode(rawTeamName)
+  const employeeCode = employee.employeeCode || employee.code || ''
+  const employeeName = employee.employeeName || employee.name || ''
   return {
     ...employee,
+    code: employeeCode,
+    name: employeeName,
+    employeeCode,
+    employeeName,
+    teamName: teamNameByCode(teamCode),
     productionTeam: teamNameByCode(teamCode),
     operationRole: employee.operationRole === 'Kho thành phẩm' ? 'Nhập kho thành phẩm' : employee.operationRole,
     status: employee.status || 'Hoạt động',
@@ -2589,10 +2614,12 @@ function EmployeeSearchCombobox({ employees = [], inputValue = '', onInputChange
   const filteredEmployees = useMemo(() => {
     const keyword = normalizeText(query)
     const source = Array.isArray(employees) ? employees : []
-    if (!keyword) return source.slice(0, 30)
+    if (!keyword) return source
     return source
-      .filter((employee) => normalizeText(`${employee.code || ''} ${employee.name || ''}`).includes(keyword))
-      .slice(0, 50)
+      .filter((employee) => (
+        normalizeText(employee.employeeName || employee.name).includes(keyword)
+        || normalizeText(employee.employeeCode || employee.code).includes(keyword)
+      ))
   }, [employees, query])
 
   return (
@@ -2612,8 +2639,8 @@ function EmployeeSearchCombobox({ employees = [], inputValue = '', onInputChange
       {open && (
         <div className="customer-combobox-menu">
           {filteredEmployees.length ? filteredEmployees.map((employee) => (
-            <button type="button" key={employee.code} onMouseDown={(event) => event.preventDefault()} onClick={() => { onSelect(employee); setOpen(false) }}>
-              <span>{employee.name}</span>
+            <button type="button" key={employee.employeeCode || employee.code} onMouseDown={(event) => event.preventDefault()} onClick={() => { onSelect(employee); setOpen(false) }}>
+              <span>{employee.employeeCode || employee.code} - {employee.employeeName || employee.name}</span>
             </button>
           )) : <div className="customer-combobox-empty">Không có nhân viên phù hợp</div>}
         </div>
@@ -6565,7 +6592,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
   const activeEmployees = (data.employeeCatalog || []).filter((employee) => employee.status !== 'Ngừng sử dụng')
   const shifts = data.shiftCatalog || []
   const teams = data.teamCatalog || []
-  const employeeByCode = (code) => activeEmployees.find((employee) => employee.code === code)
+  const employeeByCode = (code) => activeEmployees.find((employee) => (employee.employeeCode || employee.code) === code)
   const teamByCode = (code) => teams.find((team) => team.code === code)
   const shiftByCode = (code) => shifts.find((shift) => shift.code === code)
   const teamStageOptions = {
@@ -6606,19 +6633,14 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
   const availableTeams = teams.filter((team) => getAllowedStagesForTeam(team.code).length)
   const defaultTeamCode = availableTeams[0]?.code || teams[0]?.code || ''
   const defaultStage = getAllowedStagesForTeam(defaultTeamCode)[0] || visibleStages[0] || productionAssignmentStages[0]
-  const employeeTeamMatches = (employee, selectedTeamCode) => {
-    const employeeTeamCode = normalizeProductionTeamCode(employee.teamName || employee.productionTeam || employee.teamCode || '')
-    if (selectedTeamCode === 'TH') return employeeTeamCode === 'TH'
-    if (selectedTeamCode === 'TC') return employeeTeamCode === 'TC'
-    if (selectedTeamCode === 'TP1') return employeeTeamCode === 'TP1'
-    if (selectedTeamCode === 'TP2') return employeeTeamCode === 'TP2'
-    if (selectedTeamCode === 'QC') return employeeTeamCode === 'QC'
-    return false
-  }
   const employeesByTeam = (teamNameOrCode) => {
     const selectedTeam = teamByCode(teamNameOrCode)
-    const selectedTeamCode = normalizeProductionTeamCode(selectedTeam?.code || selectedTeam?.name || teamNameOrCode)
-    return activeEmployees.filter((employee) => employeeTeamMatches(employee, selectedTeamCode))
+    const selectedTeamKey = normalizeTeamName(selectedTeam?.name || teamNameByCode(normalizeProductionTeamCode(teamNameOrCode)) || teamNameOrCode)
+    const allowedCodes = assignmentEmployeeCodesByTeamKey[selectedTeamKey]
+    return activeEmployees.filter((employee) => (
+      normalizeTeamName(employee.teamName || employee.team || employee.productionTeam || employee.productionTeamName || employee.teamCode) === selectedTeamKey
+      && (!allowedCodes || allowedCodes.has(employee.employeeCode || employee.code))
+    ))
   }
   const [notice, setNotice] = useState('')
   const [form, setForm] = useState({
@@ -6655,7 +6677,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
         : roleOptionsForTeam(normalizedTeamCode)[0]?.value || ''
       const roleConfig = roleConfigForForm({ ...current, teamCode: normalizedTeamCode, operationRoleKey: nextOperationRoleKey })
       const nextStage = roleConfig.stage || (nextAllowedStages.includes(current.stage) ? current.stage : nextAllowedStages[0] || '')
-      const nextEmployeeCode = nextEmployees.some((employee) => employee.code === current.employeeCode) ? current.employeeCode : ''
+      const nextEmployeeCode = nextEmployees.some((employee) => (employee.employeeCode || employee.code) === current.employeeCode) ? current.employeeCode : ''
       const nextEmployeeSearch = nextEmployeeCode ? current.employeeSearch : ''
       if (
         normalizedTeamCode === current.teamCode
@@ -6670,8 +6692,9 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     const assignedAt = nowText()
     const processStages = roleConfig.processStages || [roleConfig.stage].filter(Boolean)
     const processName = roleConfig.stage || processStages[0] || ''
-    const employeeCodes = employees.map((employee) => employee.code)
-    const employeeNames = employees.map((employee) => employee.name)
+    const employeeCodes = employees.map((employee) => employee.employeeCode || employee.code)
+    const employeeNames = employees.map((employee) => employee.employeeName || employee.name)
+    const employeeRoles = employees.map((employee) => employee.operationRole || employee.role || employee.title || '').filter(Boolean)
     const employeeQrs = employees.map((employee) => employee.qrEmployee || employee.qr || '').filter(Boolean)
     const machineCodes = assignedMachines.map((machine) => machine.machineCode)
     const machineNames = assignedMachines.map((machine) => formatMixingMachineLabel(machine))
@@ -6702,6 +6725,9 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       employeeQrs,
       employeeCode: employeeCodes.join(', '),
       employeeName: employeeNames.join(', '),
+      employeeRole: employeeRoles.join(', '),
+      role: employeeRoles.join(', '),
+      workStage: processName,
       employeeQr: employeeQrs.join(', '),
       productionTeam: team?.code || '',
       productionTeamName: team?.name || '',
@@ -6733,7 +6759,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       setNotice('Công đoạn không phù hợp với tổ sản xuất đã chọn.')
       return
     }
-    if (selectedEmployees.some((employee) => !teamEmployees.some((item) => item.code === employee.code))) {
+    if (selectedEmployees.some((employee) => !teamEmployees.some((item) => (item.employeeCode || item.code) === (employee.employeeCode || employee.code)))) {
       setNotice('Nhân viên không thuộc tổ sản xuất đã chọn.')
       return
     }
@@ -6784,7 +6810,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
               employees={selectableEmployees}
               inputValue={form.employeeSearch}
               onInputChange={(value) => setForm((current) => ({ ...current, employeeSearch: value, employeeCode: '' }))}
-              onSelect={(employee) => setForm((current) => ({ ...current, employeeCode: employee.code, employeeSearch: employee.name }))}
+              onSelect={(employee) => setForm((current) => ({ ...current, employeeCode: employee.employeeCode || employee.code, employeeSearch: employee.employeeName || employee.name }))}
             />
           </label>
         </div>
