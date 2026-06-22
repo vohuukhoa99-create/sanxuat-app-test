@@ -6675,7 +6675,6 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     const employeeQrs = employees.map((employee) => employee.qrEmployee || employee.qr || '').filter(Boolean)
     const machineCodes = assignedMachines.map((machine) => machine.machineCode)
     const machineNames = assignedMachines.map((machine) => formatMixingMachineLabel(machine))
-    const firstEmployee = employees[0] || {}
     return {
       id: uid('ASSIGN'),
       assignmentId: uid('ASSIGN'),
@@ -6683,8 +6682,8 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       workDate,
       shiftCode: shift.code,
       shiftName: shift.name,
-      teamCode: team?.code || firstEmployee.productionTeam || '',
-      teamName: team?.name || firstEmployee.productionTeam || '',
+      teamCode: team?.code || '',
+      teamName: team?.name || '',
       stage: processName,
       processCode: processCodeByName[processName] || processName,
       processName,
@@ -6704,8 +6703,8 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       employeeCode: employeeCodes.join(', '),
       employeeName: employeeNames.join(', '),
       employeeQr: employeeQrs.join(', '),
-      productionTeam: team?.code || firstEmployee.productionTeam || '',
-      productionTeamName: team?.name || firstEmployee.productionTeam || '',
+      productionTeam: team?.code || '',
+      productionTeamName: team?.name || '',
       assignedBy: user?.fullName || user?.username || 'Hệ thống',
       assignedAt,
       note: assignmentNote,
