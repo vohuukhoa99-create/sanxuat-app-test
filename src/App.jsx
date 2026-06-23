@@ -27,6 +27,10 @@ const SESSION_KEY = 'sonhoabinh-v3-session'
 
 const CHEMICAL = 'Hóa'
 const SOLID = 'Rắn'
+const MATERIAL_STATUS_ACTIVE = 'Hoạt động'
+const MATERIAL_STATUS_PAUSED = 'Tạm ngưng'
+const MATERIAL_STATUS_INACTIVE = 'Ngưng sử dụng'
+const materialStatuses = [MATERIAL_STATUS_ACTIVE, MATERIAL_STATUS_PAUSED, MATERIAL_STATUS_INACTIVE]
 const nonEmptyArray = (...items) => items.find((item) => Array.isArray(item) && item.length > 0) || []
 const nowText = () => new Date().toISOString().slice(0, 16).replace('T', ' ')
 const todayText = () => new Date().toISOString().slice(0, 10)
@@ -221,12 +225,21 @@ function getCatalogCell(item = {}, names = []) {
 function normalizeMaterialCatalogItem(item = {}) {
   const materialCode = String(item.materialCode || item.code || item['Mã vật tư'] || item['Ma vat tu'] || item['Mã VT'] || item['Ma VT'] || '').trim()
   if (!materialCode) return null
+  const rawStatus = String(item.status || getCatalogCell(item, ['Trạng thái', 'Trang thai']) || MATERIAL_STATUS_ACTIVE).trim()
+  const normalizedStatusText = normalizeText(rawStatus)
+  const status = normalizedStatusText.includes('tam ngung')
+    ? MATERIAL_STATUS_PAUSED
+    : normalizedStatusText.includes('ngung') || normalizedStatusText.includes('inactive')
+      ? MATERIAL_STATUS_INACTIVE
+      : MATERIAL_STATUS_ACTIVE
   return {
     id: item.id || `MAT-${materialCode}`,
     materialCode,
     materialName: String(item.materialName || item.name || item['Tên vật tư'] || item['Ten vat tu'] || item['Tên VT'] || item['Ten VT'] || materialCode).trim(),
     materialGroup: String(item.materialGroup || item.group || item['Nhóm vật tư'] || item['Nhom vat tu'] || item['Nhóm'] || item['Nhom'] || CHEMICAL).trim(),
     unit: String(item.unit || item['Đơn vị tính'] || item['Don vi tinh'] || item['Đơn vị'] || item['Don vi'] || 'kg').trim(),
+    manufacturer: String(item.manufacturer || item.maker || item.supplier || getCatalogCell(item, ['Nhà sản xuất', 'Nha san xuat']) || '').trim(),
+    status,
   }
 }
 
@@ -235,12 +248,34 @@ function normalizeMaterialCatalog(items = []) {
   ;(items || []).forEach((item) => {
     const normalized = normalizeMaterialCatalogItem(item)
     if (normalized) {
-      normalized.manufacturer = String(item.manufacturer || item.maker || item.supplier || getCatalogCell(item, ['Nhà sản xuất', 'Nha san xuat']) || normalized.manufacturer || '').trim()
-      normalized.status = String(item.status || getCatalogCell(item, ['Trạng thái', 'Trang thai']) || normalized.status || 'Hoạt động').trim()
       byCode.set(normalized.materialCode.toUpperCase(), normalized)
     }
   })
   return Array.from(byCode.values()).sort((a, b) => a.materialCode.localeCompare(b.materialCode, 'vi', { numeric: true }))
+}
+const activeMaterialCatalog = (items = []) => normalizeMaterialCatalog(items).filter((item) => item.status === MATERIAL_STATUS_ACTIVE)
+const materialHasUsage = (data = {}, materialCode = '') => {
+  const code = String(materialCode || '').trim()
+  if (!code) return false
+  const sameCode = (value) => String(value || '').trim().toUpperCase() === code.toUpperCase()
+  const formulaUsed = (data.formulas || []).some((formula) => (formula.items || []).some((item) => sameCode(item.materialCode)))
+  const orderUsed = (data.orders || []).some((order) => [
+    order.originalFormula,
+    order.originalFormulaSnapshot,
+    order.activeProductionFormula,
+    order.productionFormulaSnapshot,
+    order.qc1AdjustedFormula,
+    order.qc2AdjustedFormula,
+  ].some((items) => Array.isArray(items) && items.some((item) => sameCode(item.materialCode))))
+  const rawLotUsed = (data.rawMaterials || []).some((item) => sameCode(item.materialCode))
+  const ticketUsed = [
+    ...(data.qc2AdjustmentTickets || []),
+    ...(data.supplementalWeighing || []),
+    ...(data.weighedContainers || []),
+  ].some((ticket) => JSON.stringify(ticket).toUpperCase().includes(code.toUpperCase()))
+  const transactionUsed = (data.stockTransactions || []).some((item) => sameCode(item.materialCode))
+  const logUsed = [...(data.productionLogs || []), ...(data.logs || [])].some((log) => JSON.stringify(log).toUpperCase().includes(code.toUpperCase()))
+  return formulaUsed || orderUsed || rawLotUsed || ticketUsed || transactionUsed || logUsed
 }
 
 function deriveMaterialCatalog(data = {}) {
@@ -1918,7 +1953,7 @@ function PseudoQr({ value }) {
 function RawMaterialsPage({ data, setData }) {
   const importMaterialCatalogRef = useRef(null)
   const [form, setForm] = useState({ materialCode: '', materialName: '', materialGroup: CHEMICAL, lot: '', importDate: todayText(), supplier: '', weight: 0, unit: 'kg' })
-  const materialCatalog = deriveMaterialCatalog(data)
+  const materialCatalog = activeMaterialCatalog(deriveMaterialCatalog(data))
   const selectedCatalogMaterial = materialCatalog.find((item) => item.materialCode === form.materialCode)
   const previewLot = normalizeRawMaterialLot({
     materialCode: form.materialCode,
@@ -2145,7 +2180,7 @@ const parseFormulaMaterialCode = (value) => {
   const parenthetical = [...text.matchAll(/\(([^()]+)\)/g)].map((match) => match[1].trim()).filter(Boolean).at(-1)
   return parenthetical || text
 }
-const getMaterialGroupByCode = (catalog = [], code = '') => catalog.find((item) => String(item.materialCode || '').trim().toUpperCase() === String(code || '').trim().toUpperCase())?.materialGroup || ''
+const getMaterialGroupByCode = (catalog = [], code = '') => activeMaterialCatalog(catalog).find((item) => String(item.materialCode || '').trim().toUpperCase() === String(code || '').trim().toUpperCase())?.materialGroup || ''
 
 function FormulasPage({ data, setData, permissions = [] }) {
   const [selectedId, setSelectedId] = useState(data.formulas[0]?.id || '')
@@ -2979,6 +3014,7 @@ function QC1({ data, setData, user }) {
   const [activeOrderId, setActiveOrderId] = useState(waitingOrders[0]?.id || '')
   const [showAddMaterial, setShowAddMaterial] = useState(false)
   const [newMaterial, setNewMaterial] = useState({ materialCode: '', materialGroup: CHEMICAL, requiredKg: 0, reason: '', note: '' })
+  const selectableMaterials = activeMaterialCatalog(deriveMaterialCatalog(data))
   const activeOrder = data.orders.find((order) => order.id === activeOrderId && order.stage === 'qc1') || waitingOrders[0]
   const completedOrders = data.orders.filter((order) => order.qc1Result && order.stage !== 'qc1')
 
@@ -2997,19 +3033,21 @@ function QC1({ data, setData, user }) {
   }
   const saveNewMaterial = () => {
     if (!activeOrder || !newMaterial.materialCode) return
+    const selectedMaterial = selectableMaterials.find((item) => item.materialCode === newMaterial.materialCode)
+    if (!selectedMaterial) return
     const addedAt = nowText()
     const material = {
       id: uid('qc1-new'),
       no: getEffectiveFormula(activeOrder).length + 1,
       materialCode: newMaterial.materialCode,
       materialName: newMaterial.materialCode,
-      materialGroup: newMaterial.materialGroup,
+      materialGroup: selectedMaterial.materialGroup || newMaterial.materialGroup,
       ratioPercent: Number(((num(newMaterial.requiredKg) / num(activeOrder.quantityKg || activeOrder.requestedWeight || 1)) * 100).toFixed(4)),
       requiredKg: 0,
       qcAdjustKg: num(newMaterial.requiredKg),
       qcAdjustPercent: '',
       qcAdjustReason: newMaterial.reason,
-      toleranceKg: newMaterial.materialGroup === CHEMICAL ? 0.01 : 0.1,
+      toleranceKg: (selectedMaterial.materialGroup || newMaterial.materialGroup) === CHEMICAL ? 0.01 : 0.1,
       qcConfirm: true,
       qrScanned: '',
       qrStatus: 'Chờ quét',
@@ -3194,7 +3232,11 @@ function QC1({ data, setData, user }) {
               <button type="button" className="icon-button" onClick={() => setShowAddMaterial(false)} aria-label="Đóng">×</button>
             </div>
             <div className="production-form-grid">
-              <label>Mã vật tư<input value={newMaterial.materialCode} onChange={(event) => setNewMaterial({ ...newMaterial, materialCode: event.target.value })} /></label>
+              <label>Mã vật tư<input list="qc1-active-materials" value={newMaterial.materialCode} onChange={(event) => {
+                const material = selectableMaterials.find((item) => item.materialCode === event.target.value)
+                setNewMaterial({ ...newMaterial, materialCode: event.target.value, materialGroup: material?.materialGroup || newMaterial.materialGroup })
+              }} /></label>
+              <datalist id="qc1-active-materials">{selectableMaterials.map((item) => <option key={item.materialCode} value={item.materialCode} />)}</datalist>
               <label>Nhóm vật tư<select value={newMaterial.materialGroup} onChange={(event) => setNewMaterial({ ...newMaterial, materialGroup: event.target.value })}><option>{CHEMICAL}</option><option>{SOLID}</option></select></label>
               <label>Khối lượng bổ sung (kg)<input type="number" value={newMaterial.requiredKg} onChange={(event) => setNewMaterial({ ...newMaterial, requiredKg: event.target.value })} /></label>
               <label className="wide-field">Lý do bổ sung<input value={newMaterial.reason} onChange={(event) => setNewMaterial({ ...newMaterial, reason: event.target.value })} /></label>
@@ -3227,6 +3269,7 @@ function QC2({ data, setData }) {
   const orders = data.orders.filter((order) => order.stage === 'qc2')
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const [forms, setForms] = useState({})
+  const selectableMaterials = activeMaterialCatalog(deriveMaterialCatalog(data))
   const getForm = (id) => forms[id] || { result: 'OK', color: '', ph: '', viscosity: '', density: '', coverage: '', note: '', materialCode: '', materialGroup: CHEMICAL, addKg: 0, reason: '' }
   const setForm = (id, patch) => setForms((current) => ({ ...current, [id]: { ...getForm(id), ...patch } }))
   const save = (order) => {
@@ -3236,7 +3279,9 @@ function QC2({ data, setData }) {
         if (item.id !== order.id) return item
         if (form.result === 'OK') return { ...item, stage: 'packaging', status: 'Hoàn thành', qc2: form, updatedAt: nowText() }
         if (form.result === 'Không đạt') return { ...item, stage: 'qc2', status: 'QC2 không đạt', qc2: form, updatedAt: nowText() }
-        const ticket = { id: uid('BS'), status: 'Pending', items: [{ id: uid('add'), materialCode: form.materialCode, materialName: form.materialCode, materialGroup: form.materialGroup, requiredKg: num(form.addKg), toleranceKg: form.materialGroup === CHEMICAL ? 0.01 : 0.1, qrScanned: '', qrStatus: 'Chờ quét', actualWeight: '', weighStatus: 'Chờ cân', reason: form.reason, note: form.note }] }
+        const material = selectableMaterials.find((item) => item.materialCode === form.materialCode)
+        if (!material) return item
+        const ticket = { id: uid('BS'), status: 'Pending', items: [{ id: uid('add'), materialCode: form.materialCode, materialName: form.materialCode, materialGroup: material.materialGroup || form.materialGroup, requiredKg: num(form.addKg), toleranceKg: (material.materialGroup || form.materialGroup) === CHEMICAL ? 0.01 : 0.1, qrScanned: '', qrStatus: 'Chờ quét', actualWeight: '', weighStatus: 'Chờ cân', reason: form.reason, note: form.note }] }
         return { ...item, stage: 'supplement-weighing', status: 'Cân bổ sung', qc2: form, qc2AdjustedFormula: [...(item.qc2AdjustedFormula || []), ticket], updatedAt: nowText() }
       })
       const log = form.result === 'OK' ? `QC2 OK lệnh ${order.id}, chuyển đóng gói.` : form.result === 'Cần chỉnh màu' ? `QC2 điều chỉnh màu ${order.id}, tạo phiếu cân bổ sung.` : `QC2 không đạt lệnh ${order.id}.`
@@ -3251,7 +3296,10 @@ function QC2({ data, setData }) {
         <label>Kết quả<select value={form.result} onChange={(event) => setForm(order.id, { result: event.target.value })}><option>OK</option><option>Cần chỉnh màu</option><option>Không đạt</option></select></label>
         {['color', 'ph', 'viscosity', 'density', 'coverage', 'note'].map((field) => <label key={field}>{({ color: 'Màu sắc', ph: 'pH', viscosity: 'Độ nhớt', density: 'Tỷ trọng', coverage: 'Độ phủ', note: 'Ghi chú' })[field]}<input value={form[field]} onChange={(event) => setForm(order.id, { [field]: event.target.value })} /></label>)}
       </div>
-      {form.result === 'Cần chỉnh màu' && <div className="production-form-grid"><label>Mã vật tư<input value={form.materialCode} onChange={(event) => setForm(order.id, { materialCode: event.target.value })} /></label><label>Nhóm<select value={form.materialGroup} onChange={(event) => setForm(order.id, { materialGroup: event.target.value })}><option>{CHEMICAL}</option><option>{SOLID}</option></select></label><label>Khối lượng bổ sung<input type="number" value={form.addKg} onChange={(event) => setForm(order.id, { addKg: event.target.value })} /></label><label>Lý do điều chỉnh<input value={form.reason} onChange={(event) => setForm(order.id, { reason: event.target.value })} /></label></div>}
+      {form.result === 'Cần chỉnh màu' && <div className="production-form-grid"><datalist id="legacy-qc2-active-materials">{selectableMaterials.map((material) => <option key={material.materialCode} value={material.materialCode} />)}</datalist><label>Mã vật tư<input list="legacy-qc2-active-materials" value={form.materialCode} onChange={(event) => {
+        const material = selectableMaterials.find((item) => item.materialCode === event.target.value)
+        setForm(order.id, { materialCode: event.target.value, materialGroup: material?.materialGroup || form.materialGroup })
+      }} /></label><label>Nhóm<select value={form.materialGroup} onChange={(event) => setForm(order.id, { materialGroup: event.target.value })}><option>{CHEMICAL}</option><option>{SOLID}</option></select></label><label>Khối lượng bổ sung<input type="number" value={form.addKg} onChange={(event) => setForm(order.id, { addKg: event.target.value })} /></label><label>Lý do điều chỉnh<input value={form.reason} onChange={(event) => setForm(order.id, { reason: event.target.value })} /></label></div>}
     </article>
   })}{orders.length === 0 && <p className="empty-alert">Không có lệnh chờ QC2.</p>}</section>
 }
@@ -3266,6 +3314,7 @@ function FinishedProductQcPage({ data, setData, user }) {
   const [activeOrderId, setActiveOrderId] = useState(orders[0]?.id || '')
   const [qc2Tab, setQc2Tab] = useState('current')
   const [notice, setNotice] = useState('')
+  const selectableMaterials = activeMaterialCatalog(deriveMaterialCatalog(data))
   const [form, setForm] = useState({
     color: '',
     ph: '',
@@ -3352,7 +3401,14 @@ function FinishedProductQcPage({ data, setData, user }) {
   const updateNewMaterial = (id, field, value) => {
     setForm((current) => ({
       ...current,
-      newMaterials: current.newMaterials.map((item) => item.id === id ? { ...item, [field]: field === 'adjustmentKg' ? Number(value) || 0 : value } : item),
+      newMaterials: current.newMaterials.map((item) => {
+        if (item.id !== id) return item
+        if (field === 'materialCode') {
+          const material = selectableMaterials.find((row) => row.materialCode === value)
+          return { ...item, materialCode: value, materialGroup: material?.materialGroup || item.materialGroup }
+        }
+        return { ...item, [field]: field === 'adjustmentKg' ? Number(value) || 0 : value }
+      }),
     }))
   }
 
@@ -3405,7 +3461,7 @@ function FinishedProductQcPage({ data, setData, user }) {
           materialName: item.materialCode,
         }))
       const newItems = form.newMaterials
-        .filter((item) => item.materialCode && num(item.adjustmentKg) > 0)
+        .filter((item) => item.materialCode && selectableMaterials.some((material) => material.materialCode === item.materialCode) && num(item.adjustmentKg) > 0)
         .map((item) => ({
           ...item,
           id: uid('adjline'),
@@ -3591,9 +3647,10 @@ function FinishedProductQcPage({ data, setData, user }) {
                   {form.newMaterials.length > 0 && (
                     <section className="v3-card">
                       <h3>NVL bổ sung mới</h3>
+                      <datalist id="qc2-active-materials">{selectableMaterials.map((material) => <option key={material.materialCode} value={material.materialCode} />)}</datalist>
                       <SimpleTable headers={['Mã vật tư', 'Nhóm', 'Khối lượng bổ sung', 'Lý do bổ sung', 'Ghi chú']} rows={form.newMaterials.map((item) => (
                         <tr key={item.id}>
-                          <td><input value={item.materialCode} onChange={(event) => updateNewMaterial(item.id, 'materialCode', event.target.value)} /></td>
+                          <td><input list="qc2-active-materials" value={item.materialCode} onChange={(event) => updateNewMaterial(item.id, 'materialCode', event.target.value)} /></td>
                           <td><select value={item.materialGroup} onChange={(event) => updateNewMaterial(item.id, 'materialGroup', event.target.value)}><option>{CHEMICAL}</option><option>{SOLID}</option></select></td>
                           <td><input type="number" step="0.001" value={item.adjustmentKg} onChange={(event) => updateNewMaterial(item.id, 'adjustmentKg', event.target.value)} /></td>
                           <td><input value={item.reason} onChange={(event) => updateNewMaterial(item.id, 'reason', event.target.value)} /></td>
@@ -7337,7 +7394,7 @@ function LegacyProductionAssignmentPage({ data, setData, user, permissions = [] 
   )
 }
 
-function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, permissions = [], permissionKey }) {
+function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, permissions = [], permissionKey, user }) {
   const rows = data[storageKey] || []
   const key = permissionKey || storageKey.replace('Catalog', '')
   const canCreate = hasPermission(permissions, `master.${key}.create`)
@@ -7348,8 +7405,9 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   const [materialQrModal, setMaterialQrModal] = useState(null)
   const isMaterialCatalog = storageKey === 'materialCatalog'
   const canImportMaterialCatalog = isMaterialCatalog && (canCreate || canEdit)
+  const isAdmin = user?.role === 'Admin'
   const materialQrCanvasId = (row) => `material-qr-${String(row.id || row.materialCode || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`
-  const getMaterialQrCanvas = (row) => document.getElementById(materialQrCanvasId(row))
+  const getMaterialQrCanvas = (row) => document.getElementById(`modal-${materialQrCanvasId(row)}`)
   const downloadMaterialQr = (row) => {
     const canvas = getMaterialQrCanvas(row)
     if (!canvas) {
@@ -7420,8 +7478,6 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
               summary.errors += 1
               return
             }
-            next.manufacturer = String(row.manufacturer || getCatalogCell(row, ['Nhà sản xuất', 'Nha san xuat']) || existing?.manufacturer || '').trim()
-            next.status = String(row.status || getCatalogCell(row, ['Trạng thái', 'Trang thai']) || existing?.status || 'Hoạt động').trim()
             byCode.set(key, { ...(existing || {}), ...next, id: existing?.id || next.id })
             if (existing) summary.updated += 1
             else summary.created += 1
@@ -7455,11 +7511,31 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
     fields.forEach((field) => {
       if (next[field] == null) next[field] = ''
     })
+    if (isMaterialCatalog) next.status = MATERIAL_STATUS_ACTIVE
     setData((current) => ({ ...current, [storageKey]: [next, ...(current[storageKey] || [])] }))
   }
   const deleteRow = (rowId) => {
     if (!canDelete) return
     setData((current) => ({ ...current, [storageKey]: (current[storageKey] || []).filter((row) => row.id !== rowId) }))
+  }
+  const updateMaterialStatus = (rowId, status) => {
+    if (!canEdit || !isMaterialCatalog) return
+    setData((current) => ({
+      ...current,
+      materialCatalog: normalizeMaterialCatalog((current.materialCatalog || []).map((row) => row.id === rowId ? { ...row, status } : row)),
+    }))
+  }
+  const permanentlyDeleteMaterial = (row) => {
+    if (!isAdmin || !isMaterialCatalog || !canDelete) return
+    if (materialHasUsage(data, row.materialCode)) {
+      setNotice('Vật tư đã phát sinh dữ liệu, không thể xóa cứng. Hãy chuyển trạng thái Ngưng sử dụng.')
+      return
+    }
+    setData((current) => ({
+      ...current,
+      materialCatalog: (current.materialCatalog || []).filter((item) => item.id !== row.id),
+    }))
+    setNotice(`Đã xóa vĩnh viễn vật tư ${row.materialCode}.`)
   }
 
   return (
@@ -7480,7 +7556,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
         </div>
         {notice && <div className="process-alert">{notice}</div>}
         <div className="table-wrapper">
-          <table className="admin-wide-table">
+          <table className={`admin-wide-table ${isMaterialCatalog ? 'material-catalog-table' : ''}`}>
             <thead>
               <tr>
                 {labels.map((label) => <th key={label}>{label}</th>)}
@@ -7493,21 +7569,33 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
                 <tr key={row.id}>
                   {fields.map((field, index) => (
                     <td key={field} data-label={labels[index]}>
-                      <input value={row[field] || ''} readOnly={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)} />
+                      {isMaterialCatalog && field === 'status' ? (
+                        <select value={normalizeMaterialCatalogItem(row)?.status || MATERIAL_STATUS_ACTIVE} disabled={!canEdit} onChange={(event) => updateMaterialStatus(row.id, event.target.value)}>
+                          {materialStatuses.map((status) => <option key={status}>{status}</option>)}
+                        </select>
+                      ) : (
+                        <input value={row[field] || ''} readOnly={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)} />
+                      )}
                     </td>
                   ))}
                   {isMaterialCatalog && (
                     <td data-label="QR vật tư">
                       <div className="action-row table-action-row">
-                        <button className="secondary-button" type="button" disabled={!row.materialCode} onClick={() => setMaterialQrModal(row)}>Tạo QR</button>
-                        <button className="secondary-button" type="button" disabled={!row.materialCode} onClick={() => printMaterialQr(row)}>In QR</button>
-                        <button className="secondary-button" type="button" disabled={!row.materialCode} onClick={() => downloadMaterialQr(row)}>Tải QR</button>
-                        {row.materialCode && <span className="qr-hidden-canvas"><QRCodeCanvas id={materialQrCanvasId(row)} value={materialQrValue(row.materialCode)} size={220} includeMargin /></span>}
+                        <button className="secondary-button" type="button" disabled={!row.materialCode} onClick={() => setMaterialQrModal(row)}>In/Tải QR</button>
                       </div>
                     </td>
                   )}
                   <td data-label="Hành động">
-                    <button className="danger-button" type="button" disabled={!canDelete} onClick={() => deleteRow(row.id)}>Xóa</button>
+                    {isMaterialCatalog ? (
+                      <div className="material-admin-actions">
+                        {isAdmin && !materialHasUsage(data, row.materialCode) && (
+                          <button className="danger-button" type="button" disabled={!canDelete} onClick={() => permanentlyDeleteMaterial(row)}>Xóa vĩnh viễn</button>
+                        )}
+                        {(!isAdmin || materialHasUsage(data, row.materialCode)) && <span className="muted-text">-</span>}
+                      </div>
+                    ) : (
+                      <button className="danger-button" type="button" disabled={!canDelete} onClick={() => deleteRow(row.id)}>Xóa</button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -7525,7 +7613,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
             </div>
             <section className="qr-print-ticket">
               <div className="qr-print-code">
-                <QRCodeCanvas value={materialQrValue(materialQrModal.materialCode)} size={220} includeMargin />
+                <QRCodeCanvas id={`modal-${materialQrCanvasId(materialQrModal)}`} value={materialQrValue(materialQrModal.materialCode)} size={220} includeMargin />
               </div>
               <strong className="qr-print-text">{materialQrValue(materialQrModal.materialCode)}</strong>
               <div className="qr-print-info">
@@ -8024,7 +8112,7 @@ function App() {
     'admin-roles': <AdminPage authData={authData} setAuthData={setAuthData} section="roles" />,
     'admin-permissions': <AdminPage authData={authData} setAuthData={setAuthData} section="permissions" />,
     'admin-system-logs': <SystemLogsPage data={data} />,
-    'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'materialGroup', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'materialGroup', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} user={user} />,
     'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'group', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['customerCode', 'customerName', 'province', 'channelCode', 'status']} labels={['Mã khách hàng', 'Tên khách hàng', 'Tỉnh/Thành', 'Mã kênh', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,

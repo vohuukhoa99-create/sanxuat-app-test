@@ -2229,6 +2229,56 @@ tbody tr:hover {
   padding: 8px 10px;
 }
 
+.material-catalog-table {
+  table-layout: fixed;
+  min-width: 1360px;
+}
+
+.material-catalog-table th:nth-child(1),
+.material-catalog-table td:nth-child(1) {
+  width: 110px;
+}
+
+.material-catalog-table th:nth-child(2),
+.material-catalog-table td:nth-child(2) {
+  width: 250px;
+}
+
+.material-catalog-table th:nth-child(3),
+.material-catalog-table td:nth-child(3) {
+  width: 220px;
+}
+
+.material-catalog-table th:nth-child(4),
+.material-catalog-table td:nth-child(4) {
+  width: 140px;
+}
+
+.material-catalog-table th:nth-child(5),
+.material-catalog-table td:nth-child(5) {
+  width: 100px;
+}
+
+.material-catalog-table th:nth-child(6),
+.material-catalog-table td:nth-child(6) {
+  width: 80px;
+}
+
+.material-catalog-table th:nth-child(7),
+.material-catalog-table td:nth-child(7) {
+  width: 150px;
+}
+
+.material-catalog-table th:nth-child(8),
+.material-catalog-table td:nth-child(8) {
+  width: 140px;
+}
+
+.material-admin-actions {
+  display: grid;
+  gap: 8px;
+}
+
 .user-admin-table {
   min-width: 1100px;
 }
