@@ -94,6 +94,7 @@ const formulaMatches = (formula = {}, query = '') => {
   if (!keyword) return true
   return normalizeText(formula.code || formula.id || '').includes(keyword)
 }
+const formulaCodeEquals = (formula = {}, value = '') => normalizeText(formula.code || formula.id || '') === normalizeText(value)
 const isDemoFormulaCode = (formula = {}) => {
   const code = normalizeText([formula.id, formula.code, formula.product].filter(Boolean).join(' '))
   return code.includes('hns 252 g1') || code.includes('hns 252 r2')
@@ -2691,8 +2692,8 @@ function OrdersPage({ data, setData, permissions = [] }) {
       id,
       orderCode: id,
       formulaId: formula.id,
-      formulaCode: formula.code,
-      selectedFormulaCode: formula.code,
+      formulaCode: formula.code || formula.id,
+      selectedFormulaCode: formula.code || formula.id,
       formulaVersion: formula.version,
       productName: formula.product,
       product: formula.product,
@@ -2765,12 +2766,13 @@ function OrdersPage({ data, setData, permissions = [] }) {
         {warning && <div className="process-alert">{warning}</div>}
         {message && <div className="formula-ratio-ok">{message}</div>}
         <div className="production-order-form-grid">
-          <label>Mã sản phẩm
+          <label className="formula-field">Mã sản phẩm
             <FormulaSearchCombobox
               formulas={selectableFormulas}
               inputValue={form.formulaSearch}
               onInputChange={(value) => setForm({ ...form, formulaSearch: value, formulaId: '', selectedFormulaCode: '', formulaObject: null })}
-              onSelect={(selectedFormula) => setForm({ ...form, formulaSearch: formatFormulaInput(selectedFormula), formulaId: selectedFormula.id, selectedFormulaCode: selectedFormula.code, formulaObject: selectedFormula })}
+              onSelect={(selectedFormula) => setForm({ ...form, formulaSearch: formatFormulaInput(selectedFormula), formulaId: selectedFormula.id, selectedFormulaCode: selectedFormula.code || selectedFormula.id, formulaObject: selectedFormula })}
+              onInvalid={() => setForm({ ...form, formulaSearch: '', formulaId: '', selectedFormulaCode: '', formulaObject: null })}
             />
           </label>
           <label>Khối lượng (kg)<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value })} /></label>
@@ -2871,39 +2873,61 @@ function CustomerSearchCombobox({ customers = [], value = {}, inputValue = '', o
   )
 }
 
-function FormulaSearchCombobox({ formulas = [], inputValue = '', onInputChange, onSelect }) {
+function FormulaSearchCombobox({ formulas = [], inputValue = '', onInputChange, onSelect, onInvalid }) {
   const [open, setOpen] = useState(false)
+  const [showAll, setShowAll] = useState(false)
   const query = inputValue || ''
   const filteredFormulas = useMemo(() => {
-    const limit = normalizeText(query) ? 50 : formulas.length
-    return formulas.filter((formula) => formulaMatches(formula, query)).slice(0, limit)
-  }, [formulas, query])
+    const filterText = showAll ? '' : query
+    const limit = normalizeText(filterText) ? 50 : formulas.length
+    return formulas.filter((formula) => formulaMatches(formula, filterText)).slice(0, limit)
+  }, [formulas, query, showAll])
   const selectFormula = (formula) => {
     onSelect(formula)
+    setShowAll(false)
     setOpen(false)
+  }
+  const validateCurrentValue = () => {
+    const value = String(query || '').trim()
+    if (!value) return
+    if (!formulas.some((formula) => formulaCodeEquals(formula, value))) onInvalid?.()
   }
 
   return (
     <div className="customer-combobox formula-combobox">
       <input
         value={query}
-        placeholder="Gõ mã sản phẩm hoặc tên sản phẩm"
-        onFocus={() => setOpen(true)}
+        placeholder="Chọn mã công thức"
+        onFocus={(event) => {
+          event.target.select()
+          setShowAll(true)
+          setOpen(true)
+        }}
+        onClick={(event) => {
+          event.currentTarget.select()
+          setShowAll(true)
+          setOpen(true)
+        }}
         onChange={(event) => {
+          setShowAll(false)
           onInputChange(event.target.value)
           setOpen(true)
         }}
-        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        onBlur={() => window.setTimeout(() => {
+          validateCurrentValue()
+          setOpen(false)
+          setShowAll(false)
+        }, 120)}
         aria-autocomplete="list"
         aria-expanded={open}
       />
       {open && (
-        <div className="customer-combobox-menu">
+        <div className="customer-combobox-menu formula-combobox-menu">
           {filteredFormulas.length ? filteredFormulas.map((formula) => (
             <button type="button" key={formula.id || formula.code} onMouseDown={(event) => event.preventDefault()} onClick={() => selectFormula(formula)}>
               <span>{formatFormulaSuggestion(formula)}</span>
             </button>
-          )) : <div className="customer-combobox-empty">Không có công thức phù hợp</div>}
+          )) : <div className="customer-combobox-empty">Không có mã sản phẩm phù hợp</div>}
         </div>
       )}
     </div>
