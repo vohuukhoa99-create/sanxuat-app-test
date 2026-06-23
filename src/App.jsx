@@ -78,11 +78,11 @@ const realCustomerFields = (index = 0) => {
 const formatCustomerOption = (customer = {}) => customer.customerName || ''
 const formatFormulaSuggestion = (formula = {}) => {
   const item = formula || {}
-  return [item.product, item.code || item.id, item.version].filter(Boolean).join(' - ')
+  return item.code || item.id || ''
 }
 const formatFormulaInput = (formula = {}) => {
   const item = formula || {}
-  return [item.product || item.code || item.id, item.version].filter(Boolean).join(' - ')
+  return item.code || item.id || ''
 }
 const FORMULA_STATUS_ACTIVE = 'Đang áp dụng'
 const FORMULA_STATUS_DRAFT = 'Lưu nháp'
@@ -92,7 +92,7 @@ const formulaStatuses = [FORMULA_STATUS_ACTIVE, FORMULA_STATUS_DRAFT, FORMULA_ST
 const formulaMatches = (formula = {}, query = '') => {
   const keyword = normalizeText(query)
   if (!keyword) return true
-  return normalizeText([formula.product, formula.code, formula.id, formula.version].filter(Boolean).join(' ')).includes(keyword)
+  return normalizeText(formula.code || formula.id || '').includes(keyword)
 }
 const isDemoFormulaCode = (formula = {}) => {
   const code = normalizeText([formula.id, formula.code, formula.product].filter(Boolean).join(' '))
@@ -2639,7 +2639,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
 function OrdersPage({ data, setData, permissions = [] }) {
   const selectableFormulas = activeMasterFormulas(data.formulas)
   const initialFormula = selectableFormulas[0] || null
-  const [form, setForm] = useState({ formulaId: initialFormula?.id || '', formulaObject: initialFormula, formulaSearch: formatFormulaInput(initialFormula), quantityKg: 1000, lot: '', customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
+  const [form, setForm] = useState({ formulaId: initialFormula?.id || '', selectedFormulaCode: initialFormula?.code || '', formulaObject: initialFormula, formulaSearch: formatFormulaInput(initialFormula), quantityKg: 1000, lot: '', customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
   const [message, setMessage] = useState('')
   const [warning, setWarning] = useState('')
   const [detailOrderId, setDetailOrderId] = useState('')
@@ -2650,7 +2650,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
     || customerOptions.find((customer) => customer.customerCode && customer.customerCode === form.customerCode)
   const formula = form.formulaObject?.formulaStatus === FORMULA_STATUS_ACTIVE
     ? form.formulaObject
-    : selectableFormulas.find((item) => item.id && item.id === form.formulaId)
+    : selectableFormulas.find((item) => (item.code && item.code === form.selectedFormulaCode) || (item.id && item.id === form.formulaId))
   const libraryItems = formula ? formula.items.map((item) => ({
     code: item.materialCode,
     name: item.materialCode,
@@ -2692,6 +2692,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
       orderCode: id,
       formulaId: formula.id,
       formulaCode: formula.code,
+      selectedFormulaCode: formula.code,
       formulaVersion: formula.version,
       productName: formula.product,
       product: formula.product,
@@ -2768,8 +2769,8 @@ function OrdersPage({ data, setData, permissions = [] }) {
             <FormulaSearchCombobox
               formulas={selectableFormulas}
               inputValue={form.formulaSearch}
-              onInputChange={(value) => setForm({ ...form, formulaSearch: value, formulaId: '', formulaObject: null })}
-              onSelect={(selectedFormula) => setForm({ ...form, formulaSearch: formatFormulaInput(selectedFormula), formulaId: selectedFormula.id, formulaObject: selectedFormula })}
+              onInputChange={(value) => setForm({ ...form, formulaSearch: value, formulaId: '', selectedFormulaCode: '', formulaObject: null })}
+              onSelect={(selectedFormula) => setForm({ ...form, formulaSearch: formatFormulaInput(selectedFormula), formulaId: selectedFormula.id, selectedFormulaCode: selectedFormula.code, formulaObject: selectedFormula })}
             />
           </label>
           <label>Khối lượng (kg)<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value })} /></label>
@@ -2874,7 +2875,7 @@ function FormulaSearchCombobox({ formulas = [], inputValue = '', onInputChange, 
   const [open, setOpen] = useState(false)
   const query = inputValue || ''
   const filteredFormulas = useMemo(() => {
-    const limit = normalizeText(query) ? 50 : 30
+    const limit = normalizeText(query) ? 50 : formulas.length
     return formulas.filter((formula) => formulaMatches(formula, query)).slice(0, limit)
   }, [formulas, query])
   const selectFormula = (formula) => {
