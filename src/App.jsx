@@ -32,6 +32,16 @@ const nowText = () => new Date().toISOString().slice(0, 16).replace('T', ' ')
 const todayText = () => new Date().toISOString().slice(0, 10)
 const num = (value) => Number(value) || 0
 const kg = (value) => `${num(value).toLocaleString('vi-VN', { maximumFractionDigits: 3 })} kg`
+function formatPercent(value) {
+  if (value === null || value === undefined || value === '') return '-'
+  const number = Number(String(value).replace('%', '').replace(',', '.'))
+  if (Number.isNaN(number)) return value
+  return `${number.toFixed(3)}%`
+}
+const parsePercentNumber = (value) => {
+  const number = Number(String(value ?? '').replace('%', '').replace(',', '.'))
+  return Number.isFinite(number) ? number : 0
+}
 const importedCustomerCatalog = Array.isArray(customerCatalogSeed) ? customerCatalogSeed : []
 const normalizeCustomerCatalog = (items = importedCustomerCatalog) => (Array.isArray(items) ? items : []).map((item, index) => {
   const code = item.customerCode || item.code || item.customerId || ''
@@ -2018,7 +2028,7 @@ const emptyMasterFormulaDraft = () => ({
   items: [emptyFormulaLine()],
 })
 
-const formulaTotalPercent = (items = []) => Number(items.reduce((sum, item) => sum + num(item.ratioPercent), 0).toFixed(3))
+const formulaTotalPercent = (items = []) => Number(items.reduce((sum, item) => sum + parsePercentNumber(item.ratioPercent), 0).toFixed(3))
 const formulaHasDuplicateMaterials = (items = []) => {
   const codes = items.map((item) => String(item.materialCode || '').trim()).filter(Boolean)
   return new Set(codes).size !== codes.length
@@ -2107,10 +2117,10 @@ function FormulasPage({ data, setData, permissions = [] }) {
   const comparisonItems = (selected?.items || []).map((baseItem) => {
     const adjusted = activeVersion?.items?.find((item) => item.baseItemId === baseItem.id || item.materialCode === baseItem.materialCode)
     const adjustedPercent = adjusted?.adjustedPercent ?? baseItem.ratioPercent
-    const diff = Number((num(adjustedPercent) - num(baseItem.ratioPercent)).toFixed(3))
+    const diff = Number((parsePercentNumber(adjustedPercent) - parsePercentNumber(baseItem.ratioPercent)).toFixed(3))
     return { ...baseItem, adjustedPercent, diff, adjustmentNote: adjusted?.adjustmentNote || '' }
   })
-  const adjustedTotal = Number(comparisonItems.reduce((sum, item) => sum + num(item.adjustedPercent), 0).toFixed(3))
+  const adjustedTotal = Number(comparisonItems.reduce((sum, item) => sum + parsePercentNumber(item.adjustedPercent), 0).toFixed(3))
   const canApprove = formulaPercentIsValid(adjustedTotal)
   const draftTotal = formulaTotalPercent(formulaDraft.items)
   const draftDuplicateMaterials = formulaHasDuplicateMaterials(formulaDraft.items)
@@ -2136,7 +2146,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
   const updateFormulaDraft = (field, value) => setFormulaDraft((current) => ({ ...current, [field]: value }))
   const updateFormulaLine = (lineId, field, value) => setFormulaDraft((current) => ({
     ...current,
-    items: current.items.map((item) => item.id === lineId ? { ...item, [field]: field === 'ratioPercent' ? num(value) : value } : item),
+    items: current.items.map((item) => item.id === lineId ? { ...item, [field]: field === 'ratioPercent' ? parsePercentNumber(value) : value } : item),
   }))
   const addFormulaLine = () => setFormulaDraft((current) => ({ ...current, items: [...current.items, emptyFormulaLine()] }))
   const removeFormulaLine = (lineId) => setFormulaDraft((current) => ({
@@ -2164,7 +2174,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
         materialCode: item.materialCode.trim(),
         materialName: item.materialCode.trim(),
         materialGroup: item.materialGroup.trim(),
-        ratioPercent: num(item.ratioPercent),
+        ratioPercent: parsePercentNumber(item.ratioPercent),
         quantityKg: num(item.quantityKg),
         note: item.note || '',
       })),
@@ -2219,7 +2229,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
         rows.slice(header.headerIndex + 1).forEach((row) => {
           if (!excelRowHasText(row) || isSkippedFormulaExcelRow(row)) return
           const materialCode = parseFormulaMaterialCode(row[header.columns.materialCode])
-          const ratioPercent = num(row[header.columns.ratioPercent])
+          const ratioPercent = parsePercentNumber(row[header.columns.ratioPercent])
           if (!materialCode || !ratioPercent) return
           formula.items.push({
             id: uid('fml'),
@@ -2241,7 +2251,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
         imported.forEach((formula) => {
           if (existingCodes.has(formula.code.toLowerCase())) errors.push(`Trùng mã công thức ${formula.code}`)
           if (!formula.product) errors.push(`Thiếu mã sản phẩm cho ${formula.code}`)
-          if (!formulaPercentIsValid(formulaTotalPercent(formula.items))) errors.push(`Lỗi tổng tỷ lệ của ${formula.code}: ${formulaTotalPercent(formula.items)}%`)
+          if (!formulaPercentIsValid(formulaTotalPercent(formula.items))) errors.push(`Lỗi tổng tỷ lệ của ${formula.code}: ${formatPercent(formulaTotalPercent(formula.items))}`)
           if (formulaHasDuplicateMaterials(formula.items)) errors.push(`Trùng vật tư trong ${formula.code}`)
           if (formula.items.some((item) => !item.materialCode)) errors.push(`Thiếu mã vật tư trong ${formula.code}`)
           const missingCodes = formula.items.map((item) => item.materialCode).filter((materialCode) => !catalogCodes.has(materialCode.toUpperCase()))
@@ -2314,7 +2324,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
   const updateDraftField = (field, value) => setDraft((current) => ({ ...current, [field]: value }))
   const updateDraftItem = (baseItemId, field, value) => setDraft((current) => ({
     ...current,
-    items: current.items.map((item) => item.baseItemId === baseItemId ? { ...item, [field]: field === 'adjustedPercent' ? num(value) : value } : item),
+    items: current.items.map((item) => item.baseItemId === baseItemId ? { ...item, [field]: field === 'adjustedPercent' ? parsePercentNumber(value) : value } : item),
   }))
 
   const saveDraft = () => {
@@ -2369,17 +2379,17 @@ function FormulasPage({ data, setData, permissions = [] }) {
           <label>Người duyệt<input readOnly={!draft} value={activeVersion?.approvedBy || selected.approvedBy} onChange={(event) => updateDraftField('approvedBy', event.target.value)} /></label>
           <label className="wide-field">Lý do điều chỉnh<input readOnly={!draft} value={activeVersion?.adjustmentReason || ''} onChange={(event) => updateDraftField('adjustmentReason', event.target.value)} /></label>
         </div>
-        {canSecureViewFormula && !formulaPercentIsValid(adjustedTotal) && <div className="formula-ratio-alert">Tổng tỷ lệ điều chỉnh chưa hợp lệ ({adjustedTotal}%)</div>}
-        {canSecureViewFormula && formulaPercentIsValid(adjustedTotal) && <div className="formula-ratio-ok">Tổng tỷ lệ điều chỉnh hợp lệ ({adjustedTotal}%)</div>}
+        {canSecureViewFormula && !formulaPercentIsValid(adjustedTotal) && <div className="formula-ratio-alert">Tổng tỷ lệ điều chỉnh chưa hợp lệ ({formatPercent(adjustedTotal)})</div>}
+        {canSecureViewFormula && formulaPercentIsValid(adjustedTotal) && <div className="formula-ratio-ok">Tổng tỷ lệ điều chỉnh hợp lệ ({formatPercent(adjustedTotal)})</div>}
         {!canSecureViewFormula && <div className="process-alert">Bạn có quyền xem công thức, nhưng chưa có quyền formula.secure.view nên tỷ lệ phần trăm được ẩn.</div>}
         <SimpleTable headers={canSecureViewFormula ? ['STT', 'Mã vật tư', 'Nhóm', 'Tỷ lệ gốc %', 'Tỷ lệ điều chỉnh %', 'Chênh lệch %', 'Ghi chú'] : ['STT', 'Mã vật tư', 'Nhóm', 'Ghi chú']} rows={comparisonItems.map((item, index) => (
           <tr key={item.id}>
             <td>{index + 1}</td>
             <td>{item.materialCode}</td>
             <td>{item.materialGroup}</td>
-            {canSecureViewFormula && <td>{item.ratioPercent}%</td>}
-            {canSecureViewFormula && <td>{draft ? <input type="number" value={item.adjustedPercent} onChange={(event) => updateDraftItem(item.id, 'adjustedPercent', event.target.value)} /> : `${item.adjustedPercent}%`}</td>}
-            {canSecureViewFormula && <td><span className={diffClass(item.diff)}>{item.diff > 0 ? '+' : ''}{item.diff}%</span></td>}
+            {canSecureViewFormula && <td>{formatPercent(item.ratioPercent)}</td>}
+            {canSecureViewFormula && <td>{draft ? <input type="number" value={item.adjustedPercent} onChange={(event) => updateDraftItem(item.id, 'adjustedPercent', event.target.value)} /> : formatPercent(item.adjustedPercent)}</td>}
+            {canSecureViewFormula && <td><span className={diffClass(item.diff)}>{item.diff > 0 ? '+' : ''}{formatPercent(item.diff)}</span></td>}
             <td>{draft ? <input value={item.adjustmentNote} onChange={(event) => updateDraftItem(item.id, 'adjustmentNote', event.target.value)} /> : item.adjustmentNote || item.note || '-'}</td>
           </tr>
         ))} />
@@ -2401,7 +2411,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
               <label className="wide-field">Ghi chú<input value={formulaDraft.note} onChange={(event) => updateFormulaDraft('note', event.target.value)} /></label>
             </div>
             <div className={formulaPercentIsValid(draftTotal) && !draftDuplicateMaterials && !draftCodeExists ? 'formula-ratio-ok' : 'formula-ratio-alert'}>
-              Tổng tỷ lệ: {draftTotal}%{draftCodeExists ? ' - Trùng mã công thức' : ''}{draftDuplicateMaterials ? ' - Trùng vật tư' : ''}
+              Tổng tỷ lệ: {formatPercent(draftTotal)}{draftCodeExists ? ' - Trùng mã công thức' : ''}{draftDuplicateMaterials ? ' - Trùng vật tư' : ''}
             </div>
             <SimpleTable headers={['Mã vật tư', 'Nhóm', 'Tỷ lệ %', 'Ghi chú', '']} rows={formulaDraft.items.map((item) => (
               <tr key={item.id}>
@@ -2615,7 +2625,7 @@ function FormulaTable({ items, secure = false }) {
       <td>{index + 1}</td>
       <td>{item.materialCode}</td>
       <td>{item.materialGroup}</td>
-      {secure && <td>{item.ratioPercent}%</td>}
+      {secure && <td>{formatPercent(item.ratioPercent)}</td>}
       <td>{kg(item.requiredKg)}</td>
     </tr>
   ))} />
