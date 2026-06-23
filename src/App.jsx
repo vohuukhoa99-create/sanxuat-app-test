@@ -237,7 +237,7 @@ function buildFormulaItems(lines, quantityKg) {
     id: uid('mat'),
     no: index + 1,
     materialCode: line.code,
-    materialName: line.name || line.code,
+    materialName: line.code,
     materialGroup: line.group,
     ratioPercent: line.percent,
     requiredKg: Number(((line.percent * quantityKg) / 100).toFixed(3)),
@@ -1241,7 +1241,7 @@ function buildWeighedContainer(order, group, items, containers = [], weighingTyp
   const materials = items.map((item) => ({
     id: item.id,
     materialCode: item.materialCode,
-    materialName: item.materialName || item.materialCode,
+    materialName: item.materialCode,
     materialGroup: item.materialGroup,
     requiredKg: num(item.requiredKg),
     actualWeight: num(item.actualWeight || item.requiredKg),
@@ -2004,7 +2004,7 @@ const emptyFormulaLine = () => ({
   id: uid('fml'),
   materialCode: '',
   materialName: '',
-  materialGroup: CHEMICAL,
+  materialGroup: '',
   ratioPercent: 0,
 })
 
@@ -2032,6 +2032,64 @@ const readExcelCell = (row, keys) => {
   return ''
 }
 
+const formulaPercentIsValid = (total) => total >= 99.99 && total <= 100.01
+const normalizeExcelHeader = (value) => normalizeText(String(value || '')).replace(/[^a-z0-9]+/g, ' ').trim()
+const excelCellText = (value) => String(value ?? '').trim()
+const excelRowHasText = (row = []) => row.some((cell) => excelCellText(cell))
+const isSkippedFormulaExcelRow = (row = []) => {
+  const text = normalizeExcelHeader(row.map(excelCellText).join(' '))
+  return !text
+    || text.includes('tong cong')
+    || text.includes('chu thich')
+    || text.includes('ky ten')
+}
+const findFormulaExcelHeader = (rows = []) => {
+  const scoreHeader = (row) => row.map(normalizeExcelHeader).reduce((score, cell) => {
+    if (cell === 'stt' || cell.includes('so thu tu')) return score + 1
+    if ((cell.includes('vat tu') || cell.includes('nguyen lieu') || cell.includes('ma so')) && !cell.includes('danh muc')) return score + 1
+    if (cell.includes('ty le') || cell.includes('ti le')) return score + 1
+    if (cell.includes('so luong') || cell.includes('kg')) return score + 1
+    if (cell.includes('ghi chu')) return score + 1
+    return score
+  }, 0)
+  const headerIndex = rows.findIndex((row) => scoreHeader(row) >= 3)
+  if (headerIndex < 0) return null
+  const headers = rows[headerIndex].map(normalizeExcelHeader)
+  const findColumn = (predicate) => headers.findIndex(predicate)
+  return {
+    headerIndex,
+    columns: {
+      materialCode: findColumn((cell) => (cell.includes('vat tu') || cell.includes('nguyen lieu') || cell.includes('ma so')) && !cell.includes('stt')),
+      ratioPercent: findColumn((cell) => cell.includes('ty le') || cell.includes('ti le')),
+      quantityKg: findColumn((cell) => cell.includes('so luong') || cell.includes('kg')),
+      note: findColumn((cell) => cell.includes('ghi chu')),
+      materialGroup: findColumn((cell) => cell === 'nhom' || cell.includes('nhom vat tu') || cell.includes('nhom nguyen lieu')),
+    },
+  }
+}
+const extractFormulaProductFromRows = (rows = [], headerIndex = rows.length) => {
+  const scanRows = rows.slice(0, Math.max(headerIndex, 0))
+  for (const row of scanRows) {
+    for (let index = 0; index < row.length; index += 1) {
+      const value = excelCellText(row[index])
+      const normalized = normalizeExcelHeader(value)
+      if (!normalized.includes('ten san pham')) continue
+      const colonValue = value.includes(':') ? value.split(':').slice(1).join(':').trim() : ''
+      if (colonValue) return colonValue
+      const nextValue = row.slice(index + 1).map(excelCellText).find((cell) => cell && !normalizeExcelHeader(cell).includes('ten san pham'))
+      if (nextValue) return nextValue
+    }
+  }
+  return ''
+}
+const parseFormulaMaterialCode = (value) => {
+  const text = excelCellText(value)
+  if (!text) return ''
+  const parenthetical = [...text.matchAll(/\(([^()]+)\)/g)].map((match) => match[1].trim()).filter(Boolean).at(-1)
+  return parenthetical || text
+}
+const getMaterialGroupByCode = (catalog = [], code = '') => catalog.find((item) => String(item.materialCode || '').trim().toUpperCase() === String(code || '').trim().toUpperCase())?.materialGroup || ''
+
 function FormulasPage({ data, setData, permissions = [] }) {
   const [selectedId, setSelectedId] = useState(data.formulas[0]?.id || '')
   const [createOpen, setCreateOpen] = useState(false)
@@ -2053,15 +2111,15 @@ function FormulasPage({ data, setData, permissions = [] }) {
     return { ...baseItem, adjustedPercent, diff, adjustmentNote: adjusted?.adjustmentNote || '' }
   })
   const adjustedTotal = Number(comparisonItems.reduce((sum, item) => sum + num(item.adjustedPercent), 0).toFixed(3))
-  const canApprove = adjustedTotal === 100
+  const canApprove = formulaPercentIsValid(adjustedTotal)
   const draftTotal = formulaTotalPercent(formulaDraft.items)
   const draftDuplicateMaterials = formulaHasDuplicateMaterials(formulaDraft.items)
   const draftCodeExists = (data.formulas || []).some((formula) => formula.code?.trim().toLowerCase() === formulaDraft.code.trim().toLowerCase() || formula.id?.trim().toLowerCase() === formulaDraft.code.trim().toLowerCase())
   const canSaveFormula = formulaDraft.code.trim()
     && formulaDraft.product.trim()
     && formulaDraft.items.length > 0
-    && formulaDraft.items.every((item) => item.materialCode.trim() && item.materialName.trim() && item.materialGroup.trim())
-    && draftTotal === 100
+    && formulaDraft.items.every((item) => item.materialCode.trim())
+    && formulaPercentIsValid(draftTotal)
     && !draftDuplicateMaterials
     && !draftCodeExists
   const canCreateFormula = hasPermission(permissions, 'master.formula.create')
@@ -2104,9 +2162,11 @@ function FormulasPage({ data, setData, permissions = [] }) {
         id: uid('fml'),
         no: index + 1,
         materialCode: item.materialCode.trim(),
-        materialName: item.materialName.trim(),
+        materialName: item.materialCode.trim(),
         materialGroup: item.materialGroup.trim(),
         ratioPercent: num(item.ratioPercent),
+        quantityKg: num(item.quantityKg),
+        note: item.note || '',
       })),
     }
     setData((current) => addLogToData({ ...current, formulas: [formula, ...(current.formulas || [])] }, `Tạo công thức gốc ${formula.code}.`))
@@ -2120,11 +2180,14 @@ function FormulasPage({ data, setData, permissions = [] }) {
   const downloadFormulaTemplate = () => {
     if (!canCreateFormula) return
     const rows = [
-      { 'Mã CT': 'HNS-NEW-001', 'Tên SP': 'HNS Demo', 'Nhóm sản phẩm': 'Sơn', Version: 'V1.0', 'Ngày hiệu lực': todayText(), 'Ghi chú': '', 'Mã VT': 'PASTE 02', 'Tên VT': 'Paste nền 02', 'Nhóm': CHEMICAL, 'Tỷ lệ %': 4.61 },
-      { 'Mã CT': 'HNS-NEW-001', 'Tên SP': 'HNS Demo', 'Nhóm sản phẩm': 'Sơn', Version: 'V1.0', 'Ngày hiệu lực': todayText(), 'Ghi chú': '', 'Mã VT': 'R91', 'Tên VT': 'Bột R91', 'Nhóm': SOLID, 'Tỷ lệ %': 95.39 },
+      ['Tên sản phẩm thử nghiệm (mã hiệu):', 'HNS-NEW-001'],
+      [],
+      ['STT', 'Tên vật tư - nguyên liệu (mã số)', 'Tỷ lệ %', 'Số lượng (kg)', 'Ghi chú'],
+      [1, 'PASTE 02', 4.61, 46.1, ''],
+      [2, 'R91', 95.39, 953.9, ''],
     ]
     const book = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(rows), 'Cong thuc goc')
+    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(rows), 'Cong thuc goc')
     XLSX.writeFile(book, 'mau-cong-thuc-goc.xlsx')
   }
 
@@ -2135,39 +2198,54 @@ function FormulasPage({ data, setData, permissions = [] }) {
       try {
         const workbook = XLSX.read(event.target.result, { type: 'array' })
         const sheet = workbook.Sheets[workbook.SheetNames[0]]
-        const rows = XLSX.utils.sheet_to_json(sheet)
-        const grouped = rows.reduce((acc, row) => {
-          const code = String(readExcelCell(row, ['Mã CT', 'Ma CT', 'Mã công thức', 'Ma cong thuc'])).trim()
-          if (!code) return acc
-          if (!acc[code]) {
-            acc[code] = {
-              code,
-              product: String(readExcelCell(row, ['Tên SP', 'Ten SP', 'Tên sản phẩm', 'Ten san pham'])).trim(),
-              productGroup: String(readExcelCell(row, ['Nhóm sản phẩm', 'Nhom san pham'])).trim(),
-              version: String(readExcelCell(row, ['Version', 'Phiên bản', 'Phien ban'])).trim() || 'V1.0',
-              effectiveDate: String(readExcelCell(row, ['Ngày hiệu lực', 'Ngay hieu luc'])).trim() || todayText(),
-              note: String(readExcelCell(row, ['Ghi chú', 'Ghi chu'])).trim(),
-              items: [],
-            }
-          }
-          acc[code].items.push({
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+        const header = findFormulaExcelHeader(rows)
+        if (!header || header.columns.materialCode < 0 || header.columns.ratioPercent < 0) {
+          setFormulaMessage('Không tìm thấy dòng header công thức hợp lệ trong file Excel.')
+          return
+        }
+        const materialCatalog = deriveMaterialCatalog(data)
+        const productCode = extractFormulaProductFromRows(rows, header.headerIndex)
+        const code = productCode || `CT-${nowText().replace(/[^0-9]/g, '')}`
+        const formula = {
+          code,
+          product: productCode || code,
+          productGroup: '',
+          version: 'V1.0',
+          effectiveDate: todayText(),
+          note: '',
+          items: [],
+        }
+        rows.slice(header.headerIndex + 1).forEach((row) => {
+          if (!excelRowHasText(row) || isSkippedFormulaExcelRow(row)) return
+          const materialCode = parseFormulaMaterialCode(row[header.columns.materialCode])
+          const ratioPercent = num(row[header.columns.ratioPercent])
+          if (!materialCode || !ratioPercent) return
+          formula.items.push({
             id: uid('fml'),
-            materialCode: String(readExcelCell(row, ['Mã VT', 'Ma VT', 'Mã vật tư', 'Ma vat tu'])).trim(),
-            materialName: String(readExcelCell(row, ['Tên VT', 'Ten VT', 'Tên vật tư', 'Ten vat tu'])).trim(),
-            materialGroup: String(readExcelCell(row, ['Nhóm', 'Nhom'])).trim(),
-            ratioPercent: num(readExcelCell(row, ['Tỷ lệ %', 'Ty le %', 'Tỉ lệ %', 'Ti le %'])),
+            materialCode,
+            materialName: materialCode,
+            materialGroup: header.columns.materialGroup >= 0
+              ? excelCellText(row[header.columns.materialGroup])
+              : getMaterialGroupByCode(materialCatalog, materialCode),
+            ratioPercent,
+            quantityKg: header.columns.quantityKg >= 0 ? num(row[header.columns.quantityKg]) : 0,
+            note: header.columns.note >= 0 ? excelCellText(row[header.columns.note]) : '',
           })
-          return acc
-        }, {})
+        })
         const existingCodes = new Set((data.formulas || []).flatMap((formula) => [formula.code, formula.id].filter(Boolean).map((value) => value.trim().toLowerCase())))
-        const imported = Object.values(grouped)
+        const imported = formula.items.length ? [formula] : []
         const errors = []
+        const warnings = []
+        const catalogCodes = new Set(materialCatalog.map((item) => String(item.materialCode || '').trim().toUpperCase()))
         imported.forEach((formula) => {
           if (existingCodes.has(formula.code.toLowerCase())) errors.push(`Trùng mã công thức ${formula.code}`)
-          if (!formula.product) errors.push(`Thiếu Tên SP cho ${formula.code}`)
-          if (formulaTotalPercent(formula.items) !== 100) errors.push(`Tổng tỷ lệ của ${formula.code} chưa bằng 100% (${formulaTotalPercent(formula.items)}%)`)
+          if (!formula.product) errors.push(`Thiếu mã sản phẩm cho ${formula.code}`)
+          if (!formulaPercentIsValid(formulaTotalPercent(formula.items))) errors.push(`Lỗi tổng tỷ lệ của ${formula.code}: ${formulaTotalPercent(formula.items)}%`)
           if (formulaHasDuplicateMaterials(formula.items)) errors.push(`Trùng vật tư trong ${formula.code}`)
-          if (formula.items.some((item) => !item.materialCode || !item.materialName || !item.materialGroup)) errors.push(`Thiếu thông tin vật tư trong ${formula.code}`)
+          if (formula.items.some((item) => !item.materialCode)) errors.push(`Thiếu mã vật tư trong ${formula.code}`)
+          const missingCodes = formula.items.map((item) => item.materialCode).filter((materialCode) => !catalogCodes.has(materialCode.toUpperCase()))
+          if (missingCodes.length) warnings.push(`Mã vật tư chưa có trong danh mục: ${Array.from(new Set(missingCodes)).join(', ')}`)
         })
         if (!imported.length) errors.push('File không có dòng công thức hợp lệ.')
         if (errors.length) {
@@ -2192,7 +2270,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
         setSelectedId(formulas[0].id)
         setSelectedVersionId('')
         setDraft(null)
-        setFormulaMessage(`Đã tải ${formulas.length} công thức từ Excel.`)
+        setFormulaMessage(`Đã tải ${formulas.length} công thức từ Excel.${warnings.length ? ` ${warnings.join(' | ')}` : ''}`)
       } catch (error) {
         setFormulaMessage(`Không đọc được file Excel: ${error.message}`)
       } finally {
@@ -2221,7 +2299,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
         id: uid('fver-item'),
         baseItemId: item.id,
         materialCode: item.materialCode,
-        materialName: item.materialName,
+        materialName: item.materialCode,
         materialGroup: item.materialGroup,
         originalPercent: item.ratioPercent,
         adjustedPercent: item.ratioPercent,
@@ -2291,19 +2369,18 @@ function FormulasPage({ data, setData, permissions = [] }) {
           <label>Người duyệt<input readOnly={!draft} value={activeVersion?.approvedBy || selected.approvedBy} onChange={(event) => updateDraftField('approvedBy', event.target.value)} /></label>
           <label className="wide-field">Lý do điều chỉnh<input readOnly={!draft} value={activeVersion?.adjustmentReason || ''} onChange={(event) => updateDraftField('adjustmentReason', event.target.value)} /></label>
         </div>
-        {canSecureViewFormula && adjustedTotal !== 100 && <div className="formula-ratio-alert">Tổng tỷ lệ điều chỉnh chưa bằng 100% ({adjustedTotal}%)</div>}
-        {canSecureViewFormula && adjustedTotal === 100 && <div className="formula-ratio-ok">Tổng tỷ lệ điều chỉnh = 100%</div>}
+        {canSecureViewFormula && !formulaPercentIsValid(adjustedTotal) && <div className="formula-ratio-alert">Tổng tỷ lệ điều chỉnh chưa hợp lệ ({adjustedTotal}%)</div>}
+        {canSecureViewFormula && formulaPercentIsValid(adjustedTotal) && <div className="formula-ratio-ok">Tổng tỷ lệ điều chỉnh hợp lệ ({adjustedTotal}%)</div>}
         {!canSecureViewFormula && <div className="process-alert">Bạn có quyền xem công thức, nhưng chưa có quyền formula.secure.view nên tỷ lệ phần trăm được ẩn.</div>}
-        <SimpleTable headers={canSecureViewFormula ? ['STT', 'Mã vật tư', 'Tên vật tư', 'Nhóm', 'Tỷ lệ gốc %', 'Tỷ lệ điều chỉnh %', 'Chênh lệch %', 'Ghi chú điều chỉnh'] : ['STT', 'Mã vật tư', 'Tên vật tư', 'Nhóm', 'Ghi chú điều chỉnh']} rows={comparisonItems.map((item, index) => (
+        <SimpleTable headers={canSecureViewFormula ? ['STT', 'Mã vật tư', 'Nhóm', 'Tỷ lệ gốc %', 'Tỷ lệ điều chỉnh %', 'Chênh lệch %', 'Ghi chú'] : ['STT', 'Mã vật tư', 'Nhóm', 'Ghi chú']} rows={comparisonItems.map((item, index) => (
           <tr key={item.id}>
             <td>{index + 1}</td>
             <td>{item.materialCode}</td>
-            <td>{item.materialName}</td>
             <td>{item.materialGroup}</td>
             {canSecureViewFormula && <td>{item.ratioPercent}%</td>}
             {canSecureViewFormula && <td>{draft ? <input type="number" value={item.adjustedPercent} onChange={(event) => updateDraftItem(item.id, 'adjustedPercent', event.target.value)} /> : `${item.adjustedPercent}%`}</td>}
             {canSecureViewFormula && <td><span className={diffClass(item.diff)}>{item.diff > 0 ? '+' : ''}{item.diff}%</span></td>}
-            <td>{draft ? <input value={item.adjustmentNote} onChange={(event) => updateDraftItem(item.id, 'adjustmentNote', event.target.value)} /> : item.adjustmentNote || '-'}</td>
+            <td>{draft ? <input value={item.adjustmentNote} onChange={(event) => updateDraftItem(item.id, 'adjustmentNote', event.target.value)} /> : item.adjustmentNote || item.note || '-'}</td>
           </tr>
         ))} />
         {draft && <div className="modal-actions"><button className="secondary-button" onClick={() => setDraft(null)}>Hủy</button><button className="primary-button" disabled={!canApprove} onClick={saveDraft}>Lưu phiên bản điều chỉnh</button></div>}
@@ -2323,15 +2400,15 @@ function FormulasPage({ data, setData, permissions = [] }) {
               <label>Ngày hiệu lực<input type="date" value={formulaDraft.effectiveDate} onChange={(event) => updateFormulaDraft('effectiveDate', event.target.value)} /></label>
               <label className="wide-field">Ghi chú<input value={formulaDraft.note} onChange={(event) => updateFormulaDraft('note', event.target.value)} /></label>
             </div>
-            <div className={draftTotal === 100 && !draftDuplicateMaterials && !draftCodeExists ? 'formula-ratio-ok' : 'formula-ratio-alert'}>
+            <div className={formulaPercentIsValid(draftTotal) && !draftDuplicateMaterials && !draftCodeExists ? 'formula-ratio-ok' : 'formula-ratio-alert'}>
               Tổng tỷ lệ: {draftTotal}%{draftCodeExists ? ' - Trùng mã công thức' : ''}{draftDuplicateMaterials ? ' - Trùng vật tư' : ''}
             </div>
-            <SimpleTable headers={['Mã vật tư', 'Tên vật tư', 'Nhóm', 'Tỷ lệ %', '']} rows={formulaDraft.items.map((item) => (
+            <SimpleTable headers={['Mã vật tư', 'Nhóm', 'Tỷ lệ %', 'Ghi chú', '']} rows={formulaDraft.items.map((item) => (
               <tr key={item.id}>
                 <td><input value={item.materialCode} onChange={(event) => updateFormulaLine(item.id, 'materialCode', event.target.value)} /></td>
-                <td><input value={item.materialName} onChange={(event) => updateFormulaLine(item.id, 'materialName', event.target.value)} /></td>
                 <td><input value={item.materialGroup} onChange={(event) => updateFormulaLine(item.id, 'materialGroup', event.target.value)} /></td>
                 <td><input type="number" value={item.ratioPercent} onChange={(event) => updateFormulaLine(item.id, 'ratioPercent', event.target.value)} /></td>
+                <td><input value={item.note || ''} onChange={(event) => updateFormulaLine(item.id, 'note', event.target.value)} /></td>
                 <td><button className="danger-button" onClick={() => removeFormulaLine(item.id)} disabled={formulaDraft.items.length === 1}>Xóa</button></td>
               </tr>
             ))} />
@@ -2362,7 +2439,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
     || data.formulas.find((item) => item.id && item.id === form.formulaId)
   const libraryItems = formula ? formula.items.map((item) => ({
     code: item.materialCode,
-    name: item.materialName,
+    name: item.materialCode,
     group: item.materialGroup,
     percent: item.ratioPercent,
   })) : []
@@ -2532,12 +2609,11 @@ function OrdersPage({ data, setData, permissions = [] }) {
 }
 
 function FormulaTable({ items, secure = false }) {
-  const headers = secure ? ['STT', 'Mã VT', 'Tên vật tư', 'Nhóm', 'Tỷ lệ %', 'Khối lượng/lệnh'] : ['STT', 'Mã VT', 'Tên vật tư', 'Nhóm', 'Khối lượng/lệnh']
+  const headers = secure ? ['STT', 'Mã vật tư', 'Nhóm', 'Tỷ lệ %', 'Khối lượng/lệnh'] : ['STT', 'Mã vật tư', 'Nhóm', 'Khối lượng/lệnh']
   return <SimpleTable headers={headers} rows={items.map((item, index) => (
     <tr key={item.id || index}>
       <td>{index + 1}</td>
       <td>{item.materialCode}</td>
-      <td>{item.materialName}</td>
       <td>{item.materialGroup}</td>
       {secure && <td>{item.ratioPercent}%</td>}
       <td>{kg(item.requiredKg)}</td>
@@ -2794,7 +2870,7 @@ function QC1({ data, setData, user }) {
   const waitingOrders = data.orders.filter((order) => order.stage === 'qc1')
   const [activeOrderId, setActiveOrderId] = useState(waitingOrders[0]?.id || '')
   const [showAddMaterial, setShowAddMaterial] = useState(false)
-  const [newMaterial, setNewMaterial] = useState({ materialCode: '', materialName: '', materialGroup: CHEMICAL, requiredKg: 0, reason: '', note: '' })
+  const [newMaterial, setNewMaterial] = useState({ materialCode: '', materialGroup: CHEMICAL, requiredKg: 0, reason: '', note: '' })
   const activeOrder = data.orders.find((order) => order.id === activeOrderId && order.stage === 'qc1') || waitingOrders[0]
   const completedOrders = data.orders.filter((order) => order.qc1Result && order.stage !== 'qc1')
 
@@ -2818,7 +2894,7 @@ function QC1({ data, setData, user }) {
       id: uid('qc1-new'),
       no: getEffectiveFormula(activeOrder).length + 1,
       materialCode: newMaterial.materialCode,
-      materialName: newMaterial.materialName || newMaterial.materialCode,
+      materialName: newMaterial.materialCode,
       materialGroup: newMaterial.materialGroup,
       ratioPercent: Number(((num(newMaterial.requiredKg) / num(activeOrder.quantityKg || activeOrder.requestedWeight || 1)) * 100).toFixed(4)),
       requiredKg: 0,
@@ -2839,8 +2915,8 @@ function QC1({ data, setData, user }) {
     patchOrder(activeOrder.id, (order) => ({
       ...order,
       activeProductionFormula: [...getEffectiveFormula(order), material],
-    }), `QC sản xuất thử bổ sung NVL mới ${material.materialCode} - ${material.materialName}, khối lượng ${kg(material.qcAdjustKg)}, thời gian ${addedAt}.`, 'Bổ sung NVL')
-    setNewMaterial({ materialCode: '', materialName: '', materialGroup: CHEMICAL, requiredKg: 0, reason: '', note: '' })
+    }), `QC sản xuất thử bổ sung NVL mới ${material.materialCode}, khối lượng ${kg(material.qcAdjustKg)}, thời gian ${addedAt}.`, 'Bổ sung NVL')
+    setNewMaterial({ materialCode: '', materialGroup: CHEMICAL, requiredKg: 0, reason: '', note: '' })
     setShowAddMaterial(false)
   }
   const getAdjustedRows = (order) => getEffectiveFormula(order || {}).map((item) => {
@@ -2943,7 +3019,6 @@ function QC1({ data, setData, user }) {
                 <table className="qc-trial-table compact-qc-table">
                   <colgroup>
                     <col style={{ width: '80px' }} />
-                    <col style={{ width: '90px' }} />
                     <col style={{ width: '60px' }} />
                     <col style={{ width: '80px' }} />
                     <col style={{ width: '90px' }} />
@@ -2954,7 +3029,6 @@ function QC1({ data, setData, user }) {
                   <thead>
                     <tr>
                       <th className="qc-trial-th">Mã VT</th>
-                      <th className="qc-trial-th">Tên VT</th>
                       <th className="qc-trial-th">Nhóm</th>
                       <th className="qc-trial-th">Theo lệnh</th>
                       <th className="qc-trial-th">Sau QC</th>
@@ -2970,7 +3044,6 @@ function QC1({ data, setData, user }) {
                   return (
                     <tr key={item.id} className="qc-trial-main-row">
                       <td>{item.materialCode} {item.isQc1Added && <span className="qc-added-badge">NVL bổ sung</span>}</td>
-                      <td>{item.materialName || item.materialCode}</td>
                       <td>{item.materialGroup}</td>
                       <td>{kg(item.requiredKg)}</td>
                       <td><input className="qc-value-input compact-input" type="number" value={item.qcAdjustKg === '' || item.qcAdjustKg == null ? item.requiredKg : item.qcAdjustKg} onChange={(event) => updateItem(activeOrder.id, item.id, 'qcAdjustKg', event.target.value)} /></td>
@@ -3014,7 +3087,6 @@ function QC1({ data, setData, user }) {
             </div>
             <div className="production-form-grid">
               <label>Mã vật tư<input value={newMaterial.materialCode} onChange={(event) => setNewMaterial({ ...newMaterial, materialCode: event.target.value })} /></label>
-              <label>Tên vật tư<input value={newMaterial.materialName} onChange={(event) => setNewMaterial({ ...newMaterial, materialName: event.target.value })} /></label>
               <label>Nhóm vật tư<select value={newMaterial.materialGroup} onChange={(event) => setNewMaterial({ ...newMaterial, materialGroup: event.target.value })}><option>{CHEMICAL}</option><option>{SOLID}</option></select></label>
               <label>Khối lượng bổ sung (kg)<input type="number" value={newMaterial.requiredKg} onChange={(event) => setNewMaterial({ ...newMaterial, requiredKg: event.target.value })} /></label>
               <label className="wide-field">Lý do bổ sung<input value={newMaterial.reason} onChange={(event) => setNewMaterial({ ...newMaterial, reason: event.target.value })} /></label>
@@ -3047,7 +3119,7 @@ function QC2({ data, setData }) {
   const orders = data.orders.filter((order) => order.stage === 'qc2')
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const [forms, setForms] = useState({})
-  const getForm = (id) => forms[id] || { result: 'OK', color: '', ph: '', viscosity: '', density: '', coverage: '', note: '', materialCode: '', materialName: '', materialGroup: CHEMICAL, addKg: 0, reason: '' }
+  const getForm = (id) => forms[id] || { result: 'OK', color: '', ph: '', viscosity: '', density: '', coverage: '', note: '', materialCode: '', materialGroup: CHEMICAL, addKg: 0, reason: '' }
   const setForm = (id, patch) => setForms((current) => ({ ...current, [id]: { ...getForm(id), ...patch } }))
   const save = (order) => {
     const form = getForm(order.id)
@@ -3056,7 +3128,7 @@ function QC2({ data, setData }) {
         if (item.id !== order.id) return item
         if (form.result === 'OK') return { ...item, stage: 'packaging', status: 'Hoàn thành', qc2: form, updatedAt: nowText() }
         if (form.result === 'Không đạt') return { ...item, stage: 'qc2', status: 'QC2 không đạt', qc2: form, updatedAt: nowText() }
-        const ticket = { id: uid('BS'), status: 'Pending', items: [{ id: uid('add'), materialCode: form.materialCode, materialName: form.materialName, materialGroup: form.materialGroup, requiredKg: num(form.addKg), toleranceKg: form.materialGroup === CHEMICAL ? 0.01 : 0.1, qrScanned: '', qrStatus: 'Chờ quét', actualWeight: '', weighStatus: 'Chờ cân', reason: form.reason, note: form.note }] }
+        const ticket = { id: uid('BS'), status: 'Pending', items: [{ id: uid('add'), materialCode: form.materialCode, materialName: form.materialCode, materialGroup: form.materialGroup, requiredKg: num(form.addKg), toleranceKg: form.materialGroup === CHEMICAL ? 0.01 : 0.1, qrScanned: '', qrStatus: 'Chờ quét', actualWeight: '', weighStatus: 'Chờ cân', reason: form.reason, note: form.note }] }
         return { ...item, stage: 'supplement-weighing', status: 'Cân bổ sung', qc2: form, qc2AdjustedFormula: [...(item.qc2AdjustedFormula || []), ticket], updatedAt: nowText() }
       })
       const log = form.result === 'OK' ? `QC2 OK lệnh ${order.id}, chuyển đóng gói.` : form.result === 'Cần chỉnh màu' ? `QC2 điều chỉnh màu ${order.id}, tạo phiếu cân bổ sung.` : `QC2 không đạt lệnh ${order.id}.`
@@ -3071,7 +3143,7 @@ function QC2({ data, setData }) {
         <label>Kết quả<select value={form.result} onChange={(event) => setForm(order.id, { result: event.target.value })}><option>OK</option><option>Cần chỉnh màu</option><option>Không đạt</option></select></label>
         {['color', 'ph', 'viscosity', 'density', 'coverage', 'note'].map((field) => <label key={field}>{({ color: 'Màu sắc', ph: 'pH', viscosity: 'Độ nhớt', density: 'Tỷ trọng', coverage: 'Độ phủ', note: 'Ghi chú' })[field]}<input value={form[field]} onChange={(event) => setForm(order.id, { [field]: event.target.value })} /></label>)}
       </div>
-      {form.result === 'Cần chỉnh màu' && <div className="production-form-grid"><label>Mã vật tư<input value={form.materialCode} onChange={(event) => setForm(order.id, { materialCode: event.target.value })} /></label><label>Tên vật tư<input value={form.materialName} onChange={(event) => setForm(order.id, { materialName: event.target.value })} /></label><label>Nhóm<select value={form.materialGroup} onChange={(event) => setForm(order.id, { materialGroup: event.target.value })}><option>{CHEMICAL}</option><option>{SOLID}</option></select></label><label>Khối lượng bổ sung<input type="number" value={form.addKg} onChange={(event) => setForm(order.id, { addKg: event.target.value })} /></label><label>Lý do điều chỉnh<input value={form.reason} onChange={(event) => setForm(order.id, { reason: event.target.value })} /></label></div>}
+      {form.result === 'Cần chỉnh màu' && <div className="production-form-grid"><label>Mã vật tư<input value={form.materialCode} onChange={(event) => setForm(order.id, { materialCode: event.target.value })} /></label><label>Nhóm<select value={form.materialGroup} onChange={(event) => setForm(order.id, { materialGroup: event.target.value })}><option>{CHEMICAL}</option><option>{SOLID}</option></select></label><label>Khối lượng bổ sung<input type="number" value={form.addKg} onChange={(event) => setForm(order.id, { addKg: event.target.value })} /></label><label>Lý do điều chỉnh<input value={form.reason} onChange={(event) => setForm(order.id, { reason: event.target.value })} /></label></div>}
     </article>
   })}{orders.length === 0 && <p className="empty-alert">Không có lệnh chờ QC2.</p>}</section>
 }
@@ -3152,7 +3224,7 @@ function FinishedProductQcPage({ data, setData, user }) {
         : [...current.adjustments, {
           id: uid('adj'),
           materialCode: row.materialCode,
-          materialName: row.materialName,
+          materialName: row.materialCode,
           materialGroup: row.materialGroup,
           changeType: 'existing',
           adjustmentKg: field === 'adjustmentKg' ? value : '',
@@ -3165,7 +3237,7 @@ function FinishedProductQcPage({ data, setData, user }) {
   const addNewMaterial = () => {
     setForm((current) => ({
       ...current,
-      newMaterials: [...current.newMaterials, { id: uid('newqc2'), materialCode: '', materialName: '', materialGroup: CHEMICAL, adjustmentKg: 0, reason: '', note: '' }],
+      newMaterials: [...current.newMaterials, { id: uid('newqc2'), materialCode: '', materialGroup: CHEMICAL, adjustmentKg: 0, reason: '', note: '' }],
     }))
   }
 
@@ -3222,7 +3294,7 @@ function FinishedProductQcPage({ data, setData, user }) {
           orderId: activeOrder.id,
           adjustmentKg: Number(num(item.adjustmentKg).toFixed(3)),
           requiredKg: Math.max(0, Number(num(item.adjustmentKg).toFixed(3))),
-          materialName: item.materialName || item.materialCode,
+          materialName: item.materialCode,
         }))
       const newItems = form.newMaterials
         .filter((item) => item.materialCode && num(item.adjustmentKg) > 0)
@@ -3234,7 +3306,7 @@ function FinishedProductQcPage({ data, setData, user }) {
           changeType: 'new',
           adjustmentKg: Number(num(item.adjustmentKg).toFixed(3)),
           requiredKg: Number(num(item.adjustmentKg).toFixed(3)),
-          materialName: item.materialName || item.materialCode,
+          materialName: item.materialCode,
         }))
       const adjustmentItems = [...existingItems, ...newItems]
       const weighItems = adjustmentItems
@@ -3380,7 +3452,6 @@ function FinishedProductQcPage({ data, setData, user }) {
                         <thead>
                           <tr>
                             <th>Mã VT</th>
-                            <th>Tên vật tư</th>
                             <th>Nhóm</th>
                             <th><span>Khối lượng</span><span>gốc</span></th>
                             <th><span>Khối lượng</span><span>sau QC1</span></th>
@@ -3394,7 +3465,6 @@ function FinishedProductQcPage({ data, setData, user }) {
                           {qc2Rows.map((row) => (
                             <tr key={row.id}>
                               <td>{row.materialCode}</td>
-                              <td>{row.materialName}</td>
                               <td>{row.materialGroup}</td>
                               <td>{kg(row.originalKg)}</td>
                               <td>{kg(row.qc1Kg)}</td>
@@ -3404,7 +3474,7 @@ function FinishedProductQcPage({ data, setData, user }) {
                               <td><input value={row.note} onChange={(event) => updateExistingAdjustment(row, 'note', event.target.value)} /></td>
                             </tr>
                           ))}
-                          {!qc2Rows.length && <tr><td className="empty-row" colSpan="9">Không có dữ liệu QC thành phẩm.</td></tr>}
+                          {!qc2Rows.length && <tr><td className="empty-row" colSpan="8">Không có dữ liệu QC thành phẩm.</td></tr>}
                         </tbody>
                       </table>
                     </div>
@@ -3413,10 +3483,9 @@ function FinishedProductQcPage({ data, setData, user }) {
                   {form.newMaterials.length > 0 && (
                     <section className="v3-card">
                       <h3>NVL bổ sung mới</h3>
-                      <SimpleTable headers={['Mã VT', 'Tên vật tư', 'Nhóm', 'Khối lượng bổ sung', 'Lý do bổ sung', 'Ghi chú']} rows={form.newMaterials.map((item) => (
+                      <SimpleTable headers={['Mã vật tư', 'Nhóm', 'Khối lượng bổ sung', 'Lý do bổ sung', 'Ghi chú']} rows={form.newMaterials.map((item) => (
                         <tr key={item.id}>
                           <td><input value={item.materialCode} onChange={(event) => updateNewMaterial(item.id, 'materialCode', event.target.value)} /></td>
-                          <td><input value={item.materialName} onChange={(event) => updateNewMaterial(item.id, 'materialName', event.target.value)} /></td>
                           <td><select value={item.materialGroup} onChange={(event) => updateNewMaterial(item.id, 'materialGroup', event.target.value)}><option>{CHEMICAL}</option><option>{SOLID}</option></select></td>
                           <td><input type="number" step="0.001" value={item.adjustmentKg} onChange={(event) => updateNewMaterial(item.id, 'adjustmentKg', event.target.value)} /></td>
                           <td><input value={item.reason} onChange={(event) => updateNewMaterial(item.id, 'reason', event.target.value)} /></td>
@@ -3820,7 +3889,7 @@ function WeighingPage({ data, setData, group, user }) {
                 <div className="weighing-progress"><i style={{ width: `${progress}%` }} /></div>
                 <strong>{progress}%</strong>
               </div>
-              <SimpleTable headers={['STT', 'Mã VT yêu cầu', 'Tên VT', 'Cần cân', 'QR lô đã quét', 'Lô nhập', 'Tồn trước', 'Thực cân', 'Tồn sau', 'Khớp QR', 'Trạng thái']} rows={activeItems.map((item, index) => (
+              <SimpleTable headers={['STT', 'Mã vật tư yêu cầu', 'Cần cân', 'QR lô đã quét', 'Lô nhập', 'Tồn trước', 'Thực cân', 'Tồn sau', 'Khớp QR', 'Trạng thái']} rows={activeItems.map((item, index) => (
                 <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} />
               ))} empty={`Không có vật tư nhóm ${group}.`} />
               {activeContainers.map((container) => <WeighedContainerCard key={container.containerId} container={container} onPrint={handlePrintQr} onDetail={handleViewWeighingDetail} />)}
@@ -3892,7 +3961,7 @@ function WeighingPage({ data, setData, group, user }) {
               <div><span>Người cân</span><strong>{weighingDetailModal.weighedBy || '-'}</strong></div>
               <div><span>Trạng thái</span><strong>{weighingDetailModal.status || '-'}</strong></div>
             </div>
-            <SimpleTable headers={['STT', 'Mã vật tư', 'Tên vật tư', 'Khối lượng theo lệnh', 'QR/Lô đã quét', 'Thực cân', 'Sai lệch', 'Trạng thái khớp QR']} rows={(weighingDetailModal.materials || []).map((item, index) => {
+            <SimpleTable headers={['STT', 'Mã vật tư', 'Khối lượng theo lệnh', 'QR/Lô đã quét', 'Thực cân', 'Sai lệch', 'Trạng thái khớp QR']} rows={(weighingDetailModal.materials || []).map((item, index) => {
               const requiredKg = num(item.requiredKg)
               const actualWeight = num(item.actualWeight)
               const diff = Number((actualWeight - requiredKg).toFixed(3))
@@ -3901,7 +3970,6 @@ function WeighingPage({ data, setData, group, user }) {
                 <tr key={item.id || item.materialCode}>
                   <td>{index + 1}</td>
                   <td>{item.materialCode}</td>
-                  <td>{item.materialName}</td>
                   <td>{kg(requiredKg)}</td>
                   <td>{item.qrScanned || '-'}</td>
                   <td>{kg(actualWeight)}</td>
@@ -4067,7 +4135,6 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
     <tr className={`${active ? 'weighing-active-row' : ''} ${completed ? 'weighing-completed-row' : ''}`}>
       <td>{index + 1}</td>
       <td>{item.materialCode}</td>
-      <td>{item.materialName}</td>
       <td>{kg(item.requiredKg)}</td>
       <td><div className="weighing-inline-action">{active && !qrPassed ? <><input value={qrInput} onChange={(event) => setQrInput(event.target.value)} /><button className="secondary-button" onClick={confirmQr}>QR</button></> : <span>{item.qrScanned || '-'}</span>}{qrPassed ? <span className="weighing-check">QR PASS</span> : item.qrStatus === 'FAIL' ? <span className="weighing-fail">QR FAIL</span> : null}</div></td>
       <td>{item.rawMaterialLotCode || '-'}</td>
@@ -5125,7 +5192,7 @@ function getHistoryFormulaRows(record) {
     const qc1Kg = num(qc1Item.requiredKg ?? originalItem.requiredKg)
     return {
       materialCode: code,
-      materialName: qc1Item.materialName || originalItem.materialName || code,
+      materialName: code,
       materialGroup: qc1Item.materialGroup || originalItem.materialGroup || '-',
       originalKg: num(originalItem.requiredKg),
       qc1Kg,
@@ -5394,7 +5461,7 @@ function ProductionHistoryModal({ record, tab, setTab, onClose }) {
   const formulaRows = getHistoryFormulaRows(record)
   const renderTab = () => {
     if (tab === 'info') return <div className="production-log-grid">{historyInfoRows(record).map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
-    if (tab === 'formula') return <SimpleTable headers={['Mã VT', 'Tên VT', 'Nhóm', 'Khối lượng gốc', 'Sau QC1', 'QC2 bổ sung lần 1', 'QC2 bổ sung lần 2', 'Tổng bổ sung QC2', 'Khối lượng cuối', 'Ghi chú']} rows={formulaRows.map((item) => <tr key={item.materialCode}><td>{item.materialCode}</td><td>{item.materialName}</td><td>{item.materialGroup}</td><td>{kg(item.originalKg)}</td><td>{kg(item.qc1Kg)}</td><td>{kg(item.add1)}</td><td>{kg(item.add2)}</td><td>{kg(item.totalAdd)}</td><td>{kg(item.finalKg)}</td><td>{item.note}</td></tr>)} />
+    if (tab === 'formula') return <SimpleTable headers={['Mã vật tư', 'Nhóm', 'Khối lượng gốc', 'Sau QC1', 'QC2 bổ sung lần 1', 'QC2 bổ sung lần 2', 'Tổng bổ sung QC2', 'Khối lượng cuối', 'Ghi chú']} rows={formulaRows.map((item) => <tr key={item.materialCode}><td>{item.materialCode}</td><td>{item.materialGroup}</td><td>{kg(item.originalKg)}</td><td>{kg(item.qc1Kg)}</td><td>{kg(item.add1)}</td><td>{kg(item.add2)}</td><td>{kg(item.totalAdd)}</td><td>{kg(item.finalKg)}</td><td>{item.note}</td></tr>)} />
     if (tab === 'qc1') return <SimpleTable headers={['Thời gian QC sản xuất thử', 'Người QC', 'Kết quả', 'Các điều chỉnh nếu có', 'Ghi chú']} rows={record.qc1Rows.map((row, index) => <tr key={row.id || index}><td>{row.time || row.createdAt || '-'}</td><td>{row.createdBy || row.operator || 'QC'}</td><td>{displayQcTrialText(row.result)}</td><td>{(row.changes || []).map((item) => `${item.materialCode}: ${kg(item.diff || item.requiredKg || 0)}`).join(', ') || '-'}</td><td>{row.note || '-'}</td></tr>)} />
     if (tab === 'chemical' || tab === 'solid') {
       const rows = getHistoryWeighingRows(record, tab === 'chemical' ? CHEMICAL : SOLID)
