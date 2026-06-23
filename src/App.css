@@ -644,8 +644,10 @@ tbody tr:hover {
 
 .production-order-form-grid .formula-field {
   position: relative;
-  z-index: 80;
-  min-width: 0;
+  z-index: 9999;
+  width: 180px;
+  min-width: 180px;
+  max-width: 180px;
 }
 
 .production-order-form-grid .customer-field .customer-combobox {
@@ -653,6 +655,8 @@ tbody tr:hover {
 }
 
 .production-order-form-grid .formula-field .formula-combobox {
+  position: relative;
+  width: 100%;
   min-width: 0;
 }
 
@@ -680,8 +684,12 @@ tbody tr:hover {
 }
 
 .formula-combobox-menu {
-  z-index: 1200;
-  max-height: 380px;
+  top: 100%;
+  left: 0;
+  right: auto;
+  width: 100%;
+  z-index: 9999;
+  max-height: 260px;
 }
 
 .customer-combobox-menu button {

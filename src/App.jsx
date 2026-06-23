@@ -76,13 +76,12 @@ const realCustomerFields = (index = 0) => {
   }
 }
 const formatCustomerOption = (customer = {}) => customer.customerName || ''
+const getFormulaOptionCode = (formula = {}) => formula.formulaCode || formula.code || formula.productCode || formula.id || ''
 const formatFormulaSuggestion = (formula = {}) => {
-  const item = formula || {}
-  return item.code || item.id || ''
+  return getFormulaOptionCode(formula)
 }
 const formatFormulaInput = (formula = {}) => {
-  const item = formula || {}
-  return item.code || item.id || ''
+  return getFormulaOptionCode(formula)
 }
 const FORMULA_STATUS_ACTIVE = 'Đang áp dụng'
 const FORMULA_STATUS_DRAFT = 'Lưu nháp'
@@ -92,12 +91,12 @@ const formulaStatuses = [FORMULA_STATUS_ACTIVE, FORMULA_STATUS_DRAFT, FORMULA_ST
 const formulaMatches = (formula = {}, query = '') => {
   const keyword = normalizeText(query)
   if (!keyword) return true
-  const formulaCode = normalizeText(formula.code || formula.id || '')
+  const formulaCode = normalizeText(getFormulaOptionCode(formula))
   const compactFormulaCode = formulaCode.replace(/\s+/g, '')
   const compactKeyword = keyword.replace(/\s+/g, '')
   return formulaCode.includes(keyword) || compactFormulaCode.includes(compactKeyword)
 }
-const formulaCodeEquals = (formula = {}, value = '') => normalizeText(formula.code || formula.id || '') === normalizeText(value)
+const formulaCodeEquals = (formula = {}, value = '') => normalizeText(getFormulaOptionCode(formula)) === normalizeText(value)
 const isDemoFormulaCode = (formula = {}) => {
   const code = normalizeText([formula.id, formula.code, formula.product].filter(Boolean).join(' '))
   return code.includes('hns 252 g1') || code.includes('hns 252 r2')
@@ -111,11 +110,15 @@ const normalizeFormulaStatus = (formula = {}) => (
         ? FORMULA_STATUS_DRAFT
         : FORMULA_STATUS_ACTIVE
 )
-const normalizeMasterFormulas = (formulas = []) => (Array.isArray(formulas) ? formulas : []).map((formula) => ({
-  ...formula,
-  formulaStatus: normalizeFormulaStatus(formula),
-}))
-const activeMasterFormulas = (formulas = []) => normalizeMasterFormulas(formulas).filter((formula) => formula.formulaStatus === FORMULA_STATUS_ACTIVE)
+const normalizeMasterFormulas = (formulas = []) => (Array.isArray(formulas) ? formulas : []).map((formula) => {
+  const status = normalizeFormulaStatus(formula)
+  return {
+    ...formula,
+    formulaStatus: status,
+    status,
+  }
+})
+const activeMasterFormulas = (formulas = []) => normalizeMasterFormulas(formulas).filter((formula) => formula.status === FORMULA_STATUS_ACTIVE)
 const formulaHasProductionOrders = (formula = {}, orders = []) => (orders || []).some((order) => (
   [order.formulaId, order.originalFormulaId, order.formulaCode].filter(Boolean).includes(formula.id)
   || [order.formulaCode, order.originalFormulaId].filter(Boolean).includes(formula.code)
@@ -2641,9 +2644,10 @@ function FormulasPage({ data, setData, permissions = [] }) {
 }
 
 function OrdersPage({ data, setData, permissions = [] }) {
-  const selectableFormulas = activeMasterFormulas(data.formulas)
-  const initialFormula = selectableFormulas[0] || null
-  const [form, setForm] = useState({ formulaId: initialFormula?.id || '', selectedFormulaCode: initialFormula?.code || '', formulaObject: initialFormula, formulaSearch: formatFormulaInput(initialFormula), quantityKg: 1000, lot: '', customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
+  const formulas = normalizeMasterFormulas(data.formulas || [])
+  const activeFormulaOptions = formulas.filter((formula) => formula.status === FORMULA_STATUS_ACTIVE)
+  const initialFormula = activeFormulaOptions[0] || null
+  const [form, setForm] = useState({ formulaId: initialFormula?.id || '', selectedFormulaCode: getFormulaOptionCode(initialFormula), formulaObject: initialFormula, formulaSearch: formatFormulaInput(initialFormula), quantityKg: 1000, lot: '', customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
   const [message, setMessage] = useState('')
   const [warning, setWarning] = useState('')
   const [detailOrderId, setDetailOrderId] = useState('')
@@ -2652,9 +2656,12 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const customerOptions = useMemo(() => normalizeCustomerCatalog(data.customerCatalog), [data.customerCatalog])
   const selectedCustomer = form.customerObject
     || customerOptions.find((customer) => customer.customerCode && customer.customerCode === form.customerCode)
-  const formula = form.formulaObject?.formulaStatus === FORMULA_STATUS_ACTIVE
+  const formula = form.formulaObject?.status === FORMULA_STATUS_ACTIVE
     ? form.formulaObject
-    : selectableFormulas.find((item) => (item.code && item.code === form.selectedFormulaCode) || (item.id && item.id === form.formulaId))
+    : activeFormulaOptions.find((item) => (
+      formulaCodeEquals(item, form.selectedFormulaCode)
+      || (item.id && item.id === form.formulaId)
+    ))
   const libraryItems = formula ? formula.items.map((item) => ({
     code: item.materialCode,
     name: item.materialCode,
@@ -2695,8 +2702,8 @@ function OrdersPage({ data, setData, permissions = [] }) {
       id,
       orderCode: id,
       formulaId: formula.id,
-      formulaCode: formula.code || formula.id,
-      selectedFormulaCode: formula.code || formula.id,
+      formulaCode: getFormulaOptionCode(formula),
+      selectedFormulaCode: getFormulaOptionCode(formula),
       formulaVersion: formula.version,
       productName: formula.product,
       product: formula.product,
@@ -2771,10 +2778,13 @@ function OrdersPage({ data, setData, permissions = [] }) {
         <div className="production-order-form-grid">
           <label className="formula-field">Mã sản phẩm
             <FormulaSearchCombobox
-              formulas={selectableFormulas}
+              formulas={activeFormulaOptions}
               inputValue={form.formulaSearch}
               onInputChange={(value) => setForm({ ...form, formulaSearch: value, formulaId: '', selectedFormulaCode: '', formulaObject: null })}
-              onSelect={(selectedFormula) => setForm({ ...form, formulaSearch: formatFormulaInput(selectedFormula), formulaId: selectedFormula.id, selectedFormulaCode: selectedFormula.code || selectedFormula.id, formulaObject: selectedFormula })}
+              onSelect={(selectedFormula) => {
+                const selectedCode = getFormulaOptionCode(selectedFormula)
+                setForm({ ...form, formulaSearch: selectedCode, formulaId: selectedFormula.id, selectedFormulaCode: selectedCode, formulaObject: selectedFormula })
+              }}
               onInvalid={() => setForm({ ...form, formulaSearch: '', formulaId: '', selectedFormulaCode: '', formulaObject: null })}
             />
           </label>
