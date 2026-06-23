@@ -104,6 +104,12 @@ const resolveOrderCustomer = (order = {}) => {
 }
 const uid = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
 const RAW_MATERIAL_QR_TYPE = 'RAW_MATERIAL_LOT'
+const MATERIAL_QR_PREFIX = 'MAT|'
+const materialQrValue = (materialCode) => `${MATERIAL_QR_PREFIX}${String(materialCode || '').trim()}`
+const parseMaterialQr = (value) => {
+  const text = String(value || '').trim()
+  return text.startsWith(MATERIAL_QR_PREFIX) ? { type: 'MATERIAL_CODE', materialCode: text.slice(MATERIAL_QR_PREFIX.length).trim() } : null
+}
 
 function parseScaleWeightKg(text = '') {
   const normalized = String(text)
@@ -225,6 +231,13 @@ function parseRawMaterialQr(value) {
 }
 
 function validateRawMaterialQr(qrInput, requiredMaterial, lots = []) {
+  const materialQr = parseMaterialQr(qrInput)
+  if (materialQr) {
+    if (materialQr.materialCode !== String(requiredMaterial.materialCode || '').trim()) {
+      return { ok: false, message: 'Sai mã vật tư, không cho cân', qr: materialQr }
+    }
+    return { ok: true, message: 'QR hợp lệ', qr: materialQr, materialOnly: true }
+  }
   const qr = parseRawMaterialQr(qrInput)
   if (!qr || qr.type !== RAW_MATERIAL_QR_TYPE) {
     return { ok: false, message: 'QR sai type.', qr }
@@ -4086,21 +4099,34 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
     updateWeight(order, item, {
       qrScanned: qrInput,
       rawMaterialQr: qrInput,
-      rawMaterialLotCode: result.lot.lotCode,
-      rawMaterialRemainingBefore: num(result.lot.remainingQty),
+      rawMaterialLotCode: result.materialOnly ? item.rawMaterialLotCode || '' : result.lot.lotCode,
+      rawMaterialRemainingBefore: result.materialOnly ? remainingBefore : num(result.lot.remainingQty),
+      materialQrOnly: !!result.materialOnly,
       qrStatus: 'PASS',
-      qrMatchStatus: 'Khớp QR',
+      qrMatchStatus: result.message || 'Khớp QR',
       note: item.note,
-    }, `QR PASS ${order.id} - ${item.materialCode}, lô ${result.lot.lotCode}.`)
+    }, result.materialOnly ? `QR hợp lệ ${order.id} - ${item.materialCode}.` : `QR PASS ${order.id} - ${item.materialCode}, lô ${result.lot.lotCode}.`)
   }
   const confirmWeight = (overrideWeight = null) => {
     if (!active) return
-    if (!qrPassed || !item.rawMaterialLotCode) {
+    if (!qrPassed || (!item.rawMaterialLotCode && !item.materialQrOnly)) {
       setWarning?.('Vui lòng quét QR lô nguyên liệu hợp lệ trước khi cân.')
       return
     }
     const actualWeight = num(overrideWeight ?? weight)
     const lot = rawMaterialLots.find((row) => row.lotCode === item.rawMaterialLotCode && row.materialCode === item.materialCode)
+    if (item.materialQrOnly) {
+      const pass = Math.abs(actualWeight - num(item.requiredKg)) <= num(item.toleranceKg)
+      const supplementalText = order.stage === 'supplement-weighing' ? `Cân bổ sung ${item.materialGroup === CHEMICAL ? 'hóa' : 'rắn'}` : 'Cân'
+      setWarning?.(pass ? '' : 'Khối lượng cân ngoài dung sai.')
+      updateWeight(order, item, {
+        actualWeight,
+        weighStatus: pass ? 'PASS' : 'FAIL',
+        confirmedAt: nowText(),
+        note: pass ? item.note : 'Ngoài dung sai',
+      }, `${supplementalText} ${pass ? 'PASS' : 'FAIL'} ${order.id} - ${item.materialCode}.`, null)
+      return
+    }
     if (!lot) {
       setWarning?.('Không tìm thấy lô nguyên liệu trong kho.')
       return
@@ -7234,8 +7260,37 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   const canDelete = hasPermission(permissions, `master.${key}.delete`)
   const importExcelRef = useRef(null)
   const [notice, setNotice] = useState('')
+  const [materialQrModal, setMaterialQrModal] = useState(null)
   const isMaterialCatalog = storageKey === 'materialCatalog'
   const canImportMaterialCatalog = isMaterialCatalog && (canCreate || canEdit)
+  const materialQrCanvasId = (row) => `material-qr-${String(row.id || row.materialCode || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`
+  const getMaterialQrCanvas = (row) => document.getElementById(materialQrCanvasId(row))
+  const downloadMaterialQr = (row) => {
+    const canvas = getMaterialQrCanvas(row)
+    if (!canvas) {
+      setNotice('Chưa tạo được QR vật tư.')
+      return
+    }
+    const link = document.createElement('a')
+    link.href = canvas.toDataURL('image/png')
+    link.download = `qr-vat-tu-${String(row.materialCode || 'material').replace(/[^a-zA-Z0-9_-]/g, '-')}.png`
+    link.click()
+  }
+  const printMaterialQr = (row) => {
+    const canvas = getMaterialQrCanvas(row)
+    if (!canvas) {
+      setNotice('Chưa tạo được QR vật tư.')
+      return
+    }
+    const image = canvas.toDataURL('image/png')
+    const printWindow = window.open('', '_blank', 'width=420,height=560')
+    if (!printWindow) {
+      setNotice('Trình duyệt đã chặn cửa sổ in QR.')
+      return
+    }
+    printWindow.document.write(`<html><head><title>QR vật tư ${row.materialCode || ''}</title><style>body{font-family:Arial,sans-serif;text-align:center;padding:24px}img{width:220px;height:220px}strong{display:block;margin-top:14px;font-size:22px}</style></head><body><img src="${image}" alt="QR vật tư"/><strong>${row.materialCode || ''}</strong><script>window.onload=function(){window.print()}</script></body></html>`)
+    printWindow.document.close()
+  }
   const materialExcelRows = () => (data.materialCatalog || []).map((row) => ({
     'Mã vật tư': row.materialCode || '',
     'Tên vật tư': row.materialName || '',
@@ -7344,6 +7399,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
             <thead>
               <tr>
                 {labels.map((label) => <th key={label}>{label}</th>)}
+                {isMaterialCatalog && <th>QR vật tư</th>}
                 <th>Hành động</th>
               </tr>
             </thead>
@@ -7355,16 +7411,50 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
                       <input value={row[field] || ''} readOnly={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)} />
                     </td>
                   ))}
+                  {isMaterialCatalog && (
+                    <td data-label="QR vật tư">
+                      <div className="action-row table-action-row">
+                        <button className="secondary-button" type="button" disabled={!row.materialCode} onClick={() => setMaterialQrModal(row)}>Tạo QR</button>
+                        <button className="secondary-button" type="button" disabled={!row.materialCode} onClick={() => printMaterialQr(row)}>In QR</button>
+                        <button className="secondary-button" type="button" disabled={!row.materialCode} onClick={() => downloadMaterialQr(row)}>Tải QR</button>
+                        {row.materialCode && <span className="qr-hidden-canvas"><QRCodeCanvas id={materialQrCanvasId(row)} value={materialQrValue(row.materialCode)} size={220} includeMargin /></span>}
+                      </div>
+                    </td>
+                  )}
                   <td data-label="Hành động">
                     <button className="danger-button" type="button" disabled={!canDelete} onClick={() => deleteRow(row.id)}>Xóa</button>
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td className="empty-row" colSpan={fields.length + 1}>Chưa có dữ liệu.</td></tr>}
+              {rows.length === 0 && <tr><td className="empty-row" colSpan={fields.length + (isMaterialCatalog ? 2 : 1)}>Chưa có dữ liệu.</td></tr>}
             </tbody>
           </table>
         </div>
       </section>
+      {materialQrModal && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="mixing-modal weighed-container-modal" role="dialog" aria-modal="true">
+            <div className="modal-header">
+              <div><span className="section-kicker">QR vật tư</span><h2>{materialQrModal.materialCode}</h2></div>
+              <button type="button" className="icon-button" onClick={() => setMaterialQrModal(null)} aria-label="Đóng">×</button>
+            </div>
+            <section className="qr-print-ticket">
+              <div className="qr-print-code">
+                <QRCodeCanvas value={materialQrValue(materialQrModal.materialCode)} size={220} includeMargin />
+              </div>
+              <strong className="qr-print-text">{materialQrValue(materialQrModal.materialCode)}</strong>
+              <div className="qr-print-info">
+                <div><span>Mã vật tư</span><strong>{materialQrModal.materialCode}</strong></div>
+              </div>
+            </section>
+            <div className="modal-actions">
+              <button type="button" className="secondary-button" onClick={() => printMaterialQr(materialQrModal)}>In QR</button>
+              <button type="button" className="secondary-button" onClick={() => downloadMaterialQr(materialQrModal)}>Tải QR</button>
+              <button type="button" className="primary-button" onClick={() => setMaterialQrModal(null)}>Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

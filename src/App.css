@@ -11658,3 +11658,10 @@ body,
     grid-template-columns: 1fr;
   }
 }
+.qr-hidden-canvas {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
