@@ -72,13 +72,45 @@ const realCustomerFields = (index = 0) => {
   }
 }
 const formatCustomerOption = (customer = {}) => customer.customerName || ''
-const formatFormulaSuggestion = (formula = {}) => [formula.product, formula.code || formula.id, formula.version].filter(Boolean).join(' - ')
-const formatFormulaInput = (formula = {}) => [formula.product || formula.code || formula.id, formula.version].filter(Boolean).join(' - ')
+const formatFormulaSuggestion = (formula = {}) => {
+  const item = formula || {}
+  return [item.product, item.code || item.id, item.version].filter(Boolean).join(' - ')
+}
+const formatFormulaInput = (formula = {}) => {
+  const item = formula || {}
+  return [item.product || item.code || item.id, item.version].filter(Boolean).join(' - ')
+}
+const FORMULA_STATUS_ACTIVE = 'Đang áp dụng'
+const FORMULA_STATUS_DRAFT = 'Lưu nháp'
+const FORMULA_STATUS_INACTIVE = 'Ngưng áp dụng'
+const formulaStatuses = [FORMULA_STATUS_ACTIVE, FORMULA_STATUS_DRAFT, FORMULA_STATUS_INACTIVE]
 const formulaMatches = (formula = {}, query = '') => {
   const keyword = normalizeText(query)
   if (!keyword) return true
   return normalizeText([formula.product, formula.code, formula.id, formula.version].filter(Boolean).join(' ')).includes(keyword)
 }
+const isDemoFormulaCode = (formula = {}) => {
+  const code = normalizeText([formula.id, formula.code, formula.product].filter(Boolean).join(' '))
+  return code.includes('hns 252 g1') || code.includes('hns 252 r2')
+}
+const normalizeFormulaStatus = (formula = {}) => (
+  formulaStatuses.includes(formula.formulaStatus)
+    ? formula.formulaStatus
+    : formulaStatuses.includes(formula.status)
+      ? formula.status
+      : isDemoFormulaCode(formula)
+        ? FORMULA_STATUS_DRAFT
+        : FORMULA_STATUS_ACTIVE
+)
+const normalizeMasterFormulas = (formulas = []) => (Array.isArray(formulas) ? formulas : []).map((formula) => ({
+  ...formula,
+  formulaStatus: normalizeFormulaStatus(formula),
+}))
+const activeMasterFormulas = (formulas = []) => normalizeMasterFormulas(formulas).filter((formula) => formula.formulaStatus === FORMULA_STATUS_ACTIVE)
+const formulaHasProductionOrders = (formula = {}, orders = []) => (orders || []).some((order) => (
+  [order.formulaId, order.originalFormulaId, order.formulaCode].filter(Boolean).includes(formula.id)
+  || [order.formulaCode, order.originalFormulaId].filter(Boolean).includes(formula.code)
+))
 const resolveOrderCustomer = (order = {}) => {
   const catalog = normalizeCustomerCatalog()
   const code = order.customerCode || ''
@@ -590,6 +622,7 @@ const initialData = {
     code: id.replaceAll('-', ' '),
     product: id === 'HNS-252-G1' ? 'HNS 252.G1' : 'HNS 252.R2',
     version: index === 0 ? 'V3.0' : 'V3.1',
+    formulaStatus: FORMULA_STATUS_DRAFT,
     effectiveDate: '2026-06-13',
     createdBy: 'Phòng kỹ thuật',
     checkedBy: 'QC trưởng',
@@ -2036,6 +2069,7 @@ const emptyMasterFormulaDraft = () => ({
   product: '',
   productGroup: '',
   version: 'V1.0',
+  formulaStatus: FORMULA_STATUS_ACTIVE,
   effectiveDate: todayText(),
   note: '',
   items: [emptyFormulaLine()],
@@ -2147,7 +2181,33 @@ function FormulasPage({ data, setData, permissions = [] }) {
     && !draftCodeExists
   const canCreateFormula = hasPermission(permissions, 'master.formula.create')
   const canEditFormula = hasPermission(permissions, 'master.formula.edit')
+  const canDeleteFormula = hasPermission(permissions, 'master.formula.delete')
   const canSecureViewFormula = hasPermission(permissions, 'formula.secure.view')
+  const setFormulaStatus = (formula, formulaStatus) => {
+    if (!canEditFormula) return
+    setData((current) => addLogToData({
+      ...current,
+      formulas: normalizeMasterFormulas(current.formulas || []).map((item) => item.id === formula.id ? { ...item, formulaStatus } : item),
+    }, `Cập nhật trạng thái công thức ${formula.code || formula.id}: ${formulaStatus}.`))
+    setFormulaMessage(`Đã cập nhật trạng thái ${formula.code || formula.id}: ${formulaStatus}.`)
+  }
+  const deleteFormula = (formula) => {
+    if (!canDeleteFormula) return
+    if (formulaHasProductionOrders(formula, data.orders || [])) {
+      setFormulaMessage(`Công thức ${formula.code || formula.id} đã phát sinh Lệnh sản xuất, không thể xóa. Vui lòng chuyển sang Ngưng áp dụng.`)
+      return
+    }
+    setData((current) => addLogToData({
+      ...current,
+      formulas: (current.formulas || []).filter((item) => item.id !== formula.id),
+      formulaVersions: (current.formulaVersions || []).filter((version) => version.formulaId !== formula.id),
+    }, `Xóa công thức gốc ${formula.code || formula.id}.`))
+    const nextFormula = (data.formulas || []).find((item) => item.id !== formula.id)
+    setSelectedId(nextFormula?.id || '')
+    setSelectedVersionId('')
+    setDraft(null)
+    setFormulaMessage(`Đã xóa công thức ${formula.code || formula.id}.`)
+  }
 
   const openCreateFormula = () => {
     if (!canCreateFormula) return
@@ -2175,6 +2235,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
       product: formulaDraft.product.trim(),
       productGroup: formulaDraft.productGroup.trim(),
       version: formulaDraft.version.trim() || 'V1.0',
+      formulaStatus: formulaDraft.formulaStatus || FORMULA_STATUS_ACTIVE,
       effectiveDate: formulaDraft.effectiveDate || todayText(),
       note: formulaDraft.note.trim(),
       createdBy: 'Phòng kỹ thuật',
@@ -2281,6 +2342,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
           product: formula.product,
           productGroup: formula.productGroup,
           version: formula.version,
+          formulaStatus: FORMULA_STATUS_ACTIVE,
           effectiveDate: formula.effectiveDate,
           note: formula.note,
           createdBy: 'Phòng kỹ thuật',
@@ -2379,11 +2441,31 @@ function FormulasPage({ data, setData, permissions = [] }) {
         <input ref={importFormulaRef} type="file" accept=".xlsx,.xls" hidden onChange={(event) => importFormulaExcel(event.target.files?.[0])} />
         {formulaMessage && <div className={formulaMessage.startsWith('Đã') ? 'formula-ratio-ok' : 'formula-ratio-alert'}>{formulaMessage}</div>}
         <div className="log-tabs">{data.formulas.map((formula) => <button className={formula.id === selectedId ? 'active' : ''} key={formula.id} onClick={() => { setSelectedId(formula.id); setSelectedVersionId(''); setDraft(null) }}>{formula.code}</button>)}</div>
+        <SimpleTable headers={['Mã công thức', 'Sản phẩm', 'Trạng thái công thức', 'Hành động']} rows={data.formulas.map((formula) => {
+          const formulaStatus = normalizeFormulaStatus(formula)
+          const used = formulaHasProductionOrders(formula, data.orders || [])
+          return (
+            <tr key={formula.id}>
+              <td>{formula.code || formula.id}</td>
+              <td>{formula.product || '-'}</td>
+              <td><span className={`dispatch-badge ${formulaStatus === FORMULA_STATUS_ACTIVE ? 'ready' : formulaStatus === FORMULA_STATUS_DRAFT ? 'waiting' : 'fail'}`}>{formulaStatus}</span></td>
+              <td>
+                <div className="action-row table-action-row">
+                  <button className="secondary-button" type="button" disabled={!canEditFormula || formulaStatus === FORMULA_STATUS_ACTIVE} onClick={() => setFormulaStatus(formula, FORMULA_STATUS_ACTIVE)}>Kích hoạt</button>
+                  <button className="secondary-button" type="button" disabled={!canEditFormula || formulaStatus === FORMULA_STATUS_DRAFT} onClick={() => setFormulaStatus(formula, FORMULA_STATUS_DRAFT)}>Lưu nháp</button>
+                  <button className="secondary-button" type="button" disabled={!canEditFormula || formulaStatus === FORMULA_STATUS_INACTIVE} onClick={() => setFormulaStatus(formula, FORMULA_STATUS_INACTIVE)}>Ngưng áp dụng</button>
+                  <button className="danger-button" type="button" disabled={!canDeleteFormula || used} title={used ? 'Công thức đã phát sinh Lệnh sản xuất, chỉ có thể Ngưng áp dụng.' : ''} onClick={() => deleteFormula(formula)}>Xóa</button>
+                </div>
+              </td>
+            </tr>
+          )
+        })} />
       </section>
       <section className="panel">
         <div className="production-form-grid">
           <label>Mã công thức<input readOnly value={selected.code} /></label>
           <label>Sản phẩm<input readOnly value={selected.product} /></label>
+          <label>Trạng thái công thức<input readOnly value={normalizeFormulaStatus(selected)} /></label>
           <label>Version gốc<input readOnly value={selected.version} /></label>
           <label>Version điều chỉnh<select value={draft ? draft.id : selectedVersion?.id || ''} onChange={(event) => { setSelectedVersionId(event.target.value); setDraft(null) }}><option value="">Công thức gốc</option>{versions.map((version) => <option key={version.id} value={version.id}>{version.adjustedVersion} - {version.status}</option>)}</select></label>
           <label>Ngày hiệu lực<input type="date" readOnly={!draft} value={activeVersion?.effectiveDate || selected.effectiveDate} onChange={(event) => updateDraftField('effectiveDate', event.target.value)} /></label>
@@ -2420,6 +2502,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
               <label>Tên sản phẩm<input value={formulaDraft.product} onChange={(event) => updateFormulaDraft('product', event.target.value)} /></label>
               <label>Nhóm sản phẩm<input value={formulaDraft.productGroup} onChange={(event) => updateFormulaDraft('productGroup', event.target.value)} /></label>
               <label>Version<input value={formulaDraft.version} onChange={(event) => updateFormulaDraft('version', event.target.value)} /></label>
+              <label>Trạng thái công thức<select value={formulaDraft.formulaStatus} onChange={(event) => updateFormulaDraft('formulaStatus', event.target.value)}>{formulaStatuses.map((status) => <option key={status}>{status}</option>)}</select></label>
               <label>Ngày hiệu lực<input type="date" value={formulaDraft.effectiveDate} onChange={(event) => updateFormulaDraft('effectiveDate', event.target.value)} /></label>
               <label className="wide-field">Ghi chú<input value={formulaDraft.note} onChange={(event) => updateFormulaDraft('note', event.target.value)} /></label>
             </div>
@@ -2448,7 +2531,8 @@ function FormulasPage({ data, setData, permissions = [] }) {
 }
 
 function OrdersPage({ data, setData, permissions = [] }) {
-  const initialFormula = data.formulas[0] || null
+  const selectableFormulas = activeMasterFormulas(data.formulas)
+  const initialFormula = selectableFormulas[0] || null
   const [form, setForm] = useState({ formulaId: initialFormula?.id || '', formulaObject: initialFormula, formulaSearch: formatFormulaInput(initialFormula), quantityKg: 1000, lot: '', customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
   const [message, setMessage] = useState('')
   const [warning, setWarning] = useState('')
@@ -2458,8 +2542,9 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const customerOptions = useMemo(() => normalizeCustomerCatalog(data.customerCatalog), [data.customerCatalog])
   const selectedCustomer = form.customerObject
     || customerOptions.find((customer) => customer.customerCode && customer.customerCode === form.customerCode)
-  const formula = form.formulaObject
-    || data.formulas.find((item) => item.id && item.id === form.formulaId)
+  const formula = form.formulaObject?.formulaStatus === FORMULA_STATUS_ACTIVE
+    ? form.formulaObject
+    : selectableFormulas.find((item) => item.id && item.id === form.formulaId)
   const libraryItems = formula ? formula.items.map((item) => ({
     code: item.materialCode,
     name: item.materialCode,
@@ -2475,8 +2560,8 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const create = () => {
     setMessage('')
     setWarning('')
-    if (!formula) {
-      setWarning('Vui lòng chọn công thức gốc từ danh mục')
+    if (!formula || normalizeFormulaStatus(formula) !== FORMULA_STATUS_ACTIVE) {
+      setWarning('Vui lòng chọn công thức gốc đang áp dụng từ danh mục')
       return
     }
     if (!Number.isFinite(Number(form.quantityKg)) || Number(form.quantityKg) <= 0) {
@@ -2575,7 +2660,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
         <div className="production-order-form-grid">
           <label>Mã sản phẩm
             <FormulaSearchCombobox
-              formulas={data.formulas}
+              formulas={selectableFormulas}
               inputValue={form.formulaSearch}
               onInputChange={(value) => setForm({ ...form, formulaSearch: value, formulaId: '', formulaObject: null })}
               onSelect={(selectedFormula) => setForm({ ...form, formulaSearch: formatFormulaInput(selectedFormula), formulaId: selectedFormula.id, formulaObject: selectedFormula })}
@@ -7800,7 +7885,7 @@ function App() {
     const seed = seedData()
     const saved = loadStored(DATA_KEY, seed)
     const storedFormulas = loadStored(FORMULAS_KEY, null)
-    const formulas = nonEmptyArray(storedFormulas, saved.formulas, seed.formulas)
+    const formulas = normalizeMasterFormulas(nonEmptyArray(storedFormulas, saved.formulas, seed.formulas))
     const productionLogs = nonEmptyArray(loadStored(PRODUCTION_LOGS_KEY, null), saved.productionLogs, saved.logs, seed.productionLogs)
     const qc2Logs = nonEmptyArray(loadStored(QC2_LOGS_KEY, null), saved.qc2Logs)
     const qc2AdjustmentTickets = nonEmptyArray(loadStored(QC2_ADJUSTMENTS_KEY, null), saved.qc2AdjustmentTickets, saved.qc2Adjustments)
