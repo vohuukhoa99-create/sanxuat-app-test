@@ -6690,8 +6690,6 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     { id: 'solid', teamCode: 'TC', role: 'Cân rắn', stage: 'Cân rắn', processStages: ['Cân rắn'] },
     { id: 'mixing-1', teamCode: 'TP1', role: 'Tổ trên', stage: 'Phối trộn', processStages: ['Phối trộn'], roleEditable: true },
     { id: 'mixing-2', teamCode: 'TP2', role: 'Tổ dưới', stage: 'Đóng gói + Kho thành phẩm', processStages: ['Đóng gói', 'Kho thành phẩm'], roleEditable: true },
-    { id: 'qc-trial', teamCode: 'QC', role: 'QC sản xuất thử', stage: 'QC sản xuất thử', processStages: ['QC sản xuất thử'] },
-    { id: 'qc-finished', teamCode: 'QC', role: 'QC thành phẩm', stage: 'QC thành phẩm', processStages: ['QC thành phẩm'] },
   ]
   const buildDraftRows = () => Object.fromEntries(assignmentRows.map((row) => [row.id, {
     role: row.role,
