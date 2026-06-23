@@ -605,7 +605,7 @@ tbody tr:hover {
 
 .production-order-form-grid {
   display: grid;
-  grid-template-columns: 190px 110px 160px minmax(420px, 2fr) 150px 200px minmax(280px, 1fr);
+  grid-template-columns: 180px 110px 150px minmax(420px, 2fr) 150px 200px minmax(280px, 1fr);
   gap: 12px;
   align-items: end;
   margin-bottom: 16px;
@@ -645,7 +645,7 @@ tbody tr:hover {
 .production-order-form-grid .formula-field {
   position: relative;
   z-index: 80;
-  min-width: 220px;
+  min-width: 0;
 }
 
 .production-order-form-grid .customer-field .customer-combobox {
@@ -681,7 +681,7 @@ tbody tr:hover {
 
 .formula-combobox-menu {
   z-index: 1200;
-  max-height: 320px;
+  max-height: 380px;
 }
 
 .customer-combobox-menu button {
@@ -11708,7 +11708,7 @@ body,
 
 @media (max-width: 1400px) {
   .production-order-form-grid {
-    grid-template-columns: 190px 110px 160px minmax(360px, 1fr) 150px;
+    grid-template-columns: 180px 110px 150px minmax(360px, 1fr) 150px;
   }
 }
 

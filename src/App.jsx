@@ -92,7 +92,10 @@ const formulaStatuses = [FORMULA_STATUS_ACTIVE, FORMULA_STATUS_DRAFT, FORMULA_ST
 const formulaMatches = (formula = {}, query = '') => {
   const keyword = normalizeText(query)
   if (!keyword) return true
-  return normalizeText(formula.code || formula.id || '').includes(keyword)
+  const formulaCode = normalizeText(formula.code || formula.id || '')
+  const compactFormulaCode = formulaCode.replace(/\s+/g, '')
+  const compactKeyword = keyword.replace(/\s+/g, '')
+  return formulaCode.includes(keyword) || compactFormulaCode.includes(compactKeyword)
 }
 const formulaCodeEquals = (formula = {}, value = '') => normalizeText(formula.code || formula.id || '') === normalizeText(value)
 const isDemoFormulaCode = (formula = {}) => {
@@ -2879,8 +2882,7 @@ function FormulaSearchCombobox({ formulas = [], inputValue = '', onInputChange, 
   const query = inputValue || ''
   const filteredFormulas = useMemo(() => {
     const filterText = showAll ? '' : query
-    const limit = normalizeText(filterText) ? 50 : formulas.length
-    return formulas.filter((formula) => formulaMatches(formula, filterText)).slice(0, limit)
+    return formulas.filter((formula) => formulaMatches(formula, filterText))
   }, [formulas, query, showAll])
   const selectFormula = (formula) => {
     onSelect(formula)
