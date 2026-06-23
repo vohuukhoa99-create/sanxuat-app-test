@@ -87,7 +87,8 @@ const formatFormulaInput = (formula = {}) => {
 const FORMULA_STATUS_ACTIVE = 'Đang áp dụng'
 const FORMULA_STATUS_DRAFT = 'Lưu nháp'
 const FORMULA_STATUS_INACTIVE = 'Ngưng áp dụng'
-const formulaStatuses = [FORMULA_STATUS_ACTIVE, FORMULA_STATUS_DRAFT, FORMULA_STATUS_INACTIVE]
+const FORMULA_STATUS_ARCHIVED = 'Lưu trữ'
+const formulaStatuses = [FORMULA_STATUS_ACTIVE, FORMULA_STATUS_DRAFT, FORMULA_STATUS_INACTIVE, FORMULA_STATUS_ARCHIVED]
 const formulaMatches = (formula = {}, query = '') => {
   const keyword = normalizeText(query)
   if (!keyword) return true
@@ -2187,6 +2188,10 @@ function FormulasPage({ data, setData, permissions = [] }) {
   const [createOpen, setCreateOpen] = useState(false)
   const [formulaDraft, setFormulaDraft] = useState(emptyMasterFormulaDraft)
   const [formulaMessage, setFormulaMessage] = useState('')
+  const [formulaSearch, setFormulaSearch] = useState('')
+  const [formulaStatusFilter, setFormulaStatusFilter] = useState('all')
+  const [formulaPageSize, setFormulaPageSize] = useState(20)
+  const [formulaPage, setFormulaPage] = useState(1)
   const importFormulaRef = useRef(null)
   const selected = data.formulas.find((item) => item.id === selectedId) || data.formulas[0]
   const versions = (data.formulaVersions || []).filter((version) => version.formulaId === selectedId)
@@ -2218,6 +2223,27 @@ function FormulasPage({ data, setData, permissions = [] }) {
   const canEditFormula = hasPermission(permissions, 'master.formula.edit')
   const canDeleteFormula = hasPermission(permissions, 'master.formula.delete')
   const canSecureViewFormula = hasPermission(permissions, 'formula.secure.view')
+  const filteredFormulas = normalizeMasterFormulas(data.formulas || []).filter((formula) => {
+    const keyword = normalizeText(formulaSearch)
+    const matchesSearch = !keyword || normalizeText([formula.code, formula.id, formula.product].filter(Boolean).join(' ')).includes(keyword)
+    const matchesStatus = formulaStatusFilter === 'all' || normalizeFormulaStatus(formula) === formulaStatusFilter
+    return matchesSearch && matchesStatus
+  })
+  const totalFormulaPages = Math.max(1, Math.ceil(filteredFormulas.length / formulaPageSize))
+  const currentFormulaPage = Math.min(formulaPage, totalFormulaPages)
+  const pagedFormulas = filteredFormulas.slice((currentFormulaPage - 1) * formulaPageSize, currentFormulaPage * formulaPageSize)
+  const updateFormulaSearch = (value) => {
+    setFormulaSearch(value)
+    setFormulaPage(1)
+  }
+  const updateFormulaStatusFilter = (value) => {
+    setFormulaStatusFilter(value)
+    setFormulaPage(1)
+  }
+  const updateFormulaPageSize = (value) => {
+    setFormulaPageSize(Number(value))
+    setFormulaPage(1)
+  }
   const setFormulaStatus = (formula, formulaStatus) => {
     if (!canEditFormula) return
     setData((current) => addLogToData({
@@ -2242,6 +2268,31 @@ function FormulasPage({ data, setData, permissions = [] }) {
     setSelectedVersionId('')
     setDraft(null)
     setFormulaMessage(`Đã xóa công thức ${formula.code || formula.id}.`)
+  }
+  const copyFormula = (formula) => {
+    if (!canCreateFormula) return
+    const baseCode = `${formula.code || formula.id}-COPY`
+    const existingCodes = new Set((data.formulas || []).flatMap((item) => [item.id, item.code].filter(Boolean)))
+    let nextCode = baseCode
+    let index = 1
+    while (existingCodes.has(nextCode)) {
+      index += 1
+      nextCode = `${baseCode}-${index}`
+    }
+    const copied = {
+      ...formula,
+      id: nextCode,
+      code: nextCode,
+      formulaStatus: FORMULA_STATUS_DRAFT,
+      version: formula.version || 'V1.0',
+      createdAt: nowText(),
+      items: (formula.items || []).map((item, itemIndex) => ({ ...item, id: uid('fml'), no: itemIndex + 1 })),
+    }
+    setData((current) => addLogToData({ ...current, formulas: [copied, ...(current.formulas || [])] }, `Sao chép công thức ${formula.code || formula.id} thành ${nextCode}.`))
+    setSelectedId(copied.id)
+    setSelectedVersionId('')
+    setDraft(null)
+    setFormulaMessage(`Đã sao chép công thức ${formula.code || formula.id} thành ${nextCode}.`)
   }
 
   const openCreateFormula = () => {
@@ -2400,22 +2451,23 @@ function FormulasPage({ data, setData, permissions = [] }) {
     reader.readAsArrayBuffer(file)
   }
 
-  const startAdjustment = () => {
-    if (!canEditFormula || !selected) return
-    const versionNo = versions.length + 1
+  const startAdjustment = (targetFormula = selected) => {
+    if (!canEditFormula || !targetFormula) return
+    const targetVersions = (data.formulaVersions || []).filter((version) => version.formulaId === targetFormula.id)
+    const versionNo = targetVersions.length + 1
     const newDraft = {
       id: uid('FVER'),
-      formulaId: selected.id,
-      baseVersion: selected.version,
-      adjustedVersion: `${selected.version}-DC${versionNo}`,
-      effectiveDate: selected.effectiveDate,
-      createdBy: selected.createdBy,
-      checkedBy: selected.checkedBy,
-      approvedBy: selected.approvedBy,
+      formulaId: targetFormula.id,
+      baseVersion: targetFormula.version,
+      adjustedVersion: `${targetFormula.version}-DC${versionNo}`,
+      effectiveDate: targetFormula.effectiveDate,
+      createdBy: targetFormula.createdBy,
+      checkedBy: targetFormula.checkedBy,
+      approvedBy: targetFormula.approvedBy,
       adjustmentReason: '',
       status: 'Nháp',
       createdAt: nowText(),
-      items: selected.items.map((item) => ({
+      items: targetFormula.items.map((item) => ({
         id: uid('fver-item'),
         baseItemId: item.id,
         materialCode: item.materialCode,
@@ -2426,9 +2478,10 @@ function FormulasPage({ data, setData, permissions = [] }) {
         adjustmentNote: '',
       })),
     }
+    setSelectedId(targetFormula.id)
     setDraft(newDraft)
     setSelectedVersionId('')
-    setData((current) => addLogToData(current, `Tạo phiên bản điều chỉnh ${newDraft.adjustedVersion} từ công thức gốc ${selected.code}.`))
+    setData((current) => addLogToData(current, `Tạo phiên bản điều chỉnh ${newDraft.adjustedVersion} từ công thức gốc ${targetFormula.code}.`))
   }
 
   const updateDraftField = (field, value) => setDraft((current) => ({ ...current, [field]: value }))
@@ -2468,33 +2521,51 @@ function FormulasPage({ data, setData, permissions = [] }) {
             <button className="primary-button" disabled={!canCreateFormula} onClick={openCreateFormula}>Tạo công thức gốc</button>
             <button className="secondary-button" disabled={!canCreateFormula} onClick={() => importFormulaRef.current?.click()}>Tải công thức Excel</button>
             <button className="secondary-button" disabled={!canCreateFormula} onClick={downloadFormulaTemplate}>Tải file mẫu</button>
-            <button className="primary-button" disabled={!canEditFormula} onClick={startAdjustment}>Tạo phiên bản điều chỉnh</button>
+            <button className="primary-button" disabled={!canEditFormula} onClick={() => startAdjustment()}>Tạo phiên bản điều chỉnh</button>
             <button className="secondary-button" onClick={() => setSelectedVersionId(latestApproved?.id || '')}>So sánh với công thức gốc</button>
             <button className="secondary-button" onClick={restoreBase}>Khôi phục về công thức gốc</button>
           </div>
         </div>
         <input ref={importFormulaRef} type="file" accept=".xlsx,.xls" hidden onChange={(event) => importFormulaExcel(event.target.files?.[0])} />
         {formulaMessage && <div className={formulaMessage.startsWith('Đã') ? 'formula-ratio-ok' : 'formula-ratio-alert'}>{formulaMessage}</div>}
-        <div className="log-tabs">{data.formulas.map((formula) => <button className={formula.id === selectedId ? 'active' : ''} key={formula.id} onClick={() => { setSelectedId(formula.id); setSelectedVersionId(''); setDraft(null) }}>{formula.code}</button>)}</div>
-        <SimpleTable headers={['Mã công thức', 'Sản phẩm', 'Trạng thái công thức', 'Hành động']} rows={data.formulas.map((formula) => {
+        <div className="production-form-grid">
+          <label className="wide-field">Tìm kiếm<input value={formulaSearch} placeholder="Tìm theo mã công thức hoặc tên sản phẩm" onChange={(event) => updateFormulaSearch(event.target.value)} /></label>
+          <label>Bộ lọc<select value={formulaStatusFilter} onChange={(event) => updateFormulaStatusFilter(event.target.value)}>
+            <option value="all">Tất cả</option>
+            {formulaStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+          </select></label>
+          <label>Số dòng<select value={formulaPageSize} onChange={(event) => updateFormulaPageSize(event.target.value)}>
+            {[20, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+          </select></label>
+        </div>
+        <SimpleTable headers={['Mã công thức', 'Sản phẩm', 'Version', 'Trạng thái', 'Ngày hiệu lực', 'Người lập', 'Hành động']} rows={pagedFormulas.map((formula) => {
           const formulaStatus = normalizeFormulaStatus(formula)
-          const used = formulaHasProductionOrders(formula, data.orders || [])
           return (
             <tr key={formula.id}>
               <td>{formula.code || formula.id}</td>
               <td>{formula.product || '-'}</td>
+              <td>{formula.version || '-'}</td>
               <td><span className={`dispatch-badge ${formulaStatus === FORMULA_STATUS_ACTIVE ? 'ready' : formulaStatus === FORMULA_STATUS_DRAFT ? 'waiting' : 'fail'}`}>{formulaStatus}</span></td>
+              <td>{formula.effectiveDate || '-'}</td>
+              <td>{formula.createdBy || '-'}</td>
               <td>
                 <div className="action-row table-action-row">
+                  <button className="secondary-button" type="button" onClick={() => { setSelectedId(formula.id); setSelectedVersionId(''); setDraft(null) }}>Xem</button>
+                  <button className="secondary-button" type="button" disabled={!canCreateFormula} onClick={() => copyFormula(formula)}>Sao chép</button>
+                  <button className="secondary-button" type="button" disabled={!canEditFormula} onClick={() => startAdjustment(formula)}>Tạo phiên bản</button>
                   <button className="secondary-button" type="button" disabled={!canEditFormula || formulaStatus === FORMULA_STATUS_ACTIVE} onClick={() => setFormulaStatus(formula, FORMULA_STATUS_ACTIVE)}>Kích hoạt</button>
-                  <button className="secondary-button" type="button" disabled={!canEditFormula || formulaStatus === FORMULA_STATUS_DRAFT} onClick={() => setFormulaStatus(formula, FORMULA_STATUS_DRAFT)}>Lưu nháp</button>
                   <button className="secondary-button" type="button" disabled={!canEditFormula || formulaStatus === FORMULA_STATUS_INACTIVE} onClick={() => setFormulaStatus(formula, FORMULA_STATUS_INACTIVE)}>Ngưng áp dụng</button>
-                  <button className="danger-button" type="button" disabled={!canDeleteFormula || used} title={used ? 'Công thức đã phát sinh Lệnh sản xuất, chỉ có thể Ngưng áp dụng.' : ''} onClick={() => deleteFormula(formula)}>Xóa</button>
+                  <button className="secondary-button" type="button" disabled={!canEditFormula || formulaStatus === FORMULA_STATUS_ARCHIVED} onClick={() => setFormulaStatus(formula, FORMULA_STATUS_ARCHIVED)}>Lưu trữ</button>
                 </div>
               </td>
             </tr>
           )
-        })} />
+        })} empty="Không có công thức phù hợp." />
+        <div className="pagination-row">
+          <button className="secondary-button" type="button" disabled={currentFormulaPage <= 1} onClick={() => setFormulaPage((page) => Math.max(1, page - 1))}>Trước</button>
+          <span>{currentFormulaPage} / {totalFormulaPages} ({filteredFormulas.length} công thức)</span>
+          <button className="secondary-button" type="button" disabled={currentFormulaPage >= totalFormulaPages} onClick={() => setFormulaPage((page) => Math.min(totalFormulaPages, page + 1))}>Sau</button>
+        </div>
       </section>
       <section className="panel">
         <div className="production-form-grid">
