@@ -46,6 +46,12 @@ const parsePercentNumber = (value) => {
   const number = Number(String(value ?? '').replace('%', '').replace(',', '.'))
   return Number.isFinite(number) ? number : 0
 }
+function normalizeFormulaCode(code) {
+  return String(code || '')
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 const importedCustomerCatalog = Array.isArray(customerCatalogSeed) ? customerCatalogSeed : []
 const normalizeCustomerCatalog = (items = importedCustomerCatalog) => (Array.isArray(items) ? items : []).map((item, index) => {
   const code = item.customerCode || item.code || item.customerId || ''
@@ -96,7 +102,7 @@ const formulaMatches = (formula = {}, query = '') => {
   const compactKeyword = keyword.replace(/\s+/g, '')
   return formulaCode.includes(keyword) || compactFormulaCode.includes(compactKeyword)
 }
-const formulaCodeEquals = (formula = {}, value = '') => normalizeText(getFormulaOptionCode(formula)) === normalizeText(value)
+const formulaCodeEquals = (formula = {}, value = '') => normalizeFormulaCode(getFormulaOptionCode(formula)) === normalizeFormulaCode(value)
 const isDemoFormulaCode = (formula = {}) => {
   const code = normalizeText([formula.id, formula.code, formula.product].filter(Boolean).join(' '))
   return code.includes('hns 252 g1') || code.includes('hns 252 r2')
@@ -2167,13 +2173,22 @@ const findFormulaExcelHeader = (rows = []) => {
     },
   }
 }
+const isFormulaProductCodeLabel = (value) => {
+  const normalized = normalizeExcelHeader(value)
+  return normalized.includes('ten san pham')
+    && (
+      normalized.includes('ma hieu')
+      || normalized.includes('ma so')
+      || normalized.includes('ma san pham')
+      || /\bma\b/.test(normalized)
+    )
+}
 const extractFormulaProductFromRows = (rows = [], headerIndex = rows.length) => {
   const scanRows = rows.slice(0, Math.max(headerIndex, 0))
   for (const row of scanRows) {
     for (let index = 0; index < row.length; index += 1) {
       const value = excelCellText(row[index])
-      const normalized = normalizeExcelHeader(value)
-      if (!normalized.includes('ten san pham')) continue
+      if (!isFormulaProductCodeLabel(value)) continue
       const colonValue = value.includes(':') ? value.split(':').slice(1).join(':').trim() : ''
       if (colonValue) return colonValue
       const nextValue = row.slice(index + 1).map(excelCellText).find((cell) => cell && !normalizeExcelHeader(cell).includes('ten san pham'))
@@ -2218,7 +2233,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
   const canApprove = formulaPercentIsValid(adjustedTotal)
   const draftTotal = formulaTotalPercent(formulaDraft.items)
   const draftDuplicateMaterials = formulaHasDuplicateMaterials(formulaDraft.items)
-  const draftCodeExists = (data.formulas || []).some((formula) => formula.code?.trim().toLowerCase() === formulaDraft.code.trim().toLowerCase() || formula.id?.trim().toLowerCase() === formulaDraft.code.trim().toLowerCase())
+  const draftCodeExists = (data.formulas || []).some((formula) => normalizeFormulaCode(getFormulaOptionCode(formula)) === normalizeFormulaCode(formulaDraft.code))
   const canSaveFormula = formulaDraft.code.trim()
     && formulaDraft.product.trim()
     && formulaDraft.items.length > 0
@@ -2325,6 +2340,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
     const formula = {
       id: formulaDraft.code.trim(),
       code: formulaDraft.code.trim(),
+      formulaCode: formulaDraft.code.trim(),
       product: formulaDraft.product.trim(),
       productGroup: formulaDraft.productGroup.trim(),
       version: formulaDraft.version.trim() || 'V1.0',
@@ -2370,6 +2386,10 @@ function FormulasPage({ data, setData, permissions = [] }) {
 
   const importFormulaExcel = (file) => {
     if (!canCreateFormula || !file) return
+    setSelectedId('')
+    setSelectedVersionId('')
+    setDraft(null)
+    setFormulaMessage('')
     const reader = new FileReader()
     reader.onload = (event) => {
       try {
@@ -2383,10 +2403,15 @@ function FormulasPage({ data, setData, permissions = [] }) {
         }
         const materialCatalog = deriveMaterialCatalog(data)
         const productCode = extractFormulaProductFromRows(rows, header.headerIndex)
-        const code = productCode || `CT-${nowText().replace(/[^0-9]/g, '')}`
+        if (!productCode) {
+          setFormulaMessage('Không tìm thấy dòng Tên sản phẩm (mã hiệu)')
+          return
+        }
+        const code = productCode.trim()
         const formula = {
           code,
-          product: productCode || code,
+          formulaCode: code,
+          product: code,
           productGroup: '',
           version: 'V1.0',
           effectiveDate: todayText(),
@@ -2410,13 +2435,13 @@ function FormulasPage({ data, setData, permissions = [] }) {
             note: header.columns.note >= 0 ? excelCellText(row[header.columns.note]) : '',
           })
         })
-        const existingCodes = new Set((data.formulas || []).flatMap((formula) => [formula.code, formula.id].filter(Boolean).map((value) => value.trim().toLowerCase())))
+        const existingCodes = new Set((data.formulas || []).map((formula) => normalizeFormulaCode(getFormulaOptionCode(formula))).filter(Boolean))
         const imported = formula.items.length ? [formula] : []
         const errors = []
         const warnings = []
         const catalogCodes = new Set(materialCatalog.map((item) => String(item.materialCode || '').trim().toUpperCase()))
         imported.forEach((formula) => {
-          if (existingCodes.has(formula.code.toLowerCase())) errors.push(`Trùng mã công thức ${formula.code}`)
+          if (existingCodes.has(normalizeFormulaCode(formula.code))) errors.push(`Trùng mã công thức ${formula.code}`)
           if (!formula.product) errors.push(`Thiếu mã sản phẩm cho ${formula.code}`)
           if (!formulaPercentIsValid(formulaTotalPercent(formula.items))) errors.push(`Lỗi tổng tỷ lệ của ${formula.code}: ${formatPercent(formulaTotalPercent(formula.items))}`)
           if (formulaHasDuplicateMaterials(formula.items)) errors.push(`Trùng vật tư trong ${formula.code}`)
@@ -2432,6 +2457,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
         const formulas = imported.map((formula) => ({
           id: formula.code,
           code: formula.code,
+          formulaCode: formula.code,
           product: formula.product,
           productGroup: formula.productGroup,
           version: formula.version,
@@ -2448,7 +2474,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
         setSelectedId(formulas[0].id)
         setSelectedVersionId('')
         setDraft(null)
-        setFormulaMessage(`Đã tải ${formulas.length} công thức từ Excel.${warnings.length ? ` ${warnings.join(' | ')}` : ''}`)
+        setFormulaMessage(`Đã đọc mã công thức: ${formulas[0].code}. Đã tải ${formulas.length} công thức từ Excel.${warnings.length ? ` ${warnings.join(' | ')}` : ''}`)
       } catch (error) {
         setFormulaMessage(`Không đọc được file Excel: ${error.message}`)
       } finally {
