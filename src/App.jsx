@@ -2173,27 +2173,13 @@ const findFormulaExcelHeader = (rows = []) => {
     },
   }
 }
-const isFormulaProductCodeLabel = (value) => {
-  const normalized = normalizeExcelHeader(value)
-  return normalized.includes('ten san pham')
-    && (
-      normalized.includes('ma hieu')
-      || normalized.includes('ma so')
-      || normalized.includes('ma san pham')
-      || /\bma\b/.test(normalized)
-    )
-}
 const extractFormulaProductFromRows = (rows = [], headerIndex = rows.length) => {
   const scanRows = rows.slice(0, Math.max(headerIndex, 0))
   for (const row of scanRows) {
-    for (let index = 0; index < row.length; index += 1) {
-      const value = excelCellText(row[index])
-      if (!isFormulaProductCodeLabel(value)) continue
-      const colonValue = value.includes(':') ? value.split(':').slice(1).join(':').trim() : ''
-      if (colonValue) return colonValue
-      const nextValue = row.slice(index + 1).map(excelCellText).find((cell) => cell && !normalizeExcelHeader(cell).includes('ten san pham'))
-      if (nextValue) return nextValue
-    }
+    const rowText = row.map(excelCellText).filter(Boolean).join(' ')
+    if (!/ten\s+san\s+pham\s*\(\s*ma\s+hieu\s*\)\s*:/.test(normalizeText(rowText))) continue
+    const formulaCode = rowText.split(':').slice(1).join(':').trim()
+    if (formulaCode) return formulaCode
   }
   return ''
 }
@@ -2373,7 +2359,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
   const downloadFormulaTemplate = () => {
     if (!canCreateFormula) return
     const rows = [
-      ['Tên sản phẩm thử nghiệm (mã hiệu):', 'HNS-NEW-001'],
+      ['Tên sản phẩm (mã hiệu): HNS-NEW-001'],
       [],
       ['STT', 'Tên vật tư - nguyên liệu (mã số)', 'Tỷ lệ %', 'Số lượng (kg)', 'Ghi chú'],
       [1, 'PASTE 02', 4.61, 46.1, ''],
@@ -2389,25 +2375,33 @@ function FormulasPage({ data, setData, permissions = [] }) {
     setSelectedId('')
     setSelectedVersionId('')
     setDraft(null)
+    setFormulaDraft(emptyMasterFormulaDraft())
     setFormulaMessage('')
+    if (importFormulaRef.current) importFormulaRef.current.value = ''
     const reader = new FileReader()
     reader.onload = (event) => {
       try {
         const workbook = XLSX.read(event.target.result, { type: 'array' })
         const sheet = workbook.Sheets[workbook.SheetNames[0]]
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+        const productCode = extractFormulaProductFromRows(rows)
+        if (!productCode) {
+          setFormulaMessage('Không tìm thấy mã công thức trong file Excel')
+          return
+        }
+        const newFormulaCode = productCode.trim()
+        const existingFormulaList = data.formulas || []
+        console.log('Parsed formula code:', newFormulaCode)
+        console.log('Existing formula codes:', existingFormulaList.map((formula) => formula.formulaCode || formula.code))
+        console.log('Formula code duplicate self-test HSS/HGS:', normalizeFormulaCode('HSS 211.011') === normalizeFormulaCode('HGS 211.011'))
+        console.log('Formula code duplicate self-test HGS variants:', normalizeFormulaCode('HGS 211.111') === normalizeFormulaCode('HGS 231.143'))
         const header = findFormulaExcelHeader(rows)
         if (!header || header.columns.materialCode < 0 || header.columns.ratioPercent < 0) {
           setFormulaMessage('Không tìm thấy dòng header công thức hợp lệ trong file Excel.')
           return
         }
         const materialCatalog = deriveMaterialCatalog(data)
-        const productCode = extractFormulaProductFromRows(rows, header.headerIndex)
-        if (!productCode) {
-          setFormulaMessage('Không tìm thấy dòng Tên sản phẩm (mã hiệu)')
-          return
-        }
-        const code = productCode.trim()
+        const code = newFormulaCode
         const formula = {
           code,
           formulaCode: code,
@@ -2435,13 +2429,15 @@ function FormulasPage({ data, setData, permissions = [] }) {
             note: header.columns.note >= 0 ? excelCellText(row[header.columns.note]) : '',
           })
         })
-        const existingCodes = new Set((data.formulas || []).map((formula) => normalizeFormulaCode(getFormulaOptionCode(formula))).filter(Boolean))
+        const duplicateFormula = existingFormulaList.find((existingFormula) => (
+          normalizeFormulaCode(existingFormula.formulaCode || existingFormula.code) === normalizeFormulaCode(code)
+        ))
         const imported = formula.items.length ? [formula] : []
         const errors = []
         const warnings = []
         const catalogCodes = new Set(materialCatalog.map((item) => String(item.materialCode || '').trim().toUpperCase()))
         imported.forEach((formula) => {
-          if (existingCodes.has(normalizeFormulaCode(formula.code))) errors.push(`Trùng mã công thức ${formula.code}`)
+          if (duplicateFormula) errors.push(`Trùng mã công thức ${duplicateFormula.formulaCode || duplicateFormula.code}`)
           if (!formula.product) errors.push(`Thiếu mã sản phẩm cho ${formula.code}`)
           if (!formulaPercentIsValid(formulaTotalPercent(formula.items))) errors.push(`Lỗi tổng tỷ lệ của ${formula.code}: ${formatPercent(formulaTotalPercent(formula.items))}`)
           if (formulaHasDuplicateMaterials(formula.items)) errors.push(`Trùng vật tư trong ${formula.code}`)
