@@ -4360,7 +4360,7 @@ function WeighingPage({ data, setData, group, user }) {
                 {SCALE_BAUD_RATES.map((rate) => <option key={rate} value={rate}>{rate}</option>)}
               </select>
             </label>
-            <div className="scale-weight-display"><span>Khối lượng cân</span><strong>{formatScaleWeight(scaleWeightKg, scaleKey)}</strong></div>
+            <div className="scale-weight-display"><span className="scale-weight-title">Khối lượng cân</span><strong className="scale-weight-value">{formatScaleWeight(scaleWeightKg, scaleKey)}</strong></div>
             <div className="scale-stability-settings">
               <span>Cài đặt ổn định</span>
               <label>Số mẫu ổn định<input type="number" min="1" max="20" step="1" value={scaleStableSampleCount} onChange={handleStableSampleCountChange} /></label>

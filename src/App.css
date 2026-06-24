@@ -11717,33 +11717,34 @@ body,
   justify-items: stretch;
   min-height: 150px;
   padding: 12px 20px 18px !important;
-  border: 2px solid #f59e0b !important;
-  background: linear-gradient(135deg, #fff7cc 0%, #dcfce7 100%) !important;
-  box-shadow: 0 12px 28px rgba(146, 64, 14, 0.14);
-  row-gap: 16px;
+  border: 3px solid #10b981 !important;
+  background: #ffffff !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, .08) !important;
+  row-gap: 12px;
 }
 
-.scale-weight-display span {
+.scale-weight-title {
   align-self: start;
   justify-self: start;
-  color: #0f172a;
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1.2;
-  margin-bottom: 16px;
+  font-size: 32px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  color: #0f172a !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
-.scale-weight-display strong {
+.scale-weight-value {
   align-self: center;
   justify-self: center;
-  color: #14532d;
-  background: transparent;
-  border: none;
-  font-size: 64px;
-  line-height: 1;
-  font-weight: 800;
-  letter-spacing: 0;
-  text-align: center;
+  font-size: 72px !important;
+  font-weight: 800 !important;
+  color: #065f46 !important;
+  line-height: 1 !important;
+  background: transparent !important;
+  border: none !important;
+  letter-spacing: 0 !important;
+  text-align: center !important;
 }
 
 .scale-stability-settings {
