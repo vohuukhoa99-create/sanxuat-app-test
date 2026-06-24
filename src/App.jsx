@@ -173,35 +173,24 @@ const resolveOrderCustomer = (order = {}) => {
 const uid = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
 const RAW_MATERIAL_QR_TYPE = 'RAW_MATERIAL_LOT'
 const MATERIAL_QR_PREFIX = 'MAT|'
-const SCALE_CONVERSION_FACTOR = 7.3387
 const materialQrValue = (materialCode) => `${MATERIAL_QR_PREFIX}${String(materialCode || '').trim()}`
 const parseMaterialQr = (value) => {
   const text = String(value || '').trim()
   return text.startsWith(MATERIAL_QR_PREFIX) ? { type: 'MATERIAL_CODE', materialCode: text.slice(MATERIAL_QR_PREFIX.length).trim() } : null
 }
 
-function convertScaleRawToKg(rawValue) {
-  const value = Number(rawValue)
-  if (!Number.isFinite(value)) return null
-  return value / SCALE_CONVERSION_FACTOR
-}
-
 function parseScaleWeight(rawText = '') {
-  const text = String(rawText || '')
-    .replace(/,/g, '.')
-    .replace(/[^\d.+-]/g, ' ')
+  const text = String(rawText || '').replace(/,/g, '.')
 
   const matches = text.match(/[+-]?\d+(?:\.\d+)?/g)
-  if (!matches || matches.length === 0) return null
+  if (!matches || !matches.length) return null
 
-  const rawValues = matches
+  const values = matches
     .map(Number)
-    .filter((value) => Number.isFinite(value) && value > 0 && value < 100000)
+    .filter((value) => Number.isFinite(value) && Math.abs(value) < 10000)
 
-  if (!rawValues.length) return null
-  const rawValue = rawValues[rawValues.length - 1]
-  const weightKg = convertScaleRawToKg(rawValue)
-  return weightKg == null ? null : { rawValue, weightKg }
+  if (!values.length) return null
+  return values[values.length - 1]
 }
 
 function getScaleFrameFromBuffer(buffer = '') {
@@ -4056,9 +4045,9 @@ function WeighingPage({ data, setData, group, user }) {
             const frame = getScaleFrameFromBuffer(buffer)
             const parsed = frame ? parseScaleWeight(frame) : null
             if (parsed != null) {
-              setScaleRawValue(parsed.rawValue)
-              setScaleWeightKg(parsed.weightKg)
-              const nextReadings = [...scaleStableReadingsRef.current, parsed.weightKg].slice(-5)
+              setScaleRawValue(parsed)
+              setScaleWeightKg(parsed)
+              const nextReadings = [...scaleStableReadingsRef.current, parsed].slice(-5)
               scaleStableReadingsRef.current = nextReadings
               setScaleStableReadings(nextReadings)
               setScaleStableWeightKg(getStableScaleWeight(nextReadings, scaleToleranceKg))
@@ -4315,7 +4304,7 @@ function WeighingPage({ data, setData, group, user }) {
                 <strong>{progress}%</strong>
               </div>
               <SimpleTable headers={['STT', 'Mã vật tư yêu cầu', 'Cần cân', 'QR lô đã quét', 'Lô nhập', 'Tồn trước', 'Thực cân', 'Tồn sau', 'Khớp QR', 'Trạng thái']} rows={activeItems.map((item, index) => (
-                <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleConversionFactor={SCALE_CONVERSION_FACTOR} scaleWeighedBy={scaleWeighedBy} />
+                <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
               ))} empty={`Không có vật tư nhóm ${group}.`} />
               {activeContainers.map((container) => <WeighedContainerCard key={container.containerId} container={container} onPrint={handlePrintQr} onDetail={handleViewWeighingDetail} />)}
             </>
@@ -4479,7 +4468,7 @@ function WeighingOrderGroup({ title, orders, activeId, onStart, showStart = fals
   )
 }
 
-function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots = [], scaleType, setWarning, scaleWeightKg = null, scaleStableWeightKg = null, scaleStable = false, scaleRawData = '', scaleRawValue = null, scaleConversionFactor = SCALE_CONVERSION_FACTOR, scaleWeighedBy = '' }) {
+function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots = [], scaleType, setWarning, scaleWeightKg = null, scaleStableWeightKg = null, scaleStable = false, scaleRawData = '', scaleRawValue = null, scaleWeighedBy = '' }) {
   const [qrInput, setQrInput] = useState(item.qrScanned || '')
   const qrPassed = item.qrStatus === 'PASS'
   const weightPassed = item.weighStatus === 'PASS'
@@ -4529,7 +4518,6 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       scaleRawData: scaleRawData || '',
       rawData: scaleRawData || '',
       rawValue: scaleRawValue,
-      conversionFactor: scaleConversionFactor,
       unit: 'kg',
     }
     if (item.materialQrOnly) {
