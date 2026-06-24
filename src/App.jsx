@@ -415,6 +415,8 @@ function validateRawMaterialQr(qrInput, requiredMaterial, lots = []) {
       materialCheck,
     }
   }
+  return { ok: true, message: 'OK', qr: { materialCode: materialCheck.scannedCode }, materialOnly: true, materialCheck }
+
   const parsedQr = parseRawMaterialQr(qrInput)
   if (!parsedQr || parsedQr.type !== RAW_MATERIAL_QR_TYPE) {
     return { ok: true, message: 'Khớp QR', qr: { materialCode: materialCheck.scannedCode }, materialOnly: true, materialCheck }
@@ -4365,7 +4367,7 @@ function WeighingPage({ data, setData, group, user }) {
                 <div className="weighing-progress"><i style={{ width: `${progress}%` }} /></div>
                 <strong>{progress}%</strong>
               </div>
-              <SimpleTable headers={['STT', 'Mã vật tư yêu cầu', 'Cần cân', 'Quét QR mã vật tư', 'Lô nhập', 'Tồn trước', 'Thực cân', 'Tồn sau', 'Khớp QR', 'Trạng thái']} rows={activeItems.map((item, index) => (
+              <SimpleTable headers={['STT', 'Mã vật tư yêu cầu', 'Cần cân', 'Quét QR mã vật tư', 'Tồn kho', 'Thực cân', 'Khớp QR', 'Trạng thái']} rows={activeItems.map((item, index) => (
                 <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
               ))} empty={`Không có vật tư nhóm ${group}.`} />
               {activeContainers.map((container) => <WeighedContainerCard key={container.containerId} container={container} onPrint={handlePrintQr} onDetail={handleViewWeighingDetail} />)}
@@ -4532,14 +4534,19 @@ function WeighingOrderGroup({ title, orders, activeId, onStart, showStart = fals
 
 function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots = [], scaleType, setWarning, scaleWeightKg = null, scaleStableWeightKg = null, scaleStable = false, scaleRawData = '', scaleRawValue = null, scaleWeighedBy = '' }) {
   const [qrInput, setQrInput] = useState(item.qrScanned || '')
+  const [qrScanError, setQrScanError] = useState('')
+  const qrInputRef = useRef(null)
   const qrPassed = item.qrStatus === 'PASS'
-  const qrFailed = item.qrStatus === 'FAIL'
+  const qrFailed = Boolean(qrScanError) || item.qrStatus === 'FAIL'
   const weightPassed = item.weighStatus === 'PASS'
   const completed = qrPassed && weightPassed
   const actual = item.actualWeight === '' || item.actualWeight == null ? '' : num(item.actualWeight)
   const selectedLot = rawMaterialLots.find((lot) => lot.lotCode === item.rawMaterialLotCode && lot.materialCode === item.materialCode)
   const remainingBefore = item.rawMaterialRemainingBefore ?? selectedLot?.remainingQty
-  const remainingAfter = item.rawMaterialRemainingAfter ?? (actual !== '' && remainingBefore != null ? Math.max(0, num(remainingBefore) - actual) : '')
+  const materialStockQty = rawMaterialLots
+    .filter((lot) => normalizeCode(lot.materialCode) === normalizeCode(item.materialCode))
+    .reduce((sum, lot) => sum + num(lot.remainingQty), 0)
+  const stockDisplay = remainingBefore ?? (materialStockQty ? materialStockQty : '')
   const confirmQr = (nextInput = qrInput) => {
     if (!active) return
     const scanned = String(nextInput || '').trim()
@@ -4550,22 +4557,26 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
     const result = validateRawMaterialQr(scanned, item, rawMaterialLots)
     if (!result.ok) {
       setWarning?.(result.message)
-      updateWeight(order, item, { qrScanned: scanned, qrStatus: 'FAIL', qrMatchStatus: 'Sai QR', note: result.message }, `QR FAIL ${order.id} - ${item.materialCode}: ${result.message}`)
+      setQrScanError('✕ Sai mã')
+      setQrInput('')
+      window.setTimeout(() => qrInputRef.current?.focus(), 0)
       return
     }
     setWarning?.('')
+    setQrScanError('')
     updateWeight(order, item, {
-      qrScanned: scanned,
-      rawMaterialQr: scanned,
+      qrScanned: result.materialCheck?.scannedCode || item.materialCode,
+      rawMaterialQr: result.materialCheck?.scannedCode || item.materialCode,
       rawMaterialLotCode: result.materialOnly ? item.rawMaterialLotCode || '' : result.lot.lotCode,
       rawMaterialRemainingBefore: result.materialOnly ? remainingBefore : num(result.lot.remainingQty),
       materialQrOnly: !!result.materialOnly,
       qrStatus: 'PASS',
-      qrMatchStatus: result.message || 'Khớp QR',
+      qrMatchStatus: 'OK',
       note: item.note,
     }, result.materialOnly ? `QR hợp lệ ${order.id} - ${item.materialCode}.` : `QR PASS ${order.id} - ${item.materialCode}, lô ${result.lot.lotCode}.`)
   }
   const handleQrScanChange = (event) => {
+    setQrScanError('')
     setQrInput(event.target.value)
   }
   const handleQrScanKeyDown = (event) => {
@@ -4657,20 +4668,20 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       <td>{item.materialCode}</td>
       <td>{kg(item.requiredKg)}</td>
       <td className={`weighing-qr-cell ${qrPassed ? 'qr-pass' : qrFailed ? 'qr-fail' : ''}`}>
-        {active && !qrPassed ? (
+        {qrPassed ? (
+          <span className="weighing-check">✓ OK</span>
+        ) : active ? (
           <div className="weighing-qr-scan">
-            <input className={qrFailed ? 'qr-input-fail' : ''} value={qrInput} onChange={handleQrScanChange} onKeyDown={handleQrScanKeyDown} onBlur={handleQrScanBlur} placeholder="Quét QR mã vật tư" />
-            {qrFailed && <span className="qr-inline-error">{item.note || item.qrMatchStatus || 'Sai QR'}</span>}
+            <input ref={qrInputRef} className={qrFailed ? 'qr-input-fail' : ''} value={qrInput} onChange={handleQrScanChange} onKeyDown={handleQrScanKeyDown} onBlur={handleQrScanBlur} placeholder="Quét QR mã vật tư" />
+            {qrFailed && <span className="qr-inline-error">{qrScanError || '✕ Sai mã'}</span>}
           </div>
         ) : (
-          <span>{item.qrScanned || '-'}</span>
+          <span>-</span>
         )}
       </td>
-      <td>{item.rawMaterialLotCode || '-'}</td>
-      <td>{remainingBefore === '' || remainingBefore == null ? '-' : kg(remainingBefore)}</td>
+      <td>{stockDisplay === '' || stockDisplay == null ? '-' : kg(stockDisplay)}</td>
       <td>{active && qrPassed && !weightPassed ? <div className="weighing-inline-action"><span className="scale-current-weight">{formatScaleWeight(scaleWeightKg, scaleType)}</span><button className="primary-button" disabled={!scaleStable || scaleStableWeightKg == null} onClick={confirmStableWeight}>Xác nhận cân</button></div> : actual === '' ? '-' : formatScaleWeight(actual, scaleType)}</td>
-      <td>{remainingAfter === '' || remainingAfter == null ? '-' : kg(remainingAfter)}</td>
-      <td>{qrPassed ? 'Khớp QR' : qrFailed ? 'Sai QR' : 'Chờ quét'}</td>
+      <td>{qrPassed ? 'OK' : qrFailed ? 'Sai mã' : 'Chờ quét'}</td>
       <td>{completed ? <span className="weighing-check">✓ Hoàn thành</span> : qrPassed ? <span className="weighing-check">✓ QR đạt</span> : active ? 'Đang thao tác' : '-'}</td>
     </tr>
   )

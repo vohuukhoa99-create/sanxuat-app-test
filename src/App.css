@@ -11746,7 +11746,7 @@ body,
 
 /* Weighing QR scan column: keep material QR readable and validate visibly. */
 .weighing-active-board > .table-wrapper table {
-  min-width: 1100px !important;
+  min-width: 980px !important;
 }
 
 .weighing-active-board > .table-wrapper th:nth-child(4),
@@ -11756,6 +11756,26 @@ body,
   max-width: none !important;
   overflow: visible !important;
   text-overflow: clip !important;
+}
+
+.weighing-active-board > .table-wrapper th:nth-child(5),
+.weighing-active-board > .table-wrapper td:nth-child(5) {
+  width: 120px !important;
+}
+
+.weighing-active-board > .table-wrapper th:nth-child(6),
+.weighing-active-board > .table-wrapper td:nth-child(6) {
+  width: 140px !important;
+}
+
+.weighing-active-board > .table-wrapper th:nth-child(7),
+.weighing-active-board > .table-wrapper td:nth-child(7) {
+  width: 90px !important;
+}
+
+.weighing-active-board > .table-wrapper th:nth-child(8),
+.weighing-active-board > .table-wrapper td:nth-child(8) {
+  width: 120px !important;
 }
 
 .weighing-active-board > .table-wrapper td.weighing-qr-cell {
