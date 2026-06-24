@@ -11914,6 +11914,170 @@ body,
   white-space: normal;
 }
 
+/* Scale workbench layout: prioritize weighing actions and material rows. */
+.weighing-dispatch-page > .weighing-stats.scale-summary-compact:not(.scale-summary-inside) {
+  display: none !important;
+}
+
+.scale-layout {
+  display: grid !important;
+  grid-template-columns: 280px minmax(0, 1fr) !important;
+  gap: 16px !important;
+  align-items: start !important;
+  padding: 10px !important;
+  margin-top: 0 !important;
+}
+
+.scale-left-panel {
+  position: sticky !important;
+  top: 16px !important;
+  width: 280px !important;
+  min-width: 280px !important;
+  max-width: 280px !important;
+  max-height: calc(100vh - 32px) !important;
+  overflow-y: auto !important;
+  display: grid !important;
+  align-content: start !important;
+  gap: 10px !important;
+}
+
+.scale-summary-compact {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 6px !important;
+  max-height: 90px !important;
+  padding: 12px 14px !important;
+  border: 1px solid #dfe8e3 !important;
+  border-radius: 8px !important;
+  background: #f8fbf9 !important;
+  margin: 0 !important;
+}
+
+.scale-summary-compact article {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  min-height: 18px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.scale-summary-compact span {
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: #475569 !important;
+}
+
+.scale-summary-compact strong {
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+}
+
+.scale-main-panel {
+  min-width: 0 !important;
+  width: 100% !important;
+  padding: 12px !important;
+  margin: 0 !important;
+}
+
+.scale-left-panel .weighing-order-group {
+  max-height: calc(100vh - 150px) !important;
+  overflow-y: auto !important;
+}
+
+.scale-left-panel .weighing-order-card {
+  min-height: 56px !important;
+  max-height: none !important;
+}
+
+.scale-main-panel .section-heading-row {
+  margin-bottom: 8px !important;
+}
+
+.scale-main-panel .assignment-context,
+.scale-main-panel .process-alert {
+  margin: 6px 0 !important;
+  padding: 8px 10px !important;
+}
+
+.scale-main-panel .scale-serial-panel {
+  margin: 8px 0 10px !important;
+}
+
+.scale-main-panel .scale-weight-display {
+  min-height: 160px !important;
+  max-height: 170px !important;
+  padding: 10px 18px 14px !important;
+}
+
+.scale-main-panel .scale-weight-title {
+  font-size: 24px !important;
+}
+
+.scale-main-panel .scale-weight-value {
+  font-size: 64px !important;
+}
+
+.scale-main-panel .weighing-order-summary,
+.scale-main-panel .weighing-progress-card {
+  margin: 8px 0 !important;
+}
+
+.scale-main-panel > .table-wrapper {
+  max-height: none !important;
+  overflow-x: auto !important;
+}
+
+.scale-main-panel > .table-wrapper table {
+  min-width: 980px !important;
+  table-layout: fixed !important;
+}
+
+.scale-main-panel > .table-wrapper th,
+.scale-main-panel > .table-wrapper td {
+  height: 42px !important;
+  padding: 8px 10px !important;
+  font-size: 14px !important;
+  line-height: 1.25 !important;
+}
+
+.scale-main-panel > .table-wrapper th {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+}
+
+.scale-main-panel .weighing-qr-scan input {
+  width: 100% !important;
+  min-width: 180px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  font-size: 14px !important;
+}
+
+.scale-main-panel .weighing-inline-action button,
+.scale-main-panel .weighing-check,
+.scale-main-panel .weighing-fail {
+  min-height: 30px !important;
+  font-size: 13px !important;
+}
+
+@media (max-width: 1100px) {
+  .scale-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .scale-left-panel {
+    position: static !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+  }
+}
+
 @media (max-width: 900px) {
   .scale-serial-panel {
     grid-template-columns: 1fr;

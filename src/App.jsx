@@ -4324,17 +4324,22 @@ function WeighingPage({ data, setData, group, user }) {
 
   return (
     <div className="page-content weighing-dispatch-page">
-      <section className="weighing-stats">
+      <section className="weighing-stats scale-summary-compact">
         <article><span>Đang cân</span><strong>{activeOrder ? '01' : '00'}</strong></article>
         <article><span>Chờ cân</span><strong>{String(waitingOrders.length).padStart(2, '0')}</strong></article>
         <article><span>Hoàn thành</span><strong>{String(completedOrders.length).padStart(2, '0')}</strong></article>
       </section>
-      <section className="panel weighing-dispatch-layout">
-        <aside className="weighing-order-list">
+      <section className="panel weighing-dispatch-layout scale-layout">
+        <aside className="weighing-order-list scale-left-panel">
+          <section className="weighing-stats scale-summary-compact scale-summary-inside">
+            <article><span>Đang cân:</span><strong>{activeOrder ? '01' : '00'}</strong></article>
+            <article><span>Chờ cân:</span><strong>{String(waitingOrders.length).padStart(2, '0')}</strong></article>
+            <article><span>Hoàn thành:</span><strong>{String(completedOrders.length).padStart(2, '0')}</strong></article>
+          </section>
           <h2>Danh sách lệnh sản xuất</h2>
           <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders} activeId={activeOrder?.id} onStart={startOrder} showStart />
         </aside>
-        <main className="weighing-active-board">
+        <main className="weighing-active-board scale-main-panel">
           <div className="section-heading-row">
             <div>
               <span className="section-kicker">{activeOrder?.stage === 'supplement-weighing' ? 'Cân bổ sung QC2' : 'Cân chính'}</span>
