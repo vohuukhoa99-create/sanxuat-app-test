@@ -24,6 +24,9 @@ const FINISHED_GOODS_KEY = 'finishedGoods'
 const MATERIAL_CATALOG_KEY = 'materialCatalog'
 const AUTH_KEY = 'sonhoabinh-v3-auth'
 const SESSION_KEY = 'sonhoabinh-v3-session'
+const SCALE_BAUD_RATE_KEY = 'scaleSerialBaudRate'
+const SCALE_BAUD_RATES = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200]
+const DEFAULT_SCALE_BAUD_RATE = 1200
 
 const CHEMICAL = 'Hóa'
 const SOLID = 'Rắn'
@@ -45,6 +48,21 @@ function formatPercent(value) {
 const parsePercentNumber = (value) => {
   const number = Number(String(value ?? '').replace('%', '').replace(',', '.'))
   return Number.isFinite(number) ? number : 0
+}
+function getStoredScaleBaudRate() {
+  if (typeof localStorage === 'undefined') return DEFAULT_SCALE_BAUD_RATE
+  const stored = Number(localStorage.getItem(SCALE_BAUD_RATE_KEY))
+  return SCALE_BAUD_RATES.includes(stored) ? stored : DEFAULT_SCALE_BAUD_RATE
+}
+function getSerialErrorMessage(error, selectedBaudRate) {
+  const message = String(error?.message || '')
+  const name = error?.name || ''
+  if (!SCALE_BAUD_RATES.includes(Number(selectedBaudRate))) return 'Invalid baudrate'
+  if (name === 'NotAllowedError' || name === 'SecurityError' || /permission/i.test(message)) return 'Permission denied'
+  if (name === 'InvalidStateError' || /already\s+(open|in use)|busy|access denied/i.test(message)) return 'Port already in use'
+  if (name === 'NetworkError' || name === 'NotReadableError' || /disconnect|device.*lost|device.*unavailable/i.test(message)) return 'Device disconnected'
+  if (/baud/i.test(message)) return 'Invalid baudrate'
+  return message || 'Connection failed'
 }
 function normalizeFormulaCode(code) {
   return String(code || '')
@@ -3877,8 +3895,9 @@ function WeighingPage({ data, setData, group, user }) {
   const [scaleRawText, setScaleRawText] = useState('')
   const [scaleWeightKg, setScaleWeightKg] = useState(null)
   const [scaleSupported, setScaleSupported] = useState(true)
-  const [scaleBaudRate, setScaleBaudRate] = useState(9600)
+  const [scaleBaudRate, setScaleBaudRate] = useState(getStoredScaleBaudRate)
   const [scalePortLabel, setScalePortLabel] = useState('Chưa kết nối')
+  const [scaleDebugLogs, setScaleDebugLogs] = useState([])
   const scalePortRef = useRef(null)
   const scaleReaderRef = useRef(null)
   const scaleReadingRef = useRef(false)
@@ -3896,6 +3915,10 @@ function WeighingPage({ data, setData, group, user }) {
   const assignmentStage = group === CHEMICAL ? 'Cân hóa' : 'Cân rắn'
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], assignmentStage)
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
+  const addScaleDebugLog = (message) => {
+    const time = new Date().toLocaleTimeString('vi-VN', { hour12: false })
+    setScaleDebugLogs((logs) => [`${time} - ${message}`, ...logs].slice(0, 80))
+  }
 
   useEffect(() => {
     setScaleSupported(typeof navigator !== 'undefined' && Boolean(navigator.serial))
@@ -3905,36 +3928,58 @@ function WeighingPage({ data, setData, group, user }) {
       scalePortRef.current?.close().catch(() => {})
     }
   }, [])
+  useEffect(() => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(SCALE_BAUD_RATE_KEY, String(scaleBaudRate))
+    }
+  }, [scaleBaudRate])
+  const handleScaleBaudRateChange = (event) => {
+    const nextBaudRate = Number(event.target.value)
+    setScaleBaudRate(nextBaudRate)
+    addScaleDebugLog(`Selected BaudRate: ${nextBaudRate}`)
+  }
 
   const connectScale = async () => {
     if (typeof navigator === 'undefined' || !navigator.serial) {
       setScaleSupported(false)
       setWarning('Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.')
+      addScaleDebugLog('Connection fail: Web Serial not supported')
+      return
+    }
+    const selectedBaudRate = Number(scaleBaudRate)
+    if (!SCALE_BAUD_RATES.includes(selectedBaudRate)) {
+      const errorMessage = 'Invalid baudrate'
+      setScaleStatus(errorMessage)
+      setWarning(errorMessage)
+      addScaleDebugLog(`Connection fail: ${errorMessage}`)
       return
     }
     try {
+      addScaleDebugLog(`Selected BaudRate: ${selectedBaudRate}`)
       scaleReadingRef.current = false
       await scaleReaderRef.current?.cancel().catch(() => {})
       await scalePortRef.current?.close().catch(() => {})
       const port = await navigator.serial.requestPort()
+      const portInfo = port.getInfo?.() || {}
+      const portLabel = portInfo.usbVendorId
+        ? `USB-RS232 VID:${portInfo.usbVendorId} PID:${portInfo.usbProductId || '-'}`
+        : 'Cổng serial đã chọn'
+      addScaleDebugLog(`Selected COM: ${portLabel}`)
       await port.open({
-        baudRate: Number(scaleBaudRate),
+        baudRate: selectedBaudRate,
         dataBits: 8,
         stopBits: 1,
         parity: 'none',
         flowControl: 'none',
       })
-      const portInfo = port.getInfo?.() || {}
-      const portLabel = portInfo.usbVendorId
-        ? `USB-RS232 VID:${portInfo.usbVendorId} PID:${portInfo.usbProductId || '-'}`
-        : 'Cổng serial đã chọn'
       scalePortRef.current = port
       scaleReadingRef.current = true
-      setScaleStatus(`Đã kết nối cân (${scaleBaudRate} baud)`)
+      setScaleStatus(`Đã kết nối cân (${selectedBaudRate} baud)`)
       setScalePortLabel(portLabel)
       setScaleRawText('')
       setScaleWeightKg(null)
       setWarning('')
+      addScaleDebugLog('Connection success')
       const decoder = new TextDecoder()
       let buffer = ''
       while (scaleReadingRef.current && port.readable) {
@@ -3948,6 +3993,7 @@ function WeighingPage({ data, setData, group, user }) {
             if (!chunk) continue
             buffer = `${buffer}${chunk}`.slice(-240)
             setScaleRawText(buffer.trim())
+            addScaleDebugLog(`Raw incoming data: ${chunk.replace(/\s+/g, ' ').trim() || '[control characters]'}`)
             const parsed = parseScaleWeightKg(buffer)
             if (parsed != null) setScaleWeightKg(parsed)
           }
@@ -3959,10 +4005,13 @@ function WeighingPage({ data, setData, group, user }) {
       if (error?.name === 'NotFoundError') {
         setScaleStatus('Chưa chọn cổng cân')
         setScalePortLabel('Chưa kết nối')
+        addScaleDebugLog('Connection fail: no port selected')
         return
       }
-      setScaleStatus('Mất kết nối cân')
-      setWarning(`Không đọc được dữ liệu cân: ${error.message}`)
+      const errorMessage = getSerialErrorMessage(error, scaleBaudRate)
+      setScaleStatus(errorMessage)
+      setWarning(`Không đọc được dữ liệu cân: ${errorMessage}`)
+      addScaleDebugLog(`Connection fail: ${errorMessage}`)
     }
   }
 
@@ -4162,13 +4211,25 @@ function WeighingPage({ data, setData, group, user }) {
             <div><span>Cổng đã kết nối</span><strong>{scalePortLabel}</strong></div>
             <label className="scale-baud-select">
               <span>BaudRate</span>
-              <select value={scaleBaudRate} onChange={(event) => setScaleBaudRate(Number(event.target.value))}>
-                {[2400, 4800, 9600, 19200].map((rate) => <option key={rate} value={rate}>{rate}</option>)}
+              <select value={scaleBaudRate} onChange={handleScaleBaudRateChange}>
+                {SCALE_BAUD_RATES.map((rate) => <option key={rate} value={rate}>{rate}</option>)}
               </select>
             </label>
+            <div><span>Cấu hình serial</span><strong>{scaleBaudRate} baud, 8 data bits, parity none, 1 stop bit, flow none</strong></div>
             <div><span>Khối lượng cân hiện tại</span><strong>{scaleWeightKg == null ? '-' : kg(scaleWeightKg)}</strong></div>
             <div className="scale-raw-text"><span>Dữ liệu nhận được</span><strong>{scaleRawText || '-'}</strong></div>
           </div>
+          <section className="scale-debug-panel">
+            <div className="section-heading-row">
+              <h3>Debug serial</h3>
+              <button type="button" className="secondary-button" onClick={() => setScaleDebugLogs([])}>Xóa log</button>
+            </div>
+            <div className="scale-debug-log" aria-live="polite">
+              {scaleDebugLogs.length
+                ? scaleDebugLogs.map((item, index) => <div key={`${item}-${index}`}>{item}</div>)
+                : <div>Chưa có log serial.</div>}
+            </div>
+          </section>
           {!activeOrder && <p className="empty-alert">Chưa có lệnh nào đang cân. Vui lòng chọn một lệnh từ danh sách chờ.</p>}
           {activeOrder && (
             <>
