@@ -12078,6 +12078,108 @@ body,
   }
 }
 
+/* Final scale layout tightening: compact left stats, give height back to material table. */
+.scale-layout {
+  gap: 14px !important;
+  padding: 6px !important;
+}
+
+.scale-left-panel {
+  overflow: visible !important;
+  gap: 8px !important;
+  align-content: start !important;
+}
+
+.scale-summary-compact.scale-summary-inside {
+  display: block !important;
+  max-height: 90px !important;
+  overflow: hidden !important;
+  padding: 12px !important;
+  margin: 0 0 8px !important;
+  line-height: 1.4 !important;
+}
+
+.scale-summary-compact.scale-summary-inside article {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: baseline !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 1.4 !important;
+}
+
+.scale-summary-compact.scale-summary-inside span,
+.scale-summary-compact.scale-summary-inside strong {
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+}
+
+.scale-summary-compact.scale-summary-inside strong {
+  font-weight: 700 !important;
+  text-align: right !important;
+}
+
+.scale-left-panel > h2 {
+  margin: 0 0 6px !important;
+}
+
+.scale-left-panel .weighing-order-group {
+  max-height: calc(100vh - 150px) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+.scale-main-panel {
+  padding: 8px !important;
+}
+
+.scale-main-panel .section-heading-row {
+  margin-bottom: 4px !important;
+}
+
+.scale-main-panel .assignment-context,
+.scale-main-panel .process-alert {
+  margin: 4px 0 !important;
+  padding: 6px 10px !important;
+}
+
+.scale-main-panel .scale-serial-panel {
+  margin: 6px 0 6px !important;
+}
+
+.scale-main-panel .scale-weight-display {
+  min-height: 120px !important;
+  max-height: 130px !important;
+  padding: 8px 16px 10px !important;
+  row-gap: 8px !important;
+}
+
+.scale-main-panel .scale-weight-title {
+  font-size: 22px !important;
+}
+
+.scale-main-panel .scale-weight-value {
+  font-size: 56px !important;
+}
+
+.scale-main-panel .scale-stability-settings {
+  gap: 5px !important;
+}
+
+.scale-main-panel .weighing-order-summary,
+.scale-main-panel .weighing-progress-card,
+.scale-main-panel .weighed-container-list {
+  margin: 6px 0 !important;
+}
+
+.scale-main-panel .weighing-order-summary div,
+.scale-main-panel .weighing-progress-card {
+  padding: 8px 10px !important;
+}
+
 @media (max-width: 900px) {
   .scale-serial-panel {
     grid-template-columns: 1fr;
