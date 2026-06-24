@@ -11716,7 +11716,7 @@ body,
   align-content: stretch;
   justify-items: stretch;
   min-height: 150px;
-  padding: 8px 22px 18px !important;
+  padding: 12px 20px 18px !important;
   border: 2px solid #f59e0b !important;
   background: linear-gradient(135deg, #fff7cc 0%, #dcfce7 100%) !important;
   box-shadow: 0 12px 28px rgba(146, 64, 14, 0.14);
@@ -11726,10 +11726,11 @@ body,
 .scale-weight-display span {
   align-self: start;
   justify-self: start;
-  color: #431407;
-  font-size: 24px;
-  font-weight: 800;
-  line-height: 1.15;
+  color: #0f172a;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 16px;
 }
 
 .scale-weight-display strong {
