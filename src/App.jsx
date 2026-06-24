@@ -27,6 +27,7 @@ const SESSION_KEY = 'sonhoabinh-v3-session'
 const SCALE_BAUD_RATE_KEY = 'scaleSerialBaudRate'
 const SCALE_BAUD_RATES = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200]
 const DEFAULT_SCALE_BAUD_RATE = 1200
+const debugMode = false
 
 const CHEMICAL = 'Hóa'
 const SOLID = 'Rắn'
@@ -210,9 +211,10 @@ function getScaleToleranceKg(scaleType = '') {
   return 0.005
 }
 
-function getStableScaleWeight(values = [], toleranceKg = 0.005) {
-  if (values.length < 5) return null
-  const latest = values.slice(-5)
+function getStableScaleWeight(values = [], toleranceKg = 0.005, sampleCount = 5) {
+  const count = Math.max(1, Number(sampleCount) || 5)
+  if (values.length < count) return null
+  const latest = values.slice(-count)
   const min = Math.min(...latest)
   const max = Math.max(...latest)
   return max - min <= toleranceKg ? latest[latest.length - 1] : null
@@ -3997,6 +3999,8 @@ function WeighingPage({ data, setData, group, user }) {
   const [scaleWeightKg, setScaleWeightKg] = useState(null)
   const [scaleStableWeightKg, setScaleStableWeightKg] = useState(null)
   const [scaleStableReadings, setScaleStableReadings] = useState([])
+  const [scaleStableSampleCount, setScaleStableSampleCount] = useState(5)
+  const [scaleToleranceKg, setScaleToleranceKg] = useState(() => getScaleToleranceKg(scaleKey))
   const [scaleSupported, setScaleSupported] = useState(true)
   const [scaleBaudRate, setScaleBaudRate] = useState(getStoredScaleBaudRate)
   const [scalePortLabel, setScalePortLabel] = useState('Chưa kết nối')
@@ -4005,6 +4009,8 @@ function WeighingPage({ data, setData, group, user }) {
   const scaleReaderRef = useRef(null)
   const scaleReadingRef = useRef(false)
   const scaleStableReadingsRef = useRef([])
+  const scaleStableSampleCountRef = useRef(scaleStableSampleCount)
+  const scaleToleranceKgRef = useRef(scaleToleranceKg)
   const activeOrder = pendingOrders.find((order) => order.id === activeOrderId)
   const waitingOrders = pendingOrders.filter((order) => order.id !== activeOrder?.id && order.status === 'Chờ cân')
   const activeItems = activeOrder ? getItems(activeOrder) : []
@@ -4019,7 +4025,6 @@ function WeighingPage({ data, setData, group, user }) {
   const assignmentStage = group === CHEMICAL ? 'Cân hóa' : 'Cân rắn'
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], assignmentStage)
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
-  const scaleToleranceKg = getScaleToleranceKg(scaleKey)
   const scaleStabilityStatus = scaleStableWeightKg == null ? 'Đang dao động' : 'Đã ổn định'
   const scaleWeighedBy = user?.fullName || user?.name || user?.username || assignmentEmployeeText || (group === CHEMICAL ? 'Tổ cân hóa' : 'Tổ cân rắn')
   const addScaleDebugLog = (message) => {
@@ -4040,10 +4045,26 @@ function WeighingPage({ data, setData, group, user }) {
       localStorage.setItem(SCALE_BAUD_RATE_KEY, String(scaleBaudRate))
     }
   }, [scaleBaudRate])
+  useEffect(() => {
+    scaleStableSampleCountRef.current = scaleStableSampleCount
+    setScaleStableWeightKg(getStableScaleWeight(scaleStableReadingsRef.current, scaleToleranceKgRef.current, scaleStableSampleCount))
+  }, [scaleStableSampleCount])
+  useEffect(() => {
+    scaleToleranceKgRef.current = scaleToleranceKg
+    setScaleStableWeightKg(getStableScaleWeight(scaleStableReadingsRef.current, scaleToleranceKg, scaleStableSampleCountRef.current))
+  }, [scaleToleranceKg])
   const handleScaleBaudRateChange = (event) => {
     const nextBaudRate = Number(event.target.value)
     setScaleBaudRate(nextBaudRate)
     addScaleDebugLog(`Selected BaudRate: ${nextBaudRate}`)
+  }
+  const handleStableSampleCountChange = (event) => {
+    const nextCount = Math.max(1, Math.min(20, Number(event.target.value) || 1))
+    setScaleStableSampleCount(nextCount)
+  }
+  const handleScaleToleranceChange = (event) => {
+    const nextTolerance = Math.max(0, Number(event.target.value) || 0)
+    setScaleToleranceKg(nextTolerance)
   }
 
   const connectScale = async () => {
@@ -4111,10 +4132,11 @@ function WeighingPage({ data, setData, group, user }) {
             if (parsed != null) {
               setScaleRawValue(parsed)
               setScaleWeightKg(parsed)
-              const nextReadings = [...scaleStableReadingsRef.current, parsed].slice(-5)
+              const sampleCount = scaleStableSampleCountRef.current
+              const nextReadings = [...scaleStableReadingsRef.current, parsed].slice(-sampleCount)
               scaleStableReadingsRef.current = nextReadings
               setScaleStableReadings(nextReadings)
-              setScaleStableWeightKg(getStableScaleWeight(nextReadings, scaleToleranceKg))
+              setScaleStableWeightKg(getStableScaleWeight(nextReadings, scaleToleranceKgRef.current, sampleCount))
             }
           }
         } finally {
@@ -4328,20 +4350,25 @@ function WeighingPage({ data, setData, group, user }) {
           {!scaleSupported && <div className="process-alert">Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.</div>}
           <div className="scale-serial-panel">
             <div><span>Trạng thái cân</span><strong>{scaleStatus}</strong></div>
-            <div><span>Cổng đã kết nối</span><strong>{scalePortLabel}</strong></div>
+            {debugMode && <div><span>COM Port</span><strong>{scalePortLabel}</strong></div>}
             <label className="scale-baud-select">
               <span>BaudRate</span>
               <select value={scaleBaudRate} onChange={handleScaleBaudRateChange}>
                 {SCALE_BAUD_RATES.map((rate) => <option key={rate} value={rate}>{rate}</option>)}
               </select>
             </label>
-            <div><span>Cấu hình serial</span><strong>{scaleBaudRate} baud, 8 data bits, parity none, 1 stop bit, flow none</strong></div>
-            <div><span>Raw value</span><strong>{scaleRawValue == null ? '-' : scaleRawValue.toFixed(3)}</strong></div>
-            <div><span>Khối lượng cân hiện tại</span><strong>{formatScaleWeight(scaleWeightKg, scaleKey)}</strong></div>
-            <div><span>Trạng thái ổn định</span><strong>{scaleStabilityStatus} ({scaleStableReadings.length}/5, tolerance {formatScaleWeight(scaleToleranceKg, scaleKey)})</strong></div>
-            <div className="scale-raw-text"><span>Dữ liệu nhận được</span><strong>{scaleRawText || '-'}</strong></div>
+            <div className="scale-weight-display"><span>Khối lượng cân</span><strong>{formatScaleWeight(scaleWeightKg, scaleKey)}</strong></div>
+            <div className="scale-stability-settings">
+              <span>Cài đặt ổn định</span>
+              <label>Số mẫu ổn định<input type="number" min="1" max="20" step="1" value={scaleStableSampleCount} onChange={handleStableSampleCountChange} /></label>
+              <label>Sai số cho phép<div className="scale-tolerance-input"><input type="number" min="0" step="0.001" value={scaleToleranceKg} onChange={handleScaleToleranceChange} /><strong>kg</strong></div></label>
+              <em>{scaleStabilityStatus} ({scaleStableReadings.length}/{scaleStableSampleCount})</em>
+            </div>
+            {debugMode && <div><span>Serial Config</span><strong>{scaleBaudRate} baud, 8 data bits, parity none, 1 stop bit, flow none</strong></div>}
+            {debugMode && <div><span>Raw Value</span><strong>{scaleRawValue == null ? '-' : scaleRawValue.toFixed(3)}</strong></div>}
+            {debugMode && <div className="scale-raw-text"><span>Incoming Data</span><strong>{scaleRawText || '-'}</strong></div>}
           </div>
-          <section className="scale-debug-panel">
+          {debugMode && <section className="scale-debug-panel">
             <div className="section-heading-row">
               <h3>Debug serial</h3>
               <button type="button" className="secondary-button" onClick={() => setScaleDebugLogs([])}>Xóa log</button>
@@ -4351,7 +4378,7 @@ function WeighingPage({ data, setData, group, user }) {
                 ? scaleDebugLogs.map((item, index) => <div key={`${item}-${index}`}>{item}</div>)
                 : <div>Chưa có log serial.</div>}
             </div>
-          </section>
+          </section>}
           {!activeOrder && <p className="empty-alert">Chưa có lệnh nào đang cân. Vui lòng chọn một lệnh từ danh sách chờ.</p>}
           {activeOrder && (
             <>
