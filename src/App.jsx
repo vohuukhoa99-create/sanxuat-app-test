@@ -40,6 +40,13 @@ const nowText = () => new Date().toISOString().slice(0, 16).replace('T', ' ')
 const todayText = () => new Date().toISOString().slice(0, 10)
 const num = (value) => Number(value) || 0
 const kg = (value) => `${num(value).toLocaleString('vi-VN', { maximumFractionDigits: 3 })} kg`
+function formatKg(value) {
+  const number = Number(value || 0)
+  return `${number.toLocaleString('vi-VN', {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  })} kg`
+}
 function formatPercent(value) {
   if (value === null || value === undefined || value === '') return '-'
   const number = Number(String(value).replace('%', '').replace(',', '.'))
@@ -222,11 +229,7 @@ function getStableScaleWeight(values = [], toleranceKg = 0.005, sampleCount = 5)
 
 function formatScaleWeight(value, scaleType = '') {
   if (value == null) return '-'
-  const normalized = normalizeText(scaleType)
-  if (normalized.includes('solid') || normalized.includes('ran')) {
-    return `${num(value).toFixed(2).replace(/0$/, '')} kg`
-  }
-  return `${num(value).toFixed(3)} kg`
+  return formatKg(value)
 }
 
 function rawMaterialLotStatus(lot) {
@@ -2988,7 +2991,7 @@ function FormulaTable({ items, secure = false }) {
       <td>{item.materialCode}</td>
       <td>{item.materialGroup}</td>
       {secure && <td>{formatPercent(item.ratioPercent)}</td>}
-      <td>{kg(item.requiredKg)}</td>
+      <td>{formatKg(item.requiredKg)}</td>
     </tr>
   ))} />
 }
@@ -4361,7 +4364,7 @@ function WeighingPage({ data, setData, group, user }) {
             <div className="scale-stability-settings">
               <span>Cài đặt ổn định</span>
               <label>Số mẫu ổn định<input type="number" min="1" max="20" step="1" value={scaleStableSampleCount} onChange={handleStableSampleCountChange} /></label>
-              <label>Sai số cho phép<div className="scale-tolerance-input"><input type="number" min="0" step="0.001" value={scaleToleranceKg} onChange={handleScaleToleranceChange} /><strong>kg</strong></div></label>
+              <label>Sai số cho phép<div className="scale-tolerance-input"><input type="number" min="0" step="0.001" value={scaleToleranceKg} onChange={handleScaleToleranceChange} /><strong>{formatKg(scaleToleranceKg)}</strong></div></label>
               <em>{scaleStabilityStatus} ({scaleStableReadings.length}/{scaleStableSampleCount})</em>
             </div>
             {debugMode && <div><span>Serial Config</span><strong>{scaleBaudRate} baud, 8 data bits, parity none, 1 stop bit, flow none</strong></div>}
@@ -4706,7 +4709,7 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
           <span>-</span>
         )}
       </td>
-      <td>{stockDisplay === '' || stockDisplay == null ? '-' : kg(stockDisplay)}</td>
+      <td>{stockDisplay === '' || stockDisplay == null ? '-' : formatKg(stockDisplay)}</td>
       <td>{active && qrPassed && !weightPassed ? <div className="weighing-inline-action"><span className="scale-current-weight">{formatScaleWeight(scaleWeightKg, scaleType)}</span><button className="primary-button" disabled={!scaleStable || scaleStableWeightKg == null} onClick={confirmStableWeight}>Xác nhận cân</button></div> : actual === '' ? '-' : formatScaleWeight(actual, scaleType)}</td>
       <td>{qrPassed ? 'OK' : qrFailed ? 'Sai mã' : 'Chờ quét'}</td>
       <td>{completed ? <span className="weighing-check">✓ Hoàn thành</span> : qrPassed ? <span className="weighing-check">✓ QR đạt</span> : active ? 'Đang thao tác' : '-'}</td>

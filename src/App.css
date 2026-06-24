@@ -11712,14 +11712,31 @@ body,
   grid-column: 2;
   grid-row: 1 / span 2;
   display: grid;
-  align-content: center;
+  align-content: stretch;
+  justify-items: stretch;
+  min-height: 150px;
+  padding: 18px 22px !important;
+  border: 2px solid #f59e0b !important;
+  background: linear-gradient(135deg, #fff7cc 0%, #dcfce7 100%) !important;
+  box-shadow: 0 12px 28px rgba(146, 64, 14, 0.14);
+}
+
+.scale-weight-display span {
+  align-self: start;
+  color: #7c2d12;
+  font-size: 22px;
+  font-weight: 800;
 }
 
 .scale-weight-display strong {
-  font-size: max(36px, 2.6vw);
+  align-self: center;
+  justify-self: center;
+  color: #14532d;
+  font-size: max(72px, 5.2vw);
   line-height: 1;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0;
+  text-align: center;
 }
 
 .scale-stability-settings {
