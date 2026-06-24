@@ -11744,6 +11744,60 @@ body,
   white-space: normal;
 }
 
+/* Weighing QR scan column: keep material QR readable and validate visibly. */
+.weighing-active-board > .table-wrapper table {
+  min-width: 1100px !important;
+}
+
+.weighing-active-board > .table-wrapper th:nth-child(4),
+.weighing-active-board > .table-wrapper td:nth-child(4) {
+  width: 240px !important;
+  min-width: 220px !important;
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+.weighing-active-board > .table-wrapper td.weighing-qr-cell {
+  white-space: normal !important;
+}
+
+.weighing-qr-scan {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.weighing-qr-scan input {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: 28px !important;
+  border-color: #cfded6;
+}
+
+.weighing-qr-cell.qr-pass {
+  background: #ecfdf3 !important;
+}
+
+.weighing-qr-cell.qr-fail,
+.weighing-qr-scan input.qr-input-fail {
+  background: #fff1f2 !important;
+  border-color: #ef4444 !important;
+}
+
+.weighing-qr-fail-row td {
+  background: #fff7f7 !important;
+}
+
+.qr-inline-error {
+  color: #b42318;
+  font-size: 10px;
+  line-height: 1.25;
+  white-space: normal;
+}
+
 @media (max-width: 900px) {
   .scale-serial-panel {
     grid-template-columns: 1fr;
