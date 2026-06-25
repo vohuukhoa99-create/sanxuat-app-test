@@ -119,6 +119,12 @@ function normalizeFormulaCode(code) {
     .replace(/\s+/g, ' ')
     .trim()
 }
+function normalizeFormulaCodeExact(code) {
+  return String(code || '').replace(/\s+/g, ' ').trim()
+}
+function formulaCodeMatches(left, right) {
+  return normalizeFormulaCodeExact(left) === normalizeFormulaCodeExact(right)
+}
 const importedCustomerCatalog = Array.isArray(customerCatalogSeed) ? customerCatalogSeed : []
 const normalizeCustomerCatalog = (items = importedCustomerCatalog) => (Array.isArray(items) ? items : []).map((item, index) => {
   const code = item.customerCode || item.code || item.customerId || ''
@@ -2349,15 +2355,49 @@ const findFormulaExcelHeader = (rows = []) => {
     },
   }
 }
-const extractFormulaProductFromRows = (rows = [], headerIndex = rows.length) => {
-  const scanRows = rows.slice(0, Math.max(headerIndex, 0))
-  for (const row of scanRows) {
-    const rowText = row.map(excelCellText).filter(Boolean).join(' ')
-    if (!/ten\s+san\s+pham\s*\(\s*ma\s+hieu\s*\)\s*:/.test(normalizeText(rowText))) continue
-    const formulaCode = rowText.split(':').slice(1).join(':').trim()
-    if (formulaCode) return formulaCode
+const extractFormulaProductFromRows = (rows = []) => {
+  const labelPatterns = [
+    /ten\s+san\s+pham\s*\(\s*ma\s+hieu\s*\)/,
+    /ten\s+san\s+pham/,
+    /ma\s+cong\s+thuc/,
+    /san\s+pham/,
+  ]
+  for (const row of rows) {
+    const cells = row.map(excelCellText)
+    const rowText = cells.filter(Boolean).join(' ')
+    const normalizedRow = normalizeText(rowText)
+    if (labelPatterns.some((pattern) => pattern.test(normalizedRow)) && rowText.includes(':')) {
+      const formulaCode = normalizeFormulaCodeExact(rowText.split(':').slice(1).join(':'))
+      if (formulaCode) return formulaCode
+    }
+    for (let index = 0; index < cells.length; index += 1) {
+      const cell = cells[index]
+      const normalizedCell = normalizeText(cell)
+      if (!labelPatterns.some((pattern) => pattern.test(normalizedCell))) continue
+      if (cell.includes(':')) {
+        const formulaCode = normalizeFormulaCodeExact(cell.split(':').slice(1).join(':'))
+        if (formulaCode) return formulaCode
+      }
+      const nextValue = normalizeFormulaCodeExact(cells.slice(index + 1).find((value) => value && !labelPatterns.some((pattern) => pattern.test(normalizeText(value)))) || '')
+      if (nextValue) return nextValue
+    }
   }
   return ''
+}
+const extractFormulaCodeFromFilename = (filename = '') => {
+  const name = String(filename || '').split(/[\\/]/).pop() || ''
+  const withoutExt = name.replace(/\.[^.]+$/, '')
+  return normalizeFormulaCodeExact(withoutExt)
+}
+const resolveFormulaCodeFromExcel = (rows = [], file = null) => {
+  const formulaCodeFromSheet = extractFormulaProductFromRows(rows)
+  const formulaCodeFromFilename = extractFormulaCodeFromFilename(file?.name)
+  return {
+    filename: file?.name || '',
+    formulaCodeFromSheet,
+    formulaCodeFromFilename,
+    finalFormulaCode: formulaCodeFromSheet || formulaCodeFromFilename,
+  }
 }
 const extractFormulaVersionFromRows = (rows = [], headerIndex = rows.length) => {
   const scanRows = rows.slice(0, Math.max(headerIndex, 0))
@@ -2576,17 +2616,15 @@ function FormulasPage({ data, setData, permissions = [] }) {
         const workbook = XLSX.read(event.target.result, { type: 'array' })
         const sheet = workbook.Sheets[workbook.SheetNames[0]]
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
-        const productCode = extractFormulaProductFromRows(rows)
+        const formulaCodeDebug = resolveFormulaCodeFromExcel(rows, file)
+        const productCode = formulaCodeDebug.finalFormulaCode
         if (!productCode) {
-          setFormulaMessage('Không tìm thấy mã công thức trong file Excel')
+          console.debug('formula import debug', { ...formulaCodeDebug, matchedFormulaCode: '' })
+          setFormulaMessage('Không tìm thấy mã công thức trong nội dung file và tên file.')
           return
         }
-        const newFormulaCode = productCode.trim()
+        const newFormulaCode = normalizeFormulaCodeExact(productCode)
         const existingFormulaList = data.formulas || []
-        console.log('Parsed formula code:', newFormulaCode)
-        console.log('Existing formula codes:', existingFormulaList.map((formula) => formula.formulaCode || formula.code))
-        console.log('Formula code duplicate self-test HSS/HGS:', normalizeFormulaCode('HSS 211.011') === normalizeFormulaCode('HGS 211.011'))
-        console.log('Formula code duplicate self-test HGS variants:', normalizeFormulaCode('HGS 211.111') === normalizeFormulaCode('HGS 231.143'))
         const header = findFormulaExcelHeader(rows)
         if (!header || header.columns.materialCode < 0 || header.columns.ratioPercent < 0) {
           setFormulaMessage('Không tìm thấy dòng header công thức hợp lệ trong file Excel.')
@@ -2625,8 +2663,9 @@ function FormulasPage({ data, setData, permissions = [] }) {
           })
         })
         const duplicateFormula = existingFormulaList.find((existingFormula) => (
-          normalizeFormulaCode(existingFormula.formulaCode || existingFormula.code) === normalizeFormulaCode(code)
+          formulaCodeMatches(existingFormula.formulaCode || existingFormula.code, code)
         ))
+        console.debug('formula import debug', { ...formulaCodeDebug, finalFormulaCode: code, matchedFormulaCode: duplicateFormula ? (duplicateFormula.formulaCode || duplicateFormula.code) : '' })
         const imported = formula.items.length ? [formula] : []
         const errors = []
         const warnings = []
@@ -2693,10 +2732,12 @@ function FormulasPage({ data, setData, permissions = [] }) {
         const sheet = workbook.Sheets[workbook.SheetNames[0]]
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
         const header = findFormulaExcelHeader(rows)
-        const productCode = extractFormulaProductFromRows(rows, header?.headerIndex ?? rows.length)
+        const formulaCodeDebug = resolveFormulaCodeFromExcel(rows, file)
+        const productCode = formulaCodeDebug.finalFormulaCode
         const formulaVersion = extractFormulaVersionFromRows(rows, header?.headerIndex ?? rows.length)
         if (!productCode) {
-          setFormulaMessage('Không tìm thấy mã công thức trong file Excel')
+          console.debug('formula import debug', { ...formulaCodeDebug, matchedFormulaCode: '' })
+          setFormulaMessage('Không tìm thấy mã công thức trong nội dung file và tên file.')
           return
         }
         if (!header || header.columns.materialCode < 0) {
@@ -2723,9 +2764,10 @@ function FormulasPage({ data, setData, permissions = [] }) {
 
         const existingFormulas = normalizeMasterFormulas(data.formulas || [])
         const targetFormula = existingFormulas.find((formula) => (
-          normalizeFormulaCode(formula.formulaCode || formula.code) === normalizeFormulaCode(productCode)
+          formulaCodeMatches(formula.formulaCode || formula.code, productCode)
           && String(formula.version || 'V1.0').trim().toUpperCase() === String(formulaVersion || 'V1.0').trim().toUpperCase()
         ))
+        console.debug('formula import debug', { ...formulaCodeDebug, finalFormulaCode: normalizeFormulaCodeExact(productCode), matchedFormulaCode: targetFormula ? (targetFormula.formulaCode || targetFormula.code) : '' })
         if (!targetFormula) {
           setFormulaMessage(`Không tìm thấy công thức ${productCode} / ${formulaVersion} để cập nhật dung sai.`)
           return
@@ -2735,7 +2777,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
         let updatedRows = 0
         const updatedFormulas = (data.formulas || []).map((formula) => {
           const isTarget = formula.id === targetFormula.id
-            || (normalizeFormulaCode(formula.formulaCode || formula.code) === normalizeFormulaCode(productCode)
+            || (formulaCodeMatches(formula.formulaCode || formula.code, productCode)
               && String(formula.version || 'V1.0').trim().toUpperCase() === String(formulaVersion || 'V1.0').trim().toUpperCase())
           if (!isTarget) return formula
           const toleranceByMaterial = new Map(toleranceRows.map((row) => [normalizeCode(row.materialCode), row]))
