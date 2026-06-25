@@ -12351,3 +12351,103 @@ body,
   justify-content: center !important;
   white-space: nowrap !important;
 }
+
+/* Mixing team layout: machine overview, ready orders, active machines. */
+.mixing-page-v2 {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 14px !important;
+}
+
+.mixing-overview-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  align-items: stretch !important;
+}
+
+.mixing-overview-block {
+  min-width: 0 !important;
+  display: grid !important;
+  grid-template-rows: auto 1fr !important;
+  gap: 10px !important;
+}
+
+.mixing-overview-block h3,
+.mixing-ready-section h3,
+.mixing-active-section h3 {
+  margin: 0 !important;
+}
+
+.mixing-overview-block .table-wrapper,
+.mixing-ready-section .ready-mixing-table-wrapper,
+.mixing-active-section .mixing-active-table-wrapper {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+}
+
+.mixing-ready-section,
+.mixing-active-section,
+.mixing-dispatch,
+.mixing-history-panel {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.ready-mixing-table {
+  width: 100% !important;
+  min-width: 1280px !important;
+  table-layout: fixed !important;
+}
+
+.ready-mixing-table th,
+.ready-mixing-table td {
+  vertical-align: middle !important;
+}
+
+.ready-mixing-table th:nth-child(1),
+.ready-mixing-table td:nth-child(1) { width: 120px !important; }
+.ready-mixing-table th:nth-child(2),
+.ready-mixing-table td:nth-child(2) { width: 170px !important; }
+.ready-mixing-table th:nth-child(3),
+.ready-mixing-table td:nth-child(3) { width: 120px !important; }
+.ready-mixing-table th:nth-child(4),
+.ready-mixing-table td:nth-child(4) { width: 150px !important; }
+.ready-mixing-table th:nth-child(5),
+.ready-mixing-table td:nth-child(5) { width: 190px !important; }
+.ready-mixing-table th:nth-child(6),
+.ready-mixing-table td:nth-child(6) { width: 165px !important; }
+.ready-mixing-table th:nth-child(7),
+.ready-mixing-table td:nth-child(7) { width: 165px !important; }
+.ready-mixing-table th:nth-child(8),
+.ready-mixing-table td:nth-child(8) { width: 150px !important; }
+.ready-mixing-table th:nth-child(9),
+.ready-mixing-table td:nth-child(9) { width: 180px !important; }
+
+.ready-mixing-table select,
+.ready-mixing-table .mixing-qr-input {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.mixing-row-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+}
+
+.mixing-row-actions button {
+  white-space: nowrap !important;
+}
+
+.mixing-qr-fail-row {
+  background: #fff1f2 !important;
+}
+
+@media (max-width: 1000px) {
+  .mixing-overview-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

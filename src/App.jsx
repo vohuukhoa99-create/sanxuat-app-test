@@ -5101,12 +5101,13 @@ function MixingPage({ data, setData, user }) {
   const activeMachines = getActiveMixingMachines(machines)
   const orders = data.orders
   const [qrForms, setQrForms] = useState({})
+  const [machineForms, setMachineForms] = useState({})
   const [changeRequestDraft, setChangeRequestDraft] = useState(null)
   const [warning, setWarning] = useState('')
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'Phối trộn')
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
   const activeMixingOrders = orders.filter((order) => order.mixing?.status === 'Active' || order.mixingStatus === 'Active')
-  const readyOrders = orders.filter((order) => getOrderAssignedMachineCode(order))
+  const readyOrders = orders.filter((order) => getMixingDispatchState(order).canStart)
   const mixingHistory = orders.filter((order) => order.mixingStatus === 'completed' || order.mixing?.status === 'Completed' || order.mixingCompletedAt)
   const getMachineActiveOrder = (machineCode) => activeMixingOrders.find((order) => (order.mixingMachine || order.mixing?.machineCode) === machineCode)
   const machineRows = activeMachines.map((machine) => {
@@ -5130,6 +5131,9 @@ function MixingPage({ data, setData, user }) {
   })
   const updateQrForm = (orderId, field, value) => {
     setQrForms((current) => ({ ...current, [orderId]: { ...(current[orderId] || {}), [field]: value } }))
+  }
+  const updateMachineForm = (orderId, value) => {
+    setMachineForms((current) => ({ ...current, [orderId]: value }))
   }
   const getQrForm = (order) => ({
     chemicalQr: qrForms[order.id]?.chemicalQr ?? order.mixingQrConfirmation?.chemicalQr ?? '',
@@ -5182,7 +5186,7 @@ function MixingPage({ data, setData, user }) {
     setData((current) => applyDemoQrData(current))
     setWarning('Đã tạo dữ liệu demo QR hỗn hợp. Có sẵn 1 lệnh PASS, 1 lệnh sai LOT và 1 lệnh sai nhóm.')
   }
-  const getAssignedMachineCode = (order) => getOrderAssignedMachineCode(order)
+  const getAssignedMachineCode = (order) => getOrderAssignedMachineCode(order) || machineForms[order.id] || ''
   const openMachineChangeRequest = (order) => {
     const currentMachine = getAssignedMachineCode(order)
     setChangeRequestDraft({
@@ -5232,6 +5236,7 @@ function MixingPage({ data, setData, user }) {
       setWarning(`Máy ${machineLabelByCode(machineCode)} không ở trạng thái READY.`)
       return
     }
+    const selectedMachine = activeMachines.find((machine) => machine.machineCode === machineCode)
     const dispatchState = getMixingDispatchState(order)
     if (!dispatchState.canStart) {
       setWarning(`Lệnh ${order.orderCode || order.id} đang ở trạng thái ${dispatchState.label}.`)
@@ -5257,6 +5262,13 @@ function MixingPage({ data, setData, user }) {
         ...item,
         stage: supplement ? 'mixing-supplement' : 'mixing',
         status: supplement ? 'Đang phối trộn bổ sung' : 'Đang phối trộn',
+        mixerMachine: machineCode,
+        assignedMixingMachine: machineCode,
+        assignedMachineCode: machineCode,
+        assignedMachineName: selectedMachine?.machineName || item.assignedMachineName,
+        assignedMachineCapacityKg: selectedMachine?.capacityKg ?? item.assignedMachineCapacityKg,
+        assignedMachineMotorPower: selectedMachine?.motorPower || item.assignedMachineMotorPower,
+        assignedMachineDepartment: selectedMachine?.department || selectedMachine?.productionTeam || item.assignedMachineDepartment,
         mixingMachine: machineCode,
         mixingStartAt: startedAt,
         mixingCompletedAt: '',
@@ -5309,40 +5321,122 @@ function MixingPage({ data, setData, user }) {
         <div className="process-alert assignment-context">
           <strong>Phân công ca hiện tại:</strong> {currentAssignments.length ? currentAssignments.map((item) => `${formatAssignmentEmployees(item)} (${item.shiftCode}${item.machineName ? ` - ${item.machineName}` : ''})`).join(', ') : 'Chưa có phân công.'}
         </div>
-        <div className="table-wrapper mixing-machine-table-wrapper">
-          <table className="mixing-machine-table">
-            <thead>
-              <tr>
-                <th>Máy</th>
-                <th>Trạng thái</th>
-                <th>Lệnh</th>
-                <th>Tiến độ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {machineRows.map((machine) => {
-                const progress = machine.activeOrder ? getMixingProgress(machine.activeOrder) : 0
-                return (
-                  <tr key={machine.machineCode}>
-                    <td>{formatMixingMachineLabel(machine)}</td>
-                    <td><span className={`dispatch-badge ${machine.activeOrder ? 'mixing' : 'ready'}`}>{machine.status}</span></td>
-                    <td>{machine.activeOrder ? (machine.activeOrder.orderCode || machine.activeOrder.id) : '-'}</td>
-                    <td><div className="mix-progress mixing-progress"><div className="mixing-progress-bar"><i style={{ width: `${progress}%` }} /></div><strong>{progress}%</strong></div></td>
+        <div className="mixing-overview-grid">
+          <article className="mixing-overview-block">
+            <h3>Danh sách máy phối trộn / trạng thái máy</h3>
+            <div className="table-wrapper mixing-machine-table-wrapper">
+              <table className="mixing-machine-table">
+                <thead>
+                  <tr>
+                    <th>Máy</th>
+                    <th>Trạng thái</th>
+                    <th>Lệnh</th>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {machineRows.map((machine) => (
+                    <tr key={machine.machineCode}>
+                      <td>{formatMixingMachineLabel(machine)}</td>
+                      <td><span className={`dispatch-badge ${machine.activeOrder ? 'mixing' : 'ready'}`}>{machine.status}</span></td>
+                      <td>{machine.activeOrder ? (machine.activeOrder.orderCode || machine.activeOrder.id) : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </article>
+          <article className="mixing-overview-block">
+            <h3>Tiến độ máy / tình trạng lệnh trên từng máy</h3>
+            <div className="table-wrapper mixing-machine-table-wrapper">
+              <table className="mixing-machine-table">
+                <thead>
+                  <tr>
+                    <th>Máy</th>
+                    <th>Lệnh hiện tại</th>
+                    <th>Tiến độ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {machineRows.map((machine) => {
+                    const progress = machine.activeOrder ? getMixingProgress(machine.activeOrder) : 0
+                    return (
+                      <tr key={`${machine.machineCode}-progress`}>
+                        <td>{machine.machineCode}</td>
+                        <td>{machine.activeOrder ? (machine.activeOrder.orderCode || machine.activeOrder.id) : 'Rảnh'}</td>
+                        <td><div className="mix-progress mixing-progress"><div className="mixing-progress-bar"><i style={{ width: `${progress}%` }} /></div><strong>{progress}%</strong></div></td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </article>
         </div>
       </section>
-      <section className="mixing-sections-grid">
-        <section className="panel">
+      <section className="panel mixing-ready-section">
+          <h3>Lệnh sẵn sàng phối trộn</h3>
+          <div className="ready-mixing-table-wrapper">
+            <table className="ready-mixing-table">
+              <thead>
+                <tr>
+                  <th>Mã lệnh SX</th>
+                  <th>Sản phẩm</th>
+                  <th>LOT</th>
+                  <th>Loại phối trộn</th>
+                  <th>Máy trộn được chọn</th>
+                  <th><span>QR hỗn hợp</span><span>Hóa</span></th>
+                  <th><span>QR hỗn hợp</span><span>Rắn</span></th>
+                  <th>Trạng thái QR</th>
+                  <th>Hành động</th>
+                </tr>
+              </thead>
+              <tbody>
+                {readyOrders.map((order) => {
+                  const supplement = order.stage === 'mixing-supplement' || order.mixing?.supplement
+                  const qrForm = getQrForm(order)
+                  const qrStatus = order.mixingQrConfirmation?.status || 'Chưa xác nhận'
+                  const qrConfirmed = qrStatus === 'Đã xác nhận'
+                  const qrFailed = qrStatus === 'Không đạt'
+                  const assignedMachineCode = getAssignedMachineCode(order)
+                  const assignedMachine = machines.find((machine) => machine.machineCode === assignedMachineCode)
+                  const pendingChange = order.machineChangeRequest?.status === 'PENDING'
+                  const state = getMixingDispatchState(order)
+                  const qrDisplayStatus = qrConfirmed ? 'Đủ điều kiện phối trộn' : qrFailed ? 'QR sai' : 'Chưa xác nhận QR'
+                  return (
+                    <tr key={order.id} className={qrFailed ? 'mixing-qr-fail-row' : ''}>
+                      <td>{order.orderCode || order.id}</td>
+                      <td>{order.productName || order.product}</td>
+                      <td>{order.lot}</td>
+                      <td>{supplement ? 'Phối trộn bổ sung QC2' : 'Phối trộn chính'}</td>
+                      <td>
+                        {getOrderAssignedMachineCode(order) ? (
+                          <strong>{assignedMachine ? formatMixingMachineLabel(assignedMachine) : getOrderAssignedMachineLabel(order, machines)}</strong>
+                        ) : (
+                          <select value={assignedMachineCode} onChange={(event) => updateMachineForm(order.id, event.target.value)}>
+                            <option value="">Chọn máy</option>
+                            {activeMachines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}
+                          </select>
+                        )}
+                      </td>
+                      <td><input className="mixing-qr-input qr-input" value={qrForm.chemicalQr} onChange={(event) => updateQrForm(order.id, 'chemicalQr', event.target.value)} /></td>
+                      <td><input className="mixing-qr-input qr-input" value={qrForm.solidQr} onChange={(event) => updateQrForm(order.id, 'solidQr', event.target.value)} /></td>
+                      <td><span className={`dispatch-badge ${qrConfirmed ? 'ready' : qrFailed ? 'fail' : 'waiting'}`}>{qrDisplayStatus}</span></td>
+                      <td><div className="mixing-row-actions"><button className="secondary-button confirm-qr-button" onClick={() => confirmMixingQr(order)}>Xác nhận QR</button>{getOrderAssignedMachineCode(order) && <button type="button" className="secondary-button" onClick={() => openMachineChangeRequest(order)}>Đề nghị đổi máy</button>}{pendingChange && <span className="dispatch-badge waiting">Chờ đổi máy</span>}<button className="primary-button start-mixing-button" disabled={!state.canStart || !qrConfirmed || qrFailed || !assignedMachineCode || pendingChange} onClick={() => startMixing(order)}>{supplement ? 'Bắt đầu bổ sung' : 'Bắt đầu phối trộn'}</button></div></td>
+                    </tr>
+                  )
+                })}
+                {readyOrders.length === 0 && <tr><td className="empty-row" colSpan="9">Không có lệnh sẵn sàng phối trộn.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section className="panel mixing-active-section">
           <h3>Máy đang phối trộn</h3>
           <div className="table-wrapper mixing-active-table-wrapper">
             <table className="mixing-active-table">
               <thead>
                 <tr>
-                  <th>Lệnh</th>
+                  <th>Mã lệnh SX</th>
                   <th>Sản phẩm</th>
                   <th>LOT</th>
                   <th>Máy phối trộn</th>
@@ -5367,60 +5461,6 @@ function MixingPage({ data, setData, user }) {
                   )
                 })}
                 {activeMixingOrders.length === 0 && <tr><td className="empty-row" colSpan="7">Không có máy đang phối trộn.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </section>
-        <section className="panel">
-          <h3>Lệnh sẵn sàng phối trộn</h3>
-          <div className="ready-mixing-table-wrapper">
-            <table className="ready-mixing-table">
-              <thead>
-                <tr>
-                  <th>Lệnh</th>
-                  <th>Sản phẩm</th>
-                  <th>LOT</th>
-                  <th>Loại phối trộn</th>
-                  <th><span>QR hỗn hợp</span><span>Hóa</span></th>
-                  <th><span>QR hỗn hợp</span><span>Rắn</span></th>
-                  <th><span>Xác nhận</span><span>QR</span></th>
-                  <th><span>Máy Phòng SX</span><span>chỉ định</span></th>
-                  <th>Trạng thái</th>
-                  <th>Hành động</th>
-                </tr>
-              </thead>
-              <tbody>
-                {readyOrders.map((order) => {
-                  const supplement = order.stage === 'mixing-supplement' || order.mixing?.supplement
-                  const qrForm = getQrForm(order)
-                  const qrStatus = order.mixingQrConfirmation?.status || 'Chưa xác nhận'
-                  const qrConfirmed = qrStatus === 'Đã xác nhận'
-                  const assignedMachineCode = getAssignedMachineCode(order)
-                  const assignedMachine = machines.find((machine) => machine.machineCode === assignedMachineCode)
-                  const pendingChange = order.machineChangeRequest?.status === 'PENDING'
-                  const state = getMixingDispatchState(order)
-                  return (
-                    <tr key={order.id}>
-                      <td>{order.orderCode || order.id}</td>
-                      <td>{order.productName || order.product}</td>
-                      <td>{order.lot}</td>
-                      <td>{supplement ? 'Phối trộn bổ sung QC2' : 'Phối trộn chính'}</td>
-                      <td><input className="mixing-qr-input qr-input" value={qrForm.chemicalQr} onChange={(event) => updateQrForm(order.id, 'chemicalQr', event.target.value)} /></td>
-                      <td><input className="mixing-qr-input qr-input" value={qrForm.solidQr} onChange={(event) => updateQrForm(order.id, 'solidQr', event.target.value)} /></td>
-                      <td><div className="mixing-qr-confirm"><button className="secondary-button confirm-qr-button" onClick={() => confirmMixingQr(order)}>Xác nhận QR hỗn hợp</button><span className={`dispatch-badge ${qrConfirmed ? 'ready' : qrStatus === 'Không đạt' ? 'fail' : 'waiting'}`}>{qrStatus}</span></div></td>
-                      <td>
-                        <div className="mixing-qr-confirm">
-                          {assignedMachineCode ? <strong>{assignedMachine ? formatMixingMachineLabel(assignedMachine) : getOrderAssignedMachineLabel(order, machines)}</strong> : <span className="process-alert">Chưa được Phòng SX chỉ định máy</span>}
-                          <button type="button" className="secondary-button" onClick={() => openMachineChangeRequest(order)}>Đề nghị đổi máy</button>
-                          {pendingChange && <span className="dispatch-badge waiting">Chờ xác nhận đổi máy</span>}
-                        </div>
-                      </td>
-                      <td><span className={`dispatch-badge ${state.className}`}>{state.label}</span></td>
-                      <td><button className="primary-button start-mixing-button" disabled={!state.canStart || !qrConfirmed || !assignedMachineCode || pendingChange} onClick={() => startMixing(order)}>{supplement ? 'Bắt đầu phối trộn bổ sung QC2' : 'Bắt đầu phối trộn'}</button></td>
-                    </tr>
-                  )
-                })}
-                {readyOrders.length === 0 && <tr><td className="empty-row" colSpan="10">Không có lệnh sẵn sàng phối trộn.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -5457,7 +5497,6 @@ function MixingPage({ data, setData, user }) {
             </tr>
           ))} empty="Chưa có lịch sử phối trộn." />
         </section>
-      </section>
       {changeRequestDraft && (
         <div className="modal-backdrop" role="presentation">
           <div className="mixing-modal" role="dialog" aria-modal="true">
