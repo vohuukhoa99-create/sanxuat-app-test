@@ -33,7 +33,7 @@ const SCALE_SERIAL_CONFIG = {
   multiplier: 1,
   reverseFrame: true,
 }
-const debugMode = true
+const debugMode = false
 
 const CHEMICAL = 'Hóa'
 const SOLID = 'Rắn'
