@@ -12262,9 +12262,9 @@ body,
   overflow: hidden;
 }
 
-/* Final weighing table alignment: 8-column chemical/solid material board. */
+/* Final weighing table alignment: 7-column chemical/solid material board. */
 .weighing-active-board > .table-wrapper table {
-  min-width: 890px !important;
+  min-width: 840px !important;
   table-layout: fixed !important;
 }
 
@@ -12303,22 +12303,18 @@ body,
 
 .weighing-active-board > .table-wrapper th:nth-child(6),
 .weighing-active-board > .table-wrapper td:nth-child(6) {
-  width: 100px !important;
+  width: 220px !important;
 }
 
 .weighing-active-board > .table-wrapper th:nth-child(7),
 .weighing-active-board > .table-wrapper td:nth-child(7) {
-  width: 130px !important;
-}
-
-.weighing-active-board > .table-wrapper th:nth-child(8),
-.weighing-active-board > .table-wrapper td:nth-child(8) {
   width: 120px !important;
 }
 
 .weighing-active-board .weighing-inline-action {
-  justify-content: center !important;
-  gap: 4px !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
 }
 
 .weighing-active-board > .table-wrapper td:nth-child(6) .weighing-inline-action {
@@ -12326,15 +12322,22 @@ body,
 }
 
 .weighing-active-board > .table-wrapper td:nth-child(6) .weighing-inline-action button {
-  width: 26px !important;
-  min-width: 26px !important;
-  padding: 3px 5px !important;
+  width: auto !important;
+  min-width: 96px !important;
+  padding: 4px 8px !important;
+  white-space: nowrap !important;
+}
+
+.weighing-active-board > .table-wrapper td:nth-child(6) .weighing-inline-action.confirmed {
+  color: var(--success);
+  font-weight: 700;
 }
 
 .weighing-active-board .scale-current-weight {
-  max-width: 62px !important;
+  max-width: 86px !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
 .weighing-active-board .weighing-check,
