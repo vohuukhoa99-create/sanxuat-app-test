@@ -27,7 +27,12 @@ const SESSION_KEY = 'sonhoabinh-v3-session'
 const SCALE_BAUD_RATE_KEY = 'scaleSerialBaudRate'
 const SCALE_BAUD_RATES = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200]
 const DEFAULT_SCALE_BAUD_RATE = 1200
-const debugMode = false
+const SCALE_SERIAL_CONFIG = {
+  decimalPlaces: 2,
+  sourceUnit: 'kg',
+  multiplier: 1,
+}
+const debugMode = true
 
 const CHEMICAL = 'Hóa'
 const SOLID = 'Rắn'
@@ -239,28 +244,55 @@ const parseMaterialQr = (value) => {
   return text.startsWith(MATERIAL_QR_PREFIX) ? { type: 'MATERIAL_CODE', materialCode: text.slice(MATERIAL_QR_PREFIX.length).trim() } : null
 }
 
-function parseScaleWeight(rawText = '') {
-  const text = String(rawText || '').replace(/,/g, '.')
-
-  const matches = text.match(/[+-]?\d+(?:\.\d+)?/g)
-  if (!matches || !matches.length) return null
-
-  const values = matches
-    .map(Number)
-    .filter((value) => Number.isFinite(value) && Math.abs(value) < 10000)
-
-  if (!values.length) return null
-  return values[values.length - 1]
+function getCompleteScaleFrames(serialBuffer = '') {
+  const frames = []
+  let start = 0
+  const text = String(serialBuffer || '')
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    if (char !== '\r' && char !== '\n') continue
+    const rawFrame = text.slice(start, index)
+    if (rawFrame.trim()) frames.push(rawFrame)
+    if (char === '\r' && text[index + 1] === '\n') index += 1
+    start = index + 1
+  }
+  return { frames, remainingBuffer: text.slice(start).slice(-200) }
 }
 
-function getScaleFrameFromBuffer(buffer = '') {
-  const text = String(buffer || '').replace(/\r/g, '\n')
-  const lines = text.split('\n').map((line) => line.trim()).filter(Boolean)
-  const completeLine = lines.length > 1 ? lines[lines.length - 2] : ''
-  if (completeLine) return completeLine
+function parseScaleWeightFrame(rawFrame = '', config = SCALE_SERIAL_CONFIG) {
+  const normalizedFrame = String(rawFrame || '').replace(/,/g, '.')
+  const charCodes = Array.from(String(rawFrame || ''), (char) => char.charCodeAt(0))
+  const decimalMatches = normalizedFrame.match(/[+-]?\s*\d+(?:\.\d+)?/g) || []
+  const decimalCandidate = decimalMatches
+    .map((value) => value.replace(/\s+/g, ''))
+    .filter((value) => /\d/.test(value))
+    .at(-1)
+  const extractedDigits = decimalCandidate
+    ? decimalCandidate.replace(/[^\d.]/g, '')
+    : normalizedFrame.replace(/\D/g, '')
 
-  const matches = text.match(/[+-]?\d+(?:[.,]\d+)?/g)
-  return matches?.at(-1) || ''
+  let parsedKg = null
+  if (decimalCandidate && decimalCandidate.includes('.')) {
+    const parsed = Number(decimalCandidate)
+    parsedKg = Number.isFinite(parsed) ? parsed : null
+  } else if (extractedDigits) {
+    const sign = /-/.test(decimalCandidate || normalizedFrame) ? -1 : 1
+    const decimals = Math.max(0, Number(config.decimalPlaces) || 0)
+    const rawNumber = Number(extractedDigits)
+    parsedKg = Number.isFinite(rawNumber) ? sign * (rawNumber / (10 ** decimals)) : null
+  }
+
+  if (parsedKg != null) {
+    parsedKg *= Number(config.multiplier) || 1
+    parsedKg = Number(parsedKg.toFixed(3))
+  }
+
+  return {
+    rawFrame,
+    charCodes,
+    extractedDigits,
+    parsedKg: Number.isFinite(parsedKg) ? parsedKg : null,
+  }
 }
 
 function getScaleToleranceKg(scaleType = '') {
@@ -4272,9 +4304,11 @@ function WeighingPage({ data, setData, group, user }) {
   const [scaleBaudRate, setScaleBaudRate] = useState(getStoredScaleBaudRate)
   const [scalePortLabel, setScalePortLabel] = useState('Chưa kết nối')
   const [scaleDebugLogs, setScaleDebugLogs] = useState([])
+  const [scaleFrameDebug, setScaleFrameDebug] = useState({ rawFrame: '', charCodes: [], extractedDigits: '', parsedKg: null })
   const scalePortRef = useRef(null)
   const scaleReaderRef = useRef(null)
   const scaleReadingRef = useRef(false)
+  const scaleSerialBufferRef = useRef('')
   const scaleStableReadingsRef = useRef([])
   const scaleStableSampleCountRef = useRef(scaleStableSampleCount)
   const scaleToleranceKgRef = useRef(scaleToleranceKg)
@@ -4375,12 +4409,14 @@ function WeighingPage({ data, setData, group, user }) {
       setScaleRawValue(null)
       setScaleWeightKg(null)
       setScaleStableWeightKg(null)
+      setScaleFrameDebug({ rawFrame: '', charCodes: [], extractedDigits: '', parsedKg: null })
+      scaleSerialBufferRef.current = ''
       scaleStableReadingsRef.current = []
       setScaleStableReadings([])
       setWarning('')
       addScaleDebugLog('Connection success')
+      addScaleDebugLog(`Scale config: decimalPlaces=${SCALE_SERIAL_CONFIG.decimalPlaces}, sourceUnit=${SCALE_SERIAL_CONFIG.sourceUnit}, multiplier=${SCALE_SERIAL_CONFIG.multiplier}`)
       const decoder = new TextDecoder()
-      let buffer = ''
       while (scaleReadingRef.current && port.readable) {
         const reader = port.readable.getReader()
         scaleReaderRef.current = reader
@@ -4390,13 +4426,18 @@ function WeighingPage({ data, setData, group, user }) {
             if (done) break
             const chunk = decoder.decode(value, { stream: true })
             if (!chunk) continue
-            buffer = `${buffer}${chunk}`.slice(-200)
-            const rawText = buffer.trim()
-            setScaleRawText(rawText)
-            addScaleDebugLog(`Raw incoming data: ${chunk.replace(/\s+/g, ' ').trim() || '[control characters]'}`)
-            const frame = getScaleFrameFromBuffer(buffer)
-            const parsed = frame ? parseScaleWeight(frame) : null
-            if (parsed != null) {
+            scaleSerialBufferRef.current = `${scaleSerialBufferRef.current}${chunk}`.slice(-400)
+            const { frames, remainingBuffer } = getCompleteScaleFrames(scaleSerialBufferRef.current)
+            scaleSerialBufferRef.current = remainingBuffer
+            addScaleDebugLog(`Raw chunk: ${chunk.replace(/\r/g, '\\r').replace(/\n/g, '\\n') || '[control characters]'}`)
+            if (!frames.length) continue
+            frames.forEach((rawFrame) => {
+              const parsedFrame = parseScaleWeightFrame(rawFrame)
+              setScaleFrameDebug(parsedFrame)
+              setScaleRawText(parsedFrame.rawFrame)
+              addScaleDebugLog(`Frame debug: rawFrame="${parsedFrame.rawFrame}", charCodes=[${parsedFrame.charCodes.join(',')}], extractedDigits="${parsedFrame.extractedDigits}", parsedKg=${parsedFrame.parsedKg ?? 'invalid'}`)
+              const parsed = parsedFrame.parsedKg
+              if (parsed == null) return
               setScaleRawValue(parsed)
               setScaleWeightKg(parsed)
               const sampleCount = scaleStableSampleCountRef.current
@@ -4404,7 +4445,7 @@ function WeighingPage({ data, setData, group, user }) {
               scaleStableReadingsRef.current = nextReadings
               setScaleStableReadings(nextReadings)
               setScaleStableWeightKg(getStableScaleWeight(nextReadings, scaleToleranceKgRef.current, sampleCount))
-            }
+            })
           }
         } finally {
           reader.releaseLock()
@@ -4636,9 +4677,13 @@ function WeighingPage({ data, setData, group, user }) {
               <label>Sai số cho phép<div className="scale-tolerance-input"><input type="number" min="0" step="0.001" value={scaleToleranceKg} onChange={handleScaleToleranceChange} /><strong>{formatKg(scaleToleranceKg)}</strong></div></label>
               <em>{scaleStabilityStatus} ({scaleStableReadings.length}/{scaleStableSampleCount})</em>
             </div>
-            {debugMode && <div><span>Serial Config</span><strong>{scaleBaudRate} baud, 8 data bits, parity none, 1 stop bit, flow none</strong></div>}
+            {debugMode && <div><span>Serial Config</span><strong>{scaleBaudRate} baud, 8 data bits, parity none, 1 stop bit, flow none; decimalPlaces={SCALE_SERIAL_CONFIG.decimalPlaces}; sourceUnit={SCALE_SERIAL_CONFIG.sourceUnit}; multiplier={SCALE_SERIAL_CONFIG.multiplier}</strong></div>}
+            {debugMode && <div><span>rawFrame</span><strong>{scaleFrameDebug.rawFrame || '-'}</strong></div>}
+            {debugMode && <div><span>charCodes</span><strong>{scaleFrameDebug.charCodes.length ? scaleFrameDebug.charCodes.join(',') : '-'}</strong></div>}
+            {debugMode && <div><span>extractedDigits</span><strong>{scaleFrameDebug.extractedDigits || '-'}</strong></div>}
+            {debugMode && <div><span>parsedKg</span><strong>{scaleFrameDebug.parsedKg == null ? '-' : scaleFrameDebug.parsedKg.toFixed(3)}</strong></div>}
             {debugMode && <div><span>Raw Value</span><strong>{scaleRawValue == null ? '-' : scaleRawValue.toFixed(3)}</strong></div>}
-            {debugMode && <div className="scale-raw-text"><span>Incoming Data</span><strong>{scaleRawText || '-'}</strong></div>}
+            {debugMode && <div className="scale-raw-text"><span>Last Frame</span><strong>{scaleRawText || '-'}</strong></div>}
           </div>
           {debugMode && <section className="scale-debug-panel">
             <div className="section-heading-row">
