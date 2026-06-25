@@ -1336,6 +1336,10 @@ tbody tr:hover {
   background: #f3f8f5;
 }
 
+.weighing-weight-fail-row td {
+  background: #fff1f2 !important;
+}
+
 .weighing-inline-action {
   display: flex;
   align-items: center;

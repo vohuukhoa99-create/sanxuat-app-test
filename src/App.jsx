@@ -47,6 +47,21 @@ function formatKg(value) {
     maximumFractionDigits: 3,
   })} kg`
 }
+function formatToleranceKg(value) {
+  return value === '' || value === null || value === undefined ? '-' : `±${formatKg(value)}`
+}
+function parseOptionalKg(value) {
+  if (value === null || value === undefined || String(value).trim() === '') return ''
+  const number = Number(String(value).replace(',', '.'))
+  return Number.isFinite(number) ? Number(number.toFixed(3)) : ''
+}
+function hasFormulaTolerance(item = {}) {
+  const value = item.toleranceKg ?? item.tolerance
+  return value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value))
+}
+function toleranceErrorMessage(requiredKg, actualWeight, toleranceKg) {
+  return `Khối lượng ngoài dung sai. Cần cân: ${formatKg(requiredKg)}, Thực cân: ${formatKg(actualWeight)}, Dung sai: ${formatToleranceKg(toleranceKg)}`
+}
 function formatPercent(value) {
   if (value === null || value === undefined || value === '') return '-'
   const number = Number(String(value).replace('%', '').replace(',', '.'))
@@ -148,6 +163,10 @@ const normalizeMasterFormulas = (formulas = []) => (Array.isArray(formulas) ? fo
     ...formula,
     formulaStatus: status,
     status,
+    items: (formula.items || []).map((item) => ({
+      ...item,
+      toleranceKg: parseOptionalKg(item.toleranceKg ?? item.tolerance),
+    })),
   }
 })
 const activeMasterFormulas = (formulas = []) => normalizeMasterFormulas(formulas).filter((formula) => formula.status === FORMULA_STATUS_ACTIVE)
@@ -468,7 +487,7 @@ function buildFormulaItems(lines, quantityKg) {
     materialGroup: line.group,
     ratioPercent: line.percent,
     requiredKg: Number(((line.percent * quantityKg) / 100).toFixed(3)),
-    toleranceKg: line.group === CHEMICAL ? 0.01 : 0.1,
+    toleranceKg: parseOptionalKg(line.toleranceKg ?? line.tolerance),
     qcConfirm: true,
     qcAdjustPercent: '',
     qcAdjustKg: '',
@@ -2234,6 +2253,7 @@ const emptyFormulaLine = () => ({
   materialName: '',
   materialGroup: '',
   ratioPercent: 0,
+  toleranceKg: '',
 })
 
 const emptyMasterFormulaDraft = () => ({
@@ -2291,6 +2311,7 @@ const findFormulaExcelHeader = (rows = []) => {
       materialCode: findColumn((cell) => (cell.includes('vat tu') || cell.includes('nguyen lieu') || cell.includes('ma so')) && !cell.includes('stt')),
       ratioPercent: findColumn((cell) => cell.includes('ty le') || cell.includes('ti le')),
       quantityKg: findColumn((cell) => cell.includes('so luong') || cell.includes('kg')),
+      toleranceKg: findColumn((cell) => cell.includes('dung sai') || cell.includes('tolerance')),
       note: findColumn((cell) => cell.includes('ghi chu')),
       materialGroup: findColumn((cell) => cell === 'nhom' || cell.includes('nhom vat tu') || cell.includes('nhom nguyen lieu')),
     },
@@ -2436,7 +2457,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
   const updateFormulaDraft = (field, value) => setFormulaDraft((current) => ({ ...current, [field]: value }))
   const updateFormulaLine = (lineId, field, value) => setFormulaDraft((current) => ({
     ...current,
-    items: current.items.map((item) => item.id === lineId ? { ...item, [field]: field === 'ratioPercent' ? parsePercentNumber(value) : value } : item),
+    items: current.items.map((item) => item.id === lineId ? { ...item, [field]: field === 'ratioPercent' ? parsePercentNumber(value) : field === 'toleranceKg' ? parseOptionalKg(value) : value } : item),
   }))
   const addFormulaLine = () => setFormulaDraft((current) => ({ ...current, items: [...current.items, emptyFormulaLine()] }))
   const removeFormulaLine = (lineId) => setFormulaDraft((current) => ({
@@ -2468,6 +2489,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
         materialGroup: item.materialGroup.trim(),
         ratioPercent: parsePercentNumber(item.ratioPercent),
         quantityKg: num(item.quantityKg),
+        toleranceKg: parseOptionalKg(item.toleranceKg),
         note: item.note || '',
       })),
     }
@@ -2484,9 +2506,9 @@ function FormulasPage({ data, setData, permissions = [] }) {
     const rows = [
       ['Tên sản phẩm (mã hiệu): HNS-NEW-001'],
       [],
-      ['STT', 'Tên vật tư - nguyên liệu (mã số)', 'Tỷ lệ %', 'Số lượng (kg)', 'Ghi chú'],
-      [1, 'PASTE 02', 4.61, 46.1, ''],
-      [2, 'R91', 95.39, 953.9, ''],
+      ['STT', 'Tên vật tư - nguyên liệu (mã số)', 'Tỷ lệ %', 'Số lượng (kg)', 'Dung sai', 'Ghi chú'],
+      [1, 'PASTE 02', 4.61, 46.1, 0.05, ''],
+      [2, 'R91', 95.39, 953.9, 0.5, ''],
     ]
     const book = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(rows), 'Cong thuc goc')
@@ -2549,6 +2571,9 @@ function FormulasPage({ data, setData, permissions = [] }) {
               : getMaterialGroupByCode(materialCatalog, materialCode),
             ratioPercent,
             quantityKg: header.columns.quantityKg >= 0 ? num(row[header.columns.quantityKg]) : 0,
+            requiredWeight: header.columns.quantityKg >= 0 ? num(row[header.columns.quantityKg]) : 0,
+            toleranceKg: header.columns.toleranceKg >= 0 ? parseOptionalKg(row[header.columns.toleranceKg]) : '',
+            tolerance: header.columns.toleranceKg >= 0 ? parseOptionalKg(row[header.columns.toleranceKg]) : '',
             note: header.columns.note >= 0 ? excelCellText(row[header.columns.note]) : '',
           })
         })
@@ -2735,13 +2760,14 @@ function FormulasPage({ data, setData, permissions = [] }) {
         {canSecureViewFormula && !formulaPercentIsValid(adjustedTotal) && <div className="formula-ratio-alert">Tổng tỷ lệ điều chỉnh chưa hợp lệ ({formatPercent(adjustedTotal)})</div>}
         {canSecureViewFormula && formulaPercentIsValid(adjustedTotal) && <div className="formula-ratio-ok">Tổng tỷ lệ điều chỉnh hợp lệ ({formatPercent(adjustedTotal)})</div>}
         {!canSecureViewFormula && <div className="process-alert">Bạn có quyền xem công thức, nhưng chưa có quyền formula.secure.view nên tỷ lệ phần trăm được ẩn.</div>}
-        <SimpleTable headers={canSecureViewFormula ? ['STT', 'Mã vật tư', 'Nhóm', 'Tỷ lệ gốc %', 'Tỷ lệ điều chỉnh %', 'Chênh lệch %', 'Ghi chú'] : ['STT', 'Mã vật tư', 'Nhóm', 'Ghi chú']} rows={comparisonItems.map((item, index) => (
+        <SimpleTable headers={canSecureViewFormula ? ['STT', 'Mã vật tư', 'Nhóm', 'Tỷ lệ gốc %', 'Tỷ lệ điều chỉnh %', 'Dung sai', 'Chênh lệch %', 'Ghi chú'] : ['STT', 'Mã vật tư', 'Nhóm', 'Dung sai', 'Ghi chú']} rows={comparisonItems.map((item, index) => (
           <tr key={item.id}>
             <td>{index + 1}</td>
             <td>{item.materialCode}</td>
             <td>{item.materialGroup}</td>
             {canSecureViewFormula && <td>{formatPercent(item.ratioPercent)}</td>}
             {canSecureViewFormula && <td>{draft ? <input type="number" value={item.adjustedPercent} onChange={(event) => updateDraftItem(item.id, 'adjustedPercent', event.target.value)} /> : formatPercent(item.adjustedPercent)}</td>}
+            <td>{formatToleranceKg(item.toleranceKg)}</td>
             {canSecureViewFormula && <td><span className={diffClass(item.diff)}>{item.diff > 0 ? '+' : ''}{formatPercent(item.diff)}</span></td>}
             <td>{draft ? <input value={item.adjustmentNote} onChange={(event) => updateDraftItem(item.id, 'adjustmentNote', event.target.value)} /> : item.adjustmentNote || item.note || '-'}</td>
           </tr>
@@ -2767,11 +2793,12 @@ function FormulasPage({ data, setData, permissions = [] }) {
             <div className={formulaPercentIsValid(draftTotal) && !draftDuplicateMaterials && !draftCodeExists ? 'formula-ratio-ok' : 'formula-ratio-alert'}>
               Tổng tỷ lệ: {formatPercent(draftTotal)}{draftCodeExists ? ' - Trùng mã công thức' : ''}{draftDuplicateMaterials ? ' - Trùng vật tư' : ''}
             </div>
-            <SimpleTable headers={['Mã vật tư', 'Nhóm', 'Tỷ lệ %', 'Ghi chú', '']} rows={formulaDraft.items.map((item) => (
+            <SimpleTable headers={['Mã vật tư', 'Nhóm', 'Tỷ lệ %', 'Dung sai', 'Ghi chú', '']} rows={formulaDraft.items.map((item) => (
               <tr key={item.id}>
                 <td><input value={item.materialCode} onChange={(event) => updateFormulaLine(item.id, 'materialCode', event.target.value)} /></td>
                 <td><input value={item.materialGroup} onChange={(event) => updateFormulaLine(item.id, 'materialGroup', event.target.value)} /></td>
                 <td><input type="number" value={item.ratioPercent} onChange={(event) => updateFormulaLine(item.id, 'ratioPercent', event.target.value)} /></td>
+                <td><input type="number" step="0.001" value={item.toleranceKg} onChange={(event) => updateFormulaLine(item.id, 'toleranceKg', event.target.value)} /></td>
                 <td><input value={item.note || ''} onChange={(event) => updateFormulaLine(item.id, 'note', event.target.value)} /></td>
                 <td><button className="danger-button" onClick={() => removeFormulaLine(item.id)} disabled={formulaDraft.items.length === 1}>Xóa</button></td>
               </tr>
@@ -2812,6 +2839,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
     name: item.materialCode,
     group: item.materialGroup,
     percent: item.ratioPercent,
+    toleranceKg: item.toleranceKg ?? item.tolerance,
   })) : []
   const preview = formula ? buildFormulaItems(libraryItems, num(form.quantityKg)) : []
   const nextOrderCode = () => {
@@ -2984,7 +3012,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
 }
 
 function FormulaTable({ items, secure = false }) {
-  const headers = secure ? ['STT', 'Mã vật tư', 'Nhóm', 'Tỷ lệ %', 'Khối lượng/lệnh'] : ['STT', 'Mã vật tư', 'Nhóm', 'Khối lượng/lệnh']
+  const headers = secure ? ['STT', 'Mã vật tư', 'Nhóm', 'Tỷ lệ %', 'Khối lượng/lệnh', 'Dung sai'] : ['STT', 'Mã vật tư', 'Nhóm', 'Khối lượng/lệnh', 'Dung sai']
   return <SimpleTable headers={headers} rows={items.map((item, index) => (
     <tr key={item.id || index}>
       <td>{index + 1}</td>
@@ -2992,6 +3020,7 @@ function FormulaTable({ items, secure = false }) {
       <td>{item.materialGroup}</td>
       {secure && <td>{formatPercent(item.ratioPercent)}</td>}
       <td>{formatKg(item.requiredKg)}</td>
+      <td>{formatToleranceKg(item.toleranceKg)}</td>
     </tr>
   ))} />
 }
@@ -4402,7 +4431,7 @@ function WeighingPage({ data, setData, group, user }) {
                 <div className="weighing-progress"><i style={{ width: `${progress}%` }} /></div>
                 <strong>{progress}%</strong>
               </div>
-              <SimpleTable headers={['STT', 'Mã vật tư yêu cầu', 'Cần cân', 'Quét QR mã vật tư', 'Tồn kho', 'Thực cân', 'Khớp QR', 'Trạng thái']} rows={activeItems.map((item, index) => (
+              <SimpleTable headers={['STT', 'Mã vật tư yêu cầu', 'Cần cân', 'Dung sai', 'Quét QR mã vật tư', 'Tồn kho', 'Thực cân', 'Khớp QR', 'Trạng thái']} rows={activeItems.map((item, index) => (
                 <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
               ))} empty={`Không có vật tư nhóm ${group}.`} />
               {activeContainers.map((container) => <WeighedContainerCard key={container.containerId} container={container} onPrint={handlePrintQr} onDetail={handleViewWeighingDetail} />)}
@@ -4574,7 +4603,10 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
   const qrPassed = item.qrStatus === 'PASS'
   const qrFailed = Boolean(qrScanError) || item.qrStatus === 'FAIL'
   const weightPassed = item.weighStatus === 'PASS'
+  const weightFailed = item.weighStatus === 'FAIL'
   const completed = qrPassed && weightPassed
+  const hasTolerance = hasFormulaTolerance(item)
+  const toleranceKg = hasTolerance ? Number(item.toleranceKg ?? item.tolerance) : ''
   const actual = item.actualWeight === '' || item.actualWeight == null ? '' : num(item.actualWeight)
   const selectedLot = rawMaterialLots.find((lot) => lot.lotCode === item.rawMaterialLotCode && lot.materialCode === item.materialCode)
   const remainingBefore = item.rawMaterialRemainingBefore ?? selectedLot?.remainingQty
@@ -4633,6 +4665,10 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       setWarning?.('Vui lòng chờ trọng lượng ổn định trước khi xác nhận cân.')
       return
     }
+    if (!hasTolerance) {
+      setWarning?.('Chưa thiết lập dung sai')
+      return
+    }
     const actualWeight = num(overrideWeight)
     const lot = rawMaterialLots.find((row) => row.lotCode === item.rawMaterialLotCode && row.materialCode === item.materialCode)
     const confirmedAt = nowText()
@@ -4647,9 +4683,9 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       unit: 'kg',
     }
     if (item.materialQrOnly) {
-      const pass = Math.abs(actualWeight - num(item.requiredKg)) <= num(item.toleranceKg)
+      const pass = Math.abs(actualWeight - num(item.requiredKg)) <= toleranceKg
       const supplementalText = order.stage === 'supplement-weighing' ? `Cân bổ sung ${item.materialGroup === CHEMICAL ? 'hóa' : 'rắn'}` : 'Cân'
-      setWarning?.(pass ? '' : 'Khối lượng cân ngoài dung sai.')
+      setWarning?.(pass ? '' : toleranceErrorMessage(item.requiredKg, actualWeight, toleranceKg))
       updateWeight(order, item, {
         actualWeight,
         weighStatus: pass ? 'PASS' : 'FAIL',
@@ -4670,10 +4706,10 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       setWarning?.('Lô nguyên liệu không đủ tồn kho.')
       return
     }
-    const pass = Math.abs(actualWeight - num(item.requiredKg)) <= num(item.toleranceKg)
+    const pass = Math.abs(actualWeight - num(item.requiredKg)) <= toleranceKg
     const supplementalText = order.stage === 'supplement-weighing' ? `Cân bổ sung ${item.materialGroup === CHEMICAL ? 'hóa' : 'rắn'}` : 'Cân'
     const nextRemaining = num(lot.remainingQty) - actualWeight
-    setWarning?.(pass ? '' : 'Khối lượng cân ngoài dung sai.')
+    setWarning?.(pass ? '' : toleranceErrorMessage(item.requiredKg, actualWeight, toleranceKg))
     updateWeight(order, item, {
       actualWeight,
       rawMaterialRemainingBefore: num(lot.remainingQty),
@@ -4698,10 +4734,11 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
     confirmWeight(scaleStableWeightKg)
   }
   return (
-    <tr className={`${active ? 'weighing-active-row' : ''} ${completed ? 'weighing-completed-row' : ''} ${qrPassed ? 'weighing-qr-pass-row' : ''} ${qrFailed ? 'weighing-qr-fail-row' : ''}`}>
+    <tr className={`${active ? 'weighing-active-row' : ''} ${completed ? 'weighing-completed-row' : ''} ${weightFailed || (qrPassed && !hasTolerance) ? 'weighing-weight-fail-row' : ''} ${qrPassed ? 'weighing-qr-pass-row' : ''} ${qrFailed ? 'weighing-qr-fail-row' : ''}`}>
       <td>{index + 1}</td>
       <td>{item.materialCode}</td>
-      <td>{kg(item.requiredKg)}</td>
+      <td>{formatKg(item.requiredKg)}</td>
+      <td>{hasTolerance ? formatToleranceKg(toleranceKg) : 'Chưa thiết lập dung sai'}</td>
       <td className={`weighing-qr-cell ${qrPassed ? 'qr-pass' : qrFailed ? 'qr-fail' : ''}`}>
         {qrPassed ? (
           <span className="weighing-check">✓ OK</span>
@@ -4717,7 +4754,7 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       <td>{stockDisplay === '' || stockDisplay == null ? '-' : formatKg(stockDisplay)}</td>
       <td>{active && qrPassed && !weightPassed ? <div className="weighing-inline-action"><span className="scale-current-weight">{formatScaleWeight(scaleWeightKg, scaleType)}</span><button className="primary-button" disabled={!scaleStable || scaleStableWeightKg == null} onClick={confirmStableWeight}>Xác nhận cân</button></div> : actual === '' ? '-' : formatScaleWeight(actual, scaleType)}</td>
       <td>{qrPassed ? 'OK' : qrFailed ? 'Sai mã' : 'Chờ quét'}</td>
-      <td>{completed ? <span className="weighing-check">✓ Hoàn thành</span> : qrPassed ? <span className="weighing-check">✓ QR đạt</span> : active ? 'Đang thao tác' : '-'}</td>
+      <td>{completed ? <span className="weighing-check">Đạt</span> : weightFailed ? <span className="weighing-fail">Ngoài dung sai</span> : qrPassed && !hasTolerance ? <span className="weighing-fail">Chưa thiết lập dung sai</span> : qrPassed ? <span className="weighing-check">✓ QR đạt</span> : active ? 'Đang thao tác' : '-'}</td>
     </tr>
   )
 }
