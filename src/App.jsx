@@ -50,17 +50,43 @@ function formatKg(value) {
 function formatToleranceKg(value) {
   return value === '' || value === null || value === undefined ? '-' : `±${formatKg(value)}`
 }
+function formatTolerancePercent(value) {
+  if (value === '' || value === null || value === undefined) return '-'
+  const number = Number(value)
+  if (!Number.isFinite(number)) return '-'
+  return `±${number.toLocaleString('vi-VN', {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  })}%`
+}
 function parseOptionalKg(value) {
   if (value === null || value === undefined || String(value).trim() === '') return ''
   const number = Number(String(value).replace(',', '.'))
   return Number.isFinite(number) ? Number(number.toFixed(3)) : ''
 }
+function parseTolerancePercent(value) {
+  if (value === null || value === undefined || String(value).trim() === '') return ''
+  const text = String(value)
+    .replace(/\(\s*\+?\s*\/\s*-?\s*\)/g, '')
+    .replace(/[±+]/g, '')
+    .replace(/%/g, '')
+    .replace(',', '.')
+    .trim()
+  const number = Number(text)
+  if (!Number.isFinite(number)) return ''
+  const percent = Math.abs(number) <= 1 ? number * 100 : number
+  return Number(percent.toFixed(3))
+}
 function hasFormulaTolerance(item = {}) {
   const value = item.toleranceKg ?? item.tolerance
   return value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value))
 }
+function hasFormulaTolerancePercent(item = {}) {
+  const value = item.tolerancePercent
+  return value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value))
+}
 function toleranceErrorMessage(requiredKg, actualWeight, toleranceKg) {
-  return `Khối lượng ngoài dung sai. Cần cân: ${formatKg(requiredKg)}, Thực cân: ${formatKg(actualWeight)}, Dung sai: ${formatToleranceKg(toleranceKg)}`
+  return `Khối lượng ngoài dung sai. Cần cân: ${formatKg(requiredKg)}, Dung sai: ${formatToleranceKg(toleranceKg)}`
 }
 function formatPercent(value) {
   if (value === null || value === undefined || value === '') return '-'
@@ -165,7 +191,7 @@ const normalizeMasterFormulas = (formulas = []) => (Array.isArray(formulas) ? fo
     status,
     items: (formula.items || []).map((item) => ({
       ...item,
-      toleranceKg: parseOptionalKg(item.toleranceKg ?? item.tolerance),
+      tolerancePercent: parseTolerancePercent(item.tolerancePercent ?? item.tolerance ?? item.toleranceKg),
     })),
   }
 })
@@ -479,15 +505,20 @@ function validateRawMaterialQr(qrInput, requiredMaterial, lots = []) {
 }
 
 function buildFormulaItems(lines, quantityKg) {
-  return lines.map((line, index) => ({
+  return lines.map((line, index) => {
+    const requiredKg = Number(((line.percent * quantityKg) / 100).toFixed(3))
+    const tolerancePercent = parseTolerancePercent(line.tolerancePercent ?? line.tolerance)
+    return {
     id: uid('mat'),
     no: index + 1,
     materialCode: line.code,
     materialName: line.code,
     materialGroup: line.group,
     ratioPercent: line.percent,
-    requiredKg: Number(((line.percent * quantityKg) / 100).toFixed(3)),
-    toleranceKg: parseOptionalKg(line.toleranceKg ?? line.tolerance),
+    requiredKg,
+    requiredWeight: requiredKg,
+    tolerancePercent,
+    toleranceKg: tolerancePercent === '' ? '' : Number(((requiredKg * tolerancePercent) / 100).toFixed(3)),
     qcConfirm: true,
     qcAdjustPercent: '',
     qcAdjustKg: '',
@@ -497,7 +528,8 @@ function buildFormulaItems(lines, quantityKg) {
     weighStatus: 'Chờ cân',
     confirmedAt: '',
     note: '',
-  }))
+    }
+  })
 }
 
 const masterFormulaLines = {
@@ -2253,7 +2285,7 @@ const emptyFormulaLine = () => ({
   materialName: '',
   materialGroup: '',
   ratioPercent: 0,
-  toleranceKg: '',
+  tolerancePercent: '',
 })
 
 const emptyMasterFormulaDraft = () => ({
@@ -2457,7 +2489,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
   const updateFormulaDraft = (field, value) => setFormulaDraft((current) => ({ ...current, [field]: value }))
   const updateFormulaLine = (lineId, field, value) => setFormulaDraft((current) => ({
     ...current,
-    items: current.items.map((item) => item.id === lineId ? { ...item, [field]: field === 'ratioPercent' ? parsePercentNumber(value) : field === 'toleranceKg' ? parseOptionalKg(value) : value } : item),
+    items: current.items.map((item) => item.id === lineId ? { ...item, [field]: field === 'ratioPercent' ? parsePercentNumber(value) : field === 'tolerancePercent' ? parseTolerancePercent(value) : value } : item),
   }))
   const addFormulaLine = () => setFormulaDraft((current) => ({ ...current, items: [...current.items, emptyFormulaLine()] }))
   const removeFormulaLine = (lineId) => setFormulaDraft((current) => ({
@@ -2489,7 +2521,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
         materialGroup: item.materialGroup.trim(),
         ratioPercent: parsePercentNumber(item.ratioPercent),
         quantityKg: num(item.quantityKg),
-        toleranceKg: parseOptionalKg(item.toleranceKg),
+        tolerancePercent: parseTolerancePercent(item.tolerancePercent),
         note: item.note || '',
       })),
     }
@@ -2572,8 +2604,8 @@ function FormulasPage({ data, setData, permissions = [] }) {
             ratioPercent,
             quantityKg: header.columns.quantityKg >= 0 ? num(row[header.columns.quantityKg]) : 0,
             requiredWeight: header.columns.quantityKg >= 0 ? num(row[header.columns.quantityKg]) : 0,
-            toleranceKg: header.columns.toleranceKg >= 0 ? parseOptionalKg(row[header.columns.toleranceKg]) : '',
-            tolerance: header.columns.toleranceKg >= 0 ? parseOptionalKg(row[header.columns.toleranceKg]) : '',
+            tolerancePercent: header.columns.toleranceKg >= 0 ? parseTolerancePercent(row[header.columns.toleranceKg]) : '',
+            tolerance: header.columns.toleranceKg >= 0 ? parseTolerancePercent(row[header.columns.toleranceKg]) : '',
             note: header.columns.note >= 0 ? excelCellText(row[header.columns.note]) : '',
           })
         })
@@ -2767,7 +2799,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
             <td>{item.materialGroup}</td>
             {canSecureViewFormula && <td>{formatPercent(item.ratioPercent)}</td>}
             {canSecureViewFormula && <td>{draft ? <input type="number" value={item.adjustedPercent} onChange={(event) => updateDraftItem(item.id, 'adjustedPercent', event.target.value)} /> : formatPercent(item.adjustedPercent)}</td>}
-            <td>{formatToleranceKg(item.toleranceKg)}</td>
+            <td>{formatTolerancePercent(item.tolerancePercent)}</td>
             {canSecureViewFormula && <td><span className={diffClass(item.diff)}>{item.diff > 0 ? '+' : ''}{formatPercent(item.diff)}</span></td>}
             <td>{draft ? <input value={item.adjustmentNote} onChange={(event) => updateDraftItem(item.id, 'adjustmentNote', event.target.value)} /> : item.adjustmentNote || item.note || '-'}</td>
           </tr>
@@ -2798,7 +2830,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
                 <td><input value={item.materialCode} onChange={(event) => updateFormulaLine(item.id, 'materialCode', event.target.value)} /></td>
                 <td><input value={item.materialGroup} onChange={(event) => updateFormulaLine(item.id, 'materialGroup', event.target.value)} /></td>
                 <td><input type="number" value={item.ratioPercent} onChange={(event) => updateFormulaLine(item.id, 'ratioPercent', event.target.value)} /></td>
-                <td><input type="number" step="0.001" value={item.toleranceKg} onChange={(event) => updateFormulaLine(item.id, 'toleranceKg', event.target.value)} /></td>
+                <td><input value={item.tolerancePercent} onChange={(event) => updateFormulaLine(item.id, 'tolerancePercent', event.target.value)} placeholder="±2%" /></td>
                 <td><input value={item.note || ''} onChange={(event) => updateFormulaLine(item.id, 'note', event.target.value)} /></td>
                 <td><button className="danger-button" onClick={() => removeFormulaLine(item.id)} disabled={formulaDraft.items.length === 1}>Xóa</button></td>
               </tr>
@@ -2839,7 +2871,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
     name: item.materialCode,
     group: item.materialGroup,
     percent: item.ratioPercent,
-    toleranceKg: item.toleranceKg ?? item.tolerance,
+    tolerancePercent: item.tolerancePercent ?? item.tolerance ?? item.toleranceKg,
   })) : []
   const preview = formula ? buildFormulaItems(libraryItems, num(form.quantityKg)) : []
   const nextOrderCode = () => {
@@ -3020,7 +3052,7 @@ function FormulaTable({ items, secure = false }) {
       <td>{item.materialGroup}</td>
       {secure && <td>{formatPercent(item.ratioPercent)}</td>}
       <td>{formatKg(item.requiredKg)}</td>
-      <td>{formatToleranceKg(item.toleranceKg)}</td>
+      <td>{hasFormulaTolerance(item) ? formatToleranceKg(item.toleranceKg) : formatTolerancePercent(item.tolerancePercent)}</td>
     </tr>
   ))} />
 }
@@ -4666,7 +4698,7 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       return
     }
     if (!hasTolerance) {
-      setWarning?.('Chưa thiết lập dung sai')
+      setWarning?.('Chưa có dung sai')
       return
     }
     const actualWeight = num(overrideWeight)
@@ -4685,13 +4717,17 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
     if (item.materialQrOnly) {
       const pass = Math.abs(actualWeight - num(item.requiredKg)) <= toleranceKg
       const supplementalText = order.stage === 'supplement-weighing' ? `Cân bổ sung ${item.materialGroup === CHEMICAL ? 'hóa' : 'rắn'}` : 'Cân'
-      setWarning?.(pass ? '' : toleranceErrorMessage(item.requiredKg, actualWeight, toleranceKg))
+      if (!pass) {
+        setWarning?.(toleranceErrorMessage(item.requiredKg, actualWeight, toleranceKg))
+        return
+      }
+      setWarning?.('')
       updateWeight(order, item, {
         actualWeight,
-        weighStatus: pass ? 'PASS' : 'FAIL',
+        weighStatus: 'PASS',
         ...scaleAudit,
-        note: pass ? item.note : 'Ngoài dung sai',
-      }, `${supplementalText} ${pass ? 'PASS' : 'FAIL'} ${order.id} - ${item.materialCode}.`, null)
+        note: item.note,
+      }, `${supplementalText} PASS ${order.id} - ${item.materialCode}.`, null)
       return
     }
     if (!lot) {
@@ -4708,23 +4744,27 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
     }
     const pass = Math.abs(actualWeight - num(item.requiredKg)) <= toleranceKg
     const supplementalText = order.stage === 'supplement-weighing' ? `Cân bổ sung ${item.materialGroup === CHEMICAL ? 'hóa' : 'rắn'}` : 'Cân'
+    if (!pass) {
+      setWarning?.(toleranceErrorMessage(item.requiredKg, actualWeight, toleranceKg))
+      return
+    }
     const nextRemaining = num(lot.remainingQty) - actualWeight
-    setWarning?.(pass ? '' : toleranceErrorMessage(item.requiredKg, actualWeight, toleranceKg))
+    setWarning?.('')
     updateWeight(order, item, {
       actualWeight,
       rawMaterialRemainingBefore: num(lot.remainingQty),
       rawMaterialRemainingAfter: nextRemaining,
-      weighStatus: pass ? 'PASS' : 'FAIL',
+      weighStatus: 'PASS',
       ...scaleAudit,
-      note: pass ? item.note : 'Ngoài dung sai',
-    }, `${supplementalText} ${pass ? 'PASS' : 'FAIL'} ${order.id} - ${item.materialCode}, lô ${lot.lotCode}.`, pass ? {
+      note: item.note,
+    }, `${supplementalText} PASS ${order.id} - ${item.materialCode}, lô ${lot.lotCode}.`, {
       productionOrderId: order.id,
       materialCode: item.materialCode,
       lotCode: lot.lotCode,
       quantityOut: actualWeight,
       unit: lot.unit || 'kg',
       scaleType,
-    } : null)
+    })
   }
   const confirmStableWeight = () => {
     if (!scaleStable || scaleStableWeightKg == null) {
@@ -4738,7 +4778,7 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       <td>{index + 1}</td>
       <td>{item.materialCode}</td>
       <td>{formatKg(item.requiredKg)}</td>
-      <td>{hasTolerance ? formatToleranceKg(toleranceKg) : 'Chưa thiết lập dung sai'}</td>
+      <td>{hasTolerance ? formatToleranceKg(toleranceKg) : 'Chưa có dung sai'}</td>
       <td className={`weighing-qr-cell ${qrPassed ? 'qr-pass' : qrFailed ? 'qr-fail' : ''}`}>
         {qrPassed ? (
           <span className="weighing-check">✓ OK</span>
@@ -4754,7 +4794,7 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       <td>{stockDisplay === '' || stockDisplay == null ? '-' : formatKg(stockDisplay)}</td>
       <td>{active && qrPassed && !weightPassed ? <div className="weighing-inline-action"><span className="scale-current-weight">{formatScaleWeight(scaleWeightKg, scaleType)}</span><button className="primary-button" disabled={!scaleStable || scaleStableWeightKg == null} onClick={confirmStableWeight}>Xác nhận cân</button></div> : actual === '' ? '-' : formatScaleWeight(actual, scaleType)}</td>
       <td>{qrPassed ? 'OK' : qrFailed ? 'Sai mã' : 'Chờ quét'}</td>
-      <td>{completed ? <span className="weighing-check">Đạt</span> : weightFailed ? <span className="weighing-fail">Ngoài dung sai</span> : qrPassed && !hasTolerance ? <span className="weighing-fail">Chưa thiết lập dung sai</span> : qrPassed ? <span className="weighing-check">✓ QR đạt</span> : active ? 'Đang thao tác' : '-'}</td>
+      <td>{completed ? <span className="weighing-check">Đạt</span> : weightFailed ? <span className="weighing-fail">Ngoài dung sai</span> : qrPassed && !hasTolerance ? <span className="weighing-fail">Chưa có dung sai</span> : qrPassed ? <span className="weighing-check">✓ QR đạt</span> : active ? 'Đang thao tác' : '-'}</td>
     </tr>
   )
 }

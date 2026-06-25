@@ -6,7 +6,7 @@ const WEIGH_WAITING = 'Chờ cân'
 const formatKg = (value) => `${Number(value || 0).toLocaleString('vi-VN', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`
 const formatToleranceKg = (value) => value === '' || value === null || value === undefined ? '-' : `±${formatKg(value)}`
 const hasFormulaTolerance = (item = {}) => item.toleranceKg !== '' && item.toleranceKg !== null && item.toleranceKg !== undefined && Number.isFinite(Number(item.toleranceKg))
-const toleranceErrorMessage = (requiredKg, actualWeight, toleranceKg) => `Khối lượng ngoài dung sai. Cần cân: ${formatKg(requiredKg)}, Thực cân: ${formatKg(actualWeight)}, Dung sai: ${formatToleranceKg(toleranceKg)}`
+const toleranceErrorMessage = (requiredKg, actualWeight, toleranceKg) => `Khối lượng ngoài dung sai. Cần cân: ${formatKg(requiredKg)}, Dung sai: ${formatToleranceKg(toleranceKg)}`
 
 function isChemicalGroup(group = '') {
   const value = group.toLowerCase()
@@ -161,7 +161,7 @@ export function ChemicalScalePage({ orders, onUpdateOrder }) {
       return
     }
     if (!hasFormulaTolerance(currentItem)) {
-      setWarning('Chưa thiết lập dung sai')
+      setWarning('Chưa có dung sai')
       return
     }
     const toleranceKg = Number(currentItem.toleranceKg)
@@ -171,14 +171,6 @@ export function ChemicalScalePage({ orders, onUpdateOrder }) {
 
     if (actualWeight < min || actualWeight > max) {
       setWarning(toleranceErrorMessage(currentItem.requiredKg, actualWeight, toleranceKg))
-      onUpdateOrder(activeOrder.id, (order) =>
-        updateOrderIngredient(order, currentItem.id, {
-          actualWeight,
-          weighStatus: 'FAIL',
-          confirmedAt: now,
-          note: 'Ngoài dung sai',
-        }),
-      )
       return
     }
 
@@ -338,11 +330,11 @@ export function ChemicalScalePage({ orders, onUpdateOrder }) {
                         <td>{item.materialCode}</td>
                         <td>{item.materialName}</td>
                         <td>{formatKg(item.requiredKg)}</td>
-                        <td>{hasFormulaTolerance(item) ? formatToleranceKg(item.toleranceKg) : 'Chưa thiết lập dung sai'}</td>
+                        <td>{hasFormulaTolerance(item) ? formatToleranceKg(item.toleranceKg) : 'Chưa có dung sai'}</td>
                         <td>{item.qrScanned || '-'}</td>
                         <td><span className={`flow-pill ${statusClass(item.qrStatus)}`}>{item.qrStatus}</span></td>
                         <td>{item.actualWeight !== '' ? formatKg(item.actualWeight) : '-'}</td>
-                        <td><span className={`flow-pill ${statusClass(item.weighStatus)}`}>{item.weighStatus === 'PASS' ? 'Đạt' : item.weighStatus === 'FAIL' ? 'Ngoài dung sai' : missingTolerance ? 'Chưa thiết lập dung sai' : item.weighStatus}</span></td>
+                        <td><span className={`flow-pill ${statusClass(item.weighStatus)}`}>{item.weighStatus === 'PASS' ? 'Đạt' : item.weighStatus === 'FAIL' ? 'Ngoài dung sai' : missingTolerance ? 'Chưa có dung sai' : item.weighStatus}</span></td>
                         <td>{item.confirmedAt || '-'}</td>
                         <td>{isLocked && !isDone ? 'Khóa' : item.note || '-'}</td>
                       </tr>
