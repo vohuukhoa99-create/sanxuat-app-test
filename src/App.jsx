@@ -48,13 +48,13 @@ function formatKg(value) {
   })} kg`
 }
 function formatToleranceKg(value) {
-  return value === '' || value === null || value === undefined ? '-' : `±${formatKg(value)}`
+  return value === '' || value === null || value === undefined ? '-' : formatKg(value)
 }
 function formatTolerancePercent(value) {
   if (value === '' || value === null || value === undefined) return '-'
   const number = Number(value)
   if (!Number.isFinite(number)) return '-'
-  return `±${number.toLocaleString('vi-VN', {
+  return `${number.toLocaleString('vi-VN', {
     minimumFractionDigits: 3,
     maximumFractionDigits: 3,
   })}%`
@@ -2998,7 +2998,7 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
             <td>{item.materialCode}</td>
             <td>{item.materialGroup}</td>
             {canSecureViewFormula && <td>{formatPercent(item.ratioPercent)}</td>}
-            <td><input value={toleranceDraft[item.id] ?? formatTolerancePercent(item.tolerancePercent)} onChange={(event) => updateToleranceDraft(item.id, event.target.value)} placeholder="±2%" /></td>
+            <td className="formula-tolerance-cell"><input value={toleranceDraft[item.id] ?? formatTolerancePercent(item.tolerancePercent)} onChange={(event) => updateToleranceDraft(item.id, event.target.value)} placeholder="2%" /></td>
             <td>{item.note || '-'}</td>
           </tr>
         ))} />
@@ -3030,7 +3030,7 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
                 <td><input value={item.materialCode} onChange={(event) => updateFormulaLine(item.id, 'materialCode', event.target.value)} /></td>
                 <td><input value={item.materialGroup} onChange={(event) => updateFormulaLine(item.id, 'materialGroup', event.target.value)} /></td>
                 <td><input type="number" value={item.ratioPercent} onChange={(event) => updateFormulaLine(item.id, 'ratioPercent', event.target.value)} /></td>
-                <td><input value={item.tolerancePercent} onChange={(event) => updateFormulaLine(item.id, 'tolerancePercent', event.target.value)} placeholder="±2%" /></td>
+                <td><input value={item.tolerancePercent} onChange={(event) => updateFormulaLine(item.id, 'tolerancePercent', event.target.value)} placeholder="2%" /></td>
                 <td><input value={item.note || ''} onChange={(event) => updateFormulaLine(item.id, 'note', event.target.value)} /></td>
                 <td><button className="danger-button" onClick={() => removeFormulaLine(item.id)} disabled={formulaDraft.items.length === 1}>Xóa</button></td>
               </tr>

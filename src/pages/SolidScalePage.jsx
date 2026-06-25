@@ -4,7 +4,7 @@ const QR_WAITING = 'Chờ quét'
 const WEIGH_WAITING = 'Chờ cân'
 
 const formatKg = (value) => `${Number(value || 0).toLocaleString('vi-VN', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`
-const formatToleranceKg = (value) => value === '' || value === null || value === undefined ? '-' : `±${formatKg(value)}`
+const formatToleranceKg = (value) => value === '' || value === null || value === undefined ? '-' : formatKg(value)
 const hasFormulaTolerance = (item = {}) => item.toleranceKg !== '' && item.toleranceKg !== null && item.toleranceKg !== undefined && Number.isFinite(Number(item.toleranceKg))
 const toleranceErrorMessage = (requiredKg, actualWeight, toleranceKg) => `Khối lượng ngoài dung sai. Cần cân: ${formatKg(requiredKg)}, Dung sai: ${formatToleranceKg(toleranceKg)}`
 

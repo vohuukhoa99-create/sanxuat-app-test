@@ -1340,6 +1340,17 @@ tbody tr:hover {
   background: #fff1f2 !important;
 }
 
+.formula-tolerance-cell,
+.formula-tolerance-cell input {
+  width: 100px !important;
+  min-width: 90px;
+  max-width: 110px;
+}
+
+.formula-tolerance-cell input {
+  box-sizing: border-box;
+}
+
 .weighing-inline-action {
   display: flex;
   align-items: center;
