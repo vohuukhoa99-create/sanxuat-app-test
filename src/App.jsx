@@ -28,9 +28,10 @@ const SCALE_BAUD_RATE_KEY = 'scaleSerialBaudRate'
 const SCALE_BAUD_RATES = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200]
 const DEFAULT_SCALE_BAUD_RATE = 1200
 const SCALE_SERIAL_CONFIG = {
-  decimalPlaces: 2,
+  decimalPlaces: 3,
   sourceUnit: 'kg',
   multiplier: 1,
+  reverseFrame: true,
 }
 const debugMode = true
 
@@ -248,18 +249,25 @@ function parseScaleRollingBuffer(rollingBuffer = '', config = SCALE_SERIAL_CONFI
   const text = String(rollingBuffer || '')
   const matches = text.match(/[-+]?\d{1,4}[.,]\d{1,4}/g) || []
   const lastFrame = matches.at(-1) || ''
-  const normalizedFrame = lastFrame.replace(',', '.')
-  const charCodes = Array.from(lastFrame, (char) => char.charCodeAt(0))
-  const extractedDigits = lastFrame.replace(/\D/g, '')
+  const rawFrame = lastFrame.replace(/[^0-9.,+-]/g, '')
+  const reversedFrame = config.reverseFrame
+    ? Array.from(rawFrame).reverse().join('')
+    : rawFrame
+  const normalizedFrame = reversedFrame.replace(',', '.')
+  const charCodes = Array.from(rawFrame, (char) => char.charCodeAt(0))
+  const extractedDigits = rawFrame.replace(/\D/g, '')
   const parsed = normalizedFrame ? Number(normalizedFrame) : NaN
   const multiplier = Number(config.multiplier) || 1
-  const parsedKg = Number.isFinite(parsed) ? Number((parsed * multiplier).toFixed(3)) : null
+  const parsedKg = Number.isFinite(parsed) && parsed >= 0 ? Number((parsed * multiplier).toFixed(3)) : null
+  const finalDisplayKg = parsedKg == null ? '' : formatKg(parsedKg)
 
   return {
-    rawFrame: lastFrame,
+    rawFrame,
+    reversedFrame,
     charCodes,
     extractedDigits,
     parsedKg: Number.isFinite(parsedKg) ? parsedKg : null,
+    finalDisplayKg,
   }
 }
 
@@ -4272,7 +4280,7 @@ function WeighingPage({ data, setData, group, user }) {
   const [scaleBaudRate, setScaleBaudRate] = useState(getStoredScaleBaudRate)
   const [scalePortLabel, setScalePortLabel] = useState('Chưa kết nối')
   const [scaleDebugLogs, setScaleDebugLogs] = useState([])
-  const [scaleFrameDebug, setScaleFrameDebug] = useState({ rawFrame: '', charCodes: [], extractedDigits: '', parsedKg: null })
+  const [scaleFrameDebug, setScaleFrameDebug] = useState({ rawFrame: '', reversedFrame: '', charCodes: [], extractedDigits: '', parsedKg: null, finalDisplayKg: '' })
   const scalePortRef = useRef(null)
   const scaleReaderRef = useRef(null)
   const scaleReadingRef = useRef(false)
@@ -4377,7 +4385,7 @@ function WeighingPage({ data, setData, group, user }) {
       setScaleRawValue(null)
       setScaleWeightKg(null)
       setScaleStableWeightKg(null)
-      setScaleFrameDebug({ rawFrame: '', charCodes: [], extractedDigits: '', parsedKg: null })
+      setScaleFrameDebug({ rawFrame: '', reversedFrame: '', charCodes: [], extractedDigits: '', parsedKg: null, finalDisplayKg: '' })
       scaleSerialBufferRef.current = ''
       scaleStableReadingsRef.current = []
       setScaleStableReadings([])
@@ -4399,7 +4407,7 @@ function WeighingPage({ data, setData, group, user }) {
             const parsedFrame = parseScaleRollingBuffer(scaleSerialBufferRef.current)
             setScaleFrameDebug(parsedFrame)
             if (parsedFrame.rawFrame) setScaleRawText(parsedFrame.rawFrame)
-            addScaleDebugLog(`Rolling debug: lastFrame="${parsedFrame.rawFrame || '-'}", charCodes=[${parsedFrame.charCodes.join(',')}], extractedDigits="${parsedFrame.extractedDigits}", parsedKg=${parsedFrame.parsedKg ?? 'invalid'}`)
+            addScaleDebugLog(`Rolling debug: rawFrame="${parsedFrame.rawFrame || '-'}", reversedFrame="${parsedFrame.reversedFrame || '-'}", parsedKg=${parsedFrame.parsedKg ?? 'invalid'}, finalDisplayKg="${parsedFrame.finalDisplayKg || '-'}"`)
             const parsed = parsedFrame.parsedKg
             if (parsed == null) continue
             setScaleRawValue(parsed)
@@ -4640,11 +4648,11 @@ function WeighingPage({ data, setData, group, user }) {
               <label>Sai số cho phép<div className="scale-tolerance-input"><input type="number" min="0" step="0.001" value={scaleToleranceKg} onChange={handleScaleToleranceChange} /><strong>{formatKg(scaleToleranceKg)}</strong></div></label>
               <em>{scaleStabilityStatus} ({scaleStableReadings.length}/{scaleStableSampleCount})</em>
             </div>
-            {debugMode && <div><span>Serial Config</span><strong>{scaleBaudRate} baud, 8 data bits, parity none, 1 stop bit, flow none; decimalPlaces={SCALE_SERIAL_CONFIG.decimalPlaces}; sourceUnit={SCALE_SERIAL_CONFIG.sourceUnit}; multiplier={SCALE_SERIAL_CONFIG.multiplier}</strong></div>}
-            {debugMode && <div><span>lastFrame</span><strong>{scaleFrameDebug.rawFrame || '-'}</strong></div>}
-            {debugMode && <div><span>charCodes</span><strong>{scaleFrameDebug.charCodes.length ? scaleFrameDebug.charCodes.join(',') : '-'}</strong></div>}
-            {debugMode && <div><span>extractedDigits</span><strong>{scaleFrameDebug.extractedDigits || '-'}</strong></div>}
+            {debugMode && <div><span>Serial Config</span><strong>{scaleBaudRate} baud, 8 data bits, parity none, 1 stop bit, flow none; decimalPlaces={SCALE_SERIAL_CONFIG.decimalPlaces}; sourceUnit={SCALE_SERIAL_CONFIG.sourceUnit}; multiplier={SCALE_SERIAL_CONFIG.multiplier}; reverseFrame={String(SCALE_SERIAL_CONFIG.reverseFrame)}</strong></div>}
+            {debugMode && <div><span>rawFrame</span><strong>{scaleFrameDebug.rawFrame || '-'}</strong></div>}
+            {debugMode && <div><span>reversedFrame</span><strong>{scaleFrameDebug.reversedFrame || '-'}</strong></div>}
             {debugMode && <div><span>parsedKg</span><strong>{scaleFrameDebug.parsedKg == null ? '-' : scaleFrameDebug.parsedKg.toFixed(3)}</strong></div>}
+            {debugMode && <div><span>finalDisplayKg</span><strong>{scaleFrameDebug.finalDisplayKg || '-'}</strong></div>}
             {debugMode && <div><span>Raw Value</span><strong>{scaleRawValue == null ? '-' : scaleRawValue.toFixed(3)}</strong></div>}
             {debugMode && <div className="scale-raw-text"><span>Last Frame</span><strong>{scaleRawText || '-'}</strong></div>}
           </div>
