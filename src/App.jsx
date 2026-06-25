@@ -4279,11 +4279,15 @@ function WeighingPage({ data, setData, group, user }) {
   const [scaleSupported, setScaleSupported] = useState(true)
   const [scaleBaudRate, setScaleBaudRate] = useState(getStoredScaleBaudRate)
   const [scalePortLabel, setScalePortLabel] = useState('Chưa kết nối')
+  const [isScaleConnected, setIsScaleConnected] = useState(false)
+  const [isReadingScale, setIsReadingScale] = useState(false)
   const [scaleDebugLogs, setScaleDebugLogs] = useState([])
   const [scaleFrameDebug, setScaleFrameDebug] = useState({ rawFrame: '', reversedFrame: '', charCodes: [], extractedDigits: '', parsedKg: null, finalDisplayKg: '' })
   const scalePortRef = useRef(null)
   const scaleReaderRef = useRef(null)
   const scaleReadingRef = useRef(false)
+  const isScaleConnectedRef = useRef(false)
+  const isReadingScaleRef = useRef(false)
   const scaleSerialBufferRef = useRef('')
   const scaleStableReadingsRef = useRef([])
   const scaleStableSampleCountRef = useRef(scaleStableSampleCount)
@@ -4308,13 +4312,30 @@ function WeighingPage({ data, setData, group, user }) {
     const time = new Date().toLocaleTimeString('vi-VN', { hour12: false })
     setScaleDebugLogs((logs) => [`${time} - ${message}`, ...logs].slice(0, 80))
   }
+  const disconnectScale = async () => {
+    scaleReadingRef.current = false
+    isReadingScaleRef.current = false
+    setIsReadingScale(false)
+    try {
+      await scaleReaderRef.current?.cancel().catch(() => {})
+    } finally {
+      scaleReaderRef.current = null
+    }
+    try {
+      await scalePortRef.current?.close().catch(() => {})
+    } finally {
+      scalePortRef.current = null
+      isScaleConnectedRef.current = false
+      setIsScaleConnected(false)
+      setScaleStatus('Chưa kết nối cân')
+      setScalePortLabel('Chưa kết nối')
+    }
+  }
 
   useEffect(() => {
     setScaleSupported(typeof navigator !== 'undefined' && Boolean(navigator.serial))
     return () => {
-      scaleReadingRef.current = false
-      scaleReaderRef.current?.cancel().catch(() => {})
-      scalePortRef.current?.close().catch(() => {})
+      disconnectScale()
     }
   }, [])
   useEffect(() => {
@@ -4361,39 +4382,56 @@ function WeighingPage({ data, setData, group, user }) {
     }
     try {
       addScaleDebugLog(`Selected BaudRate: ${selectedBaudRate}`)
-      scaleReadingRef.current = false
-      await scaleReaderRef.current?.cancel().catch(() => {})
-      await scalePortRef.current?.close().catch(() => {})
-      const port = await navigator.serial.requestPort()
-      const portInfo = port.getInfo?.() || {}
-      const portLabel = portInfo.usbVendorId
-        ? `USB-RS232 VID:${portInfo.usbVendorId} PID:${portInfo.usbProductId || '-'}`
-        : 'Cổng serial đã chọn'
-      addScaleDebugLog(`Selected COM: ${portLabel}`)
-      await port.open({
-        baudRate: selectedBaudRate,
-        dataBits: 8,
-        stopBits: 1,
-        parity: 'none',
-        flowControl: 'none',
-      })
+      let port = scalePortRef.current
+      if (port) {
+        isScaleConnectedRef.current = true
+        setIsScaleConnected(true)
+        setScaleStatus(`Cân đã được kết nối, tiếp tục sử dụng cổng hiện tại. (${selectedBaudRate} baud)`)
+        addScaleDebugLog('Reuse current scale port; skip requestPort/open.')
+      } else {
+        port = await navigator.serial.requestPort()
+        const portInfo = port.getInfo?.() || {}
+        const portLabel = portInfo.usbVendorId
+          ? `USB-RS232 VID:${portInfo.usbVendorId} PID:${portInfo.usbProductId || '-'}`
+          : 'Cổng serial đã chọn'
+        addScaleDebugLog(`Selected COM: ${portLabel}`)
+        await port.open({
+          baudRate: selectedBaudRate,
+          dataBits: 8,
+          stopBits: 1,
+          parity: 'none',
+          flowControl: 'none',
+        })
+        setScalePortLabel(portLabel)
+      }
       scalePortRef.current = port
-      scaleReadingRef.current = true
+      isScaleConnectedRef.current = true
+      setIsScaleConnected(true)
       setScaleStatus(`Đã kết nối cân (${selectedBaudRate} baud)`)
-      setScalePortLabel(portLabel)
-      setScaleRawText('')
-      setScaleRawValue(null)
-      setScaleWeightKg(null)
-      setScaleStableWeightKg(null)
-      setScaleFrameDebug({ rawFrame: '', reversedFrame: '', charCodes: [], extractedDigits: '', parsedKg: null, finalDisplayKg: '' })
-      scaleSerialBufferRef.current = ''
-      scaleStableReadingsRef.current = []
-      setScaleStableReadings([])
+      if (!isReadingScaleRef.current && !scaleReaderRef.current) {
+        scaleReadingRef.current = true
+        isReadingScaleRef.current = true
+        setIsReadingScale(true)
+      }
+      if (!scaleWeightKg) {
+        setScaleRawText('')
+        setScaleRawValue(null)
+        setScaleWeightKg(null)
+        setScaleStableWeightKg(null)
+        setScaleFrameDebug({ rawFrame: '', reversedFrame: '', charCodes: [], extractedDigits: '', parsedKg: null, finalDisplayKg: '' })
+        scaleSerialBufferRef.current = ''
+        scaleStableReadingsRef.current = []
+        setScaleStableReadings([])
+      }
       setWarning('')
       addScaleDebugLog('Connection success')
       addScaleDebugLog(`Scale config: decimalPlaces=${SCALE_SERIAL_CONFIG.decimalPlaces}, sourceUnit=${SCALE_SERIAL_CONFIG.sourceUnit}, multiplier=${SCALE_SERIAL_CONFIG.multiplier}`)
       const decoder = new TextDecoder()
       while (scaleReadingRef.current && port.readable) {
+        if (scaleReaderRef.current) {
+          addScaleDebugLog('Reader already active; skip creating another reader.')
+          return
+        }
         const reader = port.readable.getReader()
         scaleReaderRef.current = reader
         try {
@@ -4420,6 +4458,9 @@ function WeighingPage({ data, setData, group, user }) {
           }
         } finally {
           reader.releaseLock()
+          scaleReaderRef.current = null
+          isReadingScaleRef.current = false
+          setIsReadingScale(false)
         }
       }
     } catch (error) {
@@ -4430,6 +4471,13 @@ function WeighingPage({ data, setData, group, user }) {
         return
       }
       const errorMessage = getSerialErrorMessage(error, scaleBaudRate)
+      if (errorMessage === 'Port already in use') {
+        isScaleConnectedRef.current = Boolean(scalePortRef.current)
+        setIsScaleConnected(Boolean(scalePortRef.current))
+        setScaleStatus('Cân đã được kết nối, tiếp tục sử dụng cổng hiện tại.')
+        addScaleDebugLog('Port already in use; keep current scale data and continue.')
+        return
+      }
       setScaleStatus(errorMessage)
       setWarning(`Không đọc được dữ liệu cân: ${errorMessage}`)
       addScaleDebugLog(`Connection fail: ${errorMessage}`)
