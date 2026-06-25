@@ -244,51 +244,19 @@ const parseMaterialQr = (value) => {
   return text.startsWith(MATERIAL_QR_PREFIX) ? { type: 'MATERIAL_CODE', materialCode: text.slice(MATERIAL_QR_PREFIX.length).trim() } : null
 }
 
-function getCompleteScaleFrames(serialBuffer = '') {
-  const frames = []
-  let start = 0
-  const text = String(serialBuffer || '')
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index]
-    if (char !== '\r' && char !== '\n') continue
-    const rawFrame = text.slice(start, index)
-    if (rawFrame.trim()) frames.push(rawFrame)
-    if (char === '\r' && text[index + 1] === '\n') index += 1
-    start = index + 1
-  }
-  return { frames, remainingBuffer: text.slice(start).slice(-200) }
-}
-
-function parseScaleWeightFrame(rawFrame = '', config = SCALE_SERIAL_CONFIG) {
-  const normalizedFrame = String(rawFrame || '').replace(/,/g, '.')
-  const charCodes = Array.from(String(rawFrame || ''), (char) => char.charCodeAt(0))
-  const decimalMatches = normalizedFrame.match(/[+-]?\s*\d+(?:\.\d+)?/g) || []
-  const decimalCandidate = decimalMatches
-    .map((value) => value.replace(/\s+/g, ''))
-    .filter((value) => /\d/.test(value))
-    .at(-1)
-  const extractedDigits = decimalCandidate
-    ? decimalCandidate.replace(/[^\d.]/g, '')
-    : normalizedFrame.replace(/\D/g, '')
-
-  let parsedKg = null
-  if (decimalCandidate && decimalCandidate.includes('.')) {
-    const parsed = Number(decimalCandidate)
-    parsedKg = Number.isFinite(parsed) ? parsed : null
-  } else if (extractedDigits) {
-    const sign = /-/.test(decimalCandidate || normalizedFrame) ? -1 : 1
-    const decimals = Math.max(0, Number(config.decimalPlaces) || 0)
-    const rawNumber = Number(extractedDigits)
-    parsedKg = Number.isFinite(rawNumber) ? sign * (rawNumber / (10 ** decimals)) : null
-  }
-
-  if (parsedKg != null) {
-    parsedKg *= Number(config.multiplier) || 1
-    parsedKg = Number(parsedKg.toFixed(3))
-  }
+function parseScaleRollingBuffer(rollingBuffer = '', config = SCALE_SERIAL_CONFIG) {
+  const text = String(rollingBuffer || '')
+  const matches = text.match(/[-+]?\d{1,4}[.,]\d{1,4}/g) || []
+  const lastFrame = matches.at(-1) || ''
+  const normalizedFrame = lastFrame.replace(',', '.')
+  const charCodes = Array.from(lastFrame, (char) => char.charCodeAt(0))
+  const extractedDigits = lastFrame.replace(/\D/g, '')
+  const parsed = normalizedFrame ? Number(normalizedFrame) : NaN
+  const multiplier = Number(config.multiplier) || 1
+  const parsedKg = Number.isFinite(parsed) ? Number((parsed * multiplier).toFixed(3)) : null
 
   return {
-    rawFrame,
+    rawFrame: lastFrame,
     charCodes,
     extractedDigits,
     parsedKg: Number.isFinite(parsedKg) ? parsedKg : null,
@@ -4426,26 +4394,21 @@ function WeighingPage({ data, setData, group, user }) {
             if (done) break
             const chunk = decoder.decode(value, { stream: true })
             if (!chunk) continue
-            scaleSerialBufferRef.current = `${scaleSerialBufferRef.current}${chunk}`.slice(-400)
-            const { frames, remainingBuffer } = getCompleteScaleFrames(scaleSerialBufferRef.current)
-            scaleSerialBufferRef.current = remainingBuffer
+            scaleSerialBufferRef.current = `${scaleSerialBufferRef.current}${chunk}`.slice(-500)
             addScaleDebugLog(`Raw chunk: ${chunk.replace(/\r/g, '\\r').replace(/\n/g, '\\n') || '[control characters]'}`)
-            if (!frames.length) continue
-            frames.forEach((rawFrame) => {
-              const parsedFrame = parseScaleWeightFrame(rawFrame)
-              setScaleFrameDebug(parsedFrame)
-              setScaleRawText(parsedFrame.rawFrame)
-              addScaleDebugLog(`Frame debug: rawFrame="${parsedFrame.rawFrame}", charCodes=[${parsedFrame.charCodes.join(',')}], extractedDigits="${parsedFrame.extractedDigits}", parsedKg=${parsedFrame.parsedKg ?? 'invalid'}`)
-              const parsed = parsedFrame.parsedKg
-              if (parsed == null) return
-              setScaleRawValue(parsed)
-              setScaleWeightKg(parsed)
-              const sampleCount = scaleStableSampleCountRef.current
-              const nextReadings = [...scaleStableReadingsRef.current, parsed].slice(-sampleCount)
-              scaleStableReadingsRef.current = nextReadings
-              setScaleStableReadings(nextReadings)
-              setScaleStableWeightKg(getStableScaleWeight(nextReadings, scaleToleranceKgRef.current, sampleCount))
-            })
+            const parsedFrame = parseScaleRollingBuffer(scaleSerialBufferRef.current)
+            setScaleFrameDebug(parsedFrame)
+            if (parsedFrame.rawFrame) setScaleRawText(parsedFrame.rawFrame)
+            addScaleDebugLog(`Rolling debug: lastFrame="${parsedFrame.rawFrame || '-'}", charCodes=[${parsedFrame.charCodes.join(',')}], extractedDigits="${parsedFrame.extractedDigits}", parsedKg=${parsedFrame.parsedKg ?? 'invalid'}`)
+            const parsed = parsedFrame.parsedKg
+            if (parsed == null) continue
+            setScaleRawValue(parsed)
+            setScaleWeightKg(parsed)
+            const sampleCount = scaleStableSampleCountRef.current
+            const nextReadings = [...scaleStableReadingsRef.current, parsed].slice(-sampleCount)
+            scaleStableReadingsRef.current = nextReadings
+            setScaleStableReadings(nextReadings)
+            setScaleStableWeightKg(getStableScaleWeight(nextReadings, scaleToleranceKgRef.current, sampleCount))
           }
         } finally {
           reader.releaseLock()
@@ -4678,7 +4641,7 @@ function WeighingPage({ data, setData, group, user }) {
               <em>{scaleStabilityStatus} ({scaleStableReadings.length}/{scaleStableSampleCount})</em>
             </div>
             {debugMode && <div><span>Serial Config</span><strong>{scaleBaudRate} baud, 8 data bits, parity none, 1 stop bit, flow none; decimalPlaces={SCALE_SERIAL_CONFIG.decimalPlaces}; sourceUnit={SCALE_SERIAL_CONFIG.sourceUnit}; multiplier={SCALE_SERIAL_CONFIG.multiplier}</strong></div>}
-            {debugMode && <div><span>rawFrame</span><strong>{scaleFrameDebug.rawFrame || '-'}</strong></div>}
+            {debugMode && <div><span>lastFrame</span><strong>{scaleFrameDebug.rawFrame || '-'}</strong></div>}
             {debugMode && <div><span>charCodes</span><strong>{scaleFrameDebug.charCodes.length ? scaleFrameDebug.charCodes.join(',') : '-'}</strong></div>}
             {debugMode && <div><span>extractedDigits</span><strong>{scaleFrameDebug.extractedDigits || '-'}</strong></div>}
             {debugMode && <div><span>parsedKg</span><strong>{scaleFrameDebug.parsedKg == null ? '-' : scaleFrameDebug.parsedKg.toFixed(3)}</strong></div>}
