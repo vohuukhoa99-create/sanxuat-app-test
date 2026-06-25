@@ -2446,7 +2446,7 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
     const adjusted = activeVersion?.items?.find((item) => item.baseItemId === baseItem.id || item.materialCode === baseItem.materialCode)
     const adjustedPercent = adjusted?.adjustedPercent ?? baseItem.ratioPercent
     const diff = Number((parsePercentNumber(adjustedPercent) - parsePercentNumber(baseItem.ratioPercent)).toFixed(3))
-    return { ...baseItem, adjustedPercent, diff, adjustmentNote: adjusted?.adjustmentNote || '' }
+    return { ...baseItem, adjustedPercent, diff }
   })
   const adjustedTotal = Number(comparisonItems.reduce((sum, item) => sum + parsePercentNumber(item.adjustedPercent), 0).toFixed(3))
   const canApprove = formulaPercentIsValid(adjustedTotal)
@@ -2895,7 +2895,6 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
         materialGroup: item.materialGroup,
         originalPercent: item.ratioPercent,
         adjustedPercent: item.ratioPercent,
-        adjustmentNote: '',
       })),
     }
     setSelectedId(targetFormula.id)
@@ -2912,7 +2911,12 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
 
   const saveDraft = () => {
     if (!canEditFormula || !draft || !canApprove) return
-    const approved = { ...draft, status: 'Đã duyệt', approvedAt: nowText() }
+    const approved = {
+      ...draft,
+      status: 'Đã duyệt',
+      approvedAt: nowText(),
+      items: (draft.items || []).map(({ adjustmentNote, ...item }) => item),
+    }
     setData((current) => {
       const exists = (current.formulaVersions || []).some((version) => version.id === approved.id)
       const formulaVersions = exists
@@ -2992,14 +2996,13 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
           <label>Người lập<input readOnly value={selected.createdBy || ''} /></label>
         </div>
         {!canSecureViewFormula && <div className="process-alert">Bạn có quyền xem công thức, nhưng chưa có quyền formula.secure.view nên tỷ lệ phần trăm được ẩn.</div>}
-        <SimpleTable headers={canSecureViewFormula ? ['STT', 'Mã vật tư', 'Nhóm', 'Tỷ lệ %', 'Dung sai', 'Ghi chú'] : ['STT', 'Mã vật tư', 'Nhóm', 'Dung sai', 'Ghi chú']} rows={(selected.items || []).map((item, index) => (
+        <SimpleTable tableClassName="formula-detail-table" headers={canSecureViewFormula ? ['STT', 'Mã vật tư', 'Nhóm', 'Tỷ lệ %', 'Dung sai'] : ['STT', 'Mã vật tư', 'Nhóm', 'Dung sai']} rows={(selected.items || []).map((item, index) => (
           <tr key={item.id}>
             <td>{index + 1}</td>
             <td>{item.materialCode}</td>
             <td>{item.materialGroup}</td>
             {canSecureViewFormula && <td>{formatPercent(item.ratioPercent)}</td>}
             <td className="formula-tolerance-cell"><input value={toleranceDraft[item.id] ?? formatTolerancePercent(item.tolerancePercent)} onChange={(event) => updateToleranceDraft(item.id, event.target.value)} placeholder="2%" /></td>
-            <td>{item.note || '-'}</td>
           </tr>
         ))} />
         <div className="modal-actions">
