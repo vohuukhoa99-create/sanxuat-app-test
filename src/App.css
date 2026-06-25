@@ -12262,9 +12262,9 @@ body,
   overflow: hidden;
 }
 
-/* Final weighing table alignment: compact measuring columns and a readable confirm column. */
+/* Final weighing table alignment: 8-column chemical/solid material board. */
 .weighing-active-board > .table-wrapper table {
-  min-width: 760px !important;
+  min-width: 890px !important;
   table-layout: fixed !important;
 }
 
@@ -12277,53 +12277,58 @@ body,
 
 .weighing-active-board > .table-wrapper th:nth-child(1),
 .weighing-active-board > .table-wrapper td:nth-child(1) {
-  width: 36px !important;
+  width: 45px !important;
 }
 
 .weighing-active-board > .table-wrapper th:nth-child(2),
 .weighing-active-board > .table-wrapper td:nth-child(2) {
-  width: 115px !important;
+  width: 130px !important;
   text-align: left !important;
 }
 
 .weighing-active-board > .table-wrapper th:nth-child(3),
 .weighing-active-board > .table-wrapper td:nth-child(3) {
-  width: 82px !important;
+  width: 85px !important;
 }
 
 .weighing-active-board > .table-wrapper th:nth-child(4),
 .weighing-active-board > .table-wrapper td:nth-child(4) {
-  width: 74px !important;
+  width: 160px !important;
 }
 
 .weighing-active-board > .table-wrapper th:nth-child(5),
 .weighing-active-board > .table-wrapper td:nth-child(5) {
-  width: 132px !important;
+  width: 100px !important;
 }
 
 .weighing-active-board > .table-wrapper th:nth-child(6),
 .weighing-active-board > .table-wrapper td:nth-child(6) {
-  width: 78px !important;
+  width: 100px !important;
 }
 
 .weighing-active-board > .table-wrapper th:nth-child(7),
 .weighing-active-board > .table-wrapper td:nth-child(7) {
-  width: 112px !important;
+  width: 130px !important;
 }
 
 .weighing-active-board > .table-wrapper th:nth-child(8),
 .weighing-active-board > .table-wrapper td:nth-child(8) {
-  width: 54px !important;
-}
-
-.weighing-active-board > .table-wrapper th:nth-child(9),
-.weighing-active-board > .table-wrapper td:nth-child(9) {
-  width: 128px !important;
+  width: 120px !important;
 }
 
 .weighing-active-board .weighing-inline-action {
   justify-content: center !important;
   gap: 4px !important;
+}
+
+.weighing-active-board > .table-wrapper td:nth-child(6) .weighing-inline-action {
+  width: 100% !important;
+}
+
+.weighing-active-board > .table-wrapper td:nth-child(6) .weighing-inline-action button {
+  width: 26px !important;
+  min-width: 26px !important;
+  padding: 3px 5px !important;
 }
 
 .weighing-active-board .scale-current-weight {
