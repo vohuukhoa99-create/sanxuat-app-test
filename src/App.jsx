@@ -4666,7 +4666,7 @@ function WeighingPage({ data, setData, group, user }) {
                 <div className="weighing-progress"><i style={{ width: `${progress}%` }} /></div>
                 <strong>{progress}%</strong>
               </div>
-              <SimpleTable headers={['STT', 'Mã vật tư yêu cầu', 'Cần cân', 'Dung sai', 'Quét QR mã vật tư', 'Tồn kho', 'Thực cân', 'Khớp QR', 'Trạng thái']} rows={activeItems.map((item, index) => (
+              <SimpleTable headers={['STT', 'Mã vật tư yêu cầu', 'Cần cân', 'Dung sai', 'Quét QR mã vật tư', 'Tồn kho', 'Thực cân', 'Khớp QR', 'Xác nhận']} rows={activeItems.map((item, index) => (
                 <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
               ))} empty={`Không có vật tư nhóm ${group}.`} />
               {activeContainers.map((container) => <WeighedContainerCard key={container.containerId} container={container} onPrint={handlePrintQr} onDetail={handleViewWeighingDetail} />)}
@@ -4996,8 +4996,8 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       </td>
       <td>{stockDisplay === '' || stockDisplay == null ? '-' : formatKg(stockDisplay)}</td>
       <td>{active && qrPassed && !weightPassed ? <div className="weighing-inline-action"><span className="scale-current-weight">{formatScaleWeight(scaleWeightKg, scaleType)}</span><button className="primary-button" disabled={!scaleStable || scaleStableWeightKg == null} onClick={confirmStableWeight}>Xác nhận cân</button></div> : actual === '' ? '-' : formatScaleWeight(actual, scaleType)}</td>
-      <td>{qrPassed ? 'OK' : qrFailed ? 'Sai mã' : 'Chờ quét'}</td>
-      <td>{completed ? <span className="weighing-check">Đạt</span> : weightFailed ? <span className="weighing-fail">Ngoài dung sai</span> : qrPassed && !hasTolerance ? <span className="weighing-fail">Chưa có dung sai</span> : qrPassed ? <span className="weighing-check">✓ QR đạt</span> : active ? 'Đang thao tác' : '-'}</td>
+      <td>{qrPassed ? <span className="weighing-check">✓</span> : qrFailed ? <span className="weighing-fail">✕</span> : '-'}</td>
+      <td>{completed ? <span className="weighing-check">✓ Xác nhận</span> : weightFailed ? <span className="weighing-fail">Ngoài dung sai</span> : qrPassed && !hasTolerance ? <span className="weighing-fail">Chưa có dung sai</span> : qrPassed ? <span className="weighing-check">Chờ cân</span> : active ? 'Đang thao tác' : '-'}</td>
     </tr>
   )
 }

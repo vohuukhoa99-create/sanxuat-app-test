@@ -12261,3 +12261,79 @@ body,
   height: 1px;
   overflow: hidden;
 }
+
+/* Final weighing table alignment: compact measuring columns and a readable confirm column. */
+.weighing-active-board > .table-wrapper table {
+  min-width: 760px !important;
+  table-layout: fixed !important;
+}
+
+.weighing-active-board > .table-wrapper th,
+.weighing-active-board > .table-wrapper td {
+  text-align: center !important;
+  vertical-align: middle !important;
+  padding: 4px 5px !important;
+}
+
+.weighing-active-board > .table-wrapper th:nth-child(1),
+.weighing-active-board > .table-wrapper td:nth-child(1) {
+  width: 36px !important;
+}
+
+.weighing-active-board > .table-wrapper th:nth-child(2),
+.weighing-active-board > .table-wrapper td:nth-child(2) {
+  width: 115px !important;
+  text-align: left !important;
+}
+
+.weighing-active-board > .table-wrapper th:nth-child(3),
+.weighing-active-board > .table-wrapper td:nth-child(3) {
+  width: 82px !important;
+}
+
+.weighing-active-board > .table-wrapper th:nth-child(4),
+.weighing-active-board > .table-wrapper td:nth-child(4) {
+  width: 74px !important;
+}
+
+.weighing-active-board > .table-wrapper th:nth-child(5),
+.weighing-active-board > .table-wrapper td:nth-child(5) {
+  width: 132px !important;
+}
+
+.weighing-active-board > .table-wrapper th:nth-child(6),
+.weighing-active-board > .table-wrapper td:nth-child(6) {
+  width: 78px !important;
+}
+
+.weighing-active-board > .table-wrapper th:nth-child(7),
+.weighing-active-board > .table-wrapper td:nth-child(7) {
+  width: 112px !important;
+}
+
+.weighing-active-board > .table-wrapper th:nth-child(8),
+.weighing-active-board > .table-wrapper td:nth-child(8) {
+  width: 54px !important;
+}
+
+.weighing-active-board > .table-wrapper th:nth-child(9),
+.weighing-active-board > .table-wrapper td:nth-child(9) {
+  width: 128px !important;
+}
+
+.weighing-active-board .weighing-inline-action {
+  justify-content: center !important;
+  gap: 4px !important;
+}
+
+.weighing-active-board .scale-current-weight {
+  max-width: 62px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.weighing-active-board .weighing-check,
+.weighing-active-board .weighing-fail {
+  justify-content: center !important;
+  white-space: nowrap !important;
+}
