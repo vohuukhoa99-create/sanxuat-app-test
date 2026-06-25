@@ -2359,6 +2359,20 @@ const extractFormulaProductFromRows = (rows = [], headerIndex = rows.length) => 
   }
   return ''
 }
+const extractFormulaVersionFromRows = (rows = [], headerIndex = rows.length) => {
+  const scanRows = rows.slice(0, Math.max(headerIndex, 0))
+  for (const row of scanRows) {
+    const cells = row.map(excelCellText).filter(Boolean)
+    const rowText = cells.join(' ')
+    const normalized = normalizeText(rowText)
+    if (!normalized.includes('version') && !normalized.includes('phien ban')) continue
+    const versionMatch = rowText.match(/\bV\d+(?:\.\d+)*\b/i)
+    if (versionMatch) return versionMatch[0].toUpperCase()
+    const colonValue = rowText.split(':').slice(1).join(':').trim()
+    if (colonValue) return colonValue
+  }
+  return 'V1.0'
+}
 const parseFormulaMaterialCode = (value) => {
   const text = excelCellText(value)
   if (!text) return ''
@@ -2377,6 +2391,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
   const [formulaPageSize, setFormulaPageSize] = useState(20)
   const [formulaPage, setFormulaPage] = useState(1)
   const importFormulaRef = useRef(null)
+  const updateFormulaToleranceRef = useRef(null)
   const selected = data.formulas.find((item) => item.id === selectedId) || data.formulas[0]
   const versions = (data.formulaVersions || []).filter((version) => version.formulaId === selectedId)
   const approvedVersions = versions.filter((version) => version.status === 'Đã duyệt')
@@ -2584,7 +2599,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
           formulaCode: code,
           product: code,
           productGroup: '',
-          version: 'V1.0',
+          version: extractFormulaVersionFromRows(rows, header.headerIndex),
           effectiveDate: todayText(),
           note: '',
           items: [],
@@ -2617,7 +2632,10 @@ function FormulasPage({ data, setData, permissions = [] }) {
         const warnings = []
         const catalogCodes = new Set(materialCatalog.map((item) => String(item.materialCode || '').trim().toUpperCase()))
         imported.forEach((formula) => {
-          if (duplicateFormula) errors.push(`Trùng mã công thức ${duplicateFormula.formulaCode || duplicateFormula.code}`)
+          if (duplicateFormula) {
+            if (header.columns.toleranceKg >= 0) warnings.push(`Công thức ${duplicateFormula.formulaCode || duplicateFormula.code} đã tồn tại. Dùng nút "Cập nhật dung sai từ Excel" để cập nhật dung sai, hệ thống không tạo trùng công thức.`)
+            else errors.push(`Trùng mã công thức ${duplicateFormula.formulaCode || duplicateFormula.code}`)
+          }
           if (!formula.product) errors.push(`Thiếu mã sản phẩm cho ${formula.code}`)
           if (!formulaPercentIsValid(formulaTotalPercent(formula.items))) errors.push(`Lỗi tổng tỷ lệ của ${formula.code}: ${formatPercent(formulaTotalPercent(formula.items))}`)
           if (formulaHasDuplicateMaterials(formula.items)) errors.push(`Trùng vật tư trong ${formula.code}`)
@@ -2628,6 +2646,10 @@ function FormulasPage({ data, setData, permissions = [] }) {
         if (!imported.length) errors.push('File không có dòng công thức hợp lệ.')
         if (errors.length) {
           setFormulaMessage(errors.join(' | '))
+          return
+        }
+        if (duplicateFormula && header.columns.toleranceKg >= 0) {
+          setFormulaMessage(warnings.join(' | '))
           return
         }
         const formulas = imported.map((formula) => ({
@@ -2655,6 +2677,101 @@ function FormulasPage({ data, setData, permissions = [] }) {
         setFormulaMessage(`Không đọc được file Excel: ${error.message}`)
       } finally {
         if (importFormulaRef.current) importFormulaRef.current.value = ''
+      }
+    }
+    reader.readAsArrayBuffer(file)
+  }
+
+  const updateFormulaToleranceExcel = (file) => {
+    if (!canEditFormula || !file) return
+    setFormulaMessage('')
+    if (updateFormulaToleranceRef.current) updateFormulaToleranceRef.current.value = ''
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const workbook = XLSX.read(event.target.result, { type: 'array' })
+        const sheet = workbook.Sheets[workbook.SheetNames[0]]
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+        const header = findFormulaExcelHeader(rows)
+        const productCode = extractFormulaProductFromRows(rows, header?.headerIndex ?? rows.length)
+        const formulaVersion = extractFormulaVersionFromRows(rows, header?.headerIndex ?? rows.length)
+        if (!productCode) {
+          setFormulaMessage('Không tìm thấy mã công thức trong file Excel')
+          return
+        }
+        if (!header || header.columns.materialCode < 0) {
+          setFormulaMessage('Không tìm thấy cột mã vật tư trong file Excel.')
+          return
+        }
+        if (header.columns.toleranceKg < 0) {
+          setFormulaMessage('File Excel chưa có cột Dung sai.')
+          return
+        }
+
+        const toleranceRows = []
+        rows.slice(header.headerIndex + 1).forEach((row) => {
+          if (!excelRowHasText(row) || isSkippedFormulaExcelRow(row)) return
+          const materialCode = parseFormulaMaterialCode(row[header.columns.materialCode])
+          if (!materialCode) return
+          const tolerancePercent = parseTolerancePercent(row[header.columns.toleranceKg])
+          toleranceRows.push({ materialCode, tolerancePercent })
+        })
+        if (!toleranceRows.length) {
+          setFormulaMessage('File không có dòng dung sai hợp lệ.')
+          return
+        }
+
+        const existingFormulas = normalizeMasterFormulas(data.formulas || [])
+        const targetFormula = existingFormulas.find((formula) => (
+          normalizeFormulaCode(formula.formulaCode || formula.code) === normalizeFormulaCode(productCode)
+          && String(formula.version || 'V1.0').trim().toUpperCase() === String(formulaVersion || 'V1.0').trim().toUpperCase()
+        ))
+        if (!targetFormula) {
+          setFormulaMessage(`Không tìm thấy công thức ${productCode} / ${formulaVersion} để cập nhật dung sai.`)
+          return
+        }
+
+        const errors = []
+        let updatedRows = 0
+        const updatedFormulas = (data.formulas || []).map((formula) => {
+          const isTarget = formula.id === targetFormula.id
+            || (normalizeFormulaCode(formula.formulaCode || formula.code) === normalizeFormulaCode(productCode)
+              && String(formula.version || 'V1.0').trim().toUpperCase() === String(formulaVersion || 'V1.0').trim().toUpperCase())
+          if (!isTarget) return formula
+          const toleranceByMaterial = new Map(toleranceRows.map((row) => [normalizeCode(row.materialCode), row]))
+          const existingCodes = new Set((formula.items || []).map((item) => normalizeCode(item.materialCode)))
+          toleranceRows.forEach((row) => {
+            if (!existingCodes.has(normalizeCode(row.materialCode))) {
+              errors.push(`${row.materialCode}: không match vật tư trong công thức`)
+            } else if (row.tolerancePercent === '') {
+              errors.push(`${row.materialCode}: dung sai trống/không hợp lệ`)
+            }
+          })
+          return {
+            ...formula,
+            items: (formula.items || []).map((item) => {
+              const updateRow = toleranceByMaterial.get(normalizeCode(item.materialCode))
+              if (!updateRow || updateRow.tolerancePercent === '') return item
+              updatedRows += 1
+              return { ...item, tolerancePercent: updateRow.tolerancePercent, tolerance: updateRow.tolerancePercent }
+            }),
+          }
+        })
+
+        const updatedFormulaCount = updatedRows > 0 ? 1 : 0
+        if (!updatedRows) {
+          setFormulaMessage(`Không cập nhật dòng nào. Dòng lỗi/không match: ${errors.length ? errors.join(' | ') : 'Không có dòng phù hợp.'}`)
+          return
+        }
+        setData((current) => addLogToData({ ...current, formulas: updatedFormulas }, `Cập nhật dung sai từ Excel cho ${productCode} / ${formulaVersion}: ${updatedRows} dòng.`))
+        setSelectedId(targetFormula.id)
+        setSelectedVersionId('')
+        setDraft(null)
+        setFormulaMessage(`Đã cập nhật dung sai từ Excel. Số công thức được cập nhật: ${updatedFormulaCount}. Số dòng vật tư được cập nhật: ${updatedRows}. Dòng bị lỗi/không match: ${errors.length ? errors.join(' | ') : '0'}`)
+      } catch (error) {
+        setFormulaMessage(`Không đọc được file Excel: ${error.message}`)
+      } finally {
+        if (updateFormulaToleranceRef.current) updateFormulaToleranceRef.current.value = ''
       }
     }
     reader.readAsArrayBuffer(file)
@@ -2729,6 +2846,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
           <div className="action-row">
             <button className="primary-button" disabled={!canCreateFormula} onClick={openCreateFormula}>Tạo công thức gốc</button>
             <button className="secondary-button" disabled={!canCreateFormula} onClick={() => importFormulaRef.current?.click()}>Tải công thức Excel</button>
+            <button className="secondary-button" disabled={!canEditFormula} onClick={() => updateFormulaToleranceRef.current?.click()}>Cập nhật dung sai từ Excel</button>
             <button className="secondary-button" disabled={!canCreateFormula} onClick={downloadFormulaTemplate}>Tải file mẫu</button>
             <button className="primary-button" disabled={!canEditFormula} onClick={() => startAdjustment()}>Tạo phiên bản điều chỉnh</button>
             <button className="secondary-button" onClick={() => setSelectedVersionId(latestApproved?.id || '')}>So sánh với công thức gốc</button>
@@ -2736,6 +2854,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
           </div>
         </div>
         <input ref={importFormulaRef} type="file" accept=".xlsx,.xls" hidden onChange={(event) => importFormulaExcel(event.target.files?.[0])} />
+        <input ref={updateFormulaToleranceRef} type="file" accept=".xlsx,.xls" hidden onChange={(event) => updateFormulaToleranceExcel(event.target.files?.[0])} />
         {formulaMessage && <div className={formulaMessage.startsWith('Đã') ? 'formula-ratio-ok' : 'formula-ratio-alert'}>{formulaMessage}</div>}
         <div className="production-form-grid">
           <label className="wide-field">Tìm kiếm<input value={formulaSearch} placeholder="Tìm theo mã công thức hoặc tên sản phẩm" onChange={(event) => updateFormulaSearch(event.target.value)} /></label>
