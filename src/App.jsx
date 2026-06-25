@@ -68,7 +68,7 @@ function parseTolerancePercent(value) {
   if (value === null || value === undefined || String(value).trim() === '') return ''
   const text = String(value)
     .replace(/\(\s*\+?\s*\/\s*-?\s*\)/g, '')
-    .replace(/[±+]/g, '')
+    .replace(/[±Â+]/g, '')
     .replace(/%/g, '')
     .replace(',', '.')
     .trim()
@@ -164,9 +164,8 @@ const formatFormulaInput = (formula = {}) => {
 }
 const FORMULA_STATUS_ACTIVE = 'Đang áp dụng'
 const FORMULA_STATUS_DRAFT = 'Lưu nháp'
-const FORMULA_STATUS_INACTIVE = 'Ngưng áp dụng'
 const FORMULA_STATUS_ARCHIVED = 'Lưu trữ'
-const formulaStatuses = [FORMULA_STATUS_ACTIVE, FORMULA_STATUS_DRAFT, FORMULA_STATUS_INACTIVE, FORMULA_STATUS_ARCHIVED]
+const formulaStatuses = [FORMULA_STATUS_ACTIVE, FORMULA_STATUS_DRAFT, FORMULA_STATUS_ARCHIVED]
 const formulaMatches = (formula = {}, query = '') => {
   const keyword = normalizeText(query)
   if (!keyword) return true
@@ -185,6 +184,8 @@ const normalizeFormulaStatus = (formula = {}) => (
     ? formula.formulaStatus
     : formulaStatuses.includes(formula.status)
       ? formula.status
+      : formula.formulaStatus === 'Ngưng áp dụng' || formula.status === 'Ngưng áp dụng'
+        ? FORMULA_STATUS_ARCHIVED
       : isDemoFormulaCode(formula)
         ? FORMULA_STATUS_DRAFT
         : FORMULA_STATUS_ACTIVE
@@ -2421,7 +2422,7 @@ const parseFormulaMaterialCode = (value) => {
 }
 const getMaterialGroupByCode = (catalog = [], code = '') => activeMaterialCatalog(catalog).find((item) => String(item.materialCode || '').trim().toUpperCase() === String(code || '').trim().toUpperCase())?.materialGroup || ''
 
-function FormulasPage({ data, setData, permissions = [] }) {
+function FormulasPage({ data, setData, permissions = [], user = null }) {
   const [selectedId, setSelectedId] = useState(data.formulas[0]?.id || '')
   const [createOpen, setCreateOpen] = useState(false)
   const [formulaDraft, setFormulaDraft] = useState(emptyMasterFormulaDraft)
@@ -2430,6 +2431,7 @@ function FormulasPage({ data, setData, permissions = [] }) {
   const [formulaStatusFilter, setFormulaStatusFilter] = useState('all')
   const [formulaPageSize, setFormulaPageSize] = useState(20)
   const [formulaPage, setFormulaPage] = useState(1)
+  const [toleranceDraft, setToleranceDraft] = useState({})
   const importFormulaRef = useRef(null)
   const updateFormulaToleranceRef = useRef(null)
   const selected = data.formulas.find((item) => item.id === selectedId) || data.formulas[0]
@@ -2462,6 +2464,10 @@ function FormulasPage({ data, setData, permissions = [] }) {
   const canEditFormula = hasPermission(permissions, 'master.formula.edit')
   const canDeleteFormula = hasPermission(permissions, 'master.formula.delete')
   const canSecureViewFormula = hasPermission(permissions, 'formula.secure.view')
+  useEffect(() => {
+    if (!selected) return
+    setToleranceDraft(Object.fromEntries((selected.items || []).map((item) => [item.id, formatTolerancePercent(item.tolerancePercent)])))
+  }, [selectedId, selected?.items])
   const filteredFormulas = normalizeMasterFormulas(data.formulas || []).filter((formula) => {
     const keyword = normalizeText(formulaSearch)
     const matchesSearch = !keyword || normalizeText([formula.code, formula.id, formula.product].filter(Boolean).join(' ')).includes(keyword)
@@ -2551,6 +2557,52 @@ function FormulasPage({ data, setData, permissions = [] }) {
     ...current,
     items: current.items.length > 1 ? current.items.filter((item) => item.id !== lineId) : current.items,
   }))
+  const updateToleranceDraft = (lineId, value) => setToleranceDraft((current) => ({ ...current, [lineId]: value }))
+
+  const saveToleranceChanges = () => {
+    if (!canEditFormula || !selected) return
+    const editedBy = user?.fullName || user?.name || user?.username || user?.role || 'Phòng kỹ thuật'
+    const editedAt = nowText()
+    const changes = []
+    const nextFormulas = (data.formulas || []).map((formula) => {
+      if (formula.id !== selected.id) return formula
+      return {
+        ...formula,
+        items: (formula.items || []).map((item) => {
+          const oldTolerance = parseTolerancePercent(item.tolerancePercent)
+          const nextTolerance = parseTolerancePercent(toleranceDraft[item.id])
+          if (nextTolerance === '' || nextTolerance === oldTolerance) return item
+          changes.push({
+            formulaCode: formula.code || formula.formulaCode || formula.id,
+            materialCode: item.materialCode,
+            oldTolerance,
+            newTolerance: nextTolerance,
+            editedBy,
+            editedAt,
+          })
+          return { ...item, tolerancePercent: nextTolerance, tolerance: nextTolerance }
+        }),
+      }
+    })
+    if (!changes.length) {
+      setFormulaMessage('Không có dung sai thay đổi hoặc giá trị nhập chưa hợp lệ.')
+      return
+    }
+    setData((current) => addLogToData({
+      ...current,
+      formulas: nextFormulas,
+      formulaToleranceHistory: [...(current.formulaToleranceHistory || []), ...changes.map((change) => ({ id: uid('tol'), ...change }))],
+    }, `Lưu dung sai công thức ${selected.code || selected.id}: ${changes.length} dòng.`, { toleranceChanges: changes }))
+    setToleranceDraft((current) => {
+      const next = { ...current }
+      changes.forEach((change) => {
+        const item = (selected.items || []).find((row) => row.materialCode === change.materialCode)
+        if (item) next[item.id] = formatTolerancePercent(change.newTolerance)
+      })
+      return next
+    })
+    setFormulaMessage(`Đã lưu dung sai ${changes.length} dòng cho ${selected.code || selected.id}.`)
+  }
 
   const saveMasterFormula = () => {
     if (!canCreateFormula || !canSaveFormula) return
@@ -2886,13 +2938,10 @@ function FormulasPage({ data, setData, permissions = [] }) {
         <div className="panel-header-row">
           <div><h2>Công thức gốc</h2><p className="panel-text">Thư viện công thức chuẩn do Phòng Kỹ thuật ban hành. Tỷ lệ gốc không bị ghi đè; mọi thay đổi được lưu thành phiên bản điều chỉnh riêng để so sánh.</p></div>
           <div className="action-row">
-            <button className="primary-button" disabled={!canCreateFormula} onClick={openCreateFormula}>Tạo công thức gốc</button>
+            <button className="primary-button" disabled={!canCreateFormula} onClick={openCreateFormula}>Tạo công thức mới</button>
             <button className="secondary-button" disabled={!canCreateFormula} onClick={() => importFormulaRef.current?.click()}>Tải công thức Excel</button>
             <button className="secondary-button" disabled={!canEditFormula} onClick={() => updateFormulaToleranceRef.current?.click()}>Cập nhật dung sai từ Excel</button>
             <button className="secondary-button" disabled={!canCreateFormula} onClick={downloadFormulaTemplate}>Tải file mẫu</button>
-            <button className="primary-button" disabled={!canEditFormula} onClick={() => startAdjustment()}>Tạo phiên bản điều chỉnh</button>
-            <button className="secondary-button" onClick={() => setSelectedVersionId(latestApproved?.id || '')}>So sánh với công thức gốc</button>
-            <button className="secondary-button" onClick={restoreBase}>Khôi phục về công thức gốc</button>
           </div>
         </div>
         <input ref={importFormulaRef} type="file" accept=".xlsx,.xls" hidden onChange={(event) => importFormulaExcel(event.target.files?.[0])} />
@@ -2921,10 +2970,6 @@ function FormulasPage({ data, setData, permissions = [] }) {
               <td>
                 <div className="action-row table-action-row">
                   <button className="secondary-button" type="button" onClick={() => { setSelectedId(formula.id); setSelectedVersionId(''); setDraft(null) }}>Xem</button>
-                  <button className="secondary-button" type="button" disabled={!canCreateFormula} onClick={() => copyFormula(formula)}>Sao chép</button>
-                  <button className="secondary-button" type="button" disabled={!canEditFormula} onClick={() => startAdjustment(formula)}>Tạo phiên bản</button>
-                  <button className="secondary-button" type="button" disabled={!canEditFormula || formulaStatus === FORMULA_STATUS_ACTIVE} onClick={() => setFormulaStatus(formula, FORMULA_STATUS_ACTIVE)}>Kích hoạt</button>
-                  <button className="secondary-button" type="button" disabled={!canEditFormula || formulaStatus === FORMULA_STATUS_INACTIVE} onClick={() => setFormulaStatus(formula, FORMULA_STATUS_INACTIVE)}>Ngưng áp dụng</button>
                   <button className="secondary-button" type="button" disabled={!canEditFormula || formulaStatus === FORMULA_STATUS_ARCHIVED} onClick={() => setFormulaStatus(formula, FORMULA_STATUS_ARCHIVED)}>Lưu trữ</button>
                 </div>
               </td>
@@ -2943,29 +2988,23 @@ function FormulasPage({ data, setData, permissions = [] }) {
           <label>Sản phẩm<input readOnly value={selected.product} /></label>
           <label>Trạng thái công thức<input readOnly value={normalizeFormulaStatus(selected)} /></label>
           <label>Version gốc<input readOnly value={selected.version} /></label>
-          <label>Version điều chỉnh<select value={draft ? draft.id : selectedVersion?.id || ''} onChange={(event) => { setSelectedVersionId(event.target.value); setDraft(null) }}><option value="">Công thức gốc</option>{versions.map((version) => <option key={version.id} value={version.id}>{version.adjustedVersion} - {version.status}</option>)}</select></label>
-          <label>Ngày hiệu lực<input type="date" readOnly={!draft} value={activeVersion?.effectiveDate || selected.effectiveDate} onChange={(event) => updateDraftField('effectiveDate', event.target.value)} /></label>
-          <label>Người lập<input readOnly={!draft} value={activeVersion?.createdBy || selected.createdBy} onChange={(event) => updateDraftField('createdBy', event.target.value)} /></label>
-          <label>Người kiểm tra<input readOnly={!draft} value={activeVersion?.checkedBy || selected.checkedBy} onChange={(event) => updateDraftField('checkedBy', event.target.value)} /></label>
-          <label>Người duyệt<input readOnly={!draft} value={activeVersion?.approvedBy || selected.approvedBy} onChange={(event) => updateDraftField('approvedBy', event.target.value)} /></label>
-          <label className="wide-field">Lý do điều chỉnh<input readOnly={!draft} value={activeVersion?.adjustmentReason || ''} onChange={(event) => updateDraftField('adjustmentReason', event.target.value)} /></label>
+          <label>Ngày hiệu lực<input type="date" readOnly value={selected.effectiveDate} /></label>
+          <label>Người lập<input readOnly value={selected.createdBy || ''} /></label>
         </div>
-        {canSecureViewFormula && !formulaPercentIsValid(adjustedTotal) && <div className="formula-ratio-alert">Tổng tỷ lệ điều chỉnh chưa hợp lệ ({formatPercent(adjustedTotal)})</div>}
-        {canSecureViewFormula && formulaPercentIsValid(adjustedTotal) && <div className="formula-ratio-ok">Tổng tỷ lệ điều chỉnh hợp lệ ({formatPercent(adjustedTotal)})</div>}
         {!canSecureViewFormula && <div className="process-alert">Bạn có quyền xem công thức, nhưng chưa có quyền formula.secure.view nên tỷ lệ phần trăm được ẩn.</div>}
-        <SimpleTable headers={canSecureViewFormula ? ['STT', 'Mã vật tư', 'Nhóm', 'Tỷ lệ gốc %', 'Tỷ lệ điều chỉnh %', 'Dung sai', 'Chênh lệch %', 'Ghi chú'] : ['STT', 'Mã vật tư', 'Nhóm', 'Dung sai', 'Ghi chú']} rows={comparisonItems.map((item, index) => (
+        <SimpleTable headers={canSecureViewFormula ? ['STT', 'Mã vật tư', 'Nhóm', 'Tỷ lệ %', 'Dung sai', 'Ghi chú'] : ['STT', 'Mã vật tư', 'Nhóm', 'Dung sai', 'Ghi chú']} rows={(selected.items || []).map((item, index) => (
           <tr key={item.id}>
             <td>{index + 1}</td>
             <td>{item.materialCode}</td>
             <td>{item.materialGroup}</td>
             {canSecureViewFormula && <td>{formatPercent(item.ratioPercent)}</td>}
-            {canSecureViewFormula && <td>{draft ? <input type="number" value={item.adjustedPercent} onChange={(event) => updateDraftItem(item.id, 'adjustedPercent', event.target.value)} /> : formatPercent(item.adjustedPercent)}</td>}
-            <td>{formatTolerancePercent(item.tolerancePercent)}</td>
-            {canSecureViewFormula && <td><span className={diffClass(item.diff)}>{item.diff > 0 ? '+' : ''}{formatPercent(item.diff)}</span></td>}
-            <td>{draft ? <input value={item.adjustmentNote} onChange={(event) => updateDraftItem(item.id, 'adjustmentNote', event.target.value)} /> : item.adjustmentNote || item.note || '-'}</td>
+            <td><input value={toleranceDraft[item.id] ?? formatTolerancePercent(item.tolerancePercent)} onChange={(event) => updateToleranceDraft(item.id, event.target.value)} placeholder="±2%" /></td>
+            <td>{item.note || '-'}</td>
           </tr>
         ))} />
-        {draft && <div className="modal-actions"><button className="secondary-button" onClick={() => setDraft(null)}>Hủy</button><button className="primary-button" disabled={!canApprove} onClick={saveDraft}>Lưu phiên bản điều chỉnh</button></div>}
+        <div className="modal-actions">
+          <button className="primary-button" disabled={!canEditFormula} onClick={saveToleranceChanges}>Lưu dung sai</button>
+        </div>
       </section>
       {createOpen && (
         <div className="modal-backdrop" role="presentation">
@@ -8726,7 +8765,7 @@ function App() {
   const pages = {
     dashboard: <DashboardPage data={data} />,
     'raw-materials': <RawMaterialsPage data={data} setData={setData} />,
-    formulas: <FormulasPage data={data} setData={setData} permissions={userPermissions} />,
+    formulas: <FormulasPage data={data} setData={setData} permissions={userPermissions} user={user} />,
     orders: <OrdersPage data={data} setData={setData} permissions={userPermissions} />,
     'production-assignments': <ProductionAssignmentPage data={data} setData={setData} user={user} permissions={userPermissions} />,
     qc: <QCPage data={data} setData={setData} user={user} />,
