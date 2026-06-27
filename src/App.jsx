@@ -42,10 +42,27 @@ const CHEMICAL_SCALE_MODE_KEY = 'chemicalScaleWorkMode'
 const CHEMICAL_SCALE_MODE_GLUE = 'glue'
 const CHEMICAL_SCALE_MODE_PASTE_TIN = 'paste-tin'
 const CHEMICAL_PASTE_TIN_TABS = ['paste', 'tin']
-const CHEMICAL_SUBGROUP_GLUE = 'Keo'
-const CHEMICAL_SUBGROUP_PASTE = 'Paste'
-const CHEMICAL_SUBGROUP_TIN = 'Tin màu'
-const CHEMICAL_SUBGROUP_OPTIONS = [CHEMICAL_SUBGROUP_GLUE, CHEMICAL_SUBGROUP_PASTE, CHEMICAL_SUBGROUP_TIN]
+const SCALE_LINE_GLUE = 'CAN_KEO'
+const SCALE_LINE_PASTE = 'CAN_PASTE'
+const SCALE_LINE_COLOR = 'CAN_MAU'
+const SCALE_LINE_SOLID = 'CAN_RAN'
+const CHEMICAL_SUBGROUP_GLUE = 'KEO'
+const CHEMICAL_SUBGROUP_PASTE = 'PASTE'
+const CHEMICAL_SUBGROUP_COLOR = 'MAU'
+const CHEMICAL_SUBGROUP_ADDITIVE = 'PHU_GIA'
+const CHEMICAL_SUBGROUP_OPTIONS = [CHEMICAL_SUBGROUP_GLUE, CHEMICAL_SUBGROUP_PASTE, CHEMICAL_SUBGROUP_COLOR, CHEMICAL_SUBGROUP_ADDITIVE]
+const CHEMICAL_SUBGROUP_TO_SCALE_LINE = {
+  [CHEMICAL_SUBGROUP_GLUE]: SCALE_LINE_GLUE,
+  [CHEMICAL_SUBGROUP_PASTE]: SCALE_LINE_PASTE,
+  [CHEMICAL_SUBGROUP_COLOR]: SCALE_LINE_COLOR,
+  [CHEMICAL_SUBGROUP_ADDITIVE]: SCALE_LINE_COLOR,
+}
+const CHEMICAL_SUBGROUP_LABELS = {
+  [CHEMICAL_SUBGROUP_GLUE]: 'Keo',
+  [CHEMICAL_SUBGROUP_PASTE]: 'Paste',
+  [CHEMICAL_SUBGROUP_COLOR]: 'Màu',
+  [CHEMICAL_SUBGROUP_ADDITIVE]: 'Phụ gia',
+}
 const CHEMICAL_SUBGROUP_STATUS_DONE = 'DONE'
 const CHEMICAL_SUBGROUP_STATUS_ACTIVE = 'ACTIVE'
 const CHEMICAL_SUBGROUP_STATUS_PENDING = 'PENDING'
@@ -54,8 +71,8 @@ const CHEMICAL_MIX_STATUS_COMPLETED = 'COMPLETED'
 const CHEMICAL_MIX_STATUS_PENDING = 'PENDING'
 const CHEMICAL_WEIGHING_GROUPS = [
   { key: 'glue', label: 'Cân Keo', lineLabel: 'Line Keo riêng', scaleLabel: 'Cân Keo' },
-  { key: 'paste', label: 'Cân Paste', lineLabel: 'Khu Paste / Tin màu', scaleLabel: 'Cân Paste' },
-  { key: 'tin', label: 'Cân Tin màu', lineLabel: 'Khu Paste / Tin màu', scaleLabel: 'Cân Tin màu' },
+  { key: 'paste', label: 'Cân Paste', lineLabel: 'Khu Paste / Màu', scaleLabel: 'Cân Paste' },
+  { key: 'tin', label: 'Cân Màu', lineLabel: 'Khu Paste / Màu', scaleLabel: 'Cân Màu' },
 ]
 function getStoredChemicalScaleMode() {
   if (typeof localStorage === 'undefined') return CHEMICAL_SCALE_MODE_GLUE
@@ -69,20 +86,31 @@ function isChemicalGroup(group = '') {
 function normalizeChemicalSubGroup(value = '', materialGroup = CHEMICAL) {
   if (!isChemicalGroup(materialGroup)) return ''
   const text = normalizeText(value)
-  if (!text || text === 'null') return ''
+  const compactText = text.replace(/[^a-z0-9]+/g, '')
+  const upperValue = String(value || '').trim().toUpperCase()
+  if (!text || text === 'null' || text === '-' || compactText === 'null') return ''
+  if (CHEMICAL_SUBGROUP_OPTIONS.includes(upperValue)) return upperValue
   if (text.includes('paste')) return CHEMICAL_SUBGROUP_PASTE
-  if (text.includes('tin') || text.includes('mau')) return CHEMICAL_SUBGROUP_TIN
+  if (text.includes('phu gia') || compactText === 'phugia') return CHEMICAL_SUBGROUP_ADDITIVE
+  if (text.includes('tin') || text.includes('mau') || compactText === 'tinmau') return CHEMICAL_SUBGROUP_COLOR
   if (text.includes('keo')) return CHEMICAL_SUBGROUP_GLUE
   return ''
 }
-function getChemicalWeighingGroupKey(item = {}) {
+const displayChemicalSubGroup = (value = '') => CHEMICAL_SUBGROUP_LABELS[value] || 'null'
+function getScaleLineForMaterial(item = {}) {
+  if (item.materialGroup === SOLID) return SCALE_LINE_SOLID
+  if (!isChemicalGroup(item.materialGroup || item.group || CHEMICAL)) return ''
   const subgroup = normalizeChemicalSubGroup(
     item.chemicalSubGroup || item.materialSubGroup || item.subGroup || item.chemicalGroup || item.weighingGroup,
     item.materialGroup || item.group || CHEMICAL,
   )
-  if (subgroup === CHEMICAL_SUBGROUP_GLUE) return 'glue'
-  if (subgroup === CHEMICAL_SUBGROUP_PASTE) return 'paste'
-  if (subgroup === CHEMICAL_SUBGROUP_TIN) return 'tin'
+  return CHEMICAL_SUBGROUP_TO_SCALE_LINE[subgroup] || SCALE_LINE_COLOR
+}
+function getChemicalWeighingGroupKey(item = {}) {
+  const scaleLine = getScaleLineForMaterial(item)
+  if (scaleLine === SCALE_LINE_GLUE) return 'glue'
+  if (scaleLine === SCALE_LINE_PASTE) return 'paste'
+  if (scaleLine === SCALE_LINE_COLOR) return 'tin'
   return ''
 }
 const MATERIAL_STATUS_ACTIVE = 'Hoạt động'
@@ -100,8 +128,8 @@ const WEIGHING_TOOL_APPLY = {
 const defaultWeighingTools = [
   { id: 'WT-KEO-30L', code: 'DC-KEO-30L', name: 'Xô/thùng keo 30L', type: 'Thùng', tareWeightKg: 1.62, maxLoadKg: 35, applyFor: WEIGHING_TOOL_APPLY.GLUE, status: WEIGHING_TOOL_STATUS_ACTIVE },
   { id: 'WT-PASTE-20L', code: 'DC-PASTE-20L', name: 'Thùng Paste 20L', type: 'Thùng', tareWeightKg: 1.215, maxLoadKg: 25, applyFor: WEIGHING_TOOL_APPLY.PASTE, status: WEIGHING_TOOL_STATUS_ACTIVE },
-  { id: 'WT-TIN-2L', code: 'DC-TIN-2L', name: 'Lon Tin màu 2L', type: 'Lon', tareWeightKg: 0.485, maxLoadKg: 3, applyFor: WEIGHING_TOOL_APPLY.TIN, status: WEIGHING_TOOL_STATUS_ACTIVE },
-  { id: 'WT-TIN-5L', code: 'DC-TIN-5L', name: 'Lon Tin màu 5L', type: 'Lon', tareWeightKg: 0.732, maxLoadKg: 8, applyFor: WEIGHING_TOOL_APPLY.TIN, status: WEIGHING_TOOL_STATUS_ACTIVE },
+  { id: 'WT-TIN-2L', code: 'DC-TIN-2L', name: 'Lon Màu 2L', type: 'Lon', tareWeightKg: 0.485, maxLoadKg: 3, applyFor: WEIGHING_TOOL_APPLY.TIN, status: WEIGHING_TOOL_STATUS_ACTIVE },
+  { id: 'WT-TIN-5L', code: 'DC-TIN-5L', name: 'Lon Màu 5L', type: 'Lon', tareWeightKg: 0.732, maxLoadKg: 8, applyFor: WEIGHING_TOOL_APPLY.TIN, status: WEIGHING_TOOL_STATUS_ACTIVE },
   { id: 'WT-RAN-KHAY', code: 'DC-RAN-KHAY', name: 'Khay/Inox cân rắn', type: 'Khay', tareWeightKg: 0.38, maxLoadKg: 10, applyFor: WEIGHING_TOOL_APPLY.SOLID, status: WEIGHING_TOOL_STATUS_ACTIVE },
 ]
 const nonEmptyArray = (...items) => items.find((item) => Array.isArray(item) && item.length > 0) || []
@@ -876,11 +904,11 @@ function buildFormulaItems(lines, quantityKg) {
 
 const masterFormulaLines = {
   'HNS-252-G1': [
-    ['PASTE 02', CHEMICAL, 4.61, CHEMICAL_SUBGROUP_PASTE], ['IN02', CHEMICAL, 0.02, CHEMICAL_SUBGROUP_TIN], ['IN03', CHEMICAL, 0.30, CHEMICAL_SUBGROUP_TIN], ['D01', CHEMICAL, 0.07, CHEMICAL_SUBGROUP_GLUE],
+    ['PASTE 02', CHEMICAL, 4.61, CHEMICAL_SUBGROUP_PASTE], ['IN02', CHEMICAL, 0.02, CHEMICAL_SUBGROUP_COLOR], ['IN03', CHEMICAL, 0.30, CHEMICAL_SUBGROUP_COLOR], ['D01', CHEMICAL, 0.07, CHEMICAL_SUBGROUP_GLUE],
     ['R91', SOLID, 20, ''], ['KT01', CHEMICAL, 0.5, CHEMICAL_SUBGROUP_GLUE], ['SiG01', SOLID, 15, ''], ['SiBK02', SOLID, 5, ''], ['SW34', SOLID, 34.5, ''], ['SW92', SOLID, 20, ''],
   ],
   'HNS-252-R2': [
-    ['PASTE 02', CHEMICAL, 4.61, CHEMICAL_SUBGROUP_PASTE], ['IN02', CHEMICAL, 0.02, CHEMICAL_SUBGROUP_TIN], ['IN03', CHEMICAL, 0.30, CHEMICAL_SUBGROUP_TIN], ['D01', CHEMICAL, 0.07, CHEMICAL_SUBGROUP_GLUE],
+    ['PASTE 02', CHEMICAL, 4.61, CHEMICAL_SUBGROUP_PASTE], ['IN02', CHEMICAL, 0.02, CHEMICAL_SUBGROUP_COLOR], ['IN03', CHEMICAL, 0.30, CHEMICAL_SUBGROUP_COLOR], ['D01', CHEMICAL, 0.07, CHEMICAL_SUBGROUP_GLUE],
     ['R91', SOLID, 20, ''], ['KT01', CHEMICAL, 0.5, CHEMICAL_SUBGROUP_GLUE], ['SiR05', SOLID, 19, ''], ['SiR01', SOLID, 1, ''], ['SW34', SOLID, 34.5, ''], ['SW92', SOLID, 20, ''],
   ],
 }
@@ -1146,7 +1174,7 @@ const normalizeAssignmentRoleLabel = (value = '') => {
   if (text.includes('to duoi')) return 'Tổ dưới'
   if (text.includes('can keo')) return 'Cân keo'
   if (text.includes('can paste')) return 'Cân Paste'
-  if (text.includes('can tin')) return 'Cân Tin màu'
+  if (text.includes('can tin')) return 'Cân Màu'
   if (text.includes('can ran') || text.includes('to truong can ran')) return 'Cân rắn'
   if (text.includes('qc')) return 'QC'
   return value || '-'
@@ -2505,7 +2533,7 @@ function createQc2DemoPayload(current = {}) {
   const adjustedAt = '2026-06-13 13:10'
   const adjustedItems = [
     { id: 'DEMO-QC2-ADJ-001-PASTE02', adjustmentId, orderId: 'LSX-QC2-DEMO-003', changeType: 'existing', materialCode: 'PASTE 02', materialName: 'PASTE 02', materialGroup: CHEMICAL, chemicalSubGroup: CHEMICAL_SUBGROUP_PASTE, adjustmentKg: 1.5, requiredKg: 1.5, reason: 'Tăng độ phủ màu', note: 'Bổ sung sau QC2 lần 1' },
-    { id: 'DEMO-QC2-ADJ-001-IN03', adjustmentId, orderId: 'LSX-QC2-DEMO-003', changeType: 'existing', materialCode: 'IN03', materialName: 'IN03', materialGroup: CHEMICAL, chemicalSubGroup: CHEMICAL_SUBGROUP_TIN, adjustmentKg: 0.2, requiredKg: 0.2, reason: 'Cân chỉnh sắc độ', note: 'Bổ sung sau QC2 lần 1' },
+    { id: 'DEMO-QC2-ADJ-001-IN03', adjustmentId, orderId: 'LSX-QC2-DEMO-003', changeType: 'existing', materialCode: 'IN03', materialName: 'IN03', materialGroup: CHEMICAL, chemicalSubGroup: CHEMICAL_SUBGROUP_COLOR, adjustmentKg: 0.2, requiredKg: 0.2, reason: 'Cân chỉnh sắc độ', note: 'Bổ sung sau QC2 lần 1' },
   ]
   const adjustmentTicket = {
     id: adjustmentId,
@@ -4772,7 +4800,7 @@ function ChemicalMixSummary({ order, lineState, canPrint, onPrint }) {
       <div className="chemical-mix-status-grid">
         <div><span>Keo</span><strong>{displayChemicalSubgroupStatus(lineState.keoStatus)}</strong></div>
         <div><span>Paste</span><strong>{displayChemicalSubgroupStatus(lineState.pasteStatus)}</strong></div>
-        <div><span>Tin màu</span><strong>{displayChemicalSubgroupStatus(lineState.colorStatus)}</strong></div>
+        <div><span>Màu</span><strong>{displayChemicalSubgroupStatus(lineState.colorStatus)}</strong></div>
         <div><span>Hỗn hợp Hóa</span><strong>{mixText}</strong></div>
       </div>
       {lineState.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED ? (
@@ -4782,7 +4810,7 @@ function ChemicalMixSummary({ order, lineState, canPrint, onPrint }) {
         </div>
       ) : (
         <div className="process-alert chemical-mix-waiting">
-          {waitingForGlue ? 'Đang chờ Cân Keo hoàn thành' : waitingForPasteTin ? 'Đang chờ Paste/Tin màu hoàn thành' : 'Hỗn hợp Hóa chưa hoàn thành'}
+          {waitingForGlue ? 'Đang chờ Cân Keo hoàn thành' : waitingForPasteTin ? 'Đang chờ Paste/Màu hoàn thành' : 'Hỗn hợp Hóa chưa hoàn thành'}
         </div>
       )}
       {order.chemicalMixQrCode && (
@@ -5397,11 +5425,11 @@ function WeighingPage({ data, setData, group, user }) {
                   className={chemicalScaleMode === CHEMICAL_SCALE_MODE_PASTE_TIN ? 'active' : ''}
                   onClick={() => setChemicalScaleMode(CHEMICAL_SCALE_MODE_PASTE_TIN)}
                 >
-                  Paste / Tin màu
+                  Paste / Màu
                 </button>
               </div>
               {chemicalScaleMode === CHEMICAL_SCALE_MODE_PASTE_TIN && (
-                <div className="chemical-tab-selector" role="tablist" aria-label="Chọn khu cân Paste hoặc Tin màu">
+                <div className="chemical-tab-selector" role="tablist" aria-label="Chọn khu cân Paste hoặc Màu">
                   {CHEMICAL_PASTE_TIN_TABS.map((tabKey) => {
                     const tabBoard = chemicalGroupBoards.find((board) => board.key === tabKey)
                     return (
@@ -8624,7 +8652,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
   const assignmentRows = [
     { id: 'chemical-glue', teamCode: 'TH', role: 'Cân keo', stage: 'Cân hóa', processStages: ['Cân hóa'] },
     { id: 'chemical-paste', teamCode: 'TH', role: 'Cân Paste', stage: 'Cân hóa', processStages: ['Cân hóa'] },
-    { id: 'chemical-tint', teamCode: 'TH', role: 'Cân Tin màu', stage: 'Cân hóa', processStages: ['Cân hóa'] },
+    { id: 'chemical-tint', teamCode: 'TH', role: 'Cân Màu', stage: 'Cân hóa', processStages: ['Cân hóa'] },
     { id: 'solid', teamCode: 'TC', role: 'Cân rắn', stage: 'Cân rắn', processStages: ['Cân rắn'] },
     { id: 'mixing-1', teamCode: 'TP1', role: 'Tổ trên', stage: 'Phối trộn', processStages: ['Phối trộn'], roleEditable: true },
     { id: 'mixing-2', teamCode: 'TP2', role: 'Tổ dưới', stage: 'Đóng gói + Kho thành phẩm', processStages: ['Đóng gói', 'Kho thành phẩm'], roleEditable: true },
@@ -8855,7 +8883,7 @@ function LegacyProductionAssignmentPage({ data, setData, user, permissions = [] 
     TH: [
       { value: 'glue-60', label: 'Cân keo', operationPosition: 'Cân keo', stage: 'Cân hóa', processStages: ['Cân hóa'] },
       { value: 'paste-50', label: 'Cân Paste', operationPosition: 'Cân Paste', stage: 'Cân hóa', processStages: ['Cân hóa'] },
-      { value: 'tint-5', label: 'Cân Tin màu', operationPosition: 'Cân Tin màu', stage: 'Cân hóa', processStages: ['Cân hóa'] },
+      { value: 'tint-5', label: 'Cân Màu', operationPosition: 'Cân Màu', stage: 'Cân hóa', processStages: ['Cân hóa'] },
     ],
     TC: [
       { value: 'solid-lead', label: 'Cân rắn', operationPosition: 'Cân rắn', stage: 'Cân rắn', processStages: ['Cân rắn'] },
@@ -9134,7 +9162,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
     'Nha san xuat': row.manufacturer || '',
     'Trang thai': row.status || MATERIAL_STATUS_ACTIVE,
     classification: row.materialGroup || '',
-    'sub-classification': row.chemicalSubGroup || '',
+    'sub-classification': normalizeChemicalSubGroup(row.chemicalSubGroup, row.materialGroup) || 'null',
     'Don vi': row.unit || 'kg',
     'Dung cu can mac dinh': row.defaultWeighingToolCode || '',
   }))
@@ -9164,7 +9192,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
             const key = materialCode.toUpperCase()
             const existing = byCode.get(key)
             const importedGroup = row.classification || row.mainGroup || getCatalogCell(row, ['classification', 'mainGroup', 'Nhom vat tu', 'Nhom']) || existing?.materialGroup || CHEMICAL
-            const importedSubGroup = row['sub-classification'] || row.subClassification || getCatalogCell(row, ['sub-classification', 'sub classification', 'Phan nhom'])
+            const importedSubGroup = row['sub-classification'] || row.subclassification || row.subClassification || row.chemicalSubGroup || getCatalogCell(row, ['sub-classification', 'sub classification', 'subclassification', 'chemicalSubGroup', 'Phan nhom'])
             const next = normalizeMaterialCatalogItem({
               ...(existing || {}),
               materialCode,
@@ -9286,7 +9314,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
                       {isMaterialCatalog && field === 'chemicalSubGroup' ? (
                         <select value={normalizeChemicalSubGroup(row.chemicalSubGroup, row.materialGroup)} disabled={!canEdit || !isChemicalGroup(row.materialGroup)} onChange={(event) => updateRow(row.id, field, event.target.value)}>
                           <option value="">null</option>
-                          {CHEMICAL_SUBGROUP_OPTIONS.map((subGroup) => <option key={subGroup} value={subGroup}>{subGroup}</option>)}
+                          {CHEMICAL_SUBGROUP_OPTIONS.map((subGroup) => <option key={subGroup} value={subGroup}>{displayChemicalSubGroup(subGroup)}</option>)}
                         </select>
                       ) : isMaterialCatalog && field === 'defaultWeighingToolCode' ? (
                         <select value={row[field] || ''} disabled={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)}>
