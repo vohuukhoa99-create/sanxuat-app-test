@@ -41,6 +41,12 @@ const CHEMICAL_SCALE_MODE_KEY = 'chemicalScaleWorkMode'
 const CHEMICAL_SCALE_MODE_GLUE = 'glue'
 const CHEMICAL_SCALE_MODE_PASTE_TIN = 'paste-tin'
 const CHEMICAL_PASTE_TIN_TABS = ['paste', 'tin']
+const CHEMICAL_SUBGROUP_STATUS_DONE = 'DONE'
+const CHEMICAL_SUBGROUP_STATUS_ACTIVE = 'ACTIVE'
+const CHEMICAL_SUBGROUP_STATUS_PENDING = 'PENDING'
+const CHEMICAL_SUBGROUP_STATUS_NOT_REQUIRED = 'NOT_REQUIRED'
+const CHEMICAL_MIX_STATUS_COMPLETED = 'COMPLETED'
+const CHEMICAL_MIX_STATUS_PENDING = 'PENDING'
 const CHEMICAL_WEIGHING_GROUPS = [
   { key: 'glue', label: 'Cân Keo', lineLabel: 'Line Keo riêng', scaleLabel: 'Cân Keo' },
   { key: 'paste', label: 'Cân Paste', lineLabel: 'Khu Paste / Tin màu', scaleLabel: 'Cân Paste' },
@@ -1478,6 +1484,53 @@ function getEffectiveFormula(order) {
   return order.activeProductionFormula || order.qc1AdjustedFormula || order.productionFormulaSnapshot || []
 }
 
+function isWeighedDone(item = {}) {
+  return item.qrStatus === 'PASS' && item.weighStatus === 'PASS'
+}
+
+function getChemicalSubgroupItems(order = {}, subgroupKey = '') {
+  return getEffectiveFormula(order).filter((item) => (
+    item.materialGroup === CHEMICAL
+    && getChemicalWeighingGroupKey(item) === subgroupKey
+  ))
+}
+
+function getChemicalSubgroupStatus(order = {}, subgroupKey = '') {
+  const items = getChemicalSubgroupItems(order, subgroupKey)
+  if (!items.length) return CHEMICAL_SUBGROUP_STATUS_NOT_REQUIRED
+  if (items.every(isWeighedDone)) return CHEMICAL_SUBGROUP_STATUS_DONE
+  if (items.some((item) => item.qrStatus === 'PASS' || item.weighStatus === 'PASS' || item.actualWeight !== '' || item.qrScanned)) return CHEMICAL_SUBGROUP_STATUS_ACTIVE
+  const stored = subgroupKey === 'glue' ? order.keoStatus : subgroupKey === 'paste' ? order.pasteStatus : order.colorStatus
+  return stored === CHEMICAL_SUBGROUP_STATUS_DONE ? CHEMICAL_SUBGROUP_STATUS_DONE : CHEMICAL_SUBGROUP_STATUS_PENDING
+}
+
+function getChemicalLineState(order = {}) {
+  const keoStatus = getChemicalSubgroupStatus(order, 'glue')
+  const pasteStatus = getChemicalSubgroupStatus(order, 'paste')
+  const colorStatus = getChemicalSubgroupStatus(order, 'tin')
+  const requiredDone = [keoStatus, pasteStatus, colorStatus].every((status) => (
+    status === CHEMICAL_SUBGROUP_STATUS_DONE
+    || status === CHEMICAL_SUBGROUP_STATUS_NOT_REQUIRED
+  ))
+  const hasRequiredChemical = [keoStatus, pasteStatus, colorStatus].some((status) => status !== CHEMICAL_SUBGROUP_STATUS_NOT_REQUIRED)
+  const chemicalMixStatus = hasRequiredChemical && requiredDone ? CHEMICAL_MIX_STATUS_COMPLETED : CHEMICAL_MIX_STATUS_PENDING
+  return { keoStatus, pasteStatus, colorStatus, chemicalMixStatus }
+}
+
+function displayChemicalSubgroupStatus(status = '') {
+  if (status === CHEMICAL_SUBGROUP_STATUS_DONE) return 'Hoàn thành'
+  if (status === CHEMICAL_SUBGROUP_STATUS_ACTIVE) return 'Đang cân'
+  if (status === CHEMICAL_SUBGROUP_STATUS_NOT_REQUIRED) return 'Không yêu cầu'
+  return 'Chờ cân'
+}
+
+function displayChemicalMixStatus(order = {}) {
+  const state = getChemicalLineState(order)
+  if (order.chemicalMixQrCode) return 'Đã in QR'
+  if (state.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED) return 'Hoàn thành'
+  return 'Chưa hoàn thành'
+}
+
 function normalizeProductionOrders(orders = [], formulas = []) {
   const machineCatalog = normalizeMixingMachines()
   return orders.map((order, index) => {
@@ -1784,8 +1837,8 @@ function getOrderGroupContainers(containers = [], order = {}, weighingType = 'C�
   ))
 }
 
-function buildWeighedContainer(order, group, items, containers = [], weighingType = 'Cân chính') {
-  const qrCode = createContainerQrCode(group, containers)
+function buildWeighedContainer(order, group, items, containers = [], weighingType = 'Cân chính', qrCodeOverride = '') {
+  const qrCode = qrCodeOverride || createContainerQrCode(group, containers)
   const completedAt = nowText()
   const materials = items.map((item) => ({
     id: item.id,
@@ -1814,6 +1867,26 @@ function buildWeighedContainer(order, group, items, containers = [], weighingTyp
     completedAt,
     weighingType,
     status: 'Đã cân xong',
+  }
+}
+
+function findChemicalMixContainer(containers = [], order = {}) {
+  const orderCode = order.orderCode || order.id
+  return normalizeWeighedContainers(containers).find((item) => (
+    (item.orderId === order.id || item.orderCode === orderCode)
+    && item.materialGroup === CHEMICAL
+    && item.weighingType === 'Cân chính'
+  ))
+}
+
+function buildChemicalMixContainer(order, containers = []) {
+  const chemicalItems = getEffectiveFormula(order).filter((item) => item.materialGroup === CHEMICAL)
+  const qrCode = order.chemicalMixQrCode || createContainerQrCode(CHEMICAL, containers)
+  return {
+    ...buildWeighedContainer(order, CHEMICAL, chemicalItems, containers, 'Cân chính', qrCode),
+    qrCode,
+    chemicalMixQrCode: qrCode,
+    chemicalMixStatus: CHEMICAL_MIX_STATUS_COMPLETED,
   }
 }
 
@@ -4565,6 +4638,44 @@ function ChemicalWeighingGroupBoard({ board, activeOrder, updateWeight, rawMater
   )
 }
 
+function ChemicalMixSummary({ order, lineState, canPrint, onPrint }) {
+  if (!order || !lineState) return null
+  const waitingForGlue = lineState.keoStatus !== CHEMICAL_SUBGROUP_STATUS_DONE
+    && lineState.keoStatus !== CHEMICAL_SUBGROUP_STATUS_NOT_REQUIRED
+  const waitingForPasteTin = [lineState.pasteStatus, lineState.colorStatus].some((status) => (
+    status !== CHEMICAL_SUBGROUP_STATUS_DONE
+    && status !== CHEMICAL_SUBGROUP_STATUS_NOT_REQUIRED
+  ))
+  const mixText = displayChemicalMixStatus(order)
+  return (
+    <section className="chemical-mix-summary">
+      <div className="chemical-mix-status-grid">
+        <div><span>Keo</span><strong>{displayChemicalSubgroupStatus(lineState.keoStatus)}</strong></div>
+        <div><span>Paste</span><strong>{displayChemicalSubgroupStatus(lineState.pasteStatus)}</strong></div>
+        <div><span>Tin màu</span><strong>{displayChemicalSubgroupStatus(lineState.colorStatus)}</strong></div>
+        <div><span>Hỗn hợp Hóa</span><strong>{mixText}</strong></div>
+      </div>
+      {lineState.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED ? (
+        <div className="chemical-mix-print-row">
+          <span>Hỗn hợp Hóa đã hoàn thành</span>
+          <button type="button" className="primary-button" disabled={!canPrint} onClick={onPrint}>In QR</button>
+        </div>
+      ) : (
+        <div className="process-alert chemical-mix-waiting">
+          {waitingForGlue ? 'Đang chờ Cân Keo hoàn thành' : waitingForPasteTin ? 'Đang chờ Paste/Tin màu hoàn thành' : 'Hỗn hợp Hóa chưa hoàn thành'}
+        </div>
+      )}
+      {order.chemicalMixQrCode && (
+        <div className="chemical-mix-qr-meta">
+          <span>QR: <strong>{order.chemicalMixQrCode}</strong></span>
+          <span>Lần in: <strong>{num(order.chemicalMixQrPrintCount)}</strong></span>
+          <span>In gần nhất: <strong>{order.chemicalMixQrPrintedAt || '-'}</strong></span>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function WeighingPage({ data, setData, group, user }) {
   const label = group === CHEMICAL ? 'Cân hóa chất' : 'Cân nguyên liệu rắn'
   const activeTitle = group === CHEMICAL ? 'Lệnh đang cân hóa' : 'Lệnh đang cân rắn'
@@ -4581,6 +4692,12 @@ function WeighingPage({ data, setData, group, user }) {
     if (isSupplementOrder(order)) {
       const items = getItems(order)
       return items.length > 0 && items.every(isDone)
+    }
+    if (group === CHEMICAL) {
+      return getChemicalLineState(order).chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED
+        || Boolean(order[completionKey])
+        || order[statusKey] === 'Completed'
+        || order.scaleStatus?.[scaleKey] === 'Completed'
     }
     return Boolean(order[completionKey]) || order[statusKey] === 'Completed' || order.scaleStatus?.[scaleKey] === 'Completed'
   }
@@ -4617,7 +4734,7 @@ function WeighingPage({ data, setData, group, user }) {
   const scaleStableReadingsRef = useRef([])
   const scaleStableSampleCountRef = useRef(scaleStableSampleCount)
   const scaleToleranceKgRef = useRef(scaleToleranceKg)
-  const activeOrder = pendingOrders.find((order) => order.id === activeOrderId)
+  const activeOrder = relevantOrders.find((order) => order.id === activeOrderId)
   const waitingOrders = pendingOrders.filter((order) => (
     order.id !== activeOrder?.id
     && (group === CHEMICAL || order.status === 'Chờ cân')
@@ -4626,11 +4743,13 @@ function WeighingPage({ data, setData, group, user }) {
   const doneCount = activeItems.filter(isDone).length
   const progress = activeItems.length ? Math.round((doneCount / activeItems.length) * 100) : 0
   const activeItem = activeItems.find((item) => !isDone(item))
+  const pasteItemsForActiveOrder = activeItems.filter((item) => getChemicalWeighingGroupKey(item) === 'paste')
+  const pasteDoneForActiveOrder = pasteItemsForActiveOrder.length === 0 || pasteItemsForActiveOrder.every(isDone)
   const chemicalGroupBoards = group === CHEMICAL
     ? CHEMICAL_WEIGHING_GROUPS.map((config) => {
       const items = activeItems.filter((item) => getChemicalWeighingGroupKey(item) === config.key)
       const groupDoneCount = items.filter(isDone).length
-      const activeGroupItem = items.find((item) => !isDone(item))
+      const activeGroupItem = config.key === 'tin' && !pasteDoneForActiveOrder ? null : items.find((item) => !isDone(item))
       const hasStarted = items.some((item) => item.qrStatus || item.weighStatus || item.actualWeight)
       const status = !items.length
         ? 'Không có vật tư'
@@ -4649,6 +4768,24 @@ function WeighingPage({ data, setData, group, user }) {
         : board.key === chemicalScaleTab
     ))
     : []
+  const activeChemicalLineState = activeOrder ? getChemicalLineState(activeOrder) : null
+  const glueLineDone = activeChemicalLineState?.keoStatus === CHEMICAL_SUBGROUP_STATUS_DONE
+    || activeChemicalLineState?.keoStatus === CHEMICAL_SUBGROUP_STATUS_NOT_REQUIRED
+  const pasteTinLineDone = Boolean(activeChemicalLineState) && (
+    [activeChemicalLineState.pasteStatus, activeChemicalLineState.colorStatus].every((status) => (
+      status === CHEMICAL_SUBGROUP_STATUS_DONE
+      || status === CHEMICAL_SUBGROUP_STATUS_NOT_REQUIRED
+    ))
+  )
+  const activeChemicalLineDone = group === CHEMICAL && (
+    chemicalScaleMode === CHEMICAL_SCALE_MODE_GLUE ? glueLineDone : pasteTinLineDone
+  )
+  const activeChemicalMixCompleted = activeChemicalLineState?.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED
+  const canPrintChemicalMixQr = group === CHEMICAL
+    && chemicalScaleMode === CHEMICAL_SCALE_MODE_PASTE_TIN
+    && activeOrder
+    && activeChemicalMixCompleted
+  const showWeighedContainerQrSections = group !== CHEMICAL || chemicalScaleMode === CHEMICAL_SCALE_MODE_PASTE_TIN
   useEffect(() => {
     if (group === CHEMICAL && typeof localStorage !== 'undefined') {
       localStorage.setItem(CHEMICAL_SCALE_MODE_KEY, chemicalScaleMode)
@@ -4659,7 +4796,7 @@ function WeighingPage({ data, setData, group, user }) {
       setChemicalScaleTab('paste')
     }
   }, [chemicalScaleMode])
-  const canFinish = Boolean(activeOrder && activeItems.length && doneCount === activeItems.length)
+  const canFinish = group !== CHEMICAL && Boolean(activeOrder && activeItems.length && doneCount === activeItems.length)
   const activeWeighingType = activeOrder?.stage === 'supplement-weighing' ? 'Cân bổ sung QC thành phẩm' : 'Cân chính'
   const activeContainers = activeOrder ? getOrderGroupContainers(data.weighedContainers || [], activeOrder, activeWeighingType).filter((item) => item.materialGroup === group) : []
   const completedWeighingContainers = normalizeWeighedContainers(data.weighedContainers || []).filter((item) => item.materialGroup === group).reverse()
@@ -4852,11 +4989,72 @@ function WeighingPage({ data, setData, group, user }) {
   const handlePrintQr = (container) => {
     setPrintQrModal(container)
     setData((current) => addLogToData(current, `In QR hỗn hợp ${container.materialGroup} ${container.qrCode} cho lệnh ${container.orderCode}.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: assignmentStage, order: container.orderCode, result: 'In QR hỗn hợp' })))
+    if (container.materialGroup === CHEMICAL) {
+      const printedAt = nowText()
+      setData((current) => ({
+        ...current,
+        orders: current.orders.map((order) => (
+          order.id === container.orderId || order.orderCode === container.orderCode
+            ? {
+              ...order,
+              chemicalMixQrCode: order.chemicalMixQrCode || container.qrCode,
+              chemicalMixQrPrintedAt: printedAt,
+              chemicalMixQrPrintedBy: scaleWeighedBy,
+              chemicalMixQrPrintCount: num(order.chemicalMixQrPrintCount) + 1,
+            }
+            : order
+        )),
+      }))
+    }
     setTimeout(() => window.print(), 80)
   }
   const printSelectedContainer = (container) => {
     setData((current) => addLogToData(current, `In QR hỗn hợp ${container.materialGroup} ${container.qrCode} cho lệnh ${container.orderCode}.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: assignmentStage, order: container.orderCode, result: 'In QR hỗn hợp' })))
     setTimeout(() => window.print(), 50)
+  }
+
+  const printChemicalMixQr = () => {
+    if (!canPrintChemicalMixQr || !activeOrder) return
+    let printableContainer = null
+    const printedAt = nowText()
+    const printedBy = scaleWeighedBy
+    setData((current) => {
+      const sourceOrder = current.orders.find((item) => item.id === activeOrder.id) || activeOrder
+      const normalizedContainers = normalizeWeighedContainers(current.weighedContainers || [])
+      const existingContainer = findChemicalMixContainer(normalizedContainers, sourceOrder)
+      const qrCode = sourceOrder.chemicalMixQrCode || existingContainer?.qrCode || createContainerQrCode(CHEMICAL, normalizedContainers)
+      printableContainer = existingContainer
+        ? { ...existingContainer, qrCode, chemicalMixQrCode: qrCode, status: 'Đã in QR' }
+        : { ...buildChemicalMixContainer({ ...sourceOrder, chemicalMixQrCode: qrCode }, normalizedContainers), status: 'Đã in QR' }
+      const nextContainers = existingContainer
+        ? normalizedContainers.map((container) => container.containerId === existingContainer.containerId ? printableContainer : container)
+        : [...normalizedContainers, printableContainer]
+      const nextOrders = current.orders.map((item) => {
+        if (item.id !== sourceOrder.id) return item
+        const chemicalLineState = getChemicalLineState({ ...item, chemicalMixQrCode: qrCode })
+        return {
+          ...item,
+          ...chemicalLineState,
+          ChemicalCompleted: true,
+          chemicalStatus: 'Completed',
+          scaleStatus: { ...(item.scaleStatus || {}), chemical: 'Completed' },
+          chemicalMixQrCode: qrCode,
+          chemicalMixQrPrintedAt: printedAt,
+          chemicalMixQrPrintedBy: printedBy,
+          chemicalMixQrPrintCount: num(item.chemicalMixQrPrintCount) + 1,
+          updatedAt: printedAt,
+        }
+      })
+      return addLogToData({
+        ...current,
+        orders: nextOrders,
+        weighedContainers: nextContainers,
+      }, `In QR hỗn hợp Hóa ${qrCode} cho lệnh ${sourceOrder.id}.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: assignmentStage, order: sourceOrder, result: 'In QR hỗn hợp Hóa' }))
+    })
+    if (printableContainer) {
+      setPrintQrModal(printableContainer)
+      setTimeout(() => window.print(), 80)
+    }
   }
 
   const createDemoQrData = () => {
@@ -4887,7 +5085,25 @@ function WeighingPage({ data, setData, group, user }) {
         }
       }
       const apply = (rows) => rows.map((row) => row.id === item.id ? { ...row, ...patch } : row)
-      return { ...currentOrder, activeProductionFormula: apply(getEffectiveFormula(currentOrder)), qc1AdjustedFormula: currentOrder.qc1AdjustedFormula ? apply(currentOrder.qc1AdjustedFormula) : currentOrder.qc1AdjustedFormula, updatedAt: nowText() }
+      const activeProductionFormula = apply(getEffectiveFormula(currentOrder))
+      const nextOrder = {
+        ...currentOrder,
+        activeProductionFormula,
+        qc1AdjustedFormula: currentOrder.qc1AdjustedFormula ? apply(currentOrder.qc1AdjustedFormula) : currentOrder.qc1AdjustedFormula,
+        updatedAt: nowText(),
+      }
+      if (group !== CHEMICAL) return nextOrder
+      const chemicalLineState = getChemicalLineState(nextOrder)
+      return {
+        ...nextOrder,
+        ...chemicalLineState,
+        ChemicalCompleted: chemicalLineState.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED,
+        chemicalStatus: chemicalLineState.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED ? 'Completed' : 'Active',
+        scaleStatus: {
+          ...(nextOrder.scaleStatus || {}),
+          chemical: chemicalLineState.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED ? 'Completed' : 'Active',
+        },
+      }
     }), supplementalWeighing: (current.supplementalWeighing || []).map((ticket) => ticket.id === item.ticketId ? { ...ticket, items: getTicketItems(ticket).map((row) => row.id === item.id ? { ...row, ...patch } : row) } : ticket) }, log, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: assignmentStage, order, result: patch.weighStatus || patch.qrStatus || 'Cập nhật cân' }))
   })
 
@@ -4903,7 +5119,7 @@ function WeighingPage({ data, setData, group, user }) {
       && item.materialGroup === group
       && item.weighingType === weighingType
     ))
-    const groupContainer = !hasContainer && containerItems.length && containerItems.every(isDone)
+    const groupContainer = group !== CHEMICAL && !hasContainer && containerItems.length && containerItems.every(isDone)
       ? buildWeighedContainer(sourceOrder, group, containerItems, normalizedContainers, weighingType)
       : null
     const orders = current.orders.map((item) => {
@@ -4938,17 +5154,19 @@ function WeighingPage({ data, setData, group, user }) {
         }
       }
       const effective = getEffectiveFormula(item)
-      const chemDone = effective.filter((row) => row.materialGroup === CHEMICAL).every((row) => row.qrStatus === 'PASS' && row.weighStatus === 'PASS')
+      const chemicalLineState = getChemicalLineState(item)
+      const chemDone = chemicalLineState.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED
       const solidDone = effective.filter((row) => row.materialGroup === SOLID).every((row) => row.qrStatus === 'PASS' && row.weighStatus === 'PASS')
       const bothGroupsDone = chemDone && solidDone
       return {
         ...item,
+        ...chemicalLineState,
         ChemicalCompleted: chemDone,
         SolidCompleted: solidDone,
         ReadyMixing: bothGroupsDone,
         chemicalStatus: chemDone ? 'Completed' : item.chemicalStatus,
         solidStatus: solidDone ? 'Completed' : item.solidStatus,
-        scaleStatus: { chemical: chemDone ? 'Completed' : item.scaleStatus.chemical, solid: solidDone ? 'Completed' : item.scaleStatus.solid },
+        scaleStatus: { ...(item.scaleStatus || {}), chemical: chemDone ? 'Completed' : item.scaleStatus?.chemical, solid: solidDone ? 'Completed' : item.scaleStatus?.solid },
         stage: bothGroupsDone ? 'mixing' : item.stage,
         status: bothGroupsDone ? 'Sẵn sàng phối trộn' : 'Đang cân',
         updatedAt: nowText(),
@@ -4971,7 +5189,7 @@ function WeighingPage({ data, setData, group, user }) {
   })
 
   const startOrder = (order) => {
-    if (activeOrder && activeOrder.id !== order.id) {
+    if (activeOrder && activeOrder.id !== order.id && !(group === CHEMICAL && activeChemicalLineDone)) {
       setWarning('Đang có một lệnh cân. Vui lòng hoàn thành lệnh hiện tại trước.')
       return
     }
@@ -5032,8 +5250,9 @@ function WeighingPage({ data, setData, group, user }) {
             </div>
             <div className="action-row">
               {group !== CHEMICAL && <button className="secondary-button weighing-finish-button" type="button" onClick={connectScale}>Kết nối cân</button>}
-              <button className="secondary-button weighing-finish-button" onClick={createDemoQrData}>Tạo dữ liệu demo QR</button>
+              {group !== CHEMICAL && <button className="secondary-button weighing-finish-button" onClick={createDemoQrData}>Tạo dữ liệu demo QR</button>}
               {canFinish && <button className="primary-button weighing-finish-button" onClick={finishActiveOrder}>{group === CHEMICAL ? 'Hoàn thành cân hóa' : 'Hoàn thành cân rắn'}</button>}
+              {group === CHEMICAL && activeChemicalLineDone && <button className="secondary-button weighing-finish-button" type="button" onClick={() => setActiveOrderId('')}>Chọn lệnh khác</button>}
             </div>
           </div>
           {warning && <div className="process-alert">{warning}</div>}
@@ -5130,6 +5349,12 @@ function WeighingPage({ data, setData, group, user }) {
                 <div className="weighing-progress"><i style={{ width: `${progress}%` }} /></div>
                 <strong>{progress}%</strong>
               </div>
+              {group === CHEMICAL && chemicalScaleMode === CHEMICAL_SCALE_MODE_GLUE && activeChemicalLineDone && (
+                <div className="process-alert chemical-line-done">Keo đã hoàn thành</div>
+              )}
+              {group === CHEMICAL && chemicalScaleMode === CHEMICAL_SCALE_MODE_PASTE_TIN && (
+                <ChemicalMixSummary order={activeOrder} lineState={activeChemicalLineState} canPrint={canPrintChemicalMixQr} onPrint={printChemicalMixQr} />
+              )}
               {group === CHEMICAL ? (
                 <div className="chemical-weighing-groups">
                   {visibleChemicalBoards.map((board) => (
@@ -5141,16 +5366,16 @@ function WeighingPage({ data, setData, group, user }) {
                   <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
                 ))} empty={`Không có vật tư nhóm ${group}.`} />
               )}
-              {activeContainers.map((container) => <WeighedContainerCard key={container.containerId} container={container} onPrint={handlePrintQr} onDetail={handleViewWeighingDetail} />)}
+              {showWeighedContainerQrSections && activeContainers.map((container) => <WeighedContainerCard key={container.containerId} container={container} onPrint={handlePrintQr} onDetail={handleViewWeighingDetail} />)}
             </>
           )}
-          <section className="weighed-container-list">
+          {showWeighedContainerQrSections && <section className="weighed-container-list">
             <h3>Lệnh cân gần nhất</h3>
             {latestContainer
               ? <WeighedContainerCard container={latestContainer} title="Lệnh cân gần nhất" compact onPrint={handlePrintQr} onDetail={handleViewWeighingDetail} />
               : <p className="muted-text">Chưa có lệnh đã cân của tổ hiện tại.</p>}
-          </section>
-          <section className="weighed-container-list">
+          </section>}
+          {showWeighedContainerQrSections && <section className="weighed-container-list">
             <h3>Danh sách lệnh đã cân</h3>
             <SimpleTable
               tableClassName="weighed-container-history-table"
@@ -5175,7 +5400,7 @@ function WeighingPage({ data, setData, group, user }) {
               ))}
               empty="Chưa có lệnh đã cân của tổ hiện tại."
             />
-          </section>
+          </section>}
         </main>
       </section>
       {printQrModal && (
