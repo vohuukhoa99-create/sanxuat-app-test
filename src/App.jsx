@@ -9100,7 +9100,6 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   const isWeighingToolCatalog = storageKey === 'weighingToolCatalog'
   const weighingToolOptions = activeWeighingTools(data.weighingToolCatalog || [])
   const canImportMaterialCatalog = isMaterialCatalog && (canCreate || canEdit)
-  const isAdmin = user?.role === 'Admin'
   const materialQrCanvasId = (row) => `material-qr-${String(row.id || row.materialCode || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`
   const getMaterialQrCanvas = (row) => document.getElementById(`modal-${materialQrCanvasId(row)}`)
   const downloadMaterialQr = (row) => {
@@ -9248,19 +9247,11 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
       materialCatalog: normalizeMaterialCatalog((current.materialCatalog || []).map((row) => row.id === rowId ? { ...row, status } : row)),
     }))
   }
-  const permanentlyDeleteMaterial = (row) => {
-    if (!isAdmin || !isMaterialCatalog || !canDelete) return
-    if (materialHasUsage(data, row.materialCode)) {
-      setNotice('Vật tư đã phát sinh dữ liệu, không thể xóa cứng. Hãy chuyển trạng thái Ngưng sử dụng.')
-      return
-    }
-    setData((current) => ({
-      ...current,
-      materialCatalog: (current.materialCatalog || []).filter((item) => item.id !== row.id),
-    }))
-    setNotice(`Đã xóa vĩnh viễn vật tư ${row.materialCode}.`)
+  const toggleMaterialUsageStatus = (row) => {
+    if (!canEdit || !isMaterialCatalog) return
+    const currentStatus = normalizeMaterialCatalogItem(row)?.status || MATERIAL_STATUS_ACTIVE
+    updateMaterialStatus(row.id, currentStatus === MATERIAL_STATUS_INACTIVE ? MATERIAL_STATUS_ACTIVE : MATERIAL_STATUS_INACTIVE)
   }
-
   return (
     <div className="page-content">
       <section className="panel">
@@ -9300,7 +9291,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
                       ) : isMaterialCatalog && field === 'defaultWeighingToolCode' ? (
                         <select value={row[field] || ''} disabled={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)}>
                           <option value="">Tự động theo phân nhóm</option>
-                          {weighingToolOptions.map((tool) => <option key={tool.code} value={tool.code}>{tool.code} - {tool.name}</option>)}
+                          {weighingToolOptions.map((tool) => <option key={tool.code} value={tool.code} title={tool.name}>{tool.code}</option>)}
                         </select>
                       ) : isMaterialCatalog && field === 'status' ? (
                         <select value={normalizeMaterialCatalogItem(row)?.status || MATERIAL_STATUS_ACTIVE} disabled={!canEdit} onChange={(event) => updateMaterialStatus(row.id, event.target.value)}>
@@ -9329,10 +9320,9 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
                   <td data-label="Hành động">
                     {isMaterialCatalog ? (
                       <div className="material-admin-actions">
-                        {isAdmin && !materialHasUsage(data, row.materialCode) && (
-                          <button className="danger-button" type="button" disabled={!canDelete} onClick={() => permanentlyDeleteMaterial(row)}>Xóa vĩnh viễn</button>
-                        )}
-                        {(!isAdmin || materialHasUsage(data, row.materialCode)) && <span className="muted-text">-</span>}
+                        <button className={normalizeMaterialCatalogItem(row)?.status === MATERIAL_STATUS_INACTIVE ? 'secondary-button' : 'danger-button'} type="button" disabled={!canEdit} onClick={() => toggleMaterialUsageStatus(row)}>
+                          {normalizeMaterialCatalogItem(row)?.status === MATERIAL_STATUS_INACTIVE ? 'Khôi phục' : 'Ngưng dùng'}
+                        </button>
                       </div>
                     ) : (
                       <button className="danger-button" type="button" disabled={!canDelete} onClick={() => deleteRow(row.id)}>Xóa</button>
@@ -9857,7 +9847,7 @@ function App() {
     'admin-roles': <AdminPage authData={authData} setAuthData={setAuthData} section="roles" />,
     'admin-permissions': <AdminPage authData={authData} setAuthData={setAuthData} section="permissions" />,
     'admin-system-logs': <SystemLogsPage data={data} />,
-    'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'materialGroup', 'chemicalSubGroup', 'unit', 'defaultWeighingToolCode']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Phân nhóm', 'Đơn vị', 'Dụng cụ cân mặc định']} data={data} setData={setData} permissions={userPermissions} user={user} />,
+    'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'materialGroup', 'chemicalSubGroup', 'unit', 'defaultWeighingToolCode']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Phân nhóm', 'Đơn vị', 'Dụng cụ cân']} data={data} setData={setData} permissions={userPermissions} user={user} />,
     'master-weighing-tools': <MasterCatalogPage title="Danh mục dụng cụ cân" storageKey="weighingToolCatalog" permissionKey="material" fields={['code', 'name', 'type', 'tareWeightKg', 'maxLoadKg', 'applyFor', 'status']} labels={['Mã dụng cụ', 'Tên dụng cụ', 'Loại', 'Tare kg', 'Tải tối đa kg', 'Áp dụng cho', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
     'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'group', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
