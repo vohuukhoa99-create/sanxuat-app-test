@@ -12358,6 +12358,48 @@ body,
   margin: 8px 0;
 }
 
+.chemical-work-mode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0 10px;
+  padding: 8px;
+  border: 1px solid #dfe8e3;
+  border-radius: 8px;
+  background: #f8fbf9;
+}
+
+.chemical-mode-selector,
+.chemical-tab-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid #d5e1db;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.chemical-mode-selector button,
+.chemical-tab-selector button {
+  min-height: 28px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #345444;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chemical-mode-selector button.active,
+.chemical-tab-selector button.active {
+  background: #0f5132;
+  color: #ffffff;
+}
+
 .chemical-weighing-group {
   border: 1px solid #dfe8e3;
   border-radius: 8px;
@@ -12485,6 +12527,21 @@ body,
 .chemical-weighing-table td:nth-child(8) { width: 120px !important; }
 
 @media (max-width: 760px) {
+  .chemical-work-mode {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .chemical-mode-selector,
+  .chemical-tab-selector {
+    width: 100%;
+  }
+
+  .chemical-mode-selector button,
+  .chemical-tab-selector button {
+    flex: 1;
+  }
+
   .chemical-scale-note {
     grid-template-columns: 1fr;
   }

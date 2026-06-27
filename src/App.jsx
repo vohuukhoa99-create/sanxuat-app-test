@@ -37,11 +37,20 @@ const debugMode = false
 
 const CHEMICAL = 'Hóa'
 const SOLID = 'Rắn'
+const CHEMICAL_SCALE_MODE_KEY = 'chemicalScaleWorkMode'
+const CHEMICAL_SCALE_MODE_GLUE = 'glue'
+const CHEMICAL_SCALE_MODE_PASTE_TIN = 'paste-tin'
+const CHEMICAL_PASTE_TIN_TABS = ['paste', 'tin']
 const CHEMICAL_WEIGHING_GROUPS = [
   { key: 'glue', label: 'Cân Keo', lineLabel: 'Line Keo riêng', scaleLabel: 'Cân Keo' },
   { key: 'paste', label: 'Cân Paste', lineLabel: 'Khu Paste / Tin màu', scaleLabel: 'Cân Paste' },
   { key: 'tin', label: 'Cân Tin màu', lineLabel: 'Khu Paste / Tin màu', scaleLabel: 'Cân Tin màu' },
 ]
+function getStoredChemicalScaleMode() {
+  if (typeof localStorage === 'undefined') return CHEMICAL_SCALE_MODE_GLUE
+  const stored = localStorage.getItem(CHEMICAL_SCALE_MODE_KEY)
+  return [CHEMICAL_SCALE_MODE_GLUE, CHEMICAL_SCALE_MODE_PASTE_TIN].includes(stored) ? stored : CHEMICAL_SCALE_MODE_GLUE
+}
 function getChemicalWeighingGroupKey(item = {}) {
   const rawText = [
     item.materialCode,
@@ -4582,6 +4591,8 @@ function WeighingPage({ data, setData, group, user }) {
   const [warning, setWarning] = useState('')
   const [printQrModal, setPrintQrModal] = useState(null)
   const [weighingDetailModal, setWeighingDetailModal] = useState(null)
+  const [chemicalScaleMode, setChemicalScaleMode] = useState(getStoredChemicalScaleMode)
+  const [chemicalScaleTab, setChemicalScaleTab] = useState('paste')
   const [scaleStatus, setScaleStatus] = useState('Chưa kết nối cân')
   const [scaleRawText, setScaleRawText] = useState('')
   const [scaleRawValue, setScaleRawValue] = useState(null)
@@ -4607,7 +4618,10 @@ function WeighingPage({ data, setData, group, user }) {
   const scaleStableSampleCountRef = useRef(scaleStableSampleCount)
   const scaleToleranceKgRef = useRef(scaleToleranceKg)
   const activeOrder = pendingOrders.find((order) => order.id === activeOrderId)
-  const waitingOrders = pendingOrders.filter((order) => order.id !== activeOrder?.id && order.status === 'Chờ cân')
+  const waitingOrders = pendingOrders.filter((order) => (
+    order.id !== activeOrder?.id
+    && (group === CHEMICAL || order.status === 'Chờ cân')
+  ))
   const activeItems = activeOrder ? getItems(activeOrder) : []
   const doneCount = activeItems.filter(isDone).length
   const progress = activeItems.length ? Math.round((doneCount / activeItems.length) * 100) : 0
@@ -4628,6 +4642,23 @@ function WeighingPage({ data, setData, group, user }) {
       return { ...config, items, doneCount: groupDoneCount, activeItem: activeGroupItem, status }
     })
     : []
+  const visibleChemicalBoards = group === CHEMICAL
+    ? chemicalGroupBoards.filter((board) => (
+      chemicalScaleMode === CHEMICAL_SCALE_MODE_GLUE
+        ? board.key === 'glue'
+        : board.key === chemicalScaleTab
+    ))
+    : []
+  useEffect(() => {
+    if (group === CHEMICAL && typeof localStorage !== 'undefined') {
+      localStorage.setItem(CHEMICAL_SCALE_MODE_KEY, chemicalScaleMode)
+    }
+  }, [chemicalScaleMode, group])
+  useEffect(() => {
+    if (chemicalScaleMode === CHEMICAL_SCALE_MODE_GLUE) {
+      setChemicalScaleTab('paste')
+    }
+  }, [chemicalScaleMode])
   const canFinish = Boolean(activeOrder && activeItems.length && doneCount === activeItems.length)
   const activeWeighingType = activeOrder?.stage === 'supplement-weighing' ? 'Cân bổ sung QC thành phẩm' : 'Cân chính'
   const activeContainers = activeOrder ? getOrderGroupContainers(data.weighedContainers || [], activeOrder, activeWeighingType).filter((item) => item.materialGroup === group) : []
@@ -5010,6 +5041,45 @@ function WeighingPage({ data, setData, group, user }) {
             <strong>Phân công ca hiện tại:</strong> {currentAssignments.length ? currentAssignments.map((item) => `${formatAssignmentEmployees(item)} (${item.shiftCode}${item.productionTeamName ? ` - ${item.productionTeamName}` : ''})`).join(', ') : 'Chưa có phân công.'}
           </div>
           {group !== CHEMICAL && !scaleSupported && <div className="process-alert">Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.</div>}
+          {group === CHEMICAL && (
+            <div className="chemical-work-mode">
+              <div className="chemical-mode-selector" role="group" aria-label="Chọn mode cân hóa">
+                <button
+                  type="button"
+                  className={chemicalScaleMode === CHEMICAL_SCALE_MODE_GLUE ? 'active' : ''}
+                  onClick={() => setChemicalScaleMode(CHEMICAL_SCALE_MODE_GLUE)}
+                >
+                  Cân Keo
+                </button>
+                <button
+                  type="button"
+                  className={chemicalScaleMode === CHEMICAL_SCALE_MODE_PASTE_TIN ? 'active' : ''}
+                  onClick={() => setChemicalScaleMode(CHEMICAL_SCALE_MODE_PASTE_TIN)}
+                >
+                  Paste / Tin màu
+                </button>
+              </div>
+              {chemicalScaleMode === CHEMICAL_SCALE_MODE_PASTE_TIN && (
+                <div className="chemical-tab-selector" role="tablist" aria-label="Chọn khu cân Paste hoặc Tin màu">
+                  {CHEMICAL_PASTE_TIN_TABS.map((tabKey) => {
+                    const tabBoard = chemicalGroupBoards.find((board) => board.key === tabKey)
+                    return (
+                      <button
+                        key={tabKey}
+                        type="button"
+                        role="tab"
+                        aria-selected={chemicalScaleTab === tabKey}
+                        className={chemicalScaleTab === tabKey ? 'active' : ''}
+                        onClick={() => setChemicalScaleTab(tabKey)}
+                      >
+                        {tabBoard?.label || tabKey}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
           {group !== CHEMICAL && <div className="scale-serial-panel">
             <div><span>Trạng thái cân</span><strong>{scaleStatus}</strong></div>
             {debugMode && <div><span>COM Port</span><strong>{scalePortLabel}</strong></div>}
@@ -5062,7 +5132,7 @@ function WeighingPage({ data, setData, group, user }) {
               </div>
               {group === CHEMICAL ? (
                 <div className="chemical-weighing-groups">
-                  {chemicalGroupBoards.map((board) => (
+                  {visibleChemicalBoards.map((board) => (
                     <ChemicalWeighingGroupBoard key={board.key} board={board} activeOrder={activeOrder} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} setWarning={setWarning} scaleWeighedBy={scaleWeighedBy} />
                   ))}
                 </div>
