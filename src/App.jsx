@@ -5502,8 +5502,7 @@ function MixingPage({ data, setData, user }) {
                         <div className="mixing-scan-cell">
                           {chemicalScan.pass ? (
                             <>
-                              <span className="dispatch-badge ready">✓ Đã xác nhận</span>
-                              <small>{chemicalScan.container?.qrCode || chemicalScan.qrCode} · {kg(chemicalScan.container?.totalWeight || chemicalScan.container?.weight)} · {order.mixingQrConfirmation?.chemicalQrScannedAt || '-'}</small>
+                              <span className="weighing-check">✓ OK</span>
                             </>
                           ) : (
                             <>
@@ -5517,8 +5516,7 @@ function MixingPage({ data, setData, user }) {
                         <div className="mixing-scan-cell">
                           {solidScan.pass ? (
                             <>
-                              <span className="dispatch-badge ready">✓ Đã xác nhận</span>
-                              <small>{solidScan.container?.qrCode || solidScan.qrCode} · {kg(solidScan.container?.totalWeight || solidScan.container?.weight)} · {order.mixingQrConfirmation?.solidQrScannedAt || '-'}</small>
+                              <span className="weighing-check">✓ OK</span>
                             </>
                           ) : (
                             <>
