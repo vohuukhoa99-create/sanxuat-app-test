@@ -12352,34 +12352,43 @@ body,
   white-space: nowrap !important;
 }
 
-/* Mixing team layout: machine overview, ready orders, active machines. */
+/* Mixing team layout: machine status, ready orders, active machines. */
 .mixing-page-v2 {
   display: grid !important;
   grid-template-columns: 1fr !important;
   gap: 14px !important;
 }
 
-.mixing-overview-grid {
-  display: grid !important;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  gap: 14px !important;
-  align-items: stretch !important;
+.mixing-machine-table-wrapper {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
 }
 
-.mixing-overview-block {
-  min-width: 0 !important;
-  display: grid !important;
-  grid-template-rows: auto 1fr !important;
-  gap: 10px !important;
+.mixing-machine-table {
+  width: 100% !important;
+  min-width: 900px !important;
+  table-layout: fixed !important;
 }
 
-.mixing-overview-block h3,
+.mixing-machine-table th:nth-child(1),
+.mixing-machine-table td:nth-child(1) { width: 210px !important; }
+.mixing-machine-table th:nth-child(2),
+.mixing-machine-table td:nth-child(2) { width: 110px !important; }
+.mixing-machine-table th:nth-child(3),
+.mixing-machine-table td:nth-child(3) { width: 110px !important; }
+.mixing-machine-table th:nth-child(4),
+.mixing-machine-table td:nth-child(4) { width: 150px !important; }
+.mixing-machine-table th:nth-child(5),
+.mixing-machine-table td:nth-child(5) { width: 210px !important; }
+.mixing-machine-table th:nth-child(6),
+.mixing-machine-table td:nth-child(6) { width: 150px !important; }
+
 .mixing-ready-section h3,
 .mixing-active-section h3 {
   margin: 0 !important;
 }
 
-.mixing-overview-block .table-wrapper,
 .mixing-ready-section .ready-mixing-table-wrapper,
 .mixing-active-section .mixing-active-table-wrapper {
   width: 100% !important;
@@ -12423,7 +12432,7 @@ body,
 .ready-mixing-table th:nth-child(8),
 .ready-mixing-table td:nth-child(8) { width: 150px !important; }
 .ready-mixing-table th:nth-child(9),
-.ready-mixing-table td:nth-child(9) { width: 180px !important; }
+.ready-mixing-table td:nth-child(9) { width: 230px !important; }
 
 .ready-mixing-table select,
 .ready-mixing-table .mixing-qr-input {
@@ -12444,10 +12453,4 @@ body,
 
 .mixing-qr-fail-row {
   background: #fff1f2 !important;
-}
-
-@media (max-width: 1000px) {
-  .mixing-overview-grid {
-    grid-template-columns: 1fr !important;
-  }
 }

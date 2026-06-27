@@ -5110,6 +5110,10 @@ function MixingPage({ data, setData, user }) {
   const readyOrders = orders.filter((order) => getMixingDispatchState(order).canStart)
   const mixingHistory = orders.filter((order) => order.mixingStatus === 'completed' || order.mixing?.status === 'Completed' || order.mixingCompletedAt)
   const getMachineActiveOrder = (machineCode) => activeMixingOrders.find((order) => (order.mixingMachine || order.mixing?.machineCode) === machineCode)
+  const getAvailableMixingMachines = (currentMachineCode = '') => activeMachines.filter((machine) => {
+    const runningOrder = getMachineActiveOrder(machine.machineCode)
+    return !runningOrder || machine.machineCode === currentMachineCode
+  })
   const machineRows = activeMachines.map((machine) => {
     const activeOrder = getMachineActiveOrder(machine.machineCode)
     return { ...machine, status: activeOrder ? 'Đang chạy' : 'Rảnh', activeOrder }
@@ -5206,24 +5210,60 @@ function MixingPage({ data, setData, user }) {
       setWarning('Vui lòng nhập đầy đủ máy đề nghị, lý do đổi máy và người đề nghị.')
       return
     }
+    const nextMachine = getAvailableMixingMachines(changeRequestDraft.currentMachine).find((machine) => machine.machineCode === changeRequestDraft.requestedMachine)
+    if (!nextMachine) {
+      setWarning('Máy trộn mới không rảnh hoặc không ở trạng thái hoạt động.')
+      return
+    }
     const requestedAt = changeRequestDraft.requestedAt || nowText()
     setData((current) => addLogToData({
       ...current,
       orders: current.orders.map((item) => item.id === changeRequestDraft.orderId ? {
         ...item,
-        machineChangeRequest: {
-          requestedMachine: changeRequestDraft.requestedMachine,
-          currentMachine: changeRequestDraft.currentMachine,
-          reason: changeRequestDraft.reason.trim(),
-          status: 'PENDING',
-          requestedAt,
-          requestedBy: changeRequestDraft.requestedBy.trim(),
-        },
+        mixerMachine: nextMachine.machineCode,
+        assignedMixingMachine: nextMachine.machineCode,
+        assignedMachineCode: nextMachine.machineCode,
+        assignedMachineName: nextMachine.machineName,
+        assignedMachineCapacityKg: nextMachine.capacityKg,
+        assignedMachineMotorPower: nextMachine.motorPower,
+        assignedMachineDepartment: nextMachine.department || nextMachine.productionTeam,
+        machineChangeRequest: null,
+        machineChangeHistory: [
+          ...(item.machineChangeHistory || []),
+          {
+            id: uid('MCH'),
+            orderId: item.id,
+            orderCode: item.orderCode || item.id,
+            oldMachine: changeRequestDraft.currentMachine,
+            newMachine: nextMachine.machineCode,
+            requestedBy: changeRequestDraft.requestedBy.trim(),
+            requestedAt,
+            reason: changeRequestDraft.reason.trim(),
+            status: 'UPDATED',
+          },
+        ],
+        machineAssignmentHistory: [
+          ...(item.machineAssignmentHistory || []),
+          {
+            id: uid('MCH'),
+            orderId: item.id,
+            orderCode: item.orderCode || item.id,
+            lot: item.lot,
+            assignedMachine: nextMachine.machineCode,
+            performedMachine: item.mixingMachine || item.mixing?.machineCode || '',
+            changedBy: changeRequestDraft.requestedBy.trim(),
+            changedAt: requestedAt,
+            requestedBy: changeRequestDraft.requestedBy.trim(),
+            requestedAt,
+            reason: changeRequestDraft.reason.trim(),
+          },
+        ],
         updatedAt: requestedAt,
       } : item),
-    }, `Tổ phối trộn đề nghị đổi máy lệnh ${changeRequestDraft.orderCode} từ ${machineLabelByCode(changeRequestDraft.currentMachine)} sang ${machineLabelByCode(changeRequestDraft.requestedMachine)}. Lý do: ${changeRequestDraft.reason.trim()}`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: 'Phối trộn', order: changeRequestDraft.orderCode, result: 'Đề nghị đổi máy' })))
+    }, `Đổi máy trộn lệnh ${changeRequestDraft.orderCode}: ${machineLabelByCode(changeRequestDraft.currentMachine)} -> ${machineLabelByCode(nextMachine.machineCode)}. Người đề nghị: ${changeRequestDraft.requestedBy.trim()}. Lý do: ${changeRequestDraft.reason.trim()}`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: 'Phối trộn', order: changeRequestDraft.orderCode, result: 'Đổi máy trộn' })))
+    setMachineForms((current) => ({ ...current, [changeRequestDraft.orderId]: nextMachine.machineCode }))
     setChangeRequestDraft(null)
-    setWarning('Đã gửi đề nghị đổi máy, chờ Phòng SX/Admin xác nhận.')
+    setWarning('Đã cập nhật máy trộn được chọn và ghi lịch sử đổi máy.')
   }
   const startMixing = (order) => {
     const supplement = order.stage === 'mixing-supplement'
@@ -5321,56 +5361,36 @@ function MixingPage({ data, setData, user }) {
         <div className="process-alert assignment-context">
           <strong>Phân công ca hiện tại:</strong> {currentAssignments.length ? currentAssignments.map((item) => `${formatAssignmentEmployees(item)} (${item.shiftCode}${item.machineName ? ` - ${item.machineName}` : ''})`).join(', ') : 'Chưa có phân công.'}
         </div>
-        <div className="mixing-overview-grid">
-          <article className="mixing-overview-block">
-            <h3>Danh sách máy phối trộn / trạng thái máy</h3>
-            <div className="table-wrapper mixing-machine-table-wrapper">
-              <table className="mixing-machine-table">
-                <thead>
-                  <tr>
-                    <th>Máy</th>
-                    <th>Trạng thái</th>
-                    <th>Lệnh</th>
+        <h3>Tình trạng máy phối trộn</h3>
+        <div className="table-wrapper mixing-machine-table-wrapper">
+          <table className="mixing-machine-table">
+            <thead>
+              <tr>
+                <th>Máy</th>
+                <th>Công suất</th>
+                <th>Trạng thái</th>
+                <th>Lệnh hiện tại</th>
+                <th>Tiến độ</th>
+                <th>Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              {machineRows.map((machine) => {
+                const progress = machine.activeOrder ? getMixingProgress(machine.activeOrder) : 0
+                const supplement = machine.activeOrder?.stage === 'mixing-supplement' || machine.activeOrder?.mixing?.supplement
+                return (
+                  <tr key={machine.machineCode}>
+                    <td>{formatMixingMachineLabel(machine)}</td>
+                    <td>{formatMachineCapacityKg(machine.capacityKg)}</td>
+                    <td><span className={`dispatch-badge ${machine.activeOrder ? 'mixing' : 'ready'}`}>{machine.status}</span></td>
+                    <td>{machine.activeOrder ? (machine.activeOrder.orderCode || machine.activeOrder.id) : '-'}</td>
+                    <td><div className="mix-progress mixing-progress"><div className="mixing-progress-bar"><i style={{ width: `${progress}%` }} /></div><strong>{progress}%</strong></div></td>
+                    <td>{machine.activeOrder ? <button className="secondary-button" onClick={() => completeMixing(machine.activeOrder, supplement)}>{supplement ? 'Hoàn thành bổ sung' : 'Hoàn thành phối trộn'}</button> : '-'}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {machineRows.map((machine) => (
-                    <tr key={machine.machineCode}>
-                      <td>{formatMixingMachineLabel(machine)}</td>
-                      <td><span className={`dispatch-badge ${machine.activeOrder ? 'mixing' : 'ready'}`}>{machine.status}</span></td>
-                      <td>{machine.activeOrder ? (machine.activeOrder.orderCode || machine.activeOrder.id) : '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </article>
-          <article className="mixing-overview-block">
-            <h3>Tiến độ máy / tình trạng lệnh trên từng máy</h3>
-            <div className="table-wrapper mixing-machine-table-wrapper">
-              <table className="mixing-machine-table">
-                <thead>
-                  <tr>
-                    <th>Máy</th>
-                    <th>Lệnh hiện tại</th>
-                    <th>Tiến độ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {machineRows.map((machine) => {
-                    const progress = machine.activeOrder ? getMixingProgress(machine.activeOrder) : 0
-                    return (
-                      <tr key={`${machine.machineCode}-progress`}>
-                        <td>{machine.machineCode}</td>
-                        <td>{machine.activeOrder ? (machine.activeOrder.orderCode || machine.activeOrder.id) : 'Rảnh'}</td>
-                        <td><div className="mix-progress mixing-progress"><div className="mixing-progress-bar"><i style={{ width: `${progress}%` }} /></div><strong>{progress}%</strong></div></td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </article>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       </section>
       <section className="panel mixing-ready-section">
@@ -5414,14 +5434,14 @@ function MixingPage({ data, setData, user }) {
                         ) : (
                           <select value={assignedMachineCode} onChange={(event) => updateMachineForm(order.id, event.target.value)}>
                             <option value="">Chọn máy</option>
-                            {activeMachines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}
+                            {getAvailableMixingMachines().map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}
                           </select>
                         )}
                       </td>
                       <td><input className="mixing-qr-input qr-input" value={qrForm.chemicalQr} onChange={(event) => updateQrForm(order.id, 'chemicalQr', event.target.value)} /></td>
                       <td><input className="mixing-qr-input qr-input" value={qrForm.solidQr} onChange={(event) => updateQrForm(order.id, 'solidQr', event.target.value)} /></td>
                       <td><span className={`dispatch-badge ${qrConfirmed ? 'ready' : qrFailed ? 'fail' : 'waiting'}`}>{qrDisplayStatus}</span></td>
-                      <td><div className="mixing-row-actions"><button className="secondary-button confirm-qr-button" onClick={() => confirmMixingQr(order)}>Xác nhận QR</button>{getOrderAssignedMachineCode(order) && <button type="button" className="secondary-button" onClick={() => openMachineChangeRequest(order)}>Đề nghị đổi máy</button>}{pendingChange && <span className="dispatch-badge waiting">Chờ đổi máy</span>}<button className="primary-button start-mixing-button" disabled={!state.canStart || !qrConfirmed || qrFailed || !assignedMachineCode || pendingChange} onClick={() => startMixing(order)}>{supplement ? 'Bắt đầu bổ sung' : 'Bắt đầu phối trộn'}</button></div></td>
+                      <td><div className="mixing-row-actions"><button className="secondary-button confirm-qr-button" onClick={() => confirmMixingQr(order)}>Xác nhận QR</button><button type="button" className="secondary-button" onClick={() => openMachineChangeRequest(order)}>Đề nghị đổi máy trộn</button>{pendingChange && <span className="dispatch-badge waiting">Chờ đổi máy</span>}<button className="primary-button start-mixing-button" disabled={!state.canStart || !qrConfirmed || qrFailed || !assignedMachineCode || pendingChange} onClick={() => startMixing(order)}>{supplement ? 'Bắt đầu bổ sung' : 'Bắt đầu phối trộn'}</button></div></td>
                     </tr>
                   )
                 })}
@@ -5501,19 +5521,19 @@ function MixingPage({ data, setData, user }) {
         <div className="modal-backdrop" role="presentation">
           <div className="mixing-modal" role="dialog" aria-modal="true">
             <div className="modal-header">
-              <div><span className="section-kicker">Đề nghị đổi máy</span><h2>{changeRequestDraft.orderCode}</h2></div>
+              <div><span className="section-kicker">Đề nghị đổi máy trộn</span><h2>{changeRequestDraft.orderCode}</h2></div>
               <button type="button" className="icon-button" onClick={() => setChangeRequestDraft(null)} aria-label="Đóng">×</button>
             </div>
             <div className="production-form-grid order-create-form">
               <label>Máy hiện tại<input value={changeRequestDraft.currentMachine ? machineLabelByCode(changeRequestDraft.currentMachine) : 'Chưa được Phòng SX chỉ định máy'} disabled /></label>
-              <label>Máy đề nghị<select value={changeRequestDraft.requestedMachine} onChange={(event) => updateChangeRequestDraft('requestedMachine', event.target.value)}><option value="">Chọn máy</option>{activeMachines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}</select></label>
+              <label>Máy trộn mới<select value={changeRequestDraft.requestedMachine} onChange={(event) => updateChangeRequestDraft('requestedMachine', event.target.value)}><option value="">Chọn máy</option>{getAvailableMixingMachines(changeRequestDraft.currentMachine).map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}</select></label>
               <label>Người đề nghị<input value={changeRequestDraft.requestedBy} onChange={(event) => updateChangeRequestDraft('requestedBy', event.target.value)} /></label>
               <label>Thời gian đề nghị<input value={changeRequestDraft.requestedAt} disabled /></label>
               <label className="wide-field">Lý do đổi máy<textarea value={changeRequestDraft.reason} onChange={(event) => updateChangeRequestDraft('reason', event.target.value)} /></label>
             </div>
             <div className="modal-actions">
               <button type="button" className="secondary-button" onClick={() => setChangeRequestDraft(null)}>Hủy</button>
-              <button type="button" className="primary-button" onClick={submitMachineChangeRequest}>Gửi đề nghị</button>
+              <button type="button" className="primary-button" onClick={submitMachineChangeRequest}>Lưu đổi máy</button>
             </div>
           </div>
         </div>
