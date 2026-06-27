@@ -22,6 +22,7 @@ const WEIGHED_CONTAINERS_KEY = 'weighedContainers'
 const PACKING_LOGS_KEY = 'packingLogs'
 const FINISHED_GOODS_KEY = 'finishedGoods'
 const MATERIAL_CATALOG_KEY = 'materialCatalog'
+const WEIGHING_TOOL_CATALOG_KEY = 'weighingToolCatalog'
 const AUTH_KEY = 'sonhoabinh-v3-auth'
 const SESSION_KEY = 'sonhoabinh-v3-session'
 const SCALE_BAUD_RATE_KEY = 'scaleSerialBaudRate'
@@ -78,6 +79,21 @@ const MATERIAL_STATUS_ACTIVE = 'Hoạt động'
 const MATERIAL_STATUS_PAUSED = 'Tạm ngưng'
 const MATERIAL_STATUS_INACTIVE = 'Ngưng sử dụng'
 const materialStatuses = [MATERIAL_STATUS_ACTIVE, MATERIAL_STATUS_PAUSED, MATERIAL_STATUS_INACTIVE]
+const WEIGHING_TOOL_STATUS_ACTIVE = 'ACTIVE'
+const WEIGHING_TOOL_STATUS_INACTIVE = 'INACTIVE'
+const WEIGHING_TOOL_APPLY = {
+  GLUE: 'KEO',
+  PASTE: 'PASTE',
+  TIN: 'TIN_MAU',
+  SOLID: 'RAN',
+}
+const defaultWeighingTools = [
+  { id: 'WT-KEO-30L', code: 'DC-KEO-30L', name: 'Xô/thùng keo 30L', type: 'Thùng', tareWeightKg: 1.62, maxLoadKg: 35, applyFor: WEIGHING_TOOL_APPLY.GLUE, status: WEIGHING_TOOL_STATUS_ACTIVE },
+  { id: 'WT-PASTE-20L', code: 'DC-PASTE-20L', name: 'Thùng Paste 20L', type: 'Thùng', tareWeightKg: 1.215, maxLoadKg: 25, applyFor: WEIGHING_TOOL_APPLY.PASTE, status: WEIGHING_TOOL_STATUS_ACTIVE },
+  { id: 'WT-TIN-2L', code: 'DC-TIN-2L', name: 'Lon Tin màu 2L', type: 'Lon', tareWeightKg: 0.485, maxLoadKg: 3, applyFor: WEIGHING_TOOL_APPLY.TIN, status: WEIGHING_TOOL_STATUS_ACTIVE },
+  { id: 'WT-TIN-5L', code: 'DC-TIN-5L', name: 'Lon Tin màu 5L', type: 'Lon', tareWeightKg: 0.732, maxLoadKg: 8, applyFor: WEIGHING_TOOL_APPLY.TIN, status: WEIGHING_TOOL_STATUS_ACTIVE },
+  { id: 'WT-RAN-KHAY', code: 'DC-RAN-KHAY', name: 'Khay/Inox cân rắn', type: 'Khay', tareWeightKg: 0.38, maxLoadKg: 10, applyFor: WEIGHING_TOOL_APPLY.SOLID, status: WEIGHING_TOOL_STATUS_ACTIVE },
+]
 const nonEmptyArray = (...items) => items.find((item) => Array.isArray(item) && item.length > 0) || []
 const nowText = () => new Date().toISOString().slice(0, 16).replace('T', ' ')
 const todayText = () => new Date().toISOString().slice(0, 10)
@@ -626,6 +642,7 @@ function normalizeMaterialCatalogItem(item = {}) {
     materialGroup: String(item.materialGroup || item.group || item['Nhóm vật tư'] || item['Nhom vat tu'] || item['Nhóm'] || item['Nhom'] || CHEMICAL).trim(),
     unit: String(item.unit || item['Đơn vị tính'] || item['Don vi tinh'] || item['Đơn vị'] || item['Don vi'] || 'kg').trim(),
     manufacturer: String(item.manufacturer || item.maker || item.supplier || getCatalogCell(item, ['Nhà sản xuất', 'Nha san xuat']) || '').trim(),
+    defaultWeighingToolCode: String(item.defaultWeighingToolCode || getCatalogCell(item, ['Dụng cụ cân mặc định', 'Dung cu can mac dinh']) || '').trim(),
     status,
   }
 }
@@ -641,6 +658,45 @@ function normalizeMaterialCatalog(items = []) {
   return Array.from(byCode.values()).sort((a, b) => a.materialCode.localeCompare(b.materialCode, 'vi', { numeric: true }))
 }
 const activeMaterialCatalog = (items = []) => normalizeMaterialCatalog(items).filter((item) => item.status === MATERIAL_STATUS_ACTIVE)
+function getWeighingToolApplyForItem(item = {}) {
+  if (item.materialGroup === SOLID) return WEIGHING_TOOL_APPLY.SOLID
+  const groupKey = getChemicalWeighingGroupKey(item)
+  if (groupKey === 'paste') return WEIGHING_TOOL_APPLY.PASTE
+  if (groupKey === 'tin') return WEIGHING_TOOL_APPLY.TIN
+  return WEIGHING_TOOL_APPLY.GLUE
+}
+function defaultWeighingToolCodeForItem(item = {}) {
+  const applyFor = getWeighingToolApplyForItem(item)
+  if (applyFor === WEIGHING_TOOL_APPLY.PASTE) return 'DC-PASTE-20L'
+  if (applyFor === WEIGHING_TOOL_APPLY.TIN) return 'DC-TIN-2L'
+  if (applyFor === WEIGHING_TOOL_APPLY.SOLID) return 'DC-RAN-KHAY'
+  return 'DC-KEO-30L'
+}
+function normalizeWeighingToolCatalog(items = []) {
+  const byCode = new Map()
+  ;[...defaultWeighingTools, ...(items || [])].forEach((item) => {
+    const code = String(item.code || item.toolCode || '').trim()
+    if (!code) return
+    byCode.set(code.toUpperCase(), {
+      id: item.id || `WT-${code}`,
+      code,
+      name: String(item.name || item.toolName || code).trim(),
+      type: String(item.type || '').trim(),
+      tareWeightKg: Number(num(item.tareWeightKg).toFixed(3)),
+      maxLoadKg: Number(num(item.maxLoadKg).toFixed(3)),
+      applyFor: String(item.applyFor || '').trim().toUpperCase(),
+      status: item.status === WEIGHING_TOOL_STATUS_INACTIVE ? WEIGHING_TOOL_STATUS_INACTIVE : WEIGHING_TOOL_STATUS_ACTIVE,
+    })
+  })
+  return Array.from(byCode.values()).sort((a, b) => a.code.localeCompare(b.code, 'vi', { numeric: true }))
+}
+const activeWeighingTools = (items = []) => normalizeWeighingToolCatalog(items).filter((item) => item.status === WEIGHING_TOOL_STATUS_ACTIVE)
+function applyDefaultWeighingToolToMaterials(items = []) {
+  return normalizeMaterialCatalog(items).map((item) => ({
+    ...item,
+    defaultWeighingToolCode: item.defaultWeighingToolCode || defaultWeighingToolCodeForItem(item),
+  }))
+}
 const materialHasUsage = (data = {}, materialCode = '') => {
   const code = String(materialCode || '').trim()
   if (!code) return false
@@ -668,11 +724,11 @@ const materialHasUsage = (data = {}, materialCode = '') => {
 function deriveMaterialCatalog(data = {}) {
   const fromFormulas = (data.formulas || []).flatMap((formula) => formula.items || [])
   const fromRawMaterials = normalizeRawMaterialLots(data.rawMaterials || [])
-  return normalizeMaterialCatalog([...fromFormulas, ...fromRawMaterials, ...(data.materialCatalog || [])])
+  return applyDefaultWeighingToolToMaterials([...fromFormulas, ...fromRawMaterials, ...(data.materialCatalog || [])])
 }
 
 function mergeMaterialCatalog(current = [], incoming = []) {
-  return normalizeMaterialCatalog([...current, ...incoming])
+  return applyDefaultWeighingToolToMaterials([...current, ...incoming])
 }
 
 function parseRawMaterialQr(value) {
@@ -1133,6 +1189,7 @@ const initialData = {
   qc2AdjustmentTickets: [],
   supplementalWeighing: [],
   weighedContainers: [],
+  weighingToolCatalog: defaultWeighingTools,
   stockTransactions: [],
   packingLogs: [],
   finishedGoods: [],
@@ -1847,6 +1904,11 @@ function buildWeighedContainer(order, group, items, containers = [], weighingTyp
     materialGroup: item.materialGroup,
     requiredKg: num(item.requiredKg),
     actualWeight: num(item.actualWeight || item.requiredKg),
+    weighingToolCode: item.weighingToolCode || '',
+    weighingToolName: item.weighingToolName || '',
+    tareWeightKg: num(item.tareWeightKg),
+    grossWeightKg: item.grossWeightKg == null ? '' : num(item.grossWeightKg),
+    netWeightKg: item.netWeightKg == null ? num(item.actualWeight || item.requiredKg) : num(item.netWeightKg),
     qrScanned: item.qrScanned || '',
     qrStatus: item.qrStatus || '',
     qrMatchStatus: item.qrMatchStatus || '',
@@ -4570,7 +4632,7 @@ function FinishedProductQcPage({ data, setData, user }) {
   )
 }
 
-function ChemicalWeighingGroupBoard({ board, activeOrder, updateWeight, rawMaterialLots, setWarning, scaleWeighedBy }) {
+function ChemicalWeighingGroupBoard({ board, activeOrder, updateWeight, rawMaterialLots, materialCatalog, weighingTools, setWarning, scaleWeighedBy }) {
   const scaleSession = useScaleSerialSession(`chemical-${board.key}`, setWarning)
   const scaleStabilityStatus = scaleSession.scaleStableWeightKg == null ? 'Đang dao động' : 'Đã ổn định'
   return (
@@ -4630,7 +4692,7 @@ function ChemicalWeighingGroupBoard({ board, activeOrder, updateWeight, rawMater
         tableClassName="chemical-weighing-table"
         headers={['STT', 'Mã vật tư', 'KL cần cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái']}
         rows={board.items.map((item, index) => (
-          <WeighingRow key={`${activeOrder.id}-${board.key}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === board.activeItem?.id} updateWeight={updateWeight} rawMaterialLots={rawMaterialLots} scaleType={`chemical-${board.key}`} setWarning={setWarning} scaleWeightKg={scaleSession.scaleWeightKg} scaleStableWeightKg={scaleSession.scaleStableWeightKg} scaleStable={scaleSession.scaleStableWeightKg != null} scaleRawData={scaleSession.scaleRawText} scaleRawValue={scaleSession.scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
+          <WeighingRow key={`${activeOrder.id}-${board.key}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === board.activeItem?.id} updateWeight={updateWeight} rawMaterialLots={rawMaterialLots} materialCatalog={materialCatalog} weighingTools={weighingTools} scaleType={`chemical-${board.key}`} setWarning={setWarning} scaleWeightKg={scaleSession.scaleWeightKg} scaleStableWeightKg={scaleSession.scaleStableWeightKg} scaleStable={scaleSession.scaleStableWeightKg != null} scaleRawData={scaleSession.scaleRawText} scaleRawValue={scaleSession.scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
         ))}
         empty={`Không có vật tư thuộc ${board.label}.`}
       />
@@ -4800,6 +4862,8 @@ function WeighingPage({ data, setData, group, user }) {
   const activeWeighingType = activeOrder?.stage === 'supplement-weighing' ? 'Cân bổ sung QC thành phẩm' : 'Cân chính'
   const activeContainers = activeOrder ? getOrderGroupContainers(data.weighedContainers || [], activeOrder, activeWeighingType).filter((item) => item.materialGroup === group) : []
   const completedWeighingContainers = normalizeWeighedContainers(data.weighedContainers || []).filter((item) => item.materialGroup === group).reverse()
+  const materialCatalog = deriveMaterialCatalog(data)
+  const weighingTools = activeWeighingTools(data.weighingToolCatalog || [])
   const latestContainer = completedWeighingContainers[0]
   const assignmentStage = group === CHEMICAL ? 'Cân hóa' : 'Cân rắn'
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], assignmentStage)
@@ -5358,12 +5422,12 @@ function WeighingPage({ data, setData, group, user }) {
               {group === CHEMICAL ? (
                 <div className="chemical-weighing-groups">
                   {visibleChemicalBoards.map((board) => (
-                    <ChemicalWeighingGroupBoard key={board.key} board={board} activeOrder={activeOrder} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} setWarning={setWarning} scaleWeighedBy={scaleWeighedBy} />
+                    <ChemicalWeighingGroupBoard key={board.key} board={board} activeOrder={activeOrder} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} materialCatalog={materialCatalog} weighingTools={weighingTools} setWarning={setWarning} scaleWeighedBy={scaleWeighedBy} />
                   ))}
                 </div>
               ) : (
                 <SimpleTable headers={['STT', 'Mã vật tư', 'KL cần cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái']} rows={activeItems.map((item, index) => (
-                  <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
+                  <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} materialCatalog={materialCatalog} weighingTools={weighingTools} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
                 ))} empty={`Không có vật tư nhóm ${group}.`} />
               )}
               {showWeighedContainerQrSections && activeContainers.map((container) => <WeighedContainerCard key={container.containerId} container={container} onPrint={handlePrintQr} onDetail={handleViewWeighingDetail} />)}
@@ -5528,9 +5592,17 @@ function WeighingOrderGroup({ title, orders, activeId, onStart, showStart = fals
   )
 }
 
-function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots = [], scaleType, setWarning, scaleWeightKg = null, scaleStableWeightKg = null, scaleStable = false, scaleRawData = '', scaleRawValue = null, scaleWeighedBy = '' }) {
+function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots = [], materialCatalog = [], weighingTools = [], scaleType, setWarning, scaleWeightKg = null, scaleStableWeightKg = null, scaleStable = false, scaleRawData = '', scaleRawValue = null, scaleWeighedBy = '' }) {
   const [qrInput, setQrInput] = useState(item.qrScanned || '')
   const [qrScanError, setQrScanError] = useState('')
+  const catalogMaterial = materialCatalog.find((row) => normalizeCode(row.materialCode) === normalizeCode(item.materialCode))
+  const applyFor = getWeighingToolApplyForItem(item)
+  const availableTools = weighingTools.filter((tool) => tool.applyFor === applyFor)
+  const initialToolCode = item.weighingToolCode || catalogMaterial?.defaultWeighingToolCode || defaultWeighingToolCodeForItem(item)
+  const [selectedToolCode, setSelectedToolCode] = useState(initialToolCode)
+  useEffect(() => {
+    if (!item.weighingToolCode) setSelectedToolCode(initialToolCode)
+  }, [initialToolCode, item.weighingToolCode])
   const qrInputRef = useRef(null)
   const qrPassed = item.qrStatus === 'PASS'
   const qrFailed = Boolean(qrScanError) || item.qrStatus === 'FAIL'
@@ -5540,6 +5612,15 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
   const hasTolerance = hasFormulaTolerance(item)
   const toleranceKg = hasTolerance ? Number(item.toleranceKg ?? item.tolerance) : ''
   const actual = item.actualWeight === '' || item.actualWeight == null ? '' : num(item.actualWeight)
+  const selectedTool = availableTools.find((tool) => tool.code === selectedToolCode)
+    || weighingTools.find((tool) => tool.code === selectedToolCode)
+    || null
+  const tareWeightKg = selectedTool ? num(selectedTool.tareWeightKg) : 0
+  const currentGrossWeightKg = scaleWeightKg == null ? null : num(scaleWeightKg)
+  const currentNetWeightKg = currentGrossWeightKg == null ? null : Math.max(0, Number((currentGrossWeightKg - tareWeightKg).toFixed(3)))
+  const stableGrossWeightKg = scaleStableWeightKg == null ? null : num(scaleStableWeightKg)
+  const stableNetWeightKg = stableGrossWeightKg == null ? null : Math.max(0, Number((stableGrossWeightKg - tareWeightKg).toFixed(3)))
+  const tareNotExceeded = active && qrPassed && !weightPassed && currentGrossWeightKg != null && selectedTool && currentNetWeightKg === 0 && currentGrossWeightKg < tareWeightKg
   const selectedLot = rawMaterialLots.find((lot) => lot.lotCode === item.rawMaterialLotCode && lot.materialCode === item.materialCode)
   const remainingBefore = item.rawMaterialRemainingBefore ?? selectedLot?.remainingQty
   const materialStockQty = rawMaterialLots
@@ -5587,21 +5668,30 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
   const handleQrScanBlur = (event) => {
     if (event.currentTarget.value.trim()) confirmQr(event.currentTarget.value)
   }
-  const confirmWeight = (overrideWeight = null) => {
+  const confirmWeight = (grossWeight = null, netWeight = null) => {
     if (!active || weightPassed) return
     if (!qrPassed || (!item.rawMaterialLotCode && !item.materialQrOnly)) {
       setWarning?.('Vui lòng quét QR lô nguyên liệu hợp lệ trước khi cân.')
       return
     }
-    if (overrideWeight == null) {
+    if (!selectedTool) {
+      setWarning?.('Vui lòng chọn dụng cụ cân.')
+      return
+    }
+    if (grossWeight == null || netWeight == null) {
       setWarning?.('Vui lòng chờ trọng lượng ổn định trước khi xác nhận cân.')
+      return
+    }
+    if (netWeight <= 0) {
+      setWarning?.('Khối lượng chưa vượt trọng lượng bì')
       return
     }
     if (!hasTolerance) {
       setWarning?.('Chưa có dung sai')
       return
     }
-    const actualWeight = num(overrideWeight)
+    const grossWeightKg = num(grossWeight)
+    const actualWeight = num(netWeight)
     const lot = rawMaterialLots.find((row) => row.lotCode === item.rawMaterialLotCode && row.materialCode === item.materialCode)
     const confirmedAt = nowText()
     const scaleAudit = {
@@ -5613,6 +5703,12 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       rawData: scaleRawData || '',
       rawValue: scaleRawValue,
       unit: 'kg',
+      confirmedBy: scaleWeighedBy,
+      weighingToolCode: selectedTool.code,
+      weighingToolName: selectedTool.name,
+      tareWeightKg,
+      grossWeightKg,
+      netWeightKg: actualWeight,
     }
     if (item.materialQrOnly) {
       const pass = Math.abs(actualWeight - num(item.requiredKg)) <= toleranceKg
@@ -5667,11 +5763,19 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
     })
   }
   const confirmStableWeight = () => {
-    if (!scaleStable || scaleStableWeightKg == null) {
+    if (!selectedTool) {
+      setWarning?.('Vui lòng chọn dụng cụ cân.')
+      return
+    }
+    if (!scaleStable || scaleStableWeightKg == null || stableNetWeightKg == null) {
       setWarning?.('Vui lòng chờ trọng lượng ổn định trước khi xác nhận cân.')
       return
     }
-    confirmWeight(scaleStableWeightKg)
+    if (stableNetWeightKg <= 0) {
+      setWarning?.('Khối lượng chưa vượt trọng lượng bì')
+      return
+    }
+    confirmWeight(scaleStableWeightKg, stableNetWeightKg)
   }
   return (
     <tr className={`${active ? 'weighing-active-row' : ''} ${completed ? 'weighing-completed-row' : ''} ${weightFailed || (qrPassed && !hasTolerance) ? 'weighing-weight-fail-row' : ''} ${qrPassed ? 'weighing-qr-pass-row' : ''} ${qrFailed ? 'weighing-qr-fail-row' : ''}`}>
@@ -5692,7 +5796,24 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
         )}
       </td>
       <td>{stockDisplay === '' || stockDisplay == null ? '-' : formatKg(stockDisplay)}</td>
-      <td>{active && qrPassed && !weightPassed ? <div className="weighing-inline-action"><span className="scale-current-weight">{formatScaleWeight(scaleWeightKg, scaleType)}</span><button className="primary-button" disabled={!scaleStable || scaleStableWeightKg == null} onClick={confirmStableWeight}>✓ Xác nhận</button></div> : actual === '' ? '-' : <div className="weighing-inline-action confirmed"><span className="scale-current-weight">{formatScaleWeight(actual, scaleType)}</span><span className="weighing-check">✓ Đã xác nhận</span></div>}</td>
+      <td>{active && qrPassed && !weightPassed ? (
+        <div className="weighing-tool-panel">
+          <label>
+            <span>Dụng cụ cân</span>
+            <select value={selectedToolCode} onChange={(event) => setSelectedToolCode(event.target.value)}>
+              <option value="">Chọn dụng cụ</option>
+              {availableTools.map((tool) => <option key={tool.code} value={tool.code}>{tool.code} - {tool.name}</option>)}
+            </select>
+          </label>
+          <div className="weighing-tool-values">
+            <span>Tare <strong>{selectedTool ? formatKg(tareWeightKg) : '-'}</strong></span>
+            <span>Gross <strong>{formatScaleWeight(currentGrossWeightKg, scaleType)}</strong></span>
+            <span>Net <strong>{currentNetWeightKg == null ? '-' : formatKg(currentNetWeightKg)}</strong></span>
+          </div>
+          {tareNotExceeded && <span className="qr-inline-error">Khối lượng chưa vượt trọng lượng bì</span>}
+          <button className="primary-button" disabled={!selectedTool || !scaleStable || stableNetWeightKg == null || stableNetWeightKg <= 0} onClick={confirmStableWeight}>✓ Xác nhận</button>
+        </div>
+      ) : actual === '' ? '-' : <div className="weighing-inline-action confirmed"><span className="scale-current-weight">{formatScaleWeight(actual, scaleType)}</span><span className="weighing-check">✓ Đã xác nhận</span></div>}</td>
       <td>{completed ? <span className="weighing-check">Đạt</span> : weightFailed ? <span className="weighing-fail">Ngoài dung sai</span> : qrFailed ? <span className="weighing-fail">Sai QR</span> : qrPassed && !hasTolerance ? <span className="weighing-fail">Chưa có dung sai</span> : qrPassed ? <span className="weighing-check">Chờ cân</span> : active ? 'Đang thao tác' : '-'}</td>
     </tr>
   )
@@ -8909,7 +9030,7 @@ function LegacyProductionAssignmentPage({ data, setData, user, permissions = [] 
 }
 
 function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, permissions = [], permissionKey, user }) {
-  const rows = data[storageKey] || []
+  const rows = storageKey === 'weighingToolCatalog' ? normalizeWeighingToolCatalog(data[storageKey] || []) : (data[storageKey] || [])
   const key = permissionKey || storageKey.replace('Catalog', '')
   const canCreate = hasPermission(permissions, `master.${key}.create`)
   const canEdit = hasPermission(permissions, `master.${key}.edit`)
@@ -8918,6 +9039,8 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   const [notice, setNotice] = useState('')
   const [materialQrModal, setMaterialQrModal] = useState(null)
   const isMaterialCatalog = storageKey === 'materialCatalog'
+  const isWeighingToolCatalog = storageKey === 'weighingToolCatalog'
+  const weighingToolOptions = activeWeighingTools(data.weighingToolCatalog || [])
   const canImportMaterialCatalog = isMaterialCatalog && (canCreate || canEdit)
   const isAdmin = user?.role === 'Admin'
   const materialQrCanvasId = (row) => `material-qr-${String(row.id || row.materialCode || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`
@@ -9026,6 +9149,12 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
       if (next[field] == null) next[field] = ''
     })
     if (isMaterialCatalog) next.status = MATERIAL_STATUS_ACTIVE
+    if (isWeighingToolCatalog) {
+      next.status = WEIGHING_TOOL_STATUS_ACTIVE
+      next.applyFor = WEIGHING_TOOL_APPLY.GLUE
+      next.tareWeightKg = 0
+      next.maxLoadKg = 0
+    }
     setData((current) => ({ ...current, [storageKey]: [next, ...(current[storageKey] || [])] }))
   }
   const deleteRow = (rowId) => {
@@ -9083,12 +9212,25 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
                 <tr key={row.id}>
                   {fields.map((field, index) => (
                     <td key={field} data-label={labels[index]}>
-                      {isMaterialCatalog && field === 'status' ? (
+                      {isMaterialCatalog && field === 'defaultWeighingToolCode' ? (
+                        <select value={row[field] || ''} disabled={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)}>
+                          <option value="">Tự động theo phân nhóm</option>
+                          {weighingToolOptions.map((tool) => <option key={tool.code} value={tool.code}>{tool.code} - {tool.name}</option>)}
+                        </select>
+                      ) : isMaterialCatalog && field === 'status' ? (
                         <select value={normalizeMaterialCatalogItem(row)?.status || MATERIAL_STATUS_ACTIVE} disabled={!canEdit} onChange={(event) => updateMaterialStatus(row.id, event.target.value)}>
                           {materialStatuses.map((status) => <option key={status}>{status}</option>)}
                         </select>
+                      ) : isWeighingToolCatalog && field === 'status' ? (
+                        <select value={row.status || WEIGHING_TOOL_STATUS_ACTIVE} disabled={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)}>
+                          {[WEIGHING_TOOL_STATUS_ACTIVE, WEIGHING_TOOL_STATUS_INACTIVE].map((status) => <option key={status}>{status}</option>)}
+                        </select>
+                      ) : isWeighingToolCatalog && field === 'applyFor' ? (
+                        <select value={row.applyFor || WEIGHING_TOOL_APPLY.GLUE} disabled={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)}>
+                          {Object.values(WEIGHING_TOOL_APPLY).map((applyFor) => <option key={applyFor}>{applyFor}</option>)}
+                        </select>
                       ) : (
-                        <input value={row[field] || ''} readOnly={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)} />
+                        <input type={['tareWeightKg', 'maxLoadKg'].includes(field) ? 'number' : 'text'} step={['tareWeightKg', 'maxLoadKg'].includes(field) ? '0.001' : undefined} value={row[field] || ''} readOnly={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)} />
                       )}
                     </td>
                   ))}
@@ -9473,6 +9615,7 @@ const pageMeta = {
   'admin-permissions': ['Ma trận phân quyền', 'Phân quyền chi tiết theo chức năng'],
   'admin-system-logs': ['Nhật ký hệ thống', 'Truy xuất nhật ký thao tác theo người dùng, nhân viên và công đoạn'],
   'master-materials': ['Danh mục vật tư', 'Dữ liệu gốc vật tư dùng trong sản xuất'],
+  'master-weighing-tools': ['Danh mục dụng cụ cân', 'Dụng cụ cân và trọng lượng bì dùng khi cân vật tư'],
   'master-products': ['Danh mục sản phẩm', 'Dữ liệu gốc sản phẩm'],
   'master-suppliers': ['Danh mục nhà cung cấp', 'Dữ liệu gốc nhà cung cấp'],
   'master-customers': ['Danh mục khách hàng', 'Dữ liệu gốc khách hàng'],
@@ -9495,6 +9638,7 @@ function App() {
     const weighedContainers = normalizeWeighedContainers(nonEmptyArray(loadStored(WEIGHED_CONTAINERS_KEY, null), saved.weighedContainers))
     const packingLogs = nonEmptyArray(loadStored(PACKING_LOGS_KEY, null), saved.packingLogs)
     const finishedGoods = normalizeFinishedGoodsData(nonEmptyArray(loadStored(FINISHED_GOODS_KEY, null), saved.finishedGoods))
+    const weighingToolCatalog = normalizeWeighingToolCatalog(nonEmptyArray(loadStored(WEIGHING_TOOL_CATALOG_KEY, null), saved.weighingToolCatalog, seed.weighingToolCatalog))
     const rawMaterials = normalizeRawMaterialLots(nonEmptyArray(saved.rawMaterials, seed.rawMaterials))
     const materialCatalog = deriveMaterialCatalog({
       formulas,
@@ -9517,6 +9661,7 @@ function App() {
       qc2AdjustmentTickets,
       supplementalWeighing,
       weighedContainers,
+      weighingToolCatalog,
       packingLogs,
       finishedGoods,
       rawMaterials,
@@ -9554,6 +9699,7 @@ function App() {
     localStorage.setItem(WEIGHED_CONTAINERS_KEY, JSON.stringify(normalizeWeighedContainers(data.weighedContainers || [])))
     localStorage.setItem(PACKING_LOGS_KEY, JSON.stringify(data.packingLogs || []))
     localStorage.setItem(FINISHED_GOODS_KEY, JSON.stringify(normalizeFinishedGoodsData(data.finishedGoods || [])))
+    localStorage.setItem(WEIGHING_TOOL_CATALOG_KEY, JSON.stringify(normalizeWeighingToolCatalog(data.weighingToolCatalog || [])))
     localStorage.setItem(MATERIAL_CATALOG_KEY, JSON.stringify(deriveMaterialCatalog(data)))
     localStorage.setItem(DATA_KEY, JSON.stringify({ ...data, materialCatalog: deriveMaterialCatalog(data), rawMaterials: normalizeRawMaterialLots(data.rawMaterials || []), orders, productionOrders: orders }))
   }, [data])
@@ -9626,7 +9772,8 @@ function App() {
     'admin-roles': <AdminPage authData={authData} setAuthData={setAuthData} section="roles" />,
     'admin-permissions': <AdminPage authData={authData} setAuthData={setAuthData} section="permissions" />,
     'admin-system-logs': <SystemLogsPage data={data} />,
-    'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'materialGroup', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} user={user} />,
+    'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'materialGroup', 'unit', 'defaultWeighingToolCode']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Đơn vị', 'Dụng cụ cân mặc định']} data={data} setData={setData} permissions={userPermissions} user={user} />,
+    'master-weighing-tools': <MasterCatalogPage title="Danh mục dụng cụ cân" storageKey="weighingToolCatalog" permissionKey="material" fields={['code', 'name', 'type', 'tareWeightKg', 'maxLoadKg', 'applyFor', 'status']} labels={['Mã dụng cụ', 'Tên dụng cụ', 'Loại', 'Tare kg', 'Tải tối đa kg', 'Áp dụng cho', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
     'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'group', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['customerCode', 'customerName', 'province', 'channelCode', 'status']} labels={['Mã khách hàng', 'Tên khách hàng', 'Tỉnh/Thành', 'Mã kênh', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,

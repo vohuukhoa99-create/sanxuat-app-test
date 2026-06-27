@@ -12588,6 +12588,57 @@ body,
 .chemical-weighing-table th:nth-child(8),
 .chemical-weighing-table td:nth-child(8) { width: 120px !important; }
 
+.weighing-tool-panel {
+  display: grid;
+  gap: 5px;
+  min-width: 170px;
+}
+
+.weighing-tool-panel label {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+}
+
+.weighing-tool-panel label span {
+  color: #60766b;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.weighing-tool-panel select {
+  width: 100%;
+  min-height: 24px;
+  border: 1px solid #d5e1db;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.weighing-tool-values {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.weighing-tool-values span {
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid #e2ebe6;
+  border-radius: 6px;
+  background: #f8fbf9;
+  color: #60766b;
+  font-size: 10px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.weighing-tool-values strong {
+  display: block;
+  margin-top: 2px;
+  color: #073723;
+  font-size: 11px;
+}
+
 @media (max-width: 760px) {
   .chemical-work-mode {
     align-items: stretch;
