@@ -9198,8 +9198,8 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
           </div>
         </div>
         {notice && <div className="process-alert">{notice}</div>}
-        <div className="table-wrapper">
-          <table className={`admin-wide-table ${isMaterialCatalog ? 'material-catalog-table' : ''}`}>
+        <div className={`table-wrapper ${isWeighingToolCatalog ? 'weighing-tool-table-wrapper' : ''}`}>
+          <table className={`admin-wide-table ${isMaterialCatalog ? 'material-catalog-table' : ''} ${isWeighingToolCatalog ? 'weighing-tool-catalog-table' : ''}`}>
             <thead>
               <tr>
                 {labels.map((label) => <th key={label}>{label}</th>)}

@@ -12797,3 +12797,51 @@ body,
 .mixing-qr-fail-row {
   background: #fff1f2 !important;
 }
+
+/* Weighing tool master must stay compact and left-aligned. */
+.weighing-tool-table-wrapper {
+  width: fit-content !important;
+  max-width: 1180px !important;
+  margin-left: 0 !important;
+  margin-right: auto !important;
+  overflow-x: auto !important;
+}
+
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table {
+  width: 970px !important;
+  min-width: 970px !important;
+  max-width: 970px !important;
+  table-layout: fixed !important;
+}
+
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table th,
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table td {
+  padding: 6px 6px !important;
+}
+
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table input,
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table select {
+  width: 100% !important;
+  min-height: 28px !important;
+  height: 28px !important;
+  padding: 4px 7px !important;
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+}
+
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table th:nth-child(1),
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table td:nth-child(1) { width: 150px !important; }
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table th:nth-child(2),
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table td:nth-child(2) { width: 180px !important; }
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table th:nth-child(3),
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table td:nth-child(3) { width: 120px !important; }
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table th:nth-child(4),
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table td:nth-child(4) { width: 100px !important; }
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table th:nth-child(5),
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table td:nth-child(5) { width: 110px !important; }
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table th:nth-child(6),
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table td:nth-child(6) { width: 120px !important; }
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table th:nth-child(7),
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table td:nth-child(7) { width: 110px !important; }
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table th:nth-child(8),
+.weighing-tool-table-wrapper > table.weighing-tool-catalog-table td:nth-child(8) { width: 80px !important; }
