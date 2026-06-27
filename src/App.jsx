@@ -37,6 +37,28 @@ const debugMode = false
 
 const CHEMICAL = 'Hóa'
 const SOLID = 'Rắn'
+const CHEMICAL_WEIGHING_GROUPS = [
+  { key: 'glue', label: 'Cân Keo', lineLabel: 'Line Keo riêng', scaleLabel: 'Cân Keo' },
+  { key: 'paste', label: 'Cân Paste', lineLabel: 'Khu Paste / Tin màu', scaleLabel: 'Cân Paste' },
+  { key: 'tin', label: 'Cân Tin màu', lineLabel: 'Khu Paste / Tin màu', scaleLabel: 'Cân Tin màu' },
+]
+function getChemicalWeighingGroupKey(item = {}) {
+  const rawText = [
+    item.materialCode,
+    item.materialName,
+    item.name,
+    item.materialSubGroup,
+    item.subGroup,
+    item.chemicalGroup,
+    item.weighingGroup,
+    item.groupName,
+  ].filter(Boolean).join(' ')
+  const text = normalizeText(rawText)
+  const compactCode = String(item.materialCode || '').toUpperCase().replace(/\s+/g, '')
+  if (text.includes('paste') || compactCode.includes('PASTE')) return 'paste'
+  if (text.includes('tin') || text.includes('mau') || /^IN\d+/.test(compactCode) || compactCode.includes('TIN')) return 'tin'
+  return 'glue'
+}
 const MATERIAL_STATUS_ACTIVE = 'Hoạt động'
 const MATERIAL_STATUS_PAUSED = 'Tạm ngưng'
 const MATERIAL_STATUS_INACTIVE = 'Ngưng sử dụng'
@@ -290,6 +312,223 @@ function getStableScaleWeight(values = [], toleranceKg = 0.005, sampleCount = 5)
 function formatScaleWeight(value, scaleType = '') {
   if (value == null) return '-'
   return formatKg(value)
+}
+
+function useScaleSerialSession(scaleType = 'chemical', setWarning) {
+  const [scaleStatus, setScaleStatus] = useState('Chưa kết nối cân')
+  const [scaleRawText, setScaleRawText] = useState('')
+  const [scaleRawValue, setScaleRawValue] = useState(null)
+  const [scaleWeightKg, setScaleWeightKg] = useState(null)
+  const [scaleStableWeightKg, setScaleStableWeightKg] = useState(null)
+  const [scaleStableReadings, setScaleStableReadings] = useState([])
+  const [scaleStableSampleCount, setScaleStableSampleCount] = useState(5)
+  const [scaleToleranceKg, setScaleToleranceKg] = useState(() => getScaleToleranceKg(scaleType))
+  const [scaleSupported, setScaleSupported] = useState(true)
+  const [scaleBaudRate, setScaleBaudRate] = useState(getStoredScaleBaudRate)
+  const [scalePortLabel, setScalePortLabel] = useState('Chưa kết nối')
+  const [isScaleConnected, setIsScaleConnected] = useState(false)
+  const [isReadingScale, setIsReadingScale] = useState(false)
+  const [scaleDebugLogs, setScaleDebugLogs] = useState([])
+  const [scaleFrameDebug, setScaleFrameDebug] = useState({ rawFrame: '', reversedFrame: '', charCodes: [], extractedDigits: '', parsedKg: null, finalDisplayKg: '' })
+  const scalePortRef = useRef(null)
+  const scaleReaderRef = useRef(null)
+  const scaleReadingRef = useRef(false)
+  const isScaleConnectedRef = useRef(false)
+  const isReadingScaleRef = useRef(false)
+  const scaleSerialBufferRef = useRef('')
+  const scaleStableReadingsRef = useRef([])
+  const scaleStableSampleCountRef = useRef(scaleStableSampleCount)
+  const scaleToleranceKgRef = useRef(scaleToleranceKg)
+  const addScaleDebugLog = (message) => {
+    const time = new Date().toLocaleTimeString('vi-VN', { hour12: false })
+    setScaleDebugLogs((logs) => [`${time} - ${message}`, ...logs].slice(0, 80))
+  }
+  const disconnectScale = async () => {
+    scaleReadingRef.current = false
+    isReadingScaleRef.current = false
+    setIsReadingScale(false)
+    try {
+      await scaleReaderRef.current?.cancel().catch(() => {})
+    } finally {
+      scaleReaderRef.current = null
+    }
+    try {
+      await scalePortRef.current?.close().catch(() => {})
+    } finally {
+      scalePortRef.current = null
+      isScaleConnectedRef.current = false
+      setIsScaleConnected(false)
+      setScaleStatus('Chưa kết nối cân')
+      setScalePortLabel('Chưa kết nối')
+    }
+  }
+
+  useEffect(() => {
+    setScaleSupported(typeof navigator !== 'undefined' && Boolean(navigator.serial))
+    return () => {
+      disconnectScale()
+    }
+  }, [])
+  useEffect(() => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(SCALE_BAUD_RATE_KEY, String(scaleBaudRate))
+    }
+  }, [scaleBaudRate])
+  useEffect(() => {
+    scaleStableSampleCountRef.current = scaleStableSampleCount
+    setScaleStableWeightKg(getStableScaleWeight(scaleStableReadingsRef.current, scaleToleranceKgRef.current, scaleStableSampleCount))
+  }, [scaleStableSampleCount])
+  useEffect(() => {
+    scaleToleranceKgRef.current = scaleToleranceKg
+    setScaleStableWeightKg(getStableScaleWeight(scaleStableReadingsRef.current, scaleToleranceKg, scaleStableSampleCountRef.current))
+  }, [scaleToleranceKg])
+
+  const handleScaleBaudRateChange = (event) => {
+    const nextBaudRate = Number(event.target.value)
+    setScaleBaudRate(nextBaudRate)
+    addScaleDebugLog(`Selected BaudRate: ${nextBaudRate}`)
+  }
+  const handleStableSampleCountChange = (event) => {
+    const nextCount = Math.max(1, Math.min(20, Number(event.target.value) || 1))
+    setScaleStableSampleCount(nextCount)
+  }
+  const handleScaleToleranceChange = (event) => {
+    const nextTolerance = Math.max(0, Number(event.target.value) || 0)
+    setScaleToleranceKg(nextTolerance)
+  }
+  const connectScale = async () => {
+    if (typeof navigator === 'undefined' || !navigator.serial) {
+      setScaleSupported(false)
+      setWarning?.('Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.')
+      addScaleDebugLog('Connection fail: Web Serial not supported')
+      return
+    }
+    const selectedBaudRate = Number(scaleBaudRate)
+    if (!SCALE_BAUD_RATES.includes(selectedBaudRate)) {
+      setScaleStatus('Invalid baudrate')
+      setWarning?.('Invalid baudrate')
+      addScaleDebugLog('Connection fail: Invalid baudrate')
+      return
+    }
+    try {
+      addScaleDebugLog(`Selected BaudRate: ${selectedBaudRate}`)
+      let port = scalePortRef.current
+      if (port) {
+        isScaleConnectedRef.current = true
+        setIsScaleConnected(true)
+        setScaleStatus(`Cân đã được kết nối, tiếp tục sử dụng cổng hiện tại. (${selectedBaudRate} baud)`)
+        addScaleDebugLog('Reuse current scale port; skip requestPort/open.')
+      } else {
+        port = await navigator.serial.requestPort()
+        const portInfo = port.getInfo?.() || {}
+        const portLabel = portInfo.usbVendorId
+          ? `USB-RS232 VID:${portInfo.usbVendorId} PID:${portInfo.usbProductId || '-'}`
+          : 'Cổng serial đã chọn'
+        addScaleDebugLog(`Selected COM: ${portLabel}`)
+        await port.open({
+          baudRate: selectedBaudRate,
+          dataBits: 8,
+          stopBits: 1,
+          parity: 'none',
+          flowControl: 'none',
+        })
+        setScalePortLabel(portLabel)
+      }
+      scalePortRef.current = port
+      isScaleConnectedRef.current = true
+      setIsScaleConnected(true)
+      setScaleStatus(`Đã kết nối cân (${selectedBaudRate} baud)`)
+      if (!isReadingScaleRef.current && !scaleReaderRef.current) {
+        scaleReadingRef.current = true
+        isReadingScaleRef.current = true
+        setIsReadingScale(true)
+      }
+      if (!scaleWeightKg) {
+        setScaleRawText('')
+        setScaleRawValue(null)
+        setScaleWeightKg(null)
+        setScaleStableWeightKg(null)
+        setScaleFrameDebug({ rawFrame: '', reversedFrame: '', charCodes: [], extractedDigits: '', parsedKg: null, finalDisplayKg: '' })
+        scaleSerialBufferRef.current = ''
+        scaleStableReadingsRef.current = []
+        setScaleStableReadings([])
+      }
+      setWarning?.('')
+      const decoder = new TextDecoder()
+      while (scaleReadingRef.current && port.readable) {
+        if (scaleReaderRef.current) return
+        const reader = port.readable.getReader()
+        scaleReaderRef.current = reader
+        try {
+          while (scaleReadingRef.current) {
+            const { value, done } = await reader.read()
+            if (done) break
+            const chunk = decoder.decode(value, { stream: true })
+            if (!chunk) continue
+            scaleSerialBufferRef.current = `${scaleSerialBufferRef.current}${chunk}`.slice(-500)
+            const parsedFrame = parseScaleRollingBuffer(scaleSerialBufferRef.current)
+            setScaleFrameDebug(parsedFrame)
+            if (parsedFrame.rawFrame) setScaleRawText(parsedFrame.rawFrame)
+            const parsed = parsedFrame.parsedKg
+            if (parsed == null) continue
+            setScaleRawValue(parsed)
+            setScaleWeightKg(parsed)
+            const sampleCount = scaleStableSampleCountRef.current
+            const nextReadings = [...scaleStableReadingsRef.current, parsed].slice(-sampleCount)
+            scaleStableReadingsRef.current = nextReadings
+            setScaleStableReadings(nextReadings)
+            setScaleStableWeightKg(getStableScaleWeight(nextReadings, scaleToleranceKgRef.current, sampleCount))
+          }
+        } finally {
+          reader.releaseLock()
+          scaleReaderRef.current = null
+          isReadingScaleRef.current = false
+          setIsReadingScale(false)
+        }
+      }
+    } catch (error) {
+      if (error?.name === 'NotFoundError') {
+        setScaleStatus('Chưa chọn cổng cân')
+        setScalePortLabel('Chưa kết nối')
+        return
+      }
+      const errorMessage = getSerialErrorMessage(error, scaleBaudRate)
+      if (errorMessage === 'Port already in use') {
+        isScaleConnectedRef.current = Boolean(scalePortRef.current)
+        setIsScaleConnected(Boolean(scalePortRef.current))
+        setScaleStatus('Cân đã được kết nối, tiếp tục sử dụng cổng hiện tại.')
+        addScaleDebugLog('Port already in use; keep current scale data and continue.')
+        return
+      }
+      setScaleStatus(errorMessage)
+      setWarning?.(`Không đọc được dữ liệu cân: ${errorMessage}`)
+      addScaleDebugLog(`Connection fail: ${errorMessage}`)
+    }
+  }
+
+  return {
+    scaleStatus,
+    scaleRawText,
+    scaleRawValue,
+    scaleWeightKg,
+    scaleStableWeightKg,
+    scaleStableReadings,
+    scaleStableSampleCount,
+    scaleToleranceKg,
+    scaleSupported,
+    scaleBaudRate,
+    scalePortLabel,
+    isScaleConnected,
+    isReadingScale,
+    scaleDebugLogs,
+    scaleFrameDebug,
+    connectScale,
+    disconnectScale,
+    setScaleDebugLogs,
+    handleScaleBaudRateChange,
+    handleStableSampleCountChange,
+    handleScaleToleranceChange,
+  }
 }
 
 function rawMaterialLotStatus(lot) {
@@ -4249,6 +4488,74 @@ function FinishedProductQcPage({ data, setData, user }) {
   )
 }
 
+function ChemicalWeighingGroupBoard({ board, activeOrder, updateWeight, rawMaterialLots, setWarning, scaleWeighedBy }) {
+  const scaleSession = useScaleSerialSession(`chemical-${board.key}`, setWarning)
+  const scaleStabilityStatus = scaleSession.scaleStableWeightKg == null ? 'Đang dao động' : 'Đã ổn định'
+  return (
+    <section className="chemical-weighing-group">
+      <div className="chemical-weighing-group-header">
+        <div>
+          <h3>{board.label}</h3>
+          <span>{board.doneCount}/{board.items.length} vật tư</span>
+        </div>
+        <span className={`chemical-group-status ${board.status === 'Hoàn thành' ? 'done' : board.status === 'Đang cân' ? 'active' : ''}`}>{board.status}</span>
+      </div>
+      <div className="chemical-scale-note">
+        <div><span>Line thao tác</span><strong>{board.lineLabel}</strong></div>
+        <div><span>Cấu hình cân</span><strong>{board.scaleLabel}</strong></div>
+      </div>
+      {!scaleSession.scaleSupported && <div className="process-alert">Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.</div>}
+      <div className="scale-serial-panel chemical-scale-serial-panel">
+        <div><span>Trạng thái cân</span><strong>{scaleSession.scaleStatus}</strong></div>
+        {debugMode && <div><span>COM Port</span><strong>{scaleSession.scalePortLabel}</strong></div>}
+        <label className="scale-baud-select">
+          <span>BaudRate</span>
+          <select value={scaleSession.scaleBaudRate} onChange={scaleSession.handleScaleBaudRateChange}>
+            {SCALE_BAUD_RATES.map((rate) => <option key={rate} value={rate}>{rate}</option>)}
+          </select>
+        </label>
+        <div className="scale-weight-display"><span className="scale-weight-title">Khối lượng cân</span><strong className="scale-weight-value">{formatScaleWeight(scaleSession.scaleWeightKg, `chemical-${board.key}`)}</strong></div>
+        <div className="scale-stability-settings">
+          <span>Cài đặt ổn định</span>
+          <label>Số mẫu ổn định<input type="number" min="1" max="20" step="1" value={scaleSession.scaleStableSampleCount} onChange={scaleSession.handleStableSampleCountChange} /></label>
+          <label>Sai số cho phép<div className="scale-tolerance-input"><input type="number" min="0" step="0.001" value={scaleSession.scaleToleranceKg} onChange={scaleSession.handleScaleToleranceChange} /><strong>{formatKg(scaleSession.scaleToleranceKg)}</strong></div></label>
+          <em>{scaleStabilityStatus} ({scaleSession.scaleStableReadings.length}/{scaleSession.scaleStableSampleCount})</em>
+        </div>
+        {debugMode && <div><span>Serial Config</span><strong>{scaleSession.scaleBaudRate} baud, 8 data bits, parity none, 1 stop bit, flow none; decimalPlaces={SCALE_SERIAL_CONFIG.decimalPlaces}; sourceUnit={SCALE_SERIAL_CONFIG.sourceUnit}; multiplier={SCALE_SERIAL_CONFIG.multiplier}; reverseFrame={String(SCALE_SERIAL_CONFIG.reverseFrame)}</strong></div>}
+        {debugMode && <div><span>rawFrame</span><strong>{scaleSession.scaleFrameDebug.rawFrame || '-'}</strong></div>}
+        {debugMode && <div><span>reversedFrame</span><strong>{scaleSession.scaleFrameDebug.reversedFrame || '-'}</strong></div>}
+        {debugMode && <div><span>parsedKg</span><strong>{scaleSession.scaleFrameDebug.parsedKg == null ? '-' : scaleSession.scaleFrameDebug.parsedKg.toFixed(3)}</strong></div>}
+        {debugMode && <div><span>finalDisplayKg</span><strong>{scaleSession.scaleFrameDebug.finalDisplayKg || '-'}</strong></div>}
+        {debugMode && <div><span>Raw Value</span><strong>{scaleSession.scaleRawValue == null ? '-' : scaleSession.scaleRawValue.toFixed(3)}</strong></div>}
+        {debugMode && <div className="scale-raw-text"><span>Last Frame</span><strong>{scaleSession.scaleRawText || '-'}</strong></div>}
+      </div>
+      <div className="chemical-scale-actions">
+        <button className="secondary-button weighing-finish-button" type="button" onClick={scaleSession.connectScale}>{scaleSession.isScaleConnected ? 'Đã kết nối cân' : 'Kết nối cân'}</button>
+        {scaleSession.isScaleConnected && <button className="secondary-button weighing-finish-button" type="button" onClick={scaleSession.disconnectScale}>Ngắt kết nối</button>}
+      </div>
+      {debugMode && <section className="scale-debug-panel">
+        <div className="section-heading-row">
+          <h3>Debug serial</h3>
+          <button type="button" className="secondary-button" onClick={() => scaleSession.setScaleDebugLogs([])}>Xóa log</button>
+        </div>
+        <div className="scale-debug-log" aria-live="polite">
+          {scaleSession.scaleDebugLogs.length
+            ? scaleSession.scaleDebugLogs.map((item, index) => <div key={`${item}-${index}`}>{item}</div>)
+            : <div>Chưa có log serial.</div>}
+        </div>
+      </section>}
+      <SimpleTable
+        tableClassName="chemical-weighing-table"
+        headers={['STT', 'Mã vật tư', 'KL cần cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái']}
+        rows={board.items.map((item, index) => (
+          <WeighingRow key={`${activeOrder.id}-${board.key}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === board.activeItem?.id} updateWeight={updateWeight} rawMaterialLots={rawMaterialLots} scaleType={`chemical-${board.key}`} setWarning={setWarning} scaleWeightKg={scaleSession.scaleWeightKg} scaleStableWeightKg={scaleSession.scaleStableWeightKg} scaleStable={scaleSession.scaleStableWeightKg != null} scaleRawData={scaleSession.scaleRawText} scaleRawValue={scaleSession.scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
+        ))}
+        empty={`Không có vật tư thuộc ${board.label}.`}
+      />
+    </section>
+  )
+}
+
 function WeighingPage({ data, setData, group, user }) {
   const label = group === CHEMICAL ? 'Cân hóa chất' : 'Cân nguyên liệu rắn'
   const activeTitle = group === CHEMICAL ? 'Lệnh đang cân hóa' : 'Lệnh đang cân rắn'
@@ -4305,6 +4612,22 @@ function WeighingPage({ data, setData, group, user }) {
   const doneCount = activeItems.filter(isDone).length
   const progress = activeItems.length ? Math.round((doneCount / activeItems.length) * 100) : 0
   const activeItem = activeItems.find((item) => !isDone(item))
+  const chemicalGroupBoards = group === CHEMICAL
+    ? CHEMICAL_WEIGHING_GROUPS.map((config) => {
+      const items = activeItems.filter((item) => getChemicalWeighingGroupKey(item) === config.key)
+      const groupDoneCount = items.filter(isDone).length
+      const activeGroupItem = items.find((item) => !isDone(item))
+      const hasStarted = items.some((item) => item.qrStatus || item.weighStatus || item.actualWeight)
+      const status = !items.length
+        ? 'Không có vật tư'
+        : groupDoneCount === items.length
+          ? 'Hoàn thành'
+          : hasStarted
+            ? 'Đang cân'
+            : 'Chờ cân'
+      return { ...config, items, doneCount: groupDoneCount, activeItem: activeGroupItem, status }
+    })
+    : []
   const canFinish = Boolean(activeOrder && activeItems.length && doneCount === activeItems.length)
   const activeWeighingType = activeOrder?.stage === 'supplement-weighing' ? 'Cân bổ sung QC thành phẩm' : 'Cân chính'
   const activeContainers = activeOrder ? getOrderGroupContainers(data.weighedContainers || [], activeOrder, activeWeighingType).filter((item) => item.materialGroup === group) : []
@@ -4677,7 +5000,7 @@ function WeighingPage({ data, setData, group, user }) {
               <h2>{activeTitle}</h2>
             </div>
             <div className="action-row">
-              <button className="secondary-button weighing-finish-button" type="button" onClick={connectScale}>Kết nối cân</button>
+              {group !== CHEMICAL && <button className="secondary-button weighing-finish-button" type="button" onClick={connectScale}>Kết nối cân</button>}
               <button className="secondary-button weighing-finish-button" onClick={createDemoQrData}>Tạo dữ liệu demo QR</button>
               {canFinish && <button className="primary-button weighing-finish-button" onClick={finishActiveOrder}>{group === CHEMICAL ? 'Hoàn thành cân hóa' : 'Hoàn thành cân rắn'}</button>}
             </div>
@@ -4686,8 +5009,8 @@ function WeighingPage({ data, setData, group, user }) {
           <div className="process-alert assignment-context">
             <strong>Phân công ca hiện tại:</strong> {currentAssignments.length ? currentAssignments.map((item) => `${formatAssignmentEmployees(item)} (${item.shiftCode}${item.productionTeamName ? ` - ${item.productionTeamName}` : ''})`).join(', ') : 'Chưa có phân công.'}
           </div>
-          {!scaleSupported && <div className="process-alert">Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.</div>}
-          <div className="scale-serial-panel">
+          {group !== CHEMICAL && !scaleSupported && <div className="process-alert">Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.</div>}
+          {group !== CHEMICAL && <div className="scale-serial-panel">
             <div><span>Trạng thái cân</span><strong>{scaleStatus}</strong></div>
             {debugMode && <div><span>COM Port</span><strong>{scalePortLabel}</strong></div>}
             <label className="scale-baud-select">
@@ -4710,8 +5033,8 @@ function WeighingPage({ data, setData, group, user }) {
             {debugMode && <div><span>finalDisplayKg</span><strong>{scaleFrameDebug.finalDisplayKg || '-'}</strong></div>}
             {debugMode && <div><span>Raw Value</span><strong>{scaleRawValue == null ? '-' : scaleRawValue.toFixed(3)}</strong></div>}
             {debugMode && <div className="scale-raw-text"><span>Last Frame</span><strong>{scaleRawText || '-'}</strong></div>}
-          </div>
-          {debugMode && <section className="scale-debug-panel">
+          </div>}
+          {group !== CHEMICAL && debugMode && <section className="scale-debug-panel">
             <div className="section-heading-row">
               <h3>Debug serial</h3>
               <button type="button" className="secondary-button" onClick={() => setScaleDebugLogs([])}>Xóa log</button>
@@ -4737,9 +5060,17 @@ function WeighingPage({ data, setData, group, user }) {
                 <div className="weighing-progress"><i style={{ width: `${progress}%` }} /></div>
                 <strong>{progress}%</strong>
               </div>
-              <SimpleTable headers={['STT', 'Mã vật tư', 'KL cần cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái']} rows={activeItems.map((item, index) => (
-                <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
-              ))} empty={`Không có vật tư nhóm ${group}.`} />
+              {group === CHEMICAL ? (
+                <div className="chemical-weighing-groups">
+                  {chemicalGroupBoards.map((board) => (
+                    <ChemicalWeighingGroupBoard key={board.key} board={board} activeOrder={activeOrder} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} setWarning={setWarning} scaleWeighedBy={scaleWeighedBy} />
+                  ))}
+                </div>
+              ) : (
+                <SimpleTable headers={['STT', 'Mã vật tư', 'KL cần cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái']} rows={activeItems.map((item, index) => (
+                  <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
+                ))} empty={`Không có vật tư nhóm ${group}.`} />
+              )}
               {activeContainers.map((container) => <WeighedContainerCard key={container.containerId} container={container} onPrint={handlePrintQr} onDetail={handleViewWeighingDetail} />)}
             </>
           )}
