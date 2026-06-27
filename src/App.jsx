@@ -83,6 +83,12 @@ function isChemicalGroup(group = '') {
   const text = normalizeText(group)
   return group === CHEMICAL || text === 'hoa' || text.includes('hoa')
 }
+function normalizeMaterialGroup(value = '') {
+  const text = normalizeText(value)
+  if (text === 'hoa' || text === 'hoa chat' || text === 'hoa hoc') return CHEMICAL
+  if (text === 'ran' || text.includes('nguyen lieu ran')) return SOLID
+  return String(value || '').trim() || CHEMICAL
+}
 function normalizeChemicalSubGroup(value = '', materialGroup = CHEMICAL) {
   if (!isChemicalGroup(materialGroup)) return ''
   const text = normalizeText(value)
@@ -667,7 +673,7 @@ function getCatalogCell(item = {}, names = []) {
 function normalizeMaterialCatalogItem(item = {}) {
   const materialCode = String(item.materialCode || item.code || item['Mã vật tư'] || item['Ma vat tu'] || item['Mã VT'] || item['Ma VT'] || '').trim()
   if (!materialCode) return null
-  const materialGroup = String(item.materialGroup || item.group || item.classification || item.mainGroup || item['Nhom vat tu'] || item['Nhom'] || CHEMICAL).trim()
+  const materialGroup = normalizeMaterialGroup(item.materialGroup || item.group || item.classification || item.mainGroup || item['Nhom vat tu'] || item['Nhom'] || CHEMICAL)
   const rawStatus = String(item.status || getCatalogCell(item, ['Trạng thái', 'Trang thai']) || MATERIAL_STATUS_ACTIVE).trim()
   const normalizedStatusText = normalizeText(rawStatus)
   const status = normalizedStatusText.includes('tam ngung')
@@ -679,12 +685,14 @@ function normalizeMaterialCatalogItem(item = {}) {
     id: item.id || `MAT-${materialCode}`,
     materialCode,
     materialName: String(item.materialName || item.name || item['Tên vật tư'] || item['Ten vat tu'] || item['Tên VT'] || item['Ten VT'] || materialCode).trim(),
-    materialGroup: String(item.materialGroup || item.group || item['Nhóm vật tư'] || item['Nhom vat tu'] || item['Nhóm'] || item['Nhom'] || CHEMICAL).trim(),
     unit: String(item.unit || item['Đơn vị tính'] || item['Don vi tinh'] || item['Đơn vị'] || item['Don vi'] || 'kg').trim(),
     manufacturer: String(item.manufacturer || item.maker || item.supplier || getCatalogCell(item, ['Nhà sản xuất', 'Nha san xuat']) || '').trim(),
-    defaultWeighingToolCode: String(item.defaultWeighingToolCode || getCatalogCell(item, ['Dụng cụ cân mặc định', 'Dung cu can mac dinh']) || '').trim(),
+    defaultWeighingToolCode: String(item.defaultWeighingToolCode || item.weighingToolCode || getCatalogCell(item, ['Dụng cụ cân mặc định', 'Dung cu can mac dinh']) || '').trim(),
     materialGroup,
     chemicalSubGroup: normalizeChemicalSubGroup(item.chemicalSubGroup || item.subClassification || item['sub-classification'] || getCatalogCell(item, ['sub-classification', 'sub classification', 'Phan nhom']), materialGroup),
+    defaultTolerance: String(item.defaultTolerance ?? item.defaultToleranceKg ?? item.tolerance ?? item.toleranceKg ?? getCatalogCell(item, ['Dung sai mac dinh', 'Dung sai']) ?? '').trim(),
+    stockQty: item.stockQty ?? item.inventoryQty ?? item.stock ?? getCatalogCell(item, ['Ton kho', 'Tồn kho']) ?? '',
+    note: String(item.note || item.notes || getCatalogCell(item, ['Ghi chu', 'Ghi chú']) || '').trim(),
     status,
   }
 }
@@ -9124,6 +9132,10 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   const importExcelRef = useRef(null)
   const [notice, setNotice] = useState('')
   const [materialQrModal, setMaterialQrModal] = useState(null)
+  const [materialImportOpen, setMaterialImportOpen] = useState(false)
+  const [materialImportMode, setMaterialImportMode] = useState('update')
+  const [materialImportFile, setMaterialImportFile] = useState(null)
+  const [materialImportBackup, setMaterialImportBackup] = useState(null)
   const isMaterialCatalog = storageKey === 'materialCatalog'
   const isWeighingToolCatalog = storageKey === 'weighingToolCatalog'
   const weighingToolOptions = activeWeighingTools(data.weighingToolCatalog || [])
@@ -9159,20 +9171,29 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   const materialExcelRows = () => (data.materialCatalog || []).map((row) => ({
     'Ma vat tu': row.materialCode || '',
     'Ten vat tu': row.materialName || '',
-    'Nha san xuat': row.manufacturer || '',
-    'Trang thai': row.status || MATERIAL_STATUS_ACTIVE,
+    'Don vi': row.unit || 'kg',
     classification: row.materialGroup || '',
     'sub-classification': normalizeChemicalSubGroup(row.chemicalSubGroup, row.materialGroup) || 'null',
-    'Don vi': row.unit || 'kg',
-    'Dung cu can mac dinh': row.defaultWeighingToolCode || '',
+    'Dung cu can': row.defaultWeighingToolCode || '',
+    'Dung sai mac dinh': row.defaultTolerance || '',
+    'Ton kho': row.stockQty ?? '',
+    'Trang thai': row.status || MATERIAL_STATUS_ACTIVE,
+    'Ghi chu': row.note || '',
+    'Nha san xuat': row.manufacturer || '',
   }))
   const exportMaterialExcel = () => {
     const book = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(materialExcelRows()), 'Danh muc vat tu')
     XLSX.writeFile(book, `danh-muc-vat-tu-${todayText().replaceAll('-', '')}.xlsx`)
   }
-  const importMaterialExcel = (file) => {
-    if (!file || !canImportMaterialCatalog) return
+  const importMaterialExcel = () => {
+    const file = materialImportFile
+    if (!file || !canImportMaterialCatalog) {
+      setNotice('Vui lòng chọn file Excel trước khi import.')
+      return
+    }
+    const backupSnapshot = (data.materialCatalog || []).map((row) => ({ ...row }))
+    setMaterialImportBackup(backupSnapshot)
     const reader = new FileReader()
     reader.onload = (event) => {
       let summary = { total: 0, created: 0, updated: 0, errors: 0 }
@@ -9184,25 +9205,28 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
         setData((current) => {
           const byCode = new Map((current.materialCatalog || []).map((row) => [String(row.materialCode || '').trim().toUpperCase(), row]))
           excelRows.forEach((row) => {
-            const materialCode = String(row.materialCode || getCatalogCell(row, ['Mã vật tư', 'Ma vat tu']) || '').trim()
+            const materialCode = String(row.materialCode || row.code || getCatalogCell(row, ['Ma vat tu', 'Mã vật tư', 'Ma VT', 'Mã VT']) || '').trim()
             if (!materialCode) {
               summary.errors += 1
               return
             }
             const key = materialCode.toUpperCase()
             const existing = byCode.get(key)
-            const importedGroup = row.classification || row.mainGroup || getCatalogCell(row, ['classification', 'mainGroup', 'Nhom vat tu', 'Nhom']) || existing?.materialGroup || CHEMICAL
-            const importedSubGroup = row['sub-classification'] || row.subclassification || row.subClassification || row.chemicalSubGroup || getCatalogCell(row, ['sub-classification', 'sub classification', 'subclassification', 'chemicalSubGroup', 'Phan nhom'])
+            if (materialImportMode === 'create' && existing) return
+            const importedGroup = normalizeMaterialGroup(row.classification || row.mainGroup || row.materialGroup || getCatalogCell(row, ['classification', 'mainGroup', 'Nhom vat tu', 'Nhóm vật tư', 'Nhom', 'Nhóm']) || existing?.materialGroup || CHEMICAL)
+            const importedSubGroup = row['sub-classification'] || row.subclassification || row.subClassification || row.chemicalSubGroup || getCatalogCell(row, ['sub-classification', 'sub classification', 'subclassification', 'chemicalSubGroup', 'Phan nhom', 'Phân nhóm'])
             const next = normalizeMaterialCatalogItem({
-              ...(existing || {}),
               materialCode,
-              materialName: row.materialName || getCatalogCell(row, ['Tên vật tư', 'Ten vat tu']) || existing?.materialName || materialCode,
-              manufacturer: row.manufacturer || getCatalogCell(row, ['Nhà sản xuất', 'Nha san xuat']) || existing?.manufacturer || '',
-              status: row.status || getCatalogCell(row, ['Trạng thái', 'Trang thai']) || existing?.status || 'Hoạt động',
+              materialName: row.materialName || row.name || getCatalogCell(row, ['Ten vat tu', 'Tên vật tư', 'Ten VT', 'Tên VT']) || materialCode,
+              unit: row.unit || getCatalogCell(row, ['Don vi', 'Đơn vị', 'Don vi tinh', 'Đơn vị tính']) || 'kg',
               materialGroup: importedGroup,
               chemicalSubGroup: importedSubGroup,
-              unit: row.unit || getCatalogCell(row, ['Don vi', 'Don vi tinh']) || existing?.unit || 'kg',
-              defaultWeighingToolCode: row.defaultWeighingToolCode || getCatalogCell(row, ['Dung cu can mac dinh']) || existing?.defaultWeighingToolCode || '',
+              defaultWeighingToolCode: row.defaultWeighingToolCode || row.weighingToolCode || getCatalogCell(row, ['Dung cu can', 'Dụng cụ cân', 'Dung cu can mac dinh', 'Dụng cụ cân mặc định']) || '',
+              defaultTolerance: row.defaultTolerance || row.defaultToleranceKg || row.tolerance || row.toleranceKg || getCatalogCell(row, ['Dung sai mac dinh', 'Dung sai mặc định', 'Dung sai']) || '',
+              stockQty: row.stockQty ?? row.inventoryQty ?? row.stock ?? getCatalogCell(row, ['Ton kho', 'Tồn kho']) ?? '',
+              status: row.status || getCatalogCell(row, ['Trang thai', 'Trạng thái']) || MATERIAL_STATUS_ACTIVE,
+              note: row.note || row.notes || getCatalogCell(row, ['Ghi chu', 'Ghi chú']) || '',
+              manufacturer: row.manufacturer || getCatalogCell(row, ['Nha san xuat', 'Nhà sản xuất']) || '',
             })
             if (!next) {
               summary.errors += 1
@@ -9214,13 +9238,22 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
           })
           return { ...current, materialCatalog: normalizeMaterialCatalog(Array.from(byCode.values())) }
         })
-        setNotice(`Import Excel: tổng ${summary.total} dòng, thêm mới ${summary.created}, cập nhật ${summary.updated}, lỗi ${summary.errors}.`)
+        setNotice(`Import thành công. Đã cập nhật: ${summary.updated} vật tư. Đã thêm mới: ${summary.created} vật tư. Lỗi: ${summary.errors}.`)
+        setMaterialImportOpen(false)
+        setMaterialImportFile(null)
+        if (importExcelRef.current) importExcelRef.current.value = ''
       } catch (error) {
-        setNotice(`Import Excel thất bại: ${error.message || error}`)
+        setMaterialImportBackup(backupSnapshot)
+        setNotice(`Import lỗi: ${error.message || error}. Có thể Rollback về snapshot trước import.`)
       }
     }
     reader.readAsArrayBuffer(file)
-    if (importExcelRef.current) importExcelRef.current.value = ''
+  }
+  const rollbackMaterialImport = () => {
+    if (!isMaterialCatalog || !materialImportBackup) return
+    setData((current) => ({ ...current, materialCatalog: materialImportBackup }))
+    setNotice('ÄÃ£ rollback Danh má»¥c váº­t tÆ° vá» snapshot trÆ°á»›c import.')
+    setMaterialImportBackup(null)
   }
   const updateRow = (rowId, field, value) => {
     if (!canEdit) return
@@ -9288,15 +9321,14 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
           <div className="action-row">
             {isMaterialCatalog && (
               <>
-                <input ref={importExcelRef} type="file" accept=".xlsx,.xls" hidden onChange={(event) => importMaterialExcel(event.target.files?.[0])} />
-                <button className="secondary-button" type="button" disabled={!canImportMaterialCatalog} onClick={() => importExcelRef.current?.click()}>Import Excel</button>
-                <button className="secondary-button" type="button" onClick={exportMaterialExcel}>Export Excel</button>
+                <button className="secondary-button" type="button" disabled={!canImportMaterialCatalog} onClick={() => { setMaterialImportMode('update'); setMaterialImportFile(null); setMaterialImportOpen(true) }}>Nháº­p Excel</button>
+                <button className="secondary-button" type="button" onClick={exportMaterialExcel}>Xuáº¥t Excel</button>
               </>
             )}
             <button className="primary-button" type="button" disabled={!canCreate} onClick={addRow}>Thêm mới</button>
           </div>
         </div>
-        {notice && <div className="process-alert">{notice}</div>}
+        {notice && <div className="process-alert">{notice}{materialImportBackup && <button className="secondary-button" type="button" onClick={rollbackMaterialImport}>Rollback</button>}</div>}
         <div className={`table-wrapper ${isWeighingToolCatalog ? 'weighing-tool-table-wrapper' : ''}`}>
           <table className={`admin-wide-table ${isMaterialCatalog ? 'material-catalog-table' : ''} ${isWeighingToolCatalog ? 'weighing-tool-catalog-table' : ''}`}>
             <thead>
@@ -9363,6 +9395,29 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
           </table>
         </div>
       </section>
+      {materialImportOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="mixing-modal weighed-container-modal" role="dialog" aria-modal="true">
+            <div className="modal-header">
+              <div><span className="section-kicker">Excel</span><h2>NHáº¬P DANH Má»¤C Váº¬T TÆ¯</h2></div>
+              <button type="button" className="icon-button" onClick={() => setMaterialImportOpen(false)} aria-label="ÄÃ³ng">Ã—</button>
+            </div>
+            <div className="production-form-grid">
+              <label>
+                <span><input type="radio" name="material-import-mode" checked={materialImportMode === 'create'} onChange={() => setMaterialImportMode('create')} /> ThÃªm má»›i</span>
+              </label>
+              <label>
+                <span><input type="radio" name="material-import-mode" checked={materialImportMode === 'update'} onChange={() => setMaterialImportMode('update')} /> Cáº­p nháº­t & thay tháº¿ theo MÃ£ váº­t tÆ°</span>
+              </label>
+              <label className="wide-field">Chá»n file Excel<input ref={importExcelRef} type="file" accept=".xlsx,.xls" onChange={(event) => setMaterialImportFile(event.target.files?.[0] || null)} /></label>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="secondary-button" onClick={() => setMaterialImportOpen(false)}>Há»§y</button>
+              <button type="button" className="primary-button" disabled={!materialImportFile || !canImportMaterialCatalog} onClick={importMaterialExcel}>Báº¯t Ä‘áº§u Import</button>
+            </div>
+          </div>
+        </div>
+      )}
       {materialQrModal && (
         <div className="modal-backdrop" role="presentation">
           <div className="mixing-modal weighed-container-modal" role="dialog" aria-modal="true">
