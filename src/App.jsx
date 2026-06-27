@@ -1777,7 +1777,7 @@ function SimpleTable({ headers, rows, empty = 'Không có dữ liệu.', tableCl
         <thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead>
         <tbody>
           {labeledRows}
-          {!rows.length && <tr><td className="empty-row" colSpan={headers.length}>{empty}</td></tr>}
+              {rows.length === 0 && <tr><td className="empty-row" colSpan={fields.length + (isMaterialCatalog ? 2 : 1)}>Chưa có dữ liệu.</td></tr>}
         </tbody>
       </table>
     </div>
@@ -4631,9 +4631,9 @@ function FinishedProductQcPage({ data, setData, user }) {
                             <th>QC2 bổ sung</th>
                             <th><span>Khối lượng</span><span>sau QC2</span></th>
                             <th><span>Lý do</span><span>điều chỉnh</span></th>
-                            <th>Ghi chú</th>
-                          </tr>
-                        </thead>
+                            <th>Hành động</th>
+              </tr>
+            </thead>
                         <tbody>
                           {qc2Rows.map((row) => (
                             <tr key={row.id}>
@@ -4647,7 +4647,7 @@ function FinishedProductQcPage({ data, setData, user }) {
                               <td><input value={row.note} onChange={(event) => updateExistingAdjustment(row, 'note', event.target.value)} /></td>
                             </tr>
                           ))}
-                          {!qc2Rows.length && <tr><td className="empty-row" colSpan="8">Không có dữ liệu QC thành phẩm.</td></tr>}
+              {rows.length === 0 && <tr><td className="empty-row" colSpan={fields.length + (isMaterialCatalog ? 2 : 1)}>Chưa có dữ liệu.</td></tr>}
                         </tbody>
                       </table>
                     </div>
@@ -5492,7 +5492,7 @@ function WeighingPage({ data, setData, group, user }) {
                 : <div>Chưa có log serial.</div>}
             </div>
           </section>}
-          {!activeOrder && <p className="empty-alert">Chưa có lệnh nào đang cân. Vui lòng chọn một lệnh từ danh sách chờ.</p>}
+              <div><span className="section-kicker">Excel</span><h2>NHẬP DANH MỤC VẬT TƯ</h2></div>
           {activeOrder && (
             <>
               <div className="weighing-order-summary">
@@ -6302,8 +6302,8 @@ function MixingPage({ data, setData, user }) {
                   <th>Hỗn hợp Rắn</th>
                   <th>Trạng thái</th>
                   <th>Hành động</th>
-                </tr>
-              </thead>
+              </tr>
+            </thead>
               <tbody>
                 {readyOrders.map((order) => {
                   const chemicalScan = getMixingQrScan(order, CHEMICAL)
@@ -6316,7 +6316,7 @@ function MixingPage({ data, setData, user }) {
                   const assignedMachine = machines.find((machine) => machine.machineCode === assignedMachineCode)
                   const state = getMixingDispatchState(order)
                   const qrDisplayStatus = qrFailed
-                    ? '🔴 Sai QR'
+                    ? 'ðŸ”´ Sai QR'
                     : qrReady
                       ? '🟢 Sẵn sàng phối trộn'
                       : chemicalScan.pass
@@ -6372,7 +6372,7 @@ function MixingPage({ data, setData, user }) {
                     </tr>
                   )
                 })}
-                {readyOrders.length === 0 && <tr><td className="empty-row" colSpan="8">Không có lệnh sẵn sàng phối trộn.</td></tr>}
+              {rows.length === 0 && <tr><td className="empty-row" colSpan={fields.length + (isMaterialCatalog ? 2 : 1)}>Chưa có dữ liệu.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -6391,8 +6391,8 @@ function MixingPage({ data, setData, user }) {
                   <th>Tiến độ</th>
                   <th>Trạng thái</th>
                   <th>Hành động</th>
-                </tr>
-              </thead>
+              </tr>
+            </thead>
               <tbody>
                 {activeMixingOrders.map((order) => {
                   const supplement = order.stage === 'mixing-supplement' || order.mixing?.supplement
@@ -6410,7 +6410,7 @@ function MixingPage({ data, setData, user }) {
                     </tr>
                   )
                 })}
-                {activeMixingOrders.length === 0 && <tr><td className="empty-row" colSpan="8">Không có máy đang phối trộn.</td></tr>}
+              {rows.length === 0 && <tr><td className="empty-row" colSpan={fields.length + (isMaterialCatalog ? 2 : 1)}>Chưa có dữ liệu.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -6834,7 +6834,7 @@ function FinishedGoodsPage({ data, setData, user }) {
                   </tr>
                 )
               })}
-              {waitingOrders.length === 0 && <tr><td className="empty-row" colSpan="11">Không có lệnh chờ nhập kho thành phẩm.</td></tr>}
+              {rows.length === 0 && <tr><td className="empty-row" colSpan={fields.length + (isMaterialCatalog ? 2 : 1)}>Chưa có dữ liệu.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -6870,7 +6870,7 @@ function FinishedGoodsPage({ data, setData, user }) {
                 <th>Ngày nhập</th>
                 <th>Vị trí kho</th>
                 <th>Người nhập</th>
-                <th>Trạng thái</th>
+                <th>Hành động</th>
               </tr>
             </thead>
             <tbody>
@@ -6889,7 +6889,7 @@ function FinishedGoodsPage({ data, setData, user }) {
                   <td>{item.status}</td>
                 </tr>
               ))}
-              {filteredFinishedGoods.length === 0 && <tr><td className="empty-row" colSpan="11">Chưa có thành phẩm nhập kho.</td></tr>}
+              {rows.length === 0 && <tr><td className="empty-row" colSpan={fields.length + (isMaterialCatalog ? 2 : 1)}>Chưa có dữ liệu.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -8792,7 +8792,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
                 <th>Công đoạn</th>
                 <th>Nhân viên</th>
                 <th>Ghi chú</th>
-                <th>Trạng thái</th>
+                <th>Hành động</th>
               </tr>
             </thead>
             <tbody>
@@ -9252,7 +9252,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   const rollbackMaterialImport = () => {
     if (!isMaterialCatalog || !materialImportBackup) return
     setData((current) => ({ ...current, materialCatalog: materialImportBackup }))
-    setNotice('ÄÃ£ rollback Danh má»¥c váº­t tÆ° vá» snapshot trÆ°á»›c import.')
+    setNotice('Đã rollback Danh mục vật tư về snapshot trước import.')
     setMaterialImportBackup(null)
   }
   const updateRow = (rowId, field, value) => {
@@ -9263,9 +9263,6 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
         if (row.id !== rowId) return row
         if (isMaterialCatalog && field === 'materialGroup') {
           return { ...row, materialGroup: value, chemicalSubGroup: normalizeChemicalSubGroup(row.chemicalSubGroup, value) }
-        }
-        if (isMaterialCatalog && field === 'chemicalSubGroup') {
-          return { ...row, chemicalSubGroup: normalizeChemicalSubGroup(value, row.materialGroup) }
         }
         return { ...row, [field]: value }
       }),
@@ -9321,8 +9318,8 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
           <div className="action-row">
             {isMaterialCatalog && (
               <>
-                <button className="secondary-button" type="button" disabled={!canImportMaterialCatalog} onClick={() => { setMaterialImportMode('update'); setMaterialImportFile(null); setMaterialImportOpen(true) }}>Nháº­p Excel</button>
-                <button className="secondary-button" type="button" onClick={exportMaterialExcel}>Xuáº¥t Excel</button>
+                <button className="secondary-button" type="button" disabled={!canImportMaterialCatalog} onClick={() => { setMaterialImportMode('update'); setMaterialImportFile(null); setMaterialImportOpen(true) }}>Nhập Excel</button>
+                <button className="secondary-button" type="button" onClick={exportMaterialExcel}>Xuất Excel</button>
               </>
             )}
             <button className="primary-button" type="button" disabled={!canCreate} onClick={addRow}>Thêm mới</button>
@@ -9344,10 +9341,9 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
                   {fields.map((field, index) => (
                     <td key={field} data-label={labels[index]}>
                       {isMaterialCatalog && field === 'chemicalSubGroup' ? (
-                        <select value={normalizeChemicalSubGroup(row.chemicalSubGroup, row.materialGroup)} disabled={!canEdit || !isChemicalGroup(row.materialGroup)} onChange={(event) => updateRow(row.id, field, event.target.value)}>
-                          <option value="">null</option>
-                          {CHEMICAL_SUBGROUP_OPTIONS.map((subGroup) => <option key={subGroup} value={subGroup}>{displayChemicalSubGroup(subGroup)}</option>)}
-                        </select>
+                        <span className={`dispatch-badge ${normalizeChemicalSubGroup(row.chemicalSubGroup, row.materialGroup) ? 'ready' : 'waiting'}`}>
+                          {displayChemicalSubGroup(normalizeChemicalSubGroup(row.chemicalSubGroup, row.materialGroup))}
+                        </span>
                       ) : isMaterialCatalog && field === 'defaultWeighingToolCode' ? (
                         <select value={row[field] || ''} disabled={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)}>
                           <option value="">Tự động theo phân nhóm</option>
@@ -9399,21 +9395,21 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
         <div className="modal-backdrop" role="presentation">
           <div className="mixing-modal weighed-container-modal" role="dialog" aria-modal="true">
             <div className="modal-header">
-              <div><span className="section-kicker">Excel</span><h2>NHáº¬P DANH Má»¤C Váº¬T TÆ¯</h2></div>
-              <button type="button" className="icon-button" onClick={() => setMaterialImportOpen(false)} aria-label="ÄÃ³ng">Ã—</button>
+              <div><span className="section-kicker">Excel</span><h2>NHẬP DANH MỤC VẬT TƯ</h2></div>
+              <button type="button" className="icon-button" onClick={() => setMaterialImportOpen(false)} aria-label="Đóng">×</button>
             </div>
             <div className="production-form-grid">
               <label>
-                <span><input type="radio" name="material-import-mode" checked={materialImportMode === 'create'} onChange={() => setMaterialImportMode('create')} /> ThÃªm má»›i</span>
+                <span><input type="radio" name="material-import-mode" checked={materialImportMode === 'create'} onChange={() => setMaterialImportMode('create')} /> Thêm mới</span>
               </label>
               <label>
-                <span><input type="radio" name="material-import-mode" checked={materialImportMode === 'update'} onChange={() => setMaterialImportMode('update')} /> Cáº­p nháº­t & thay tháº¿ theo MÃ£ váº­t tÆ°</span>
+                <span><input type="radio" name="material-import-mode" checked={materialImportMode === 'update'} onChange={() => setMaterialImportMode('update')} /> Cập nhật & thay thế theo Mã vật tư</span>
               </label>
-              <label className="wide-field">Chá»n file Excel<input ref={importExcelRef} type="file" accept=".xlsx,.xls" onChange={(event) => setMaterialImportFile(event.target.files?.[0] || null)} /></label>
+              <label className="wide-field">Chọn file Excel<input ref={importExcelRef} type="file" accept=".xlsx,.xls" onChange={(event) => setMaterialImportFile(event.target.files?.[0] || null)} /></label>
             </div>
             <div className="modal-actions">
-              <button type="button" className="secondary-button" onClick={() => setMaterialImportOpen(false)}>Há»§y</button>
-              <button type="button" className="primary-button" disabled={!materialImportFile || !canImportMaterialCatalog} onClick={importMaterialExcel}>Báº¯t Ä‘áº§u Import</button>
+              <button type="button" className="secondary-button" onClick={() => setMaterialImportOpen(false)}>Hủy</button>
+              <button type="button" className="primary-button" disabled={!materialImportFile || !canImportMaterialCatalog} onClick={importMaterialExcel}>Bắt đầu Import</button>
             </div>
           </div>
         </div>
@@ -9935,7 +9931,6 @@ function App() {
     'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'group', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['customerCode', 'customerName', 'province', 'channelCode', 'status']} labels={['Mã khách hàng', 'Tên khách hàng', 'Tỉnh/Thành', 'Mã kênh', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
-    'master-employees': <MasterCatalogPage title="Danh sách nhân viên" storageKey="employeeCatalog" fields={['code', 'name', 'productionTeam', 'title', 'operationRole', 'status', 'qrEmployee']} labels={['Mã NV', 'Họ tên', 'Tổ sản xuất', 'Chức danh', 'Vai trò vận hành', 'Trạng thái', 'QR nhân viên']} data={data} setData={setData} permissions={userPermissions} />,
     'master-teams': <MasterCatalogPage title="Danh mục tổ sản xuất" storageKey="teamCatalog" permissionKey="team" fields={['code', 'name', 'leader', 'note', 'status']} labels={['Mã tổ', 'Tên tổ', 'Tổ trưởng', 'Ghi chú', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
     'master-shifts': <MasterCatalogPage title="Danh mục ca làm việc" storageKey="shiftCatalog" permissionKey="shift" fields={['code', 'name', 'startTime', 'endTime', 'note', 'status']} labels={['Mã ca', 'Tên ca', 'Giờ bắt đầu', 'Giờ kết thúc', 'Ghi chú', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
     'admin-machines': <MixingMachineCatalogPage data={data} setData={setData} user={user} permissions={userPermissions} />,
