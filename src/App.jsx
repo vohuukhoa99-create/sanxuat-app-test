@@ -42,6 +42,10 @@ const CHEMICAL_SCALE_MODE_KEY = 'chemicalScaleWorkMode'
 const CHEMICAL_SCALE_MODE_GLUE = 'glue'
 const CHEMICAL_SCALE_MODE_PASTE_TIN = 'paste-tin'
 const CHEMICAL_PASTE_TIN_TABS = ['paste', 'tin']
+const CHEMICAL_SUBGROUP_GLUE = 'Keo'
+const CHEMICAL_SUBGROUP_PASTE = 'Paste'
+const CHEMICAL_SUBGROUP_TIN = 'Tin màu'
+const CHEMICAL_SUBGROUP_OPTIONS = [CHEMICAL_SUBGROUP_GLUE, CHEMICAL_SUBGROUP_PASTE, CHEMICAL_SUBGROUP_TIN]
 const CHEMICAL_SUBGROUP_STATUS_DONE = 'DONE'
 const CHEMICAL_SUBGROUP_STATUS_ACTIVE = 'ACTIVE'
 const CHEMICAL_SUBGROUP_STATUS_PENDING = 'PENDING'
@@ -58,22 +62,28 @@ function getStoredChemicalScaleMode() {
   const stored = localStorage.getItem(CHEMICAL_SCALE_MODE_KEY)
   return [CHEMICAL_SCALE_MODE_GLUE, CHEMICAL_SCALE_MODE_PASTE_TIN].includes(stored) ? stored : CHEMICAL_SCALE_MODE_GLUE
 }
+function isChemicalGroup(group = '') {
+  const text = normalizeText(group)
+  return group === CHEMICAL || text === 'hoa' || text.includes('hoa')
+}
+function normalizeChemicalSubGroup(value = '', materialGroup = CHEMICAL) {
+  if (!isChemicalGroup(materialGroup)) return ''
+  const text = normalizeText(value)
+  if (!text || text === 'null') return ''
+  if (text.includes('paste')) return CHEMICAL_SUBGROUP_PASTE
+  if (text.includes('tin') || text.includes('mau')) return CHEMICAL_SUBGROUP_TIN
+  if (text.includes('keo')) return CHEMICAL_SUBGROUP_GLUE
+  return ''
+}
 function getChemicalWeighingGroupKey(item = {}) {
-  const rawText = [
-    item.materialCode,
-    item.materialName,
-    item.name,
-    item.materialSubGroup,
-    item.subGroup,
-    item.chemicalGroup,
-    item.weighingGroup,
-    item.groupName,
-  ].filter(Boolean).join(' ')
-  const text = normalizeText(rawText)
-  const compactCode = String(item.materialCode || '').toUpperCase().replace(/\s+/g, '')
-  if (text.includes('paste') || compactCode.includes('PASTE')) return 'paste'
-  if (text.includes('tin') || text.includes('mau') || /^IN\d+/.test(compactCode) || compactCode.includes('TIN')) return 'tin'
-  return 'glue'
+  const subgroup = normalizeChemicalSubGroup(
+    item.chemicalSubGroup || item.materialSubGroup || item.subGroup || item.chemicalGroup || item.weighingGroup,
+    item.materialGroup || item.group || CHEMICAL,
+  )
+  if (subgroup === CHEMICAL_SUBGROUP_GLUE) return 'glue'
+  if (subgroup === CHEMICAL_SUBGROUP_PASTE) return 'paste'
+  if (subgroup === CHEMICAL_SUBGROUP_TIN) return 'tin'
+  return ''
 }
 const MATERIAL_STATUS_ACTIVE = 'Hoạt động'
 const MATERIAL_STATUS_PAUSED = 'Tạm ngưng'
@@ -257,6 +267,7 @@ const normalizeMasterFormulas = (formulas = []) => (Array.isArray(formulas) ? fo
     status,
     items: (formula.items || []).map((item) => ({
       ...item,
+      chemicalSubGroup: normalizeChemicalSubGroup(item.chemicalSubGroup || item.materialSubGroup || item.subGroup || item.chemicalGroup || item.weighingGroup, item.materialGroup),
       tolerancePercent: parseTolerancePercent(item.tolerancePercent ?? item.tolerance ?? item.toleranceKg),
     })),
   }
@@ -628,6 +639,7 @@ function getCatalogCell(item = {}, names = []) {
 function normalizeMaterialCatalogItem(item = {}) {
   const materialCode = String(item.materialCode || item.code || item['Mã vật tư'] || item['Ma vat tu'] || item['Mã VT'] || item['Ma VT'] || '').trim()
   if (!materialCode) return null
+  const materialGroup = String(item.materialGroup || item.group || item.classification || item.mainGroup || item['Nhom vat tu'] || item['Nhom'] || CHEMICAL).trim()
   const rawStatus = String(item.status || getCatalogCell(item, ['Trạng thái', 'Trang thai']) || MATERIAL_STATUS_ACTIVE).trim()
   const normalizedStatusText = normalizeText(rawStatus)
   const status = normalizedStatusText.includes('tam ngung')
@@ -643,6 +655,8 @@ function normalizeMaterialCatalogItem(item = {}) {
     unit: String(item.unit || item['Đơn vị tính'] || item['Don vi tinh'] || item['Đơn vị'] || item['Don vi'] || 'kg').trim(),
     manufacturer: String(item.manufacturer || item.maker || item.supplier || getCatalogCell(item, ['Nhà sản xuất', 'Nha san xuat']) || '').trim(),
     defaultWeighingToolCode: String(item.defaultWeighingToolCode || getCatalogCell(item, ['Dụng cụ cân mặc định', 'Dung cu can mac dinh']) || '').trim(),
+    materialGroup,
+    chemicalSubGroup: normalizeChemicalSubGroup(item.chemicalSubGroup || item.subClassification || item['sub-classification'] || getCatalogCell(item, ['sub-classification', 'sub classification', 'Phan nhom']), materialGroup),
     status,
   }
 }
@@ -663,14 +677,16 @@ function getWeighingToolApplyForItem(item = {}) {
   const groupKey = getChemicalWeighingGroupKey(item)
   if (groupKey === 'paste') return WEIGHING_TOOL_APPLY.PASTE
   if (groupKey === 'tin') return WEIGHING_TOOL_APPLY.TIN
-  return WEIGHING_TOOL_APPLY.GLUE
+  if (groupKey === 'glue') return WEIGHING_TOOL_APPLY.GLUE
+  return ''
 }
 function defaultWeighingToolCodeForItem(item = {}) {
   const applyFor = getWeighingToolApplyForItem(item)
   if (applyFor === WEIGHING_TOOL_APPLY.PASTE) return 'DC-PASTE-20L'
   if (applyFor === WEIGHING_TOOL_APPLY.TIN) return 'DC-TIN-2L'
   if (applyFor === WEIGHING_TOOL_APPLY.SOLID) return 'DC-RAN-KHAY'
-  return 'DC-KEO-30L'
+  if (applyFor === WEIGHING_TOOL_APPLY.GLUE) return 'DC-KEO-30L'
+  return ''
 }
 function normalizeWeighingToolCatalog(items = []) {
   const byCode = new Map()
@@ -839,6 +855,7 @@ function buildFormulaItems(lines, quantityKg) {
     materialCode: line.code,
     materialName: line.code,
     materialGroup: line.group,
+    chemicalSubGroup: normalizeChemicalSubGroup(line.chemicalSubGroup || line.subGroup, line.group),
     ratioPercent: line.percent,
     requiredKg,
     requiredWeight: requiredKg,
@@ -859,12 +876,12 @@ function buildFormulaItems(lines, quantityKg) {
 
 const masterFormulaLines = {
   'HNS-252-G1': [
-    ['PASTE 02', CHEMICAL, 4.61], ['IN02', CHEMICAL, 0.02], ['IN03', CHEMICAL, 0.30], ['D01', CHEMICAL, 0.07],
-    ['R91', SOLID, 20], ['KT01', CHEMICAL, 0.5], ['SiG01', SOLID, 15], ['SiBK02', SOLID, 5], ['SW34', SOLID, 34.5], ['SW92', SOLID, 20],
+    ['PASTE 02', CHEMICAL, 4.61, CHEMICAL_SUBGROUP_PASTE], ['IN02', CHEMICAL, 0.02, CHEMICAL_SUBGROUP_TIN], ['IN03', CHEMICAL, 0.30, CHEMICAL_SUBGROUP_TIN], ['D01', CHEMICAL, 0.07, CHEMICAL_SUBGROUP_GLUE],
+    ['R91', SOLID, 20, ''], ['KT01', CHEMICAL, 0.5, CHEMICAL_SUBGROUP_GLUE], ['SiG01', SOLID, 15, ''], ['SiBK02', SOLID, 5, ''], ['SW34', SOLID, 34.5, ''], ['SW92', SOLID, 20, ''],
   ],
   'HNS-252-R2': [
-    ['PASTE 02', CHEMICAL, 4.61], ['IN02', CHEMICAL, 0.02], ['IN03', CHEMICAL, 0.30], ['D01', CHEMICAL, 0.07],
-    ['R91', SOLID, 20], ['KT01', CHEMICAL, 0.5], ['SiR05', SOLID, 19], ['SiR01', SOLID, 1], ['SW34', SOLID, 34.5], ['SW92', SOLID, 20],
+    ['PASTE 02', CHEMICAL, 4.61, CHEMICAL_SUBGROUP_PASTE], ['IN02', CHEMICAL, 0.02, CHEMICAL_SUBGROUP_TIN], ['IN03', CHEMICAL, 0.30, CHEMICAL_SUBGROUP_TIN], ['D01', CHEMICAL, 0.07, CHEMICAL_SUBGROUP_GLUE],
+    ['R91', SOLID, 20, ''], ['KT01', CHEMICAL, 0.5, CHEMICAL_SUBGROUP_GLUE], ['SiR05', SOLID, 19, ''], ['SiR01', SOLID, 1, ''], ['SW34', SOLID, 34.5, ''], ['SW92', SOLID, 20, ''],
   ],
 }
 
@@ -1175,7 +1192,7 @@ const initialData = {
     createdBy: 'Phòng kỹ thuật',
     checkedBy: 'QC trưởng',
     approvedBy: 'Giám đốc sản xuất',
-    items: rows.map(([code, group, percent], no) => ({ id: uid('fml'), no: no + 1, materialCode: code, materialName: code, materialGroup: group, ratioPercent: percent })),
+    items: rows.map(([code, group, percent, chemicalSubGroup], no) => ({ id: uid('fml'), no: no + 1, materialCode: code, materialName: code, materialGroup: group, chemicalSubGroup: normalizeChemicalSubGroup(chemicalSubGroup, group), ratioPercent: percent })),
   })),
   formulaVersions: [],
   orders: [],
@@ -1214,7 +1231,7 @@ const initialData = {
 
 function seedData() {
   const formula = initialData.formulas[0]
-  const items = buildFormulaItems(formula.items.map((item) => ({ code: item.materialCode, name: item.materialName, group: item.materialGroup, percent: item.ratioPercent })), 1000)
+  const items = buildFormulaItems(formula.items.map((item) => ({ code: item.materialCode, name: item.materialName, group: item.materialGroup, chemicalSubGroup: item.chemicalSubGroup, percent: item.ratioPercent })), 1000)
   return {
     ...initialData,
     orders: [
@@ -1249,7 +1266,7 @@ function seedData() {
         originalFormulaId: initialData.formulas[1].id,
         originalFormulaVersion: initialData.formulas[1].version,
         originalFormula: initialData.formulas[1].items,
-        productionFormulaSnapshot: buildFormulaItems(initialData.formulas[1].items.map((item) => ({ code: item.materialCode, name: item.materialName, group: item.materialGroup, percent: item.ratioPercent })), 750).map((item) => ({ ...item, qrStatus: 'PASS', weighStatus: 'PASS', actualWeight: item.requiredKg, confirmedAt: '2026-06-13 09:30' })),
+        productionFormulaSnapshot: buildFormulaItems(initialData.formulas[1].items.map((item) => ({ code: item.materialCode, name: item.materialName, group: item.materialGroup, chemicalSubGroup: item.chemicalSubGroup, percent: item.ratioPercent })), 750).map((item) => ({ ...item, qrStatus: 'PASS', weighStatus: 'PASS', actualWeight: item.requiredKg, confirmedAt: '2026-06-13 09:30' })),
         qc1AdjustedFormula: null,
         qc2AdjustedFormula: [],
         scaleStatus: { chemical: 'Completed', solid: 'Completed' },
@@ -1590,13 +1607,27 @@ function displayChemicalMixStatus(order = {}) {
 
 function normalizeProductionOrders(orders = [], formulas = []) {
   const machineCatalog = normalizeMixingMachines()
+  const formulaItemByCode = new Map()
+  normalizeMasterFormulas(formulas).forEach((formula) => (formula.items || []).forEach((item) => {
+    const code = String(item.materialCode || '').trim().toUpperCase()
+    if (code && !formulaItemByCode.has(code)) formulaItemByCode.set(code, item)
+  }))
+  const normalizeFormulaRows = (rows = []) => (rows || []).map((item) => {
+    const catalogItem = formulaItemByCode.get(String(item.materialCode || '').trim().toUpperCase())
+    const materialGroup = item.materialGroup || catalogItem?.materialGroup || ''
+    return {
+      ...item,
+      materialGroup,
+      chemicalSubGroup: normalizeChemicalSubGroup(item.chemicalSubGroup || item.materialSubGroup || item.subGroup || item.chemicalGroup || item.weighingGroup || catalogItem?.chemicalSubGroup, materialGroup),
+    }
+  })
   return orders.map((order, index) => {
     const formula = formulas.find((item) => item.id === (order.formulaId || order.originalFormulaId))
       || formulas.find((item) => item.code === order.formulaCode)
       || formulas[0]
     const fallbackCode = order.orderCode || order.id || `LSX-${todayText().replaceAll('-', '')}-${String(index + 1).padStart(3, '0')}`
-    const originalFormulaSnapshot = order.originalFormulaSnapshot || order.productionFormulaSnapshot || order.ingredients || []
-    const activeProductionFormula = order.activeProductionFormula || order.qc1AdjustedFormula || order.productionFormulaSnapshot || originalFormulaSnapshot
+    const originalFormulaSnapshot = normalizeFormulaRows(order.originalFormulaSnapshot || order.productionFormulaSnapshot || order.ingredients || [])
+    const activeProductionFormula = normalizeFormulaRows(order.activeProductionFormula || order.qc1AdjustedFormula || order.productionFormulaSnapshot || originalFormulaSnapshot)
     const requestedWeight = num(order.requestedWeight ?? order.quantityKg)
     const assignedMachineCode = normalizeMixingMachineCode(order.assignedMachineCode || order.mixerMachine || order.assignedMixingMachine || order.mixingMachine || order.mixing?.machineCode || '')
     const assignedMachine = machineCatalog.find((machine) => machine.machineCode === assignedMachineCode)
@@ -1620,10 +1651,10 @@ function normalizeProductionOrders(orders = [], formulas = []) {
       updatedAt: order.updatedAt || order.createdAt || nowText(),
       originalFormulaSnapshot,
       activeProductionFormula,
-      productionFormulaSnapshot: order.productionFormulaSnapshot || originalFormulaSnapshot,
+      productionFormulaSnapshot: normalizeFormulaRows(order.productionFormulaSnapshot || originalFormulaSnapshot),
       qc1Adjustments: order.qc1Adjustments || order.qc1Logs || [],
       qc2Adjustments: order.qc2Adjustments || order.qc2AdjustedFormula || [],
-      qc1AdjustedFormula: order.qc1AdjustedFormula || null,
+      qc1AdjustedFormula: order.qc1AdjustedFormula ? normalizeFormulaRows(order.qc1AdjustedFormula) : null,
       qc2AdjustedFormula: order.qc2AdjustedFormula || order.qc2Adjustments || [],
       qc2SupplementTickets: order.qc2SupplementTickets || order.qc2AdjustedFormula || [],
       initialOrderSnapshot: order.initialOrderSnapshot || {
@@ -1902,6 +1933,7 @@ function buildWeighedContainer(order, group, items, containers = [], weighingTyp
     materialCode: item.materialCode,
     materialName: item.materialCode,
     materialGroup: item.materialGroup,
+    chemicalSubGroup: normalizeChemicalSubGroup(item.chemicalSubGroup, item.materialGroup),
     requiredKg: num(item.requiredKg),
     actualWeight: num(item.actualWeight || item.requiredKg),
     weighingToolCode: item.weighingToolCode || '',
@@ -2472,8 +2504,8 @@ function createQc2DemoPayload(current = {}) {
   const adjustmentId = 'QC2-ADJ-001'
   const adjustedAt = '2026-06-13 13:10'
   const adjustedItems = [
-    { id: 'DEMO-QC2-ADJ-001-PASTE02', adjustmentId, orderId: 'LSX-QC2-DEMO-003', changeType: 'existing', materialCode: 'PASTE 02', materialName: 'PASTE 02', materialGroup: CHEMICAL, adjustmentKg: 1.5, requiredKg: 1.5, reason: 'Tăng độ phủ màu', note: 'Bổ sung sau QC2 lần 1' },
-    { id: 'DEMO-QC2-ADJ-001-IN03', adjustmentId, orderId: 'LSX-QC2-DEMO-003', changeType: 'existing', materialCode: 'IN03', materialName: 'IN03', materialGroup: CHEMICAL, adjustmentKg: 0.2, requiredKg: 0.2, reason: 'Cân chỉnh sắc độ', note: 'Bổ sung sau QC2 lần 1' },
+    { id: 'DEMO-QC2-ADJ-001-PASTE02', adjustmentId, orderId: 'LSX-QC2-DEMO-003', changeType: 'existing', materialCode: 'PASTE 02', materialName: 'PASTE 02', materialGroup: CHEMICAL, chemicalSubGroup: CHEMICAL_SUBGROUP_PASTE, adjustmentKg: 1.5, requiredKg: 1.5, reason: 'Tăng độ phủ màu', note: 'Bổ sung sau QC2 lần 1' },
+    { id: 'DEMO-QC2-ADJ-001-IN03', adjustmentId, orderId: 'LSX-QC2-DEMO-003', changeType: 'existing', materialCode: 'IN03', materialName: 'IN03', materialGroup: CHEMICAL, chemicalSubGroup: CHEMICAL_SUBGROUP_TIN, adjustmentKg: 0.2, requiredKg: 0.2, reason: 'Cân chỉnh sắc độ', note: 'Bổ sung sau QC2 lần 1' },
   ]
   const adjustmentTicket = {
     id: adjustmentId,
@@ -2818,7 +2850,7 @@ const parseFormulaMaterialCode = (value) => {
   const parenthetical = [...text.matchAll(/\(([^()]+)\)/g)].map((match) => match[1].trim()).filter(Boolean).at(-1)
   return parenthetical || text
 }
-const getMaterialGroupByCode = (catalog = [], code = '') => activeMaterialCatalog(catalog).find((item) => String(item.materialCode || '').trim().toUpperCase() === String(code || '').trim().toUpperCase())?.materialGroup || ''
+const getMaterialByCode = (catalog = [], code = '') => activeMaterialCatalog(catalog).find((item) => String(item.materialCode || '').trim().toUpperCase() === String(code || '').trim().toUpperCase())
 
 function FormulasPage({ data, setData, permissions = [], user = null }) {
   const [selectedId, setSelectedId] = useState(data.formulas[0]?.id || '')
@@ -2833,6 +2865,7 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
   const importFormulaRef = useRef(null)
   const updateFormulaToleranceRef = useRef(null)
   const selected = data.formulas.find((item) => item.id === selectedId) || data.formulas[0]
+  const formulaMaterialCatalog = activeMaterialCatalog(deriveMaterialCatalog(data))
   const versions = (data.formulaVersions || []).filter((version) => version.formulaId === selectedId)
   const approvedVersions = versions.filter((version) => version.status === 'Đã duyệt')
   const latestApproved = approvedVersions.at(-1)
@@ -2948,7 +2981,22 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
   const updateFormulaDraft = (field, value) => setFormulaDraft((current) => ({ ...current, [field]: value }))
   const updateFormulaLine = (lineId, field, value) => setFormulaDraft((current) => ({
     ...current,
-    items: current.items.map((item) => item.id === lineId ? { ...item, [field]: field === 'ratioPercent' ? parsePercentNumber(value) : field === 'tolerancePercent' ? parseTolerancePercent(value) : value } : item),
+    items: current.items.map((item) => {
+      if (item.id !== lineId) return item
+      if (field === 'materialCode') {
+        const material = getMaterialByCode(formulaMaterialCatalog, value)
+        return {
+          ...item,
+          materialCode: value,
+          materialName: material?.materialName || value,
+          materialGroup: material?.materialGroup || item.materialGroup,
+          chemicalSubGroup: material?.chemicalSubGroup || normalizeChemicalSubGroup(item.chemicalSubGroup, material?.materialGroup || item.materialGroup),
+        }
+      }
+      const nextValue = field === 'ratioPercent' ? parsePercentNumber(value) : field === 'tolerancePercent' ? parseTolerancePercent(value) : value
+      const nextItem = { ...item, [field]: nextValue }
+      return field === 'materialGroup' ? { ...nextItem, chemicalSubGroup: normalizeChemicalSubGroup(nextItem.chemicalSubGroup, nextValue) } : nextItem
+    }),
   }))
   const addFormulaLine = () => setFormulaDraft((current) => ({ ...current, items: [...current.items, emptyFormulaLine()] }))
   const removeFormulaLine = (lineId) => setFormulaDraft((current) => ({
@@ -3024,6 +3072,7 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
         materialCode: item.materialCode.trim(),
         materialName: item.materialCode.trim(),
         materialGroup: item.materialGroup.trim(),
+        chemicalSubGroup: normalizeChemicalSubGroup(item.chemicalSubGroup, item.materialGroup),
         ratioPercent: parsePercentNumber(item.ratioPercent),
         quantityKg: num(item.quantityKg),
         tolerancePercent: parseTolerancePercent(item.tolerancePercent),
@@ -3097,13 +3146,16 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
           const materialCode = parseFormulaMaterialCode(row[header.columns.materialCode])
           const ratioPercent = parsePercentNumber(row[header.columns.ratioPercent])
           if (!materialCode || !ratioPercent) return
+          const catalogMaterial = getMaterialByCode(materialCatalog, materialCode)
+          const materialGroup = header.columns.materialGroup >= 0
+            ? excelCellText(row[header.columns.materialGroup])
+            : catalogMaterial?.materialGroup || ''
           formula.items.push({
             id: uid('fml'),
             materialCode,
             materialName: materialCode,
-            materialGroup: header.columns.materialGroup >= 0
-              ? excelCellText(row[header.columns.materialGroup])
-              : getMaterialGroupByCode(materialCatalog, materialCode),
+            materialGroup,
+            chemicalSubGroup: normalizeChemicalSubGroup(catalogMaterial?.chemicalSubGroup, materialGroup),
             ratioPercent,
             quantityKg: header.columns.quantityKg >= 0 ? num(row[header.columns.quantityKg]) : 0,
             requiredWeight: header.columns.quantityKg >= 0 ? num(row[header.columns.quantityKg]) : 0,
@@ -3291,6 +3343,7 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
         materialCode: item.materialCode,
         materialName: item.materialCode,
         materialGroup: item.materialGroup,
+        chemicalSubGroup: normalizeChemicalSubGroup(item.chemicalSubGroup, item.materialGroup),
         originalPercent: item.ratioPercent,
         adjustedPercent: item.ratioPercent,
       })),
@@ -3471,6 +3524,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
     code: item.materialCode,
     name: item.materialCode,
     group: item.materialGroup,
+    chemicalSubGroup: item.chemicalSubGroup,
     percent: item.ratioPercent,
     tolerancePercent: item.tolerancePercent ?? item.tolerance ?? item.toleranceKg,
   })) : []
@@ -3957,6 +4011,7 @@ function QC1({ data, setData, user }) {
       materialCode: newMaterial.materialCode,
       materialName: newMaterial.materialCode,
       materialGroup: selectedMaterial.materialGroup || newMaterial.materialGroup,
+      chemicalSubGroup: normalizeChemicalSubGroup(selectedMaterial.chemicalSubGroup, selectedMaterial.materialGroup || newMaterial.materialGroup),
       ratioPercent: Number(((num(newMaterial.requiredKg) / num(activeOrder.quantityKg || activeOrder.requestedWeight || 1)) * 100).toFixed(4)),
       requiredKg: 0,
       qcAdjustKg: num(newMaterial.requiredKg),
@@ -4149,7 +4204,7 @@ function QC1({ data, setData, user }) {
             <div className="production-form-grid">
               <label>Mã vật tư<input list="qc1-active-materials" value={newMaterial.materialCode} onChange={(event) => {
                 const material = selectableMaterials.find((item) => item.materialCode === event.target.value)
-                setNewMaterial({ ...newMaterial, materialCode: event.target.value, materialGroup: material?.materialGroup || newMaterial.materialGroup })
+                setNewMaterial({ ...newMaterial, materialCode: event.target.value, materialGroup: material?.materialGroup || newMaterial.materialGroup, chemicalSubGroup: material?.chemicalSubGroup || '' })
               }} /></label>
               <datalist id="qc1-active-materials">{selectableMaterials.map((item) => <option key={item.materialCode} value={item.materialCode} />)}</datalist>
               <label>Nhóm vật tư<select value={newMaterial.materialGroup} onChange={(event) => setNewMaterial({ ...newMaterial, materialGroup: event.target.value })}><option>{CHEMICAL}</option><option>{SOLID}</option></select></label>
@@ -4196,7 +4251,7 @@ function QC2({ data, setData }) {
         if (form.result === 'Không đạt') return { ...item, stage: 'qc2', status: 'QC2 không đạt', qc2: form, updatedAt: nowText() }
         const material = selectableMaterials.find((item) => item.materialCode === form.materialCode)
         if (!material) return item
-        const ticket = { id: uid('BS'), status: 'Pending', items: [{ id: uid('add'), materialCode: form.materialCode, materialName: form.materialCode, materialGroup: material.materialGroup || form.materialGroup, requiredKg: num(form.addKg), toleranceKg: (material.materialGroup || form.materialGroup) === CHEMICAL ? 0.01 : 0.1, qrScanned: '', qrStatus: 'Chờ quét', actualWeight: '', weighStatus: 'Chờ cân', reason: form.reason, note: form.note }] }
+        const ticket = { id: uid('BS'), status: 'Pending', items: [{ id: uid('add'), materialCode: form.materialCode, materialName: form.materialCode, materialGroup: material.materialGroup || form.materialGroup, chemicalSubGroup: normalizeChemicalSubGroup(material.chemicalSubGroup, material.materialGroup || form.materialGroup), requiredKg: num(form.addKg), toleranceKg: (material.materialGroup || form.materialGroup) === CHEMICAL ? 0.01 : 0.1, qrScanned: '', qrStatus: 'Chờ quét', actualWeight: '', weighStatus: 'Chờ cân', reason: form.reason, note: form.note }] }
         return { ...item, stage: 'supplement-weighing', status: 'Cân bổ sung', qc2: form, qc2AdjustedFormula: [...(item.qc2AdjustedFormula || []), ticket], updatedAt: nowText() }
       })
       const log = form.result === 'OK' ? `QC2 OK lệnh ${order.id}, chuyển đóng gói.` : form.result === 'Cần chỉnh màu' ? `QC2 điều chỉnh màu ${order.id}, tạo phiếu cân bổ sung.` : `QC2 không đạt lệnh ${order.id}.`
@@ -4213,7 +4268,7 @@ function QC2({ data, setData }) {
       </div>
       {form.result === 'Cần chỉnh màu' && <div className="production-form-grid"><datalist id="legacy-qc2-active-materials">{selectableMaterials.map((material) => <option key={material.materialCode} value={material.materialCode} />)}</datalist><label>Mã vật tư<input list="legacy-qc2-active-materials" value={form.materialCode} onChange={(event) => {
         const material = selectableMaterials.find((item) => item.materialCode === event.target.value)
-        setForm(order.id, { materialCode: event.target.value, materialGroup: material?.materialGroup || form.materialGroup })
+        setForm(order.id, { materialCode: event.target.value, materialGroup: material?.materialGroup || form.materialGroup, chemicalSubGroup: material?.chemicalSubGroup || '' })
       }} /></label><label>Nhóm<select value={form.materialGroup} onChange={(event) => setForm(order.id, { materialGroup: event.target.value })}><option>{CHEMICAL}</option><option>{SOLID}</option></select></label><label>Khối lượng bổ sung<input type="number" value={form.addKg} onChange={(event) => setForm(order.id, { addKg: event.target.value })} /></label><label>Lý do điều chỉnh<input value={form.reason} onChange={(event) => setForm(order.id, { reason: event.target.value })} /></label></div>}
     </article>
   })}{orders.length === 0 && <p className="empty-alert">Không có lệnh chờ QC2.</p>}</section>
@@ -4298,6 +4353,7 @@ function FinishedProductQcPage({ data, setData, user }) {
           materialCode: row.materialCode,
           materialName: row.materialCode,
           materialGroup: row.materialGroup,
+          chemicalSubGroup: normalizeChemicalSubGroup(row.chemicalSubGroup, row.materialGroup),
           changeType: 'existing',
           adjustmentKg: field === 'adjustmentKg' ? value : '',
           reason: field === 'reason' ? value : '',
@@ -4309,7 +4365,7 @@ function FinishedProductQcPage({ data, setData, user }) {
   const addNewMaterial = () => {
     setForm((current) => ({
       ...current,
-      newMaterials: [...current.newMaterials, { id: uid('newqc2'), materialCode: '', materialGroup: CHEMICAL, adjustmentKg: 0, reason: '', note: '' }],
+      newMaterials: [...current.newMaterials, { id: uid('newqc2'), materialCode: '', materialGroup: CHEMICAL, chemicalSubGroup: '', adjustmentKg: 0, reason: '', note: '' }],
     }))
   }
 
@@ -4320,9 +4376,10 @@ function FinishedProductQcPage({ data, setData, user }) {
         if (item.id !== id) return item
         if (field === 'materialCode') {
           const material = selectableMaterials.find((row) => row.materialCode === value)
-          return { ...item, materialCode: value, materialGroup: material?.materialGroup || item.materialGroup }
+          return { ...item, materialCode: value, materialGroup: material?.materialGroup || item.materialGroup, chemicalSubGroup: material?.chemicalSubGroup || '' }
         }
-        return { ...item, [field]: field === 'adjustmentKg' ? Number(value) || 0 : value }
+        const nextItem = { ...item, [field]: field === 'adjustmentKg' ? Number(value) || 0 : value }
+        return field === 'materialGroup' ? { ...nextItem, chemicalSubGroup: normalizeChemicalSubGroup(nextItem.chemicalSubGroup, value) } : nextItem
       }),
     }))
   }
@@ -4383,6 +4440,7 @@ function FinishedProductQcPage({ data, setData, user }) {
           adjustmentId,
           orderId: activeOrder.id,
           changeType: 'new',
+          chemicalSubGroup: normalizeChemicalSubGroup(item.chemicalSubGroup, item.materialGroup),
           adjustmentKg: Number(num(item.adjustmentKg).toFixed(3)),
           requiredKg: Number(num(item.adjustmentKg).toFixed(3)),
           materialName: item.materialCode,
@@ -9072,10 +9130,14 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
     printWindow.document.close()
   }
   const materialExcelRows = () => (data.materialCatalog || []).map((row) => ({
-    'Mã vật tư': row.materialCode || '',
-    'Tên vật tư': row.materialName || '',
-    'Nhà sản xuất': row.manufacturer || '',
-    'Trạng thái': row.status || 'Hoạt động',
+    'Ma vat tu': row.materialCode || '',
+    'Ten vat tu': row.materialName || '',
+    'Nha san xuat': row.manufacturer || '',
+    'Trang thai': row.status || MATERIAL_STATUS_ACTIVE,
+    classification: row.materialGroup || '',
+    'sub-classification': row.chemicalSubGroup || '',
+    'Don vi': row.unit || 'kg',
+    'Dung cu can mac dinh': row.defaultWeighingToolCode || '',
   }))
   const exportMaterialExcel = () => {
     const book = XLSX.utils.book_new()
@@ -9102,14 +9164,18 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
             }
             const key = materialCode.toUpperCase()
             const existing = byCode.get(key)
+            const importedGroup = row.classification || row.mainGroup || getCatalogCell(row, ['classification', 'mainGroup', 'Nhom vat tu', 'Nhom']) || existing?.materialGroup || CHEMICAL
+            const importedSubGroup = row['sub-classification'] || row.subClassification || getCatalogCell(row, ['sub-classification', 'sub classification', 'Phan nhom'])
             const next = normalizeMaterialCatalogItem({
               ...(existing || {}),
               materialCode,
               materialName: row.materialName || getCatalogCell(row, ['Tên vật tư', 'Ten vat tu']) || existing?.materialName || materialCode,
               manufacturer: row.manufacturer || getCatalogCell(row, ['Nhà sản xuất', 'Nha san xuat']) || existing?.manufacturer || '',
               status: row.status || getCatalogCell(row, ['Trạng thái', 'Trang thai']) || existing?.status || 'Hoạt động',
-              materialGroup: existing?.materialGroup || CHEMICAL,
-              unit: existing?.unit || 'kg',
+              materialGroup: importedGroup,
+              chemicalSubGroup: importedSubGroup,
+              unit: row.unit || getCatalogCell(row, ['Don vi', 'Don vi tinh']) || existing?.unit || 'kg',
+              defaultWeighingToolCode: row.defaultWeighingToolCode || getCatalogCell(row, ['Dung cu can mac dinh']) || existing?.defaultWeighingToolCode || '',
             })
             if (!next) {
               summary.errors += 1
@@ -9133,7 +9199,16 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
     if (!canEdit) return
     setData((current) => ({
       ...current,
-      [storageKey]: (current[storageKey] || []).map((row) => row.id === rowId ? { ...row, [field]: value } : row),
+      [storageKey]: (current[storageKey] || []).map((row) => {
+        if (row.id !== rowId) return row
+        if (isMaterialCatalog && field === 'materialGroup') {
+          return { ...row, materialGroup: value, chemicalSubGroup: normalizeChemicalSubGroup(row.chemicalSubGroup, value) }
+        }
+        if (isMaterialCatalog && field === 'chemicalSubGroup') {
+          return { ...row, chemicalSubGroup: normalizeChemicalSubGroup(value, row.materialGroup) }
+        }
+        return { ...row, [field]: value }
+      }),
     }))
   }
   const addRow = () => {
@@ -9148,7 +9223,12 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
     fields.forEach((field) => {
       if (next[field] == null) next[field] = ''
     })
-    if (isMaterialCatalog) next.status = MATERIAL_STATUS_ACTIVE
+    if (isMaterialCatalog) {
+      next.status = MATERIAL_STATUS_ACTIVE
+      next.materialGroup = CHEMICAL
+      next.chemicalSubGroup = ''
+      next.unit = next.unit || 'kg'
+    }
     if (isWeighingToolCatalog) {
       next.status = WEIGHING_TOOL_STATUS_ACTIVE
       next.applyFor = WEIGHING_TOOL_APPLY.GLUE
@@ -9212,7 +9292,12 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
                 <tr key={row.id}>
                   {fields.map((field, index) => (
                     <td key={field} data-label={labels[index]}>
-                      {isMaterialCatalog && field === 'defaultWeighingToolCode' ? (
+                      {isMaterialCatalog && field === 'chemicalSubGroup' ? (
+                        <select value={normalizeChemicalSubGroup(row.chemicalSubGroup, row.materialGroup)} disabled={!canEdit || !isChemicalGroup(row.materialGroup)} onChange={(event) => updateRow(row.id, field, event.target.value)}>
+                          <option value="">null</option>
+                          {CHEMICAL_SUBGROUP_OPTIONS.map((subGroup) => <option key={subGroup} value={subGroup}>{subGroup}</option>)}
+                        </select>
+                      ) : isMaterialCatalog && field === 'defaultWeighingToolCode' ? (
                         <select value={row[field] || ''} disabled={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)}>
                           <option value="">Tự động theo phân nhóm</option>
                           {weighingToolOptions.map((tool) => <option key={tool.code} value={tool.code}>{tool.code} - {tool.name}</option>)}
@@ -9772,7 +9857,7 @@ function App() {
     'admin-roles': <AdminPage authData={authData} setAuthData={setAuthData} section="roles" />,
     'admin-permissions': <AdminPage authData={authData} setAuthData={setAuthData} section="permissions" />,
     'admin-system-logs': <SystemLogsPage data={data} />,
-    'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'materialGroup', 'unit', 'defaultWeighingToolCode']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Đơn vị', 'Dụng cụ cân mặc định']} data={data} setData={setData} permissions={userPermissions} user={user} />,
+    'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'materialGroup', 'chemicalSubGroup', 'unit', 'defaultWeighingToolCode']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Phân nhóm', 'Đơn vị', 'Dụng cụ cân mặc định']} data={data} setData={setData} permissions={userPermissions} user={user} />,
     'master-weighing-tools': <MasterCatalogPage title="Danh mục dụng cụ cân" storageKey="weighingToolCatalog" permissionKey="material" fields={['code', 'name', 'type', 'tareWeightKg', 'maxLoadKg', 'applyFor', 'status']} labels={['Mã dụng cụ', 'Tên dụng cụ', 'Loại', 'Tare kg', 'Tải tối đa kg', 'Áp dụng cho', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
     'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'group', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
