@@ -4992,15 +4992,10 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
         </div>
         <span className={`chemical-group-status ${board.status === 'Hoàn thành' ? 'done' : board.status === 'Đang cân' ? 'active' : ''}`}>{board.status}</span>
       </div>
-      <div className="chemical-scale-note">
-        <div><span>Line thao tác</span><strong>{board.lineLabel || '-'}</strong></div>
-        <div><span>Cấu hình cân</span><strong>{board.scaleLabel || '-'}</strong></div>
-      </div>
-      {!boardItems.length && <div className="process-alert">Không có vật tư cần cân cho line này</div>}
+      {!boardItems.length && <div className="process-alert">{activeOrder ? 'Không có vật tư cần cân cho line này' : 'Chưa chọn lệnh'}</div>}
       {!scaleSession.scaleSupported && <div className="process-alert">Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.</div>}
       <div className="scale-serial-panel chemical-scale-serial-panel">
         <div><span>Trạng thái cân</span><strong>{scaleSession.scaleStatus}</strong></div>
-        <div><span>COM/thiết bị</span><strong>{scaleSession.scalePortLabel}</strong></div>
         <div className="scale-weight-display"><span className="scale-weight-title">Khối lượng cân</span><strong className="scale-weight-value">{formatScaleWeight(scaleSession.scaleWeightKg, `chemical-${board.key}`)}</strong></div>
         {debugMode && <div className="scale-stability-settings">
           <span>Cài đặt ổn định</span>
@@ -5044,7 +5039,18 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
 }
 
 function ChemicalMixSummary({ order, lineState, canPrint, onPrint }) {
-  if (!order || !lineState) return null
+  if (!order || !lineState) {
+    return (
+      <section className="chemical-mix-summary">
+        <div className="chemical-mix-status-grid">
+          <div><span>Keo</span><strong>Chưa chọn lệnh</strong></div>
+          <div><span>Paste</span><strong>Chưa chọn lệnh</strong></div>
+          <div><span>Màu</span><strong>Chưa chọn lệnh</strong></div>
+          <div><span>Hỗn hợp Hóa</span><strong>Chưa hoàn thành</strong></div>
+        </div>
+      </section>
+    )
+  }
   const waitingForGlue = lineState.keoStatus !== CHEMICAL_SUBGROUP_STATUS_DONE
     && lineState.keoStatus !== CHEMICAL_SUBGROUP_STATUS_NOT_REQUIRED
   const waitingForPasteTin = [lineState.pasteStatus, lineState.colorStatus].some((status) => (
@@ -5129,7 +5135,6 @@ function WeighingPage({ data = {}, setData, group, user }) {
   const [warning, setWarning] = useState('')
   const [printQrModal, setPrintQrModal] = useState(null)
   const [weighingDetailModal, setWeighingDetailModal] = useState(null)
-  const [chemicalSharedQr, setChemicalSharedQr] = useState('')
   const [scaleStatus, setScaleStatus] = useState('Chưa kết nối cân')
   const [scaleRawText, setScaleRawText] = useState('')
   const [scaleRawValue, setScaleRawValue] = useState(null)
@@ -5260,50 +5265,6 @@ function WeighingPage({ data = {}, setData, group, user }) {
     const nextTolerance = Math.max(0, Number(event.target.value) || 0)
     setScaleToleranceKg(nextTolerance)
   }
-  const submitChemicalSharedQr = (event) => {
-    event?.preventDefault?.()
-    if (group !== CHEMICAL) return
-    const scanned = String(chemicalSharedQr || '').trim()
-    if (!scanned) {
-      setWarning('Vui lòng quét QR mã vật tư.')
-      return
-    }
-    if (!activeOrder) {
-      setWarning('Vui lòng chọn lệnh cân trước khi quét QR mã vật tư.')
-      return
-    }
-    const scannedCode = extractMaterialCodeFromQr(scanned)
-    const matchedItem = activeItems.find((item) => normalizeCode(item.materialCode) === normalizeCode(scannedCode))
-    if (!matchedItem) {
-      setWarning(`Không tìm thấy mã vật tư trong lệnh đang cân: ${scannedCode || scanned}.`)
-      setChemicalSharedQr('')
-      return
-    }
-    const lineKey = getChemicalWeighingGroupKey(matchedItem)
-    const board = chemicalGroupBoards.find((item) => item.key === lineKey)
-    if (!board) {
-      setWarning(`Không thể xác định line cân cho vật tư ${matchedItem.materialCode}. Vui lòng kiểm tra phân nhóm vật tư.`)
-      setChemicalSharedQr('')
-      return
-    }
-    const targetInput = Array.from(document.querySelectorAll('[data-weighing-qr-input="true"]')).find((input) => (
-      input.dataset.orderId === String(activeOrder.id)
-      && input.dataset.materialCode === normalizeCode(matchedItem.materialCode)
-    ))
-    if (!targetInput) {
-      setWarning(`Vật tư ${matchedItem.materialCode} thuộc ${board.label}, nhưng chưa phải dòng đang thao tác hoặc đã quét QR.`)
-      setChemicalSharedQr('')
-      return
-    }
-    const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
-    valueSetter?.call(targetInput, scanned)
-    targetInput.dispatchEvent(new Event('input', { bubbles: true }))
-    targetInput.focus()
-    targetInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }))
-    setWarning(`Đã nhận QR ${matchedItem.materialCode} vào ${board.label}.`)
-    setChemicalSharedQr('')
-  }
-
   const connectScale = async () => {
     if (typeof navigator === 'undefined' || !navigator.serial) {
       setScaleSupported(false)
@@ -5746,14 +5707,6 @@ function WeighingPage({ data = {}, setData, group, user }) {
             <strong>Phân công ca hiện tại:</strong> {currentAssignments.length ? currentAssignments.map((item) => `${formatAssignmentEmployees(item)} (${item.shiftCode}${item.productionTeamName ? ` - ${item.productionTeamName}` : ''})`).join(', ') : 'Chưa có phân công.'}
           </div>
           {group !== CHEMICAL && !scaleSupported && <div className="process-alert">Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.</div>}
-          {group === CHEMICAL && (
-            <form className="chemical-shared-qr-panel" onSubmit={submitChemicalSharedQr}>
-              <label>Máy quét QR dùng chung
-                <input value={chemicalSharedQr} onChange={(event) => setChemicalSharedQr(event.target.value)} placeholder="Quét QR mã vật tư" autoComplete="off" />
-              </label>
-              <button type="submit" className="primary-button">Nhận QR</button>
-            </form>
-          )}
           {group !== CHEMICAL && <div className="scale-serial-panel">
             <div><span>Trạng thái cân</span><strong>{scaleStatus}</strong></div>
             {debugMode && <div><span>COM Port</span><strong>{scalePortLabel}</strong></div>}
@@ -5789,16 +5742,6 @@ function WeighingPage({ data = {}, setData, group, user }) {
                 : <div>Chưa có log serial.</div>}
             </div>
           </section>}
-          {group === CHEMICAL && !activeOrder && (
-            <section className="chemical-order-queue-panel chemical-order-queue-empty">
-              <section className="weighing-stats scale-summary-compact scale-summary-inside">
-                <article><span>Đang cân:</span><strong>{activeOrder ? '01' : '00'}</strong></article>
-                <article><span>Chờ cân:</span><strong>{String(waitingOrders.length).padStart(2, '0')}</strong></article>
-                <article><span>Hoàn thành:</span><strong>{String(completedOrders.length).padStart(2, '0')}</strong></article>
-              </section>
-              <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders} activeId={activeOrder?.id} onStart={startOrder} showStart />
-            </section>
-          )}
           {activeOrder && (
             <>
               {group === CHEMICAL && activeChemicalDataWarnings.length > 0 && (
@@ -5811,72 +5754,72 @@ function WeighingPage({ data = {}, setData, group, user }) {
                   Không tìm thấy mã vật tư trong Danh mục vật tư: {activeChemicalMissingCatalogWarnings.join(', ')}.
                 </div>
               )}
-              <div className="weighing-order-summary">
+              <div className={`weighing-order-summary ${group === CHEMICAL ? 'chemical-order-summary-compact' : ''}`}>
                 <div><span>Mã lệnh SX</span><strong>{activeOrder.orderCode || activeOrder.id}</strong></div>
                 <div><span>Sản phẩm</span><strong>{activeOrder.productName || activeOrder.product}</strong></div>
                 <div><span>LOT</span><strong>{activeOrder.lot}</strong></div>
-                <div><span>Loại cân</span><strong>{activeOrder.stage === 'supplement-weighing' ? 'Cân bổ sung QC2' : 'Cân chính'}</strong></div>
                 <div><span>Tiến độ đã cân</span><strong>Đã cân {doneCount}/{activeItems.length} vật tư</strong></div>
               </div>
-              <div className="weighing-progress-card">
+              {group !== CHEMICAL && <div className="weighing-progress-card">
                 <div><span>Đã cân</span><strong>{doneCount} / {activeItems.length} vật tư</strong></div>
                 <div className="weighing-progress"><i style={{ width: `${progress}%` }} /></div>
                 <strong>{progress}%</strong>
-              </div>
-              {group === CHEMICAL ? (
-                <div className="chemical-three-scale-workbench">
-                  <div className="chemical-top-scales">
-                    {renderChemicalBoard(glueBoard)}
-                    {renderChemicalBoard(pasteBoard)}
-                  </div>
-                  <section className="chemical-lower-section">
-                    <section className="chemical-order-queue-panel">
-                      <section className="weighing-stats scale-summary-compact scale-summary-inside">
-                        <article><span>Đang cân:</span><strong>{activeOrder ? '01' : '00'}</strong></article>
-                        <article><span>Chờ cân:</span><strong>{String(waitingOrders.length).padStart(2, '0')}</strong></article>
-                        <article><span>Hoàn thành:</span><strong>{String(completedOrders.length).padStart(2, '0')}</strong></article>
-                      </section>
-                      <ChemicalMixSummary order={activeOrder} lineState={activeChemicalLineState} canPrint={canPrintChemicalMixQr} onPrint={printChemicalMixQr} />
-                      <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders} activeId={activeOrder?.id} onStart={startOrder} showStart />
-                    </section>
-                    <div className="chemical-color-scale">
-                      {renderChemicalBoard(colorBoard)}
-                    </div>
-                  </section>
-                  {unclassifiedChemicalItems.length > 0 && (
-                    <section className="chemical-weighing-group chemical-unclassified-panel">
-                      <div className="chemical-weighing-group-header">
-                        <div>
-                          <h3>Vật tư chưa phân nhóm</h3>
-                          <span>{unclassifiedChemicalItems.length} vật tư</span>
-                        </div>
-                        <span className="chemical-group-status">Chờ khai báo</span>
-                      </div>
-                      <div className="process-alert">
-                        Các vật tư chưa có phân nhóm: {unclassifiedChemicalItems.map((item) => item.materialCode || item.materialName || item.id).join(', ')}. Vui lòng cập nhật Danh mục vật tư.
-                      </div>
-                      <SimpleTable
-                        tableClassName="chemical-weighing-table"
-                        headers={['STT', 'Mã vật tư', 'Nhóm', 'Tình trạng']}
-                        rows={unclassifiedChemicalItems.map((item, index) => (
-                          <tr key={`${activeOrder.id}-unclassified-${item.id || item.materialCode || index}`}>
-                            <td>{index + 1}</td>
-                            <td>{item.materialCode || '-'}</td>
-                            <td>{item.materialGroup || '-'}</td>
-                            <td>{item.catalogMaterialMissing ? 'Chưa khai báo trong Danh mục vật tư' : 'Chưa phân nhóm'}</td>
-                          </tr>
-                        ))}
-                      />
-                    </section>
-                  )}
-                </div>
-              ) : (
+              </div>}
+              {group !== CHEMICAL && (
                 <SimpleTable headers={['STT', 'Mã vật tư', 'KL cần cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái']} rows={activeItems.map((item, index) => (
                   <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} materialCatalog={materialCatalog} weighingTools={weighingTools} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
                 ))} empty={`Không có vật tư nhóm ${group}.`} />
               )}
               {showWeighedContainerQrSections && activeContainers.map((container) => <WeighedContainerCard key={container.containerId} container={container} onPrint={handlePrintQr} onDetail={handleViewWeighingDetail} />)}
             </>
+          )}
+          {group === CHEMICAL && (
+            <div className="chemical-three-scale-workbench">
+              <div className="chemical-top-scales">
+                {renderChemicalBoard(glueBoard)}
+                {renderChemicalBoard(pasteBoard)}
+              </div>
+              <section className="chemical-lower-section">
+                <section className="chemical-order-queue-panel">
+                  <section className="weighing-stats scale-summary-compact scale-summary-inside">
+                    <article><span>Đang cân:</span><strong>{activeOrder ? '01' : '00'}</strong></article>
+                    <article><span>Chờ cân:</span><strong>{String(waitingOrders.length).padStart(2, '0')}</strong></article>
+                    <article><span>Hoàn thành:</span><strong>{String(completedOrders.length).padStart(2, '0')}</strong></article>
+                  </section>
+                  <ChemicalMixSummary order={activeOrder} lineState={activeChemicalLineState} canPrint={canPrintChemicalMixQr} onPrint={printChemicalMixQr} />
+                  <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders} activeId={activeOrder?.id} onStart={startOrder} showStart />
+                </section>
+                <div className="chemical-color-scale">
+                  {renderChemicalBoard(colorBoard)}
+                </div>
+              </section>
+              {unclassifiedChemicalItems.length > 0 && (
+                <section className="chemical-weighing-group chemical-unclassified-panel">
+                  <div className="chemical-weighing-group-header">
+                    <div>
+                      <h3>Vật tư chưa phân nhóm</h3>
+                      <span>{unclassifiedChemicalItems.length} vật tư</span>
+                    </div>
+                    <span className="chemical-group-status">Chờ khai báo</span>
+                  </div>
+                  <div className="process-alert">
+                    Các vật tư chưa có phân nhóm: {unclassifiedChemicalItems.map((item) => item.materialCode || item.materialName || item.id).join(', ')}. Vui lòng cập nhật Danh mục vật tư.
+                  </div>
+                  <SimpleTable
+                    tableClassName="chemical-weighing-table"
+                    headers={['STT', 'Mã vật tư', 'Nhóm', 'Tình trạng']}
+                    rows={unclassifiedChemicalItems.map((item, index) => (
+                      <tr key={`${activeOrder?.id || 'chemical'}-unclassified-${item.id || item.materialCode || index}`}>
+                        <td>{index + 1}</td>
+                        <td>{item.materialCode || '-'}</td>
+                        <td>{item.materialGroup || '-'}</td>
+                        <td>{item.catalogMaterialMissing ? 'Chưa khai báo trong Danh mục vật tư' : 'Chưa phân nhóm'}</td>
+                      </tr>
+                    ))}
+                  />
+                </section>
+              )}
+            </div>
           )}
           {showWeighedContainerQrSections && <section className="weighed-container-list">
             <h3>Lệnh cân gần nhất</h3>
