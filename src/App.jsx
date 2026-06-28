@@ -5000,8 +5000,7 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
       {!scaleSession.scaleSupported && <div className="process-alert">Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.</div>}
       <div className="scale-serial-panel chemical-scale-serial-panel">
         <div><span>Trạng thái cân</span><strong>{scaleSession.scaleStatus}</strong></div>
-        {debugMode && <div><span>COM Port</span><strong>{scaleSession.scalePortLabel}</strong></div>}
-        <div><span>BaudRate</span><strong>{scaleProfile.baudRate}</strong></div>
+        <div><span>COM/thiết bị</span><strong>{scaleSession.scalePortLabel}</strong></div>
         <div className="scale-weight-display"><span className="scale-weight-title">Khối lượng cân</span><strong className="scale-weight-value">{formatScaleWeight(scaleSession.scaleWeightKg, `chemical-${board.key}`)}</strong></div>
         {debugMode && <div className="scale-stability-settings">
           <span>Cài đặt ổn định</span>
@@ -5130,6 +5129,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
   const [warning, setWarning] = useState('')
   const [printQrModal, setPrintQrModal] = useState(null)
   const [weighingDetailModal, setWeighingDetailModal] = useState(null)
+  const [chemicalSharedQr, setChemicalSharedQr] = useState('')
   const [chemicalScaleMode, setChemicalScaleMode] = useState(getStoredChemicalScaleMode)
   const [scaleStatus, setScaleStatus] = useState('Chưa kết nối cân')
   const [scaleRawText, setScaleRawText] = useState('')
@@ -5188,11 +5188,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
     })
     : []
   const visibleChemicalBoards = group === CHEMICAL
-    ? chemicalGroupBoards.filter((board) => (
-      chemicalScaleMode === CHEMICAL_SCALE_MODE_GLUE
-        ? board.key === 'glue'
-        : board.key === 'paste' || board.key === 'tin'
-    ))
+    ? chemicalGroupBoards
     : []
   const unclassifiedChemicalItems = group === CHEMICAL ? activeItems.filter((item) => item.catalogMaterialMissing || item.chemicalSubGroupMissing) : []
   const activeChemicalLineState = activeOrder ? getChemicalLineState(activeOrder, materialCatalogByCode) : null
@@ -5209,10 +5205,9 @@ function WeighingPage({ data = {}, setData, group, user }) {
   )
   const activeChemicalMixCompleted = activeChemicalLineState?.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED
   const canPrintChemicalMixQr = group === CHEMICAL
-    && chemicalScaleMode === CHEMICAL_SCALE_MODE_PASTE_TIN
     && activeOrder
     && activeChemicalMixCompleted
-  const showWeighedContainerQrSections = group !== CHEMICAL || chemicalScaleMode === CHEMICAL_SCALE_MODE_PASTE_TIN
+  const showWeighedContainerQrSections = true
   useEffect(() => {
     if (group === CHEMICAL && typeof localStorage !== 'undefined') {
       localStorage.setItem(CHEMICAL_SCALE_MODE_KEY, chemicalScaleMode)
@@ -5284,6 +5279,49 @@ function WeighingPage({ data = {}, setData, group, user }) {
   const handleScaleToleranceChange = (event) => {
     const nextTolerance = Math.max(0, Number(event.target.value) || 0)
     setScaleToleranceKg(nextTolerance)
+  }
+  const submitChemicalSharedQr = (event) => {
+    event?.preventDefault?.()
+    if (group !== CHEMICAL) return
+    const scanned = String(chemicalSharedQr || '').trim()
+    if (!scanned) {
+      setWarning('Vui lòng quét QR mã vật tư.')
+      return
+    }
+    if (!activeOrder) {
+      setWarning('Vui lòng chọn lệnh cân trước khi quét QR mã vật tư.')
+      return
+    }
+    const scannedCode = extractMaterialCodeFromQr(scanned)
+    const matchedItem = activeItems.find((item) => normalizeCode(item.materialCode) === normalizeCode(scannedCode))
+    if (!matchedItem) {
+      setWarning(`Không tìm thấy mã vật tư trong lệnh đang cân: ${scannedCode || scanned}.`)
+      setChemicalSharedQr('')
+      return
+    }
+    const lineKey = getChemicalWeighingGroupKey(matchedItem)
+    const board = chemicalGroupBoards.find((item) => item.key === lineKey)
+    if (!board) {
+      setWarning(`Không thể xác định line cân cho vật tư ${matchedItem.materialCode}. Vui lòng kiểm tra phân nhóm vật tư.`)
+      setChemicalSharedQr('')
+      return
+    }
+    const targetInput = Array.from(document.querySelectorAll('[data-weighing-qr-input="true"]')).find((input) => (
+      input.dataset.orderId === String(activeOrder.id)
+      && input.dataset.materialCode === normalizeCode(matchedItem.materialCode)
+    ))
+    if (!targetInput) {
+      setWarning(`Vật tư ${matchedItem.materialCode} thuộc ${board.label}, nhưng chưa phải dòng đang thao tác hoặc đã quét QR.`)
+      setChemicalSharedQr('')
+      return
+    }
+    const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+    valueSetter?.call(targetInput, scanned)
+    targetInput.dispatchEvent(new Event('input', { bubbles: true }))
+    targetInput.focus()
+    targetInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }))
+    setWarning(`Đã nhận QR ${matchedItem.materialCode} vào ${board.label}.`)
+    setChemicalSharedQr('')
   }
 
   const connectScale = async () => {
@@ -5643,7 +5681,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
         : 'Không có vật tư Rắn cần cân cho lệnh này.')
       return
     }
-    if (activeOrder && activeOrder.id !== order.id && !(group === CHEMICAL && activeChemicalLineDone)) {
+    if (activeOrder && activeOrder.id !== order.id && !(group === CHEMICAL && activeChemicalMixCompleted)) {
       setWarning('Đang có một lệnh cân. Vui lòng hoàn thành lệnh hiện tại trước.')
       return
     }
@@ -5678,16 +5716,23 @@ function WeighingPage({ data = {}, setData, group, user }) {
     setActiveOrderId('')
     setWarning('')
   }
+  const chemicalBoardByKey = Object.fromEntries(chemicalGroupBoards.map((board) => [board.key, board]))
+  const glueBoard = chemicalBoardByKey.glue
+  const pasteBoard = chemicalBoardByKey.paste
+  const colorBoard = chemicalBoardByKey.tin
+  const renderChemicalBoard = (board) => board ? (
+    <ChemicalWeighingGroupBoard key={board.key} board={board} activeOrder={activeOrder} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} materialCatalog={materialCatalog} weighingTools={weighingTools} setWarning={setWarning} scaleWeighedBy={scaleWeighedBy} />
+  ) : null
 
   return (
     <div className="page-content weighing-dispatch-page">
-      <section className="weighing-stats scale-summary-compact">
+      {group !== CHEMICAL && <section className="weighing-stats scale-summary-compact">
         <article><span>Đang cân</span><strong>{activeOrder ? '01' : '00'}</strong></article>
         <article><span>Chờ cân</span><strong>{String(waitingOrders.length).padStart(2, '0')}</strong></article>
         <article><span>Hoàn thành</span><strong>{String(completedOrders.length).padStart(2, '0')}</strong></article>
-      </section>
-      <section className="panel weighing-dispatch-layout scale-layout">
-        <aside className="weighing-order-list scale-left-panel">
+      </section>}
+      <section className={`panel weighing-dispatch-layout scale-layout ${group === CHEMICAL ? 'chemical-three-scale-layout' : ''}`}>
+        {group !== CHEMICAL && <aside className="weighing-order-list scale-left-panel">
           <section className="weighing-stats scale-summary-compact scale-summary-inside">
             <article><span>Đang cân:</span><strong>{activeOrder ? '01' : '00'}</strong></article>
             <article><span>Chờ cân:</span><strong>{String(waitingOrders.length).padStart(2, '0')}</strong></article>
@@ -5695,7 +5740,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
           </section>
           <h2>Danh sách lệnh sản xuất</h2>
           <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders} activeId={activeOrder?.id} onStart={startOrder} showStart />
-        </aside>
+        </aside>}
         <main className="weighing-active-board scale-main-panel">
           <div className="section-heading-row">
             <div>
@@ -5706,7 +5751,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
               {group !== CHEMICAL && <button className="secondary-button weighing-finish-button" type="button" onClick={connectScale}>Kết nối cân</button>}
               {group !== CHEMICAL && <button className="secondary-button weighing-finish-button" onClick={createDemoQrData}>Tạo dữ liệu demo QR</button>}
               {canFinish && <button className="primary-button weighing-finish-button" onClick={finishActiveOrder}>{group === CHEMICAL ? 'Hoàn thành cân hóa' : 'Hoàn thành cân rắn'}</button>}
-              {group === CHEMICAL && activeChemicalLineDone && <button className="secondary-button weighing-finish-button" type="button" onClick={() => setActiveOrderId('')}>Chọn lệnh khác</button>}
+              {group === CHEMICAL && activeChemicalMixCompleted && <button className="secondary-button weighing-finish-button" type="button" onClick={() => setActiveOrderId('')}>Chọn lệnh khác</button>}
             </div>
           </div>
           {warning && <div className="process-alert">{warning}</div>}
@@ -5722,24 +5767,12 @@ function WeighingPage({ data = {}, setData, group, user }) {
           </div>
           {group !== CHEMICAL && !scaleSupported && <div className="process-alert">Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.</div>}
           {group === CHEMICAL && (
-            <div className="chemical-work-mode">
-              <div className="chemical-mode-selector" role="group" aria-label="Chọn mode cân hóa">
-                <button
-                  type="button"
-                  className={chemicalScaleMode === CHEMICAL_SCALE_MODE_GLUE ? 'active' : ''}
-                  onClick={() => setChemicalScaleMode(CHEMICAL_SCALE_MODE_GLUE)}
-                >
-                  Cân Keo
-                </button>
-                <button
-                  type="button"
-                  className={chemicalScaleMode === CHEMICAL_SCALE_MODE_PASTE_TIN ? 'active' : ''}
-                  onClick={() => setChemicalScaleMode(CHEMICAL_SCALE_MODE_PASTE_TIN)}
-                >
-                  Paste / Màu
-                </button>
-              </div>
-            </div>
+            <form className="chemical-shared-qr-panel" onSubmit={submitChemicalSharedQr}>
+              <label>Máy quét QR dùng chung
+                <input value={chemicalSharedQr} onChange={(event) => setChemicalSharedQr(event.target.value)} placeholder="Quét QR mã vật tư" autoComplete="off" />
+              </label>
+              <button type="submit" className="primary-button">Nhận QR</button>
+            </form>
           )}
           {group !== CHEMICAL && <div className="scale-serial-panel">
             <div><span>Trạng thái cân</span><strong>{scaleStatus}</strong></div>
@@ -5776,6 +5809,16 @@ function WeighingPage({ data = {}, setData, group, user }) {
                 : <div>Chưa có log serial.</div>}
             </div>
           </section>}
+          {group === CHEMICAL && !activeOrder && (
+            <section className="chemical-order-queue-panel chemical-order-queue-empty">
+              <section className="weighing-stats scale-summary-compact scale-summary-inside">
+                <article><span>Đang cân:</span><strong>{activeOrder ? '01' : '00'}</strong></article>
+                <article><span>Chờ cân:</span><strong>{String(waitingOrders.length).padStart(2, '0')}</strong></article>
+                <article><span>Hoàn thành:</span><strong>{String(completedOrders.length).padStart(2, '0')}</strong></article>
+              </section>
+              <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders} activeId={activeOrder?.id} onStart={startOrder} showStart />
+            </section>
+          )}
           {activeOrder && (
             <>
               {group === CHEMICAL && activeChemicalDataWarnings.length > 0 && (
@@ -5800,19 +5843,26 @@ function WeighingPage({ data = {}, setData, group, user }) {
                 <div className="weighing-progress"><i style={{ width: `${progress}%` }} /></div>
                 <strong>{progress}%</strong>
               </div>
-              {group === CHEMICAL && chemicalScaleMode === CHEMICAL_SCALE_MODE_GLUE && activeChemicalLineDone && (
-                <div className="process-alert chemical-line-done">Keo đã hoàn thành</div>
-              )}
-              {group === CHEMICAL && chemicalScaleMode === CHEMICAL_SCALE_MODE_PASTE_TIN && (
-                <ChemicalMixSummary order={activeOrder} lineState={activeChemicalLineState} canPrint={canPrintChemicalMixQr} onPrint={printChemicalMixQr} />
-              )}
               {group === CHEMICAL ? (
-                <div className="chemical-weighing-groups">
-                  {visibleChemicalBoards.map((board) => (
-                    <ChemicalWeighingGroupBoard key={board.key} board={board} activeOrder={activeOrder} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} materialCatalog={materialCatalog} weighingTools={weighingTools} setWarning={setWarning} scaleWeighedBy={scaleWeighedBy} />
-                  ))}
+                <div className="chemical-three-scale-workbench">
+                  <div className="chemical-top-scales">
+                    {renderChemicalBoard(glueBoard)}
+                    {renderChemicalBoard(pasteBoard)}
+                  </div>
+                  <section className="chemical-order-queue-panel">
+                    <section className="weighing-stats scale-summary-compact scale-summary-inside">
+                      <article><span>Đang cân:</span><strong>{activeOrder ? '01' : '00'}</strong></article>
+                      <article><span>Chờ cân:</span><strong>{String(waitingOrders.length).padStart(2, '0')}</strong></article>
+                      <article><span>Hoàn thành:</span><strong>{String(completedOrders.length).padStart(2, '0')}</strong></article>
+                    </section>
+                    <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders} activeId={activeOrder?.id} onStart={startOrder} showStart />
+                  </section>
+                  <ChemicalMixSummary order={activeOrder} lineState={activeChemicalLineState} canPrint={canPrintChemicalMixQr} onPrint={printChemicalMixQr} />
+                  <div className="chemical-color-scale">
+                    {renderChemicalBoard(colorBoard)}
+                  </div>
                   {unclassifiedChemicalItems.length > 0 && (
-                    <section className="chemical-weighing-group">
+                    <section className="chemical-weighing-group chemical-unclassified-panel">
                       <div className="chemical-weighing-group-header">
                         <div>
                           <h3>Vật tư chưa phân nhóm</h3>
@@ -6201,7 +6251,7 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
           <span className="weighing-check">✓ OK</span>
         ) : active ? (
           <div className="weighing-qr-scan">
-            <input ref={qrInputRef} className={qrFailed ? 'qr-input-fail' : ''} value={qrInput} onChange={handleQrScanChange} onKeyDown={handleQrScanKeyDown} onBlur={handleQrScanBlur} placeholder="Quét QR mã vật tư" />
+            <input ref={qrInputRef} className={qrFailed ? 'qr-input-fail' : ''} data-weighing-qr-input="true" data-order-id={order.id} data-material-code={normalizeCode(item.materialCode)} data-scale-line={scaleType} value={qrInput} onChange={handleQrScanChange} onKeyDown={handleQrScanKeyDown} onBlur={handleQrScanBlur} placeholder="Quét QR mã vật tư" />
             {qrFailed && <span className="qr-inline-error">{qrScanError || '✕ Sai mã'}</span>}
           </div>
         ) : (

@@ -13121,6 +13121,109 @@ body,
 .chemical-weighing-table th:nth-child(8),
 .chemical-weighing-table td:nth-child(8) { width: 120px !important; }
 
+.chemical-three-scale-layout {
+  display: block !important;
+  max-width: 100% !important;
+}
+
+.chemical-three-scale-layout .scale-main-panel {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+.chemical-shared-qr-panel {
+  display: grid;
+  grid-template-columns: minmax(280px, 520px) auto;
+  align-items: end;
+  gap: 10px;
+  margin: 8px 0 12px;
+  padding: 10px;
+  border: 1px solid #dfe8e3;
+  border-radius: 8px;
+  background: #f8fbf9;
+}
+
+.chemical-shared-qr-panel label {
+  display: grid;
+  gap: 5px;
+  color: #345444;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.chemical-shared-qr-panel input {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid #cfded6;
+  border-radius: 7px;
+  padding: 7px 9px;
+  color: #123d2a;
+}
+
+.chemical-three-scale-workbench {
+  display: grid;
+  gap: 12px;
+}
+
+.chemical-top-scales {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.chemical-color-scale {
+  display: grid;
+}
+
+.chemical-order-queue-panel {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #dfe8e3;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.chemical-order-queue-empty {
+  margin-top: 10px;
+}
+
+.chemical-order-queue-panel .scale-summary-compact {
+  margin: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.chemical-order-queue-panel .weighing-order-group {
+  margin: 0;
+}
+
+.chemical-order-queue-panel .weighing-order-group h3 {
+  margin-bottom: 8px;
+}
+
+.chemical-order-queue-panel .weighing-order-card {
+  display: grid;
+  grid-template-columns: 150px minmax(180px, 1fr) 150px 110px auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+}
+
+.chemical-order-queue-panel .weighing-start-button {
+  min-height: 30px;
+  padding: 5px 9px;
+}
+
+.chemical-three-scale-workbench .chemical-mix-summary {
+  margin: 0;
+}
+
+.chemical-unclassified-panel {
+  width: 100%;
+}
+
 .weighing-tool-panel {
   display: grid;
   gap: 5px;
@@ -13209,6 +13312,13 @@ body,
   .chemical-weighing-group-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .chemical-top-scales,
+  .chemical-order-queue-panel .scale-summary-compact,
+  .chemical-order-queue-panel .weighing-order-card,
+  .chemical-shared-qr-panel {
+    grid-template-columns: 1fr;
   }
 }
 
