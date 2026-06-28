@@ -1793,7 +1793,8 @@ function LoginPage({ onLogin, error }) {
 }
 
 function SimpleTable({ headers, rows, empty = 'Không có dữ liệu.', tableClassName = '' }) {
-  const labeledRows = rows.map((row) => {
+  const safeRows = Array.isArray(rows) ? rows : []
+  const labeledRows = safeRows.map((row) => {
     if (!row?.props?.children) return row
     const cells = Children.toArray(row.props.children).map((cell, index) => {
       if (!cell?.props) return cell
@@ -1807,7 +1808,7 @@ function SimpleTable({ headers, rows, empty = 'Không có dữ liệu.', tableCl
         <thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead>
         <tbody>
           {labeledRows}
-              {rows.length === 0 && <tr><td className="empty-row" colSpan={fields.length + (isMaterialCatalog ? 2 : 1)}>Chưa có dữ liệu.</td></tr>}
+          {safeRows.length === 0 && <tr><td className="empty-row" colSpan={headers.length}>{empty}</td></tr>}
         </tbody>
       </table>
     </div>
@@ -2932,6 +2933,21 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
   const updateFormulaToleranceRef = useRef(null)
   const selected = data.formulas.find((item) => item.id === selectedId) || data.formulas[0]
   const formulaMaterialCatalog = activeMaterialCatalog(deriveMaterialCatalog(data))
+  const formulaMaterialLookupCatalog = deriveMaterialCatalog(data)
+  const formulaMaterialByCode = useMemo(() => {
+    const entries = formulaMaterialLookupCatalog.map((item) => [normalizeCode(item.materialCode), item])
+    return new Map(entries)
+  }, [formulaMaterialLookupCatalog])
+  const materialCatalogInfoForFormulaItem = (item = {}) => formulaMaterialByCode.get(normalizeCode(item.materialCode)) || null
+  const formulaItemSubGroupText = (item = {}) => {
+    const material = materialCatalogInfoForFormulaItem(item)
+    const subgroup = normalizeChemicalSubGroup(material?.chemicalSubGroup, material?.materialGroup)
+    return subgroup ? displayChemicalSubGroup(subgroup) : '-'
+  }
+  const formulaItemWeighingToolText = (item = {}) => {
+    const material = materialCatalogInfoForFormulaItem(item)
+    return material?.defaultWeighingToolCode || '-'
+  }
   const versions = (data.formulaVersions || []).filter((version) => version.formulaId === selectedId)
   const approvedVersions = versions.filter((version) => version.status === 'Đã duyệt')
   const latestApproved = approvedVersions.at(-1)
@@ -3513,13 +3529,16 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
           <label>Người lập<input readOnly value={selected.createdBy || ''} /></label>
         </div>
         {!canSecureViewFormula && <div className="process-alert">Bạn có quyền xem công thức, nhưng chưa có quyền formula.secure.view nên tỷ lệ phần trăm được ẩn.</div>}
-        <SimpleTable tableClassName="formula-detail-table" headers={canSecureViewFormula ? ['STT', 'Mã vật tư', 'Nhóm', 'Tỷ lệ %', 'Dung sai'] : ['STT', 'Mã vật tư', 'Nhóm', 'Dung sai']} rows={(selected.items || []).map((item, index) => (
+        <SimpleTable tableClassName="formula-detail-table" headers={['STT', 'Mã vật tư', 'Nhóm', 'Phân nhóm', 'Tỷ lệ %', 'Dung sai', 'Dụng cụ cân', 'Ghi chú']} rows={(selected.items || []).map((item, index) => (
           <tr key={item.id}>
             <td>{index + 1}</td>
             <td>{item.materialCode}</td>
             <td>{item.materialGroup}</td>
-            {canSecureViewFormula && <td>{formatPercent(item.ratioPercent)}</td>}
+            <td>{formulaItemSubGroupText(item)}</td>
+            <td>{canSecureViewFormula ? formatPercent(item.ratioPercent) : '-'}</td>
             <td className="formula-tolerance-cell"><input value={toleranceDraft[item.id] ?? formatTolerancePercent(item.tolerancePercent)} onChange={(event) => updateToleranceDraft(item.id, event.target.value)} placeholder="2%" /></td>
+            <td>{formulaItemWeighingToolText(item)}</td>
+            <td className="formula-note-cell">{item.note || '-'}</td>
           </tr>
         ))} />
         <div className="modal-actions">

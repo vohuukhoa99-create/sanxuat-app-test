@@ -1343,38 +1343,73 @@ tbody tr:hover {
 .formula-tolerance-cell,
 .formula-tolerance-cell input {
   width: 100px !important;
-  min-width: 90px;
-  max-width: 110px;
+  min-width: 100px;
+  max-width: 100px;
 }
 
 .formula-tolerance-cell input {
   box-sizing: border-box;
+  height: 32px;
+  padding: 5px 8px;
+  font-size: 0.9rem;
 }
 
 .formula-detail-table {
-  width: 100%;
+  width: 870px;
+  max-width: 100%;
   table-layout: fixed;
+}
+
+.formula-detail-table th,
+.formula-detail-table td {
+  padding: 7px 8px;
+  vertical-align: middle;
 }
 
 .formula-detail-table th:first-child,
 .formula-detail-table td:first-child {
-  width: 64px;
+  width: 50px;
   text-align: center;
 }
 
 .formula-detail-table th:nth-child(2),
 .formula-detail-table td:nth-child(2) {
-  width: 28%;
+  width: 120px;
 }
 
 .formula-detail-table th:nth-child(3),
 .formula-detail-table td:nth-child(3) {
-  width: 28%;
+  width: 80px;
 }
 
-.formula-detail-table th:last-child,
-.formula-detail-table td:last-child {
-  width: 120px;
+.formula-detail-table th:nth-child(4),
+.formula-detail-table td:nth-child(4) {
+  width: 110px;
+}
+
+.formula-detail-table th:nth-child(5),
+.formula-detail-table td:nth-child(5) {
+  width: 100px;
+}
+
+.formula-detail-table th:nth-child(6),
+.formula-detail-table td:nth-child(6) {
+  width: 100px;
+}
+
+.formula-detail-table th:nth-child(7),
+.formula-detail-table td:nth-child(7) {
+  width: 130px;
+}
+
+.formula-detail-table th:nth-child(8),
+.formula-detail-table td:nth-child(8) {
+  width: 180px;
+}
+
+.formula-note-cell {
+  white-space: normal;
+  word-break: break-word;
 }
 
 .weighing-inline-action {
