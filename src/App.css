@@ -2329,13 +2329,15 @@ tbody tr:hover {
 }
 
 .material-catalog-table {
-  table-layout: fixed;
-  min-width: 1500px;
+  table-layout: fixed !important;
+  width: 1345px !important;
+  min-width: 1345px !important;
+  max-width: 1345px !important;
 }
 
 .material-catalog-table th:nth-child(1),
 .material-catalog-table td:nth-child(1) {
-  width: 110px;
+  width: 90px;
 }
 
 .material-catalog-table th:nth-child(2),
@@ -2345,42 +2347,104 @@ tbody tr:hover {
 
 .material-catalog-table th:nth-child(3),
 .material-catalog-table td:nth-child(3) {
-  width: 190px;
+  width: 210px;
 }
 
 .material-catalog-table th:nth-child(4),
 .material-catalog-table td:nth-child(4) {
-  width: 130px;
+  width: 120px;
 }
 
 .material-catalog-table th:nth-child(5),
 .material-catalog-table td:nth-child(5) {
-  width: 100px;
+  width: 90px;
 }
 
 .material-catalog-table th:nth-child(6),
 .material-catalog-table td:nth-child(6) {
-  width: 130px;
+  width: 95px;
 }
 
 .material-catalog-table th:nth-child(7),
 .material-catalog-table td:nth-child(7) {
-  width: 80px;
+  width: 70px;
 }
 
 .material-catalog-table th:nth-child(8),
 .material-catalog-table td:nth-child(8) {
-  width: 180px;
+  width: 130px;
 }
 
 .material-catalog-table th:nth-child(9),
 .material-catalog-table td:nth-child(9) {
-  width: 130px;
+  width: 95px;
 }
 
 .material-catalog-table th:nth-child(10),
 .material-catalog-table td:nth-child(10) {
-  width: 120px;
+  width: 115px;
+}
+
+.material-catalog-table th,
+.material-catalog-table td {
+  padding: 6px 7px !important;
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+  vertical-align: middle !important;
+}
+
+.material-catalog-table th {
+  text-align: center !important;
+  white-space: normal;
+}
+
+.material-catalog-table input,
+.material-catalog-table select {
+  min-height: 30px !important;
+  height: 30px !important;
+  padding: 4px 7px !important;
+  font-size: 12px !important;
+  border-radius: 6px !important;
+}
+
+.material-catalog-table td:nth-child(1),
+.material-catalog-table td:nth-child(4),
+.material-catalog-table td:nth-child(5),
+.material-catalog-table td:nth-child(6),
+.material-catalog-table td:nth-child(7),
+.material-catalog-table td:nth-child(8),
+.material-catalog-table td:nth-child(9),
+.material-catalog-table td:nth-child(10) {
+  text-align: center !important;
+}
+
+.material-catalog-table td:nth-child(6) .dispatch-badge {
+  min-width: 0;
+  padding: 3px 7px;
+  font-size: 11px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.material-catalog-table td:nth-child(8) select {
+  text-align: center;
+  text-overflow: ellipsis;
+}
+
+.material-catalog-table td:nth-child(9) button,
+.material-catalog-table td:nth-child(10) button {
+  min-height: 30px !important;
+  padding: 5px 8px !important;
+  font-size: 11.5px !important;
+  white-space: nowrap;
+}
+
+.table-wrapper:has(> .material-catalog-table) {
+  width: auto !important;
+  max-width: 1405px !important;
+  margin-left: 0 !important;
+  overflow-x: auto !important;
+  overflow-y: hidden;
 }
 
 .material-admin-actions {
