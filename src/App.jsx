@@ -1,4 +1,4 @@
-import { Children, cloneElement, useEffect, useMemo, useRef, useState } from 'react'
+import { Children, Component, cloneElement, useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -35,6 +35,35 @@ const SCALE_SERIAL_CONFIG = {
   reverseFrame: true,
 }
 const debugMode = false
+
+class PageErrorBoundary extends Component {
+  state = { hasError: false }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidUpdate(previousProps) {
+    if (previousProps.resetKey !== this.props.resetKey && this.state.hasError) {
+      this.setState({ hasError: false })
+    }
+  }
+
+  componentDidCatch(error) {
+    console.error('Page render error', error)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="process-alert">
+          Không thể mở lệnh cân. Vui lòng kiểm tra phân nhóm vật tư trong Danh mục vật tư.
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 const CHEMICAL = 'Hóa'
 const SOLID = 'Rắn'
@@ -1590,8 +1619,9 @@ function addLogToData(data, entry, meta = {}) {
   }
 }
 
-function getEffectiveFormula(order) {
-  return order.activeProductionFormula || order.qc1AdjustedFormula || order.productionFormulaSnapshot || []
+function getEffectiveFormula(order = {}) {
+  const formula = order?.activeProductionFormula || order?.qc1AdjustedFormula || order?.productionFormulaSnapshot || []
+  return Array.isArray(formula) ? formula : []
 }
 
 function isWeighedDone(item = {}) {
@@ -1600,7 +1630,7 @@ function isWeighedDone(item = {}) {
 
 function getChemicalSubgroupItems(order = {}, subgroupKey = '') {
   return getEffectiveFormula(order).filter((item) => (
-    item.materialGroup === CHEMICAL
+    isChemicalGroup(item?.materialGroup || item?.group || CHEMICAL)
     && getChemicalWeighingGroupKey(item) === subgroupKey
   ))
 }
@@ -4726,22 +4756,25 @@ function FinishedProductQcPage({ data, setData, user }) {
   )
 }
 
-function ChemicalWeighingGroupBoard({ board, activeOrder, updateWeight, rawMaterialLots, materialCatalog, weighingTools, setWarning, scaleWeighedBy }) {
-  const scaleSession = useScaleSerialSession(`chemical-${board.key}`, setWarning)
+function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, rawMaterialLots = [], materialCatalog = [], weighingTools = [], setWarning, scaleWeighedBy }) {
+  const boardItems = Array.isArray(board.items) ? board.items : []
+  const boardKey = board.key || 'tin'
+  const scaleSession = useScaleSerialSession(`chemical-${boardKey}`, setWarning)
   const scaleStabilityStatus = scaleSession.scaleStableWeightKg == null ? 'Đang dao động' : 'Đã ổn định'
   return (
     <section className="chemical-weighing-group">
       <div className="chemical-weighing-group-header">
         <div>
-          <h3>{board.label}</h3>
-          <span>{board.doneCount}/{board.items.length} vật tư</span>
+          <h3>{board.label || 'Cân Màu'}</h3>
+          <span>{num(board.doneCount)}/{boardItems.length} vật tư</span>
         </div>
         <span className={`chemical-group-status ${board.status === 'Hoàn thành' ? 'done' : board.status === 'Đang cân' ? 'active' : ''}`}>{board.status}</span>
       </div>
       <div className="chemical-scale-note">
-        <div><span>Line thao tác</span><strong>{board.lineLabel}</strong></div>
-        <div><span>Cấu hình cân</span><strong>{board.scaleLabel}</strong></div>
+        <div><span>Line thao tác</span><strong>{board.lineLabel || '-'}</strong></div>
+        <div><span>Cấu hình cân</span><strong>{board.scaleLabel || '-'}</strong></div>
       </div>
+      {!boardItems.length && <div className="process-alert">Không có vật tư cần cân cho line này</div>}
       {!scaleSession.scaleSupported && <div className="process-alert">Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.</div>}
       <div className="scale-serial-panel chemical-scale-serial-panel">
         <div><span>Trạng thái cân</span><strong>{scaleSession.scaleStatus}</strong></div>
@@ -4785,10 +4818,10 @@ function ChemicalWeighingGroupBoard({ board, activeOrder, updateWeight, rawMater
       <SimpleTable
         tableClassName="chemical-weighing-table"
         headers={['STT', 'Mã vật tư', 'KL cần cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái']}
-        rows={board.items.map((item, index) => (
-          <WeighingRow key={`${activeOrder.id}-${board.key}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === board.activeItem?.id} updateWeight={updateWeight} rawMaterialLots={rawMaterialLots} materialCatalog={materialCatalog} weighingTools={weighingTools} scaleType={`chemical-${board.key}`} setWarning={setWarning} scaleWeightKg={scaleSession.scaleWeightKg} scaleStableWeightKg={scaleSession.scaleStableWeightKg} scaleStable={scaleSession.scaleStableWeightKg != null} scaleRawData={scaleSession.scaleRawText} scaleRawValue={scaleSession.scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
+        rows={boardItems.map((item, index) => (
+          <WeighingRow key={`${activeOrder?.id || 'order'}-${boardKey}-${item.id || item.materialCode || index}`} order={activeOrder} item={item} index={index} active={item.id === board.activeItem?.id} updateWeight={updateWeight} rawMaterialLots={rawMaterialLots} materialCatalog={materialCatalog} weighingTools={weighingTools} scaleType={`chemical-${boardKey}`} setWarning={setWarning} scaleWeightKg={scaleSession.scaleWeightKg} scaleStableWeightKg={scaleSession.scaleStableWeightKg} scaleStable={scaleSession.scaleStableWeightKg != null} scaleRawData={scaleSession.scaleRawText} scaleRawValue={scaleSession.scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
         ))}
-        empty={`Không có vật tư thuộc ${board.label}.`}
+        empty="Không có vật tư cần cân cho line này"
       />
     </section>
   )
@@ -4832,17 +4865,30 @@ function ChemicalMixSummary({ order, lineState, canPrint, onPrint }) {
   )
 }
 
-function WeighingPage({ data, setData, group, user }) {
+function WeighingPage({ data = {}, setData, group, user }) {
   const label = group === CHEMICAL ? 'Cân hóa chất' : 'Cân nguyên liệu rắn'
   const activeTitle = group === CHEMICAL ? 'Lệnh đang cân hóa' : 'Lệnh đang cân rắn'
   const completionKey = group === CHEMICAL ? 'ChemicalCompleted' : 'SolidCompleted'
   const statusKey = group === CHEMICAL ? 'chemicalStatus' : 'solidStatus'
   const scaleKey = group === CHEMICAL ? 'chemical' : 'solid'
   const isSupplementOrder = (order) => order.stage === 'supplement-weighing'
-  const getSupplementTickets = (order) => getQc2SupplementTickets(order).filter((ticket) => ticket.status !== 'Completed')
-  const getItems = (order) => order.stage === 'supplement-weighing'
-    ? getSupplementTickets(order).flatMap((ticket) => getTicketItems(ticket).map((item) => ({ ...item, ticketId: ticket.id, adjustmentId: ticket.adjustmentId, weighingType: ticket.label || 'Cân bổ sung QC2' }))).filter((item) => item.materialGroup === group)
-    : getEffectiveFormula(order).filter((item) => item.materialGroup === group)
+  const getSupplementTickets = (order = {}) => getQc2SupplementTickets(order).filter((ticket) => ticket.status !== 'Completed')
+  const itemBelongsToGroup = (item = {}) => group === CHEMICAL
+    ? isChemicalGroup(item.materialGroup || item.group || CHEMICAL)
+    : normalizeMaterialGroup(item.materialGroup || item.group || '') === group
+  const normalizeWeighingItemForGroup = (item = {}) => ({
+    ...item,
+    materialGroup: group === CHEMICAL ? CHEMICAL : normalizeMaterialGroup(item.materialGroup || item.group || group),
+    chemicalSubGroup: group === CHEMICAL ? normalizeChemicalSubGroup(item.chemicalSubGroup || item.materialSubGroup || item.subGroup || item.chemicalGroup || item.weighingGroup, CHEMICAL) : '',
+  })
+  const getItems = (order = {}) => {
+    const sourceItems = order.stage === 'supplement-weighing'
+      ? getSupplementTickets(order).flatMap((ticket) => getTicketItems(ticket).map((item) => ({ ...item, ticketId: ticket.id, adjustmentId: ticket.adjustmentId, weighingType: ticket.label || 'Cân bổ sung QC2' })))
+      : getEffectiveFormula(order)
+    return (Array.isArray(sourceItems) ? sourceItems : [])
+      .filter(itemBelongsToGroup)
+      .map(normalizeWeighingItemForGroup)
+  }
   const isDone = (item) => item.qrStatus === 'PASS' && item.weighStatus === 'PASS'
   const groupCompleted = (order) => {
     if (isSupplementOrder(order)) {
@@ -4857,7 +4903,8 @@ function WeighingPage({ data, setData, group, user }) {
     }
     return Boolean(order[completionKey]) || order[statusKey] === 'Completed' || order.scaleStatus?.[scaleKey] === 'Completed'
   }
-  const relevantOrders = data.orders.filter((order) => getItems(order).length > 0 || groupCompleted(order))
+  const orders = Array.isArray(data.orders) ? data.orders : []
+  const relevantOrders = orders.filter((order) => getItems(order).length > 0 || groupCompleted(order))
   const pendingOrders = relevantOrders.filter((order) => ['weighing', 'supplement-weighing'].includes(order.stage) && !groupCompleted(order) && getItems(order).length > 0)
   const completedOrders = relevantOrders.filter((order) => groupCompleted(order))
   const [activeOrderId, setActiveOrderId] = useState('')
@@ -4891,11 +4938,18 @@ function WeighingPage({ data, setData, group, user }) {
   const scaleStableSampleCountRef = useRef(scaleStableSampleCount)
   const scaleToleranceKgRef = useRef(scaleToleranceKg)
   const activeOrder = relevantOrders.find((order) => order.id === activeOrderId)
+  const activeOrderLoadError = Boolean(activeOrderId && !activeOrder)
   const waitingOrders = pendingOrders.filter((order) => (
     order.id !== activeOrder?.id
     && (group === CHEMICAL || order.status === 'Chờ cân')
   ))
   const activeItems = activeOrder ? getItems(activeOrder) : []
+  const activeChemicalDataWarnings = group === CHEMICAL && activeOrder
+    ? getEffectiveFormula(activeOrder)
+      .filter((item) => isChemicalGroup(item?.materialGroup || item?.group || CHEMICAL))
+      .filter((item) => !normalizeChemicalSubGroup(item?.chemicalSubGroup || item?.materialSubGroup || item?.subGroup || item?.chemicalGroup || item?.weighingGroup, CHEMICAL))
+      .map((item) => item.materialCode || item.materialName || item.id || 'Vật tư chưa rõ mã')
+    : []
   const doneCount = activeItems.filter(isDone).length
   const progress = activeItems.length ? Math.round((doneCount / activeItems.length) * 100) : 0
   const activeItem = activeItems.find((item) => !isDone(item))
@@ -5347,6 +5401,15 @@ function WeighingPage({ data, setData, group, user }) {
   })
 
   const startOrder = (order) => {
+    if (!order?.id) {
+      setWarning('Không thể mở lệnh cân. Vui lòng kiểm tra phân nhóm vật tư trong Danh mục vật tư.')
+      return
+    }
+    const orderItems = getItems(order)
+    if (!orderItems.length && !groupCompleted(order)) {
+      setWarning('Không thể mở lệnh cân. Vui lòng kiểm tra phân nhóm vật tư trong Danh mục vật tư.')
+      return
+    }
     if (activeOrder && activeOrder.id !== order.id && !(group === CHEMICAL && activeChemicalLineDone)) {
       setWarning('Đang có một lệnh cân. Vui lòng hoàn thành lệnh hiện tại trước.')
       return
@@ -5355,7 +5418,7 @@ function WeighingPage({ data, setData, group, user }) {
       const startedAt = nowText()
       setData((current) => addLogToData({
         ...current,
-        orders: current.orders.map((item) => {
+        orders: (current.orders || []).map((item) => {
           if (item.id !== order.id) return item
           const supplement = item.stage === 'supplement-weighing'
           const currentScaleStatus = item.scaleStatus || {}
@@ -5414,6 +5477,11 @@ function WeighingPage({ data, setData, group, user }) {
             </div>
           </div>
           {warning && <div className="process-alert">{warning}</div>}
+          {activeOrderLoadError && (
+            <div className="process-alert">
+              Không thể mở lệnh cân. Vui lòng kiểm tra phân nhóm vật tư trong Danh mục vật tư.
+            </div>
+          )}
           <div className="process-alert assignment-context">
             <strong>Phân công ca hiện tại:</strong> {currentAssignments.length ? currentAssignments.map((item) => `${formatAssignmentEmployees(item)} (${item.shiftCode}${item.productionTeamName ? ` - ${item.productionTeamName}` : ''})`).join(', ') : 'Chưa có phân công.'}
           </div>
@@ -5492,9 +5560,13 @@ function WeighingPage({ data, setData, group, user }) {
                 : <div>Chưa có log serial.</div>}
             </div>
           </section>}
-              <div><span className="section-kicker">Excel</span><h2>NHẬP DANH MỤC VẬT TƯ</h2></div>
           {activeOrder && (
             <>
+              {group === CHEMICAL && activeChemicalDataWarnings.length > 0 && (
+                <div className="process-alert">
+                  Không thể xác định phân nhóm của {activeChemicalDataWarnings.join(', ')}. Hệ thống tạm đưa vào Cân Màu, vui lòng kiểm tra phân nhóm vật tư trong Danh mục vật tư.
+                </div>
+              )}
               <div className="weighing-order-summary">
                 <div><span>Mã lệnh SX</span><strong>{activeOrder.orderCode || activeOrder.id}</strong></div>
                 <div><span>Sản phẩm</span><strong>{activeOrder.productName || activeOrder.product}</strong></div>
@@ -9966,7 +10038,9 @@ function App() {
           </div>
         </header>
         <TopBar title={title} subtitle={subtitle} user={user} onLogout={logout} />
-        {pages[page] || pages.dashboard}
+        <PageErrorBoundary resetKey={page}>
+          {pages[page] || pages.dashboard}
+        </PageErrorBoundary>
       </main>
     </div>
   )
