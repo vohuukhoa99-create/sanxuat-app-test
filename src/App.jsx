@@ -133,13 +133,14 @@ function normalizeChemicalSubGroup(value = '', materialGroup = CHEMICAL) {
 }
 const displayChemicalSubGroup = (value = '') => CHEMICAL_SUBGROUP_LABELS[value] || 'null'
 function getScaleLineForMaterial(item = {}) {
-  if (item.materialGroup === SOLID) return SCALE_LINE_SOLID
-  if (!isChemicalGroup(item.materialGroup || item.group || CHEMICAL)) return ''
+  const mainGroup = normalizeMaterialGroup(item.mainGroup || item.materialGroup || item.group || item.classification || '')
+  if (mainGroup === SOLID) return SCALE_LINE_SOLID
+  if (!isChemicalGroup(mainGroup)) return ''
   const subgroup = normalizeChemicalSubGroup(
-    item.chemicalSubGroup || item.materialSubGroup || item.subGroup || item.chemicalGroup || item.weighingGroup,
-    item.materialGroup || item.group || CHEMICAL,
+    item.subclassification || item.chemicalSubGroup || item.materialSubGroup || item.subGroup || item.chemicalGroup || item.weighingGroup,
+    mainGroup,
   )
-  return CHEMICAL_SUBGROUP_TO_SCALE_LINE[subgroup] || SCALE_LINE_COLOR
+  return CHEMICAL_SUBGROUP_TO_SCALE_LINE[subgroup] || ''
 }
 function getChemicalWeighingGroupKey(item = {}) {
   const scaleLine = getScaleLineForMaterial(item)
@@ -702,7 +703,8 @@ function getCatalogCell(item = {}, names = []) {
 function normalizeMaterialCatalogItem(item = {}) {
   const materialCode = String(item.materialCode || item.code || item['Mã vật tư'] || item['Ma vat tu'] || item['Mã VT'] || item['Ma VT'] || '').trim()
   if (!materialCode) return null
-  const materialGroup = normalizeMaterialGroup(item.materialGroup || item.group || item.classification || item.mainGroup || getCatalogCell(item, ['classification', 'mainGroup', 'Nhom vat tu', 'Nhóm vật tư', 'Nhom', 'Nhóm']) || CHEMICAL)
+  const mainGroup = normalizeMaterialGroup(item.mainGroup || item.materialGroup || item.group || item.classification || getCatalogCell(item, ['classification', 'mainGroup', 'Nhom vat tu', 'Nhóm vật tư', 'Nhom', 'Nhóm']) || CHEMICAL)
+  const subclassification = normalizeChemicalSubGroup(item.subclassification || item.chemicalSubGroup || item.subClassification || item['sub-classification'] || getCatalogCell(item, ['sub-classification', 'sub classification', 'subclassification', 'chemicalSubGroup', 'Phan nhom', 'Phân nhóm']), mainGroup)
   const rawStatus = String(item.status || getCatalogCell(item, ['Trạng thái', 'Trang thai']) || MATERIAL_STATUS_ACTIVE).trim()
   const normalizedStatusText = normalizeText(rawStatus)
   const status = normalizedStatusText.includes('tam ngung')
@@ -716,9 +718,11 @@ function normalizeMaterialCatalogItem(item = {}) {
     materialName: String(item.materialName || item.name || item['Tên vật tư'] || item['Ten vat tu'] || item['Tên VT'] || item['Ten VT'] || materialCode).trim(),
     unit: String(item.unit || item['Đơn vị tính'] || item['Don vi tinh'] || item['Đơn vị'] || item['Don vi'] || 'kg').trim(),
     manufacturer: String(item.manufacturer || item.maker || item.supplier || getCatalogCell(item, ['Nhà sản xuất', 'Nha san xuat']) || '').trim(),
-    defaultWeighingToolCode: String(item.defaultWeighingToolCode || item.weighingToolCode || getCatalogCell(item, ['Dụng cụ cân mặc định', 'Dung cu can mac dinh']) || '').trim(),
-    materialGroup,
-    chemicalSubGroup: normalizeChemicalSubGroup(item.chemicalSubGroup || item.subclassification || item.subClassification || item['sub-classification'] || getCatalogCell(item, ['sub-classification', 'sub classification', 'subclassification', 'chemicalSubGroup', 'Phan nhom', 'Phân nhóm']), materialGroup),
+    defaultWeighingToolCode: String(item.defaultWeighingToolCode || item.defaultWeighingTool || item.weighingToolCode || getCatalogCell(item, ['Dụng cụ cân', 'Dung cu can', 'Dụng cụ cân mặc định', 'Dung cu can mac dinh']) || '').trim(),
+    mainGroup,
+    subclassification,
+    materialGroup: mainGroup,
+    chemicalSubGroup: subclassification,
     defaultTolerance: String(item.defaultTolerance ?? item.defaultToleranceKg ?? item.tolerance ?? item.toleranceKg ?? getCatalogCell(item, ['Dung sai mac dinh', 'Dung sai']) ?? '').trim(),
     stockQty: item.stockQty ?? item.inventoryQty ?? item.stock ?? getCatalogCell(item, ['Ton kho', 'Tồn kho']) ?? '',
     note: String(item.note || item.notes || getCatalogCell(item, ['Ghi chu', 'Ghi chú']) || '').trim(),
@@ -821,24 +825,52 @@ function getOfficialMaterialCatalog(data = {}) {
 }
 
 function enrichItemFromMaterialCatalog(item = {}, materialCatalogByCode = new Map(), fallbackGroup = '') {
-  const material = materialCatalogByCode.get(normalizeCode(item.materialCode))
-  const materialGroup = material
-    ? normalizeMaterialGroup(material.materialGroup || material.mainGroup || material.classification)
-    : normalizeMaterialGroup(item.materialGroup || item.group || fallbackGroup || '')
-  const chemicalSubGroup = material && isChemicalGroup(materialGroup)
-    ? normalizeChemicalSubGroup(material.chemicalSubGroup || material.subclassification || material.subClassification || material['sub-classification'], materialGroup)
+  const lookupCode = normalizeCode(item.materialCode)
+  const material = materialCatalogByCode.get(lookupCode)
+  const mainGroup = material
+    ? normalizeMaterialGroup(material.mainGroup || material.materialGroup || material.classification)
+    : normalizeMaterialGroup(item.mainGroup || item.materialGroup || item.group || fallbackGroup || '')
+  const subclassification = material && isChemicalGroup(mainGroup)
+    ? normalizeChemicalSubGroup(material.subclassification || material.chemicalSubGroup || material.subClassification || material['sub-classification'], mainGroup)
     : ''
   const catalogMaterialMissing = !material
-  const chemicalSubGroupMissing = isChemicalGroup(materialGroup) && !chemicalSubGroup
+  const chemicalSubGroupMissing = Boolean(material) && isChemicalGroup(mainGroup) && !subclassification
+  const defaultScaleLine = getScaleLineForMaterial({ mainGroup, subclassification })
   return {
     ...item,
     materialName: material?.materialName || item.materialName || item.materialCode || '',
-    materialGroup,
-    chemicalSubGroup,
+    mainGroup,
+    subclassification,
+    materialGroup: mainGroup,
+    chemicalSubGroup: subclassification,
     defaultWeighingToolCode: material?.defaultWeighingToolCode || item.defaultWeighingToolCode || '',
+    defaultScaleLine,
     catalogMaterialMissing,
     chemicalSubGroupMissing,
   }
+}
+
+function logMaterialLookupPipeline(order = {}, sourceItems = [], materialCatalogByCode = new Map()) {
+  const rows = (Array.isArray(sourceItems) ? sourceItems : []).map((item) => {
+    const lookupCode = normalizeCode(item.materialCode)
+    const material = materialCatalogByCode.get(lookupCode)
+    const enriched = enrichItemFromMaterialCatalog(item, materialCatalogByCode, item.materialGroup || item.group || '')
+    return {
+      orderId: order.orderCode || order.id || '',
+      materialCode: item.materialCode || '',
+      lookupKey: lookupCode,
+      found: Boolean(material),
+      failReason: material ? '' : 'Không tìm thấy materialCode trong Danh mục vật tư',
+      mainGroup: enriched.mainGroup || '',
+      subclassification: enriched.subclassification || '',
+      defaultWeighingToolCode: enriched.defaultWeighingToolCode || '',
+      defaultScaleLine: enriched.defaultScaleLine || '',
+      line: getChemicalWeighingGroupKey(enriched) || (enriched.defaultScaleLine === SCALE_LINE_SOLID ? 'solid' : ''),
+    }
+  })
+  console.groupCollapsed(`[Tổ cân] Lookup vật tư ${order.orderCode || order.id || ''}`)
+  console.table(rows)
+  console.groupEnd()
 }
 
 function parseRawMaterialQr(value) {
@@ -2985,8 +3017,8 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
   const formulaItemSubGroupText = (item = {}) => {
     const material = materialCatalogInfoForFormulaItem(item)
     if (!material) return 'Chưa khai báo'
-    if (isChemicalGroup(material.materialGroup) && !material.chemicalSubGroup) return 'Chưa phân nhóm'
-    const subgroup = normalizeChemicalSubGroup(material?.chemicalSubGroup, material?.materialGroup)
+    if (isChemicalGroup(material.mainGroup || material.materialGroup) && !(material.subclassification || material.chemicalSubGroup)) return 'Chưa phân nhóm'
+    const subgroup = normalizeChemicalSubGroup(material?.subclassification || material?.chemicalSubGroup, material?.mainGroup || material?.materialGroup)
     return subgroup ? displayChemicalSubGroup(subgroup) : '-'
   }
   const formulaItemWeighingToolText = (item = {}) => {
@@ -4944,16 +4976,16 @@ function WeighingPage({ data = {}, setData, group, user }) {
   const isSupplementOrder = (order) => order.stage === 'supplement-weighing'
   const getSupplementTickets = (order = {}) => getQc2SupplementTickets(order).filter((ticket) => ticket.status !== 'Completed')
   const itemBelongsToGroup = (item = {}) => group === CHEMICAL
-    ? isChemicalGroup(item.materialGroup || item.group || CHEMICAL)
-    : normalizeMaterialGroup(item.materialGroup || item.group || '') === group
+    ? isChemicalGroup(item.mainGroup || item.materialGroup || item.group || '')
+    : normalizeMaterialGroup(item.mainGroup || item.materialGroup || item.group || '') === group
   const normalizeWeighingItemForGroup = (item = {}) => enrichItemFromMaterialCatalog(item, materialCatalogByCode, group)
   const getItems = (order = {}) => {
     const sourceItems = order.stage === 'supplement-weighing'
       ? getSupplementTickets(order).flatMap((ticket) => getTicketItems(ticket).map((item) => ({ ...item, ticketId: ticket.id, adjustmentId: ticket.adjustmentId, weighingType: ticket.label || 'Cân bổ sung QC2' })))
       : getEffectiveFormula(order)
     return (Array.isArray(sourceItems) ? sourceItems : [])
-      .filter(itemBelongsToGroup)
       .map(normalizeWeighingItemForGroup)
+      .filter(itemBelongsToGroup)
   }
   const isDone = (item) => item.qrStatus === 'PASS' && item.weighStatus === 'PASS'
   const groupCompleted = (order) => {
@@ -5469,6 +5501,12 @@ function WeighingPage({ data = {}, setData, group, user }) {
       return
     }
     const orderItems = getItems(order)
+    if (group === CHEMICAL) {
+      const sourceItems = order.stage === 'supplement-weighing'
+        ? getSupplementTickets(order).flatMap((ticket) => getTicketItems(ticket))
+        : getEffectiveFormula(order)
+      logMaterialLookupPipeline(order, sourceItems, materialCatalogByCode)
+    }
     if (!orderItems.length && !groupCompleted(order)) {
       setWarning('Không thể mở lệnh cân. Vui lòng kiểm tra phân nhóm vật tư trong Danh mục vật tư.')
       return
@@ -9333,8 +9371,8 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
     'Ma vat tu': row.materialCode || '',
     'Ten vat tu': row.materialName || '',
     'Don vi': row.unit || 'kg',
-    classification: row.materialGroup || '',
-    'sub-classification': normalizeChemicalSubGroup(row.chemicalSubGroup, row.materialGroup) || 'null',
+    classification: row.mainGroup || row.materialGroup || '',
+    'sub-classification': normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, row.mainGroup || row.materialGroup) || 'null',
     'Dung cu can': row.defaultWeighingToolCode || '',
     'Dung sai mac dinh': row.defaultTolerance || '',
     'Ton kho': row.stockQty ?? '',
@@ -9374,15 +9412,15 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
             const key = materialCode.toUpperCase()
             const existing = byCode.get(key)
             if (materialImportMode === 'create' && existing) return
-            const importedGroup = normalizeMaterialGroup(row.classification || row.mainGroup || row.materialGroup || getCatalogCell(row, ['classification', 'mainGroup', 'Nhom vat tu', 'Nhóm vật tư', 'Nhom', 'Nhóm']) || existing?.materialGroup || CHEMICAL)
+            const importedGroup = normalizeMaterialGroup(row.mainGroup || row.classification || row.materialGroup || getCatalogCell(row, ['classification', 'mainGroup', 'Nhom vat tu', 'Nhóm vật tư', 'Nhom', 'Nhóm']) || existing?.mainGroup || existing?.materialGroup || CHEMICAL)
             const importedSubGroup = row['sub-classification'] || row.subclassification || row.subClassification || row.chemicalSubGroup || getCatalogCell(row, ['sub-classification', 'sub classification', 'subclassification', 'chemicalSubGroup', 'Phan nhom', 'Phân nhóm'])
             const next = normalizeMaterialCatalogItem({
               materialCode,
               materialName: row.materialName || row.name || getCatalogCell(row, ['Ten vat tu', 'Tên vật tư', 'Ten VT', 'Tên VT']) || materialCode,
               unit: row.unit || getCatalogCell(row, ['Don vi', 'Đơn vị', 'Don vi tinh', 'Đơn vị tính']) || 'kg',
-              materialGroup: importedGroup,
-              chemicalSubGroup: importedSubGroup,
-              defaultWeighingToolCode: row.defaultWeighingToolCode || row.weighingToolCode || getCatalogCell(row, ['Dung cu can', 'Dụng cụ cân', 'Dung cu can mac dinh', 'Dụng cụ cân mặc định']) || '',
+              mainGroup: importedGroup,
+              subclassification: importedSubGroup,
+              defaultWeighingToolCode: row.defaultWeighingToolCode || row.defaultWeighingTool || row.weighingToolCode || getCatalogCell(row, ['Dung cu can', 'Dụng cụ cân', 'Dung cu can mac dinh', 'Dụng cụ cân mặc định']) || '',
               defaultTolerance: row.defaultTolerance || row.defaultToleranceKg || row.tolerance || row.toleranceKg || getCatalogCell(row, ['Dung sai mac dinh', 'Dung sai mặc định', 'Dung sai']) || '',
               stockQty: row.stockQty ?? row.inventoryQty ?? row.stock ?? getCatalogCell(row, ['Ton kho', 'Tồn kho']) ?? '',
               status: row.status || getCatalogCell(row, ['Trang thai', 'Trạng thái']) || MATERIAL_STATUS_ACTIVE,
@@ -9422,8 +9460,8 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
       ...current,
       [storageKey]: (current[storageKey] || []).map((row) => {
         if (row.id !== rowId) return row
-        if (isMaterialCatalog && field === 'materialGroup') {
-          return { ...row, materialGroup: value, chemicalSubGroup: normalizeChemicalSubGroup(row.chemicalSubGroup, value) }
+        if (isMaterialCatalog && field === 'mainGroup') {
+          return { ...row, mainGroup: value, materialGroup: value, subclassification: normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, value), chemicalSubGroup: normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, value) }
         }
         return { ...row, [field]: value }
       }),
@@ -9443,7 +9481,9 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
     })
     if (isMaterialCatalog) {
       next.status = MATERIAL_STATUS_ACTIVE
+      next.mainGroup = CHEMICAL
       next.materialGroup = CHEMICAL
+      next.subclassification = ''
       next.chemicalSubGroup = ''
       next.unit = next.unit || 'kg'
     }
@@ -9501,9 +9541,9 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
                 <tr key={row.id}>
                   {fields.map((field, index) => (
                     <td key={field} data-label={labels[index]}>
-                      {isMaterialCatalog && field === 'chemicalSubGroup' ? (
-                        <span className={`dispatch-badge ${normalizeChemicalSubGroup(row.chemicalSubGroup, row.materialGroup) ? 'ready' : 'waiting'}`}>
-                          {displayChemicalSubGroup(normalizeChemicalSubGroup(row.chemicalSubGroup, row.materialGroup))}
+                      {isMaterialCatalog && field === 'subclassification' ? (
+                        <span className={`dispatch-badge ${normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, row.mainGroup || row.materialGroup) ? 'ready' : 'waiting'}`}>
+                          {displayChemicalSubGroup(normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, row.mainGroup || row.materialGroup))}
                         </span>
                       ) : isMaterialCatalog && field === 'defaultWeighingToolCode' ? (
                         <select value={row[field] || ''} disabled={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)}>
@@ -10087,7 +10127,7 @@ function App() {
     'admin-roles': <AdminPage authData={authData} setAuthData={setAuthData} section="roles" />,
     'admin-permissions': <AdminPage authData={authData} setAuthData={setAuthData} section="permissions" />,
     'admin-system-logs': <SystemLogsPage data={data} />,
-    'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'materialGroup', 'chemicalSubGroup', 'unit', 'defaultWeighingToolCode']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Phân nhóm', 'Đơn vị', 'Dụng cụ cân']} data={data} setData={setData} permissions={userPermissions} user={user} />,
+    'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'mainGroup', 'subclassification', 'unit', 'defaultWeighingToolCode']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Phân nhóm', 'Đơn vị', 'Dụng cụ cân']} data={data} setData={setData} permissions={userPermissions} user={user} />,
     'master-weighing-tools': <MasterCatalogPage title="Danh mục dụng cụ cân" storageKey="weighingToolCatalog" permissionKey="material" fields={['code', 'name', 'type', 'tareWeightKg', 'maxLoadKg', 'applyFor', 'status']} labels={['Mã dụng cụ', 'Tên dụng cụ', 'Loại', 'Tare kg', 'Tải tối đa kg', 'Áp dụng cho', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
     'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'group', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
@@ -10136,7 +10176,4 @@ function App() {
 }
 
 export default App
-
-
-
 
