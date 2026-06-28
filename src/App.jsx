@@ -318,6 +318,7 @@ const normalizeCustomerCatalog = (items = importedCustomerCatalog) => (Array.isA
     customerName: name,
     province: item.province || '',
     channelCode: item.channelCode || '',
+    note: item.note || item.notes || '',
     status: item.status || 'Hoạt động',
   }
 }).filter((item) => item.code || item.name)
@@ -9547,6 +9548,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   const [materialImportBackup, setMaterialImportBackup] = useState(null)
   const isMaterialCatalog = storageKey === 'materialCatalog'
   const isWeighingToolCatalog = storageKey === 'weighingToolCatalog'
+  const isCustomerCatalog = storageKey === 'customerCatalog'
   const weighingToolOptions = activeWeighingTools(data.weighingToolCatalog || [])
   const canImportMaterialCatalog = isMaterialCatalog && (canCreate || canEdit)
   useEffect(() => {
@@ -9770,8 +9772,8 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
           </div>
         </div>
         {notice && <div className="process-alert">{notice}{materialImportBackup && <button className="secondary-button" type="button" onClick={rollbackMaterialImport}>Rollback</button>}</div>}
-        <div className={`table-wrapper ${isWeighingToolCatalog ? 'weighing-tool-table-wrapper' : ''}`}>
-          <table className={`admin-wide-table ${isMaterialCatalog ? 'material-catalog-table' : ''} ${isWeighingToolCatalog ? 'weighing-tool-catalog-table' : ''}`}>
+        <div className={`table-wrapper ${isWeighingToolCatalog ? 'weighing-tool-table-wrapper' : ''} ${isCustomerCatalog ? 'customer-catalog-table-wrapper' : ''}`}>
+          <table className={`admin-wide-table ${isMaterialCatalog ? 'material-catalog-table' : ''} ${isWeighingToolCatalog ? 'weighing-tool-catalog-table' : ''} ${isCustomerCatalog ? 'customer-catalog-table' : ''}`}>
             <thead>
               <tr>
                 {labels.map((label) => <th key={label}>{label}</th>)}
@@ -10392,7 +10394,7 @@ function App() {
     'master-weighing-tools': <MasterCatalogPage title="Danh mục dụng cụ cân" storageKey="weighingToolCatalog" permissionKey="material" fields={['code', 'name', 'type', 'tareWeightKg', 'maxLoadKg', 'applyFor', 'status']} labels={['Mã dụng cụ', 'Tên dụng cụ', 'Loại', 'Tare kg', 'Tải tối đa kg', 'Áp dụng cho', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
     'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'group', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
-    'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['customerCode', 'customerName', 'province', 'channelCode', 'status']} labels={['Mã khách hàng', 'Tên khách hàng', 'Tỉnh/Thành', 'Mã kênh', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['customerCode', 'customerName', 'channelCode', 'province', 'status', 'note']} labels={['Mã khách hàng', 'Tên khách hàng', 'Nhóm khách hàng', 'Khu vực/Tỉnh thành', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-teams': <MasterCatalogPage title="Danh mục tổ sản xuất" storageKey="teamCatalog" permissionKey="team" fields={['code', 'name', 'leader', 'note', 'status']} labels={['Mã tổ', 'Tên tổ', 'Tổ trưởng', 'Ghi chú', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
     'master-shifts': <MasterCatalogPage title="Danh mục ca làm việc" storageKey="shiftCatalog" permissionKey="shift" fields={['code', 'name', 'startTime', 'endTime', 'note', 'status']} labels={['Mã ca', 'Tên ca', 'Giờ bắt đầu', 'Giờ kết thúc', 'Ghi chú', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
     'admin-machines': <MixingMachineCatalogPage data={data} setData={setData} user={user} permissions={userPermissions} />,

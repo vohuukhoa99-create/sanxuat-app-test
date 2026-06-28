@@ -2447,6 +2447,77 @@ tbody tr:hover {
   overflow-y: hidden;
 }
 
+.customer-catalog-table-wrapper {
+  width: auto !important;
+  max-width: 1200px !important;
+  margin-left: 0 !important;
+  overflow-x: auto !important;
+  overflow-y: hidden;
+}
+
+.customer-catalog-table {
+  table-layout: fixed !important;
+  width: 1110px !important;
+  min-width: 1110px !important;
+  max-width: 1110px !important;
+}
+
+.customer-catalog-table th,
+.customer-catalog-table td {
+  padding: 6px 7px !important;
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+  vertical-align: middle !important;
+}
+
+.customer-catalog-table th {
+  text-align: center !important;
+  white-space: normal;
+}
+
+.customer-catalog-table input,
+.customer-catalog-table select {
+  width: 100%;
+  min-height: 30px !important;
+  height: 30px !important;
+  padding: 4px 7px !important;
+  font-size: 12px !important;
+  border-radius: 6px !important;
+}
+
+.customer-catalog-table th:nth-child(1),
+.customer-catalog-table td:nth-child(1) { width: 120px !important; }
+.customer-catalog-table th:nth-child(2),
+.customer-catalog-table td:nth-child(2) { width: 260px !important; }
+.customer-catalog-table th:nth-child(3),
+.customer-catalog-table td:nth-child(3) { width: 140px !important; }
+.customer-catalog-table th:nth-child(4),
+.customer-catalog-table td:nth-child(4) { width: 160px !important; }
+.customer-catalog-table th:nth-child(5),
+.customer-catalog-table td:nth-child(5) { width: 120px !important; }
+.customer-catalog-table th:nth-child(6),
+.customer-catalog-table td:nth-child(6) { width: 220px !important; }
+.customer-catalog-table th:nth-child(7),
+.customer-catalog-table td:nth-child(7) { width: 90px !important; }
+
+.customer-catalog-table td:nth-child(1),
+.customer-catalog-table td:nth-child(5),
+.customer-catalog-table td:nth-child(7) {
+  text-align: center !important;
+}
+
+.customer-catalog-table td:nth-child(2),
+.customer-catalog-table td:nth-child(6) {
+  text-align: left !important;
+}
+
+.customer-catalog-table td:nth-child(7) button {
+  min-height: 30px !important;
+  padding: 5px 8px !important;
+  font-size: 11.5px !important;
+  white-space: nowrap;
+}
+
 .material-admin-actions {
   display: grid;
   gap: 8px;
