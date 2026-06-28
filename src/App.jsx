@@ -5130,7 +5130,6 @@ function WeighingPage({ data = {}, setData, group, user }) {
   const [printQrModal, setPrintQrModal] = useState(null)
   const [weighingDetailModal, setWeighingDetailModal] = useState(null)
   const [chemicalSharedQr, setChemicalSharedQr] = useState('')
-  const [chemicalScaleMode, setChemicalScaleMode] = useState(getStoredChemicalScaleMode)
   const [scaleStatus, setScaleStatus] = useState('Chưa kết nối cân')
   const [scaleRawText, setScaleRawText] = useState('')
   const [scaleRawValue, setScaleRawValue] = useState(null)
@@ -5187,32 +5186,13 @@ function WeighingPage({ data = {}, setData, group, user }) {
       return { ...config, items, doneCount: groupDoneCount, activeItem: activeGroupItem, status }
     })
     : []
-  const visibleChemicalBoards = group === CHEMICAL
-    ? chemicalGroupBoards
-    : []
   const unclassifiedChemicalItems = group === CHEMICAL ? activeItems.filter((item) => item.catalogMaterialMissing || item.chemicalSubGroupMissing) : []
   const activeChemicalLineState = activeOrder ? getChemicalLineState(activeOrder, materialCatalogByCode) : null
-  const glueLineDone = activeChemicalLineState?.keoStatus === CHEMICAL_SUBGROUP_STATUS_DONE
-    || activeChemicalLineState?.keoStatus === CHEMICAL_SUBGROUP_STATUS_NOT_REQUIRED
-  const pasteTinLineDone = Boolean(activeChemicalLineState) && (
-    [activeChemicalLineState.pasteStatus, activeChemicalLineState.colorStatus].every((status) => (
-      status === CHEMICAL_SUBGROUP_STATUS_DONE
-      || status === CHEMICAL_SUBGROUP_STATUS_NOT_REQUIRED
-    ))
-  )
-  const activeChemicalLineDone = group === CHEMICAL && (
-    chemicalScaleMode === CHEMICAL_SCALE_MODE_GLUE ? glueLineDone : pasteTinLineDone
-  )
   const activeChemicalMixCompleted = activeChemicalLineState?.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED
   const canPrintChemicalMixQr = group === CHEMICAL
     && activeOrder
     && activeChemicalMixCompleted
   const showWeighedContainerQrSections = true
-  useEffect(() => {
-    if (group === CHEMICAL && typeof localStorage !== 'undefined') {
-      localStorage.setItem(CHEMICAL_SCALE_MODE_KEY, chemicalScaleMode)
-    }
-  }, [chemicalScaleMode, group])
   const canFinish = group !== CHEMICAL && Boolean(activeOrder && activeItems.length && doneCount === activeItems.length)
   const activeWeighingType = activeOrder?.stage === 'supplement-weighing' ? 'Cân bổ sung QC thành phẩm' : 'Cân chính'
   const activeContainers = activeOrder ? getOrderGroupContainers(data.weighedContainers || [], activeOrder, activeWeighingType).filter((item) => item.materialGroup === group) : []
@@ -5849,18 +5829,20 @@ function WeighingPage({ data = {}, setData, group, user }) {
                     {renderChemicalBoard(glueBoard)}
                     {renderChemicalBoard(pasteBoard)}
                   </div>
-                  <section className="chemical-order-queue-panel">
-                    <section className="weighing-stats scale-summary-compact scale-summary-inside">
-                      <article><span>Đang cân:</span><strong>{activeOrder ? '01' : '00'}</strong></article>
-                      <article><span>Chờ cân:</span><strong>{String(waitingOrders.length).padStart(2, '0')}</strong></article>
-                      <article><span>Hoàn thành:</span><strong>{String(completedOrders.length).padStart(2, '0')}</strong></article>
+                  <section className="chemical-lower-section">
+                    <section className="chemical-order-queue-panel">
+                      <section className="weighing-stats scale-summary-compact scale-summary-inside">
+                        <article><span>Đang cân:</span><strong>{activeOrder ? '01' : '00'}</strong></article>
+                        <article><span>Chờ cân:</span><strong>{String(waitingOrders.length).padStart(2, '0')}</strong></article>
+                        <article><span>Hoàn thành:</span><strong>{String(completedOrders.length).padStart(2, '0')}</strong></article>
+                      </section>
+                      <ChemicalMixSummary order={activeOrder} lineState={activeChemicalLineState} canPrint={canPrintChemicalMixQr} onPrint={printChemicalMixQr} />
+                      <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders} activeId={activeOrder?.id} onStart={startOrder} showStart />
                     </section>
-                    <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders} activeId={activeOrder?.id} onStart={startOrder} showStart />
+                    <div className="chemical-color-scale">
+                      {renderChemicalBoard(colorBoard)}
+                    </div>
                   </section>
-                  <ChemicalMixSummary order={activeOrder} lineState={activeChemicalLineState} canPrint={canPrintChemicalMixQr} onPrint={printChemicalMixQr} />
-                  <div className="chemical-color-scale">
-                    {renderChemicalBoard(colorBoard)}
-                  </div>
                   {unclassifiedChemicalItems.length > 0 && (
                     <section className="chemical-weighing-group chemical-unclassified-panel">
                       <div className="chemical-weighing-group-header">
