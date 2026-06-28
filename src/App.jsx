@@ -413,6 +413,23 @@ const resolveOrderCustomer = (order = {}) => {
   }
 }
 const uid = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+const UNSAVED_CHANGES_EVENT = 'sanxuat-unsaved-changes'
+function useUnsavedChangesGuard(scope, dirty) {
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    window.dispatchEvent(new CustomEvent(UNSAVED_CHANGES_EVENT, { detail: { scope, dirty } }))
+    const handleBeforeUnload = (event) => {
+      if (!dirty) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.dispatchEvent(new CustomEvent(UNSAVED_CHANGES_EVENT, { detail: { scope, dirty: false } }))
+    }
+  }, [scope, dirty])
+}
 const RAW_MATERIAL_QR_TYPE = 'RAW_MATERIAL_LOT'
 const MATERIAL_QR_PREFIX = 'MAT|'
 const materialQrValue = (materialCode) => `${MATERIAL_QR_PREFIX}${String(materialCode || '').trim()}`
@@ -8793,6 +8810,7 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
   const emptyMachineDraft = { machineCode: '', machineName: '', motorPower: '', capacityKg: '', department: 'Tổ phối trộn', productionTeam: 'Tổ phối trộn', status: 'READY', note: '' }
   const [machineDraft, setMachineDraft] = useState(emptyMachineDraft)
   const [editingMachineCode, setEditingMachineCode] = useState('')
+  const [machineDraftDirty, setMachineDraftDirty] = useState(false)
   const [notice, setNotice] = useState('')
   const machines = normalizeMixingMachines(data.mixingMachines)
   const pendingMachineRequests = (data.orders || []).filter((order) => order.machineChangeRequest?.status === 'PENDING')
@@ -8800,10 +8818,15 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
   const canEditMachine = hasPermission(permissions, 'master.machine.edit')
   const canDeleteMachine = hasPermission(permissions, 'master.machine.delete')
   const canApproveMachineChange = user?.role === 'Admin' || user?.role === 'Sản xuất'
-  const updateMachineDraft = (field, value) => setMachineDraft((current) => ({ ...current, [field]: value }))
+  useUnsavedChangesGuard('mixingMachineCatalog', machineDraftDirty)
+  const updateMachineDraft = (field, value) => {
+    setMachineDraft((current) => ({ ...current, [field]: value }))
+    setMachineDraftDirty(true)
+  }
   const resetMachineDraft = () => {
     setMachineDraft(emptyMachineDraft)
     setEditingMachineCode('')
+    setMachineDraftDirty(false)
   }
   const editMachine = (machine) => {
     if (!canEditMachine) return
@@ -8818,6 +8841,7 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
       note: machine.note || '',
     })
     setEditingMachineCode(machine.machineCode)
+    setMachineDraftDirty(false)
   }
   const saveMachine = () => {
     if (!(editingMachineCode ? canEditMachine : canCreateMachine)) {
@@ -8834,6 +8858,7 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
       setNotice(`Mã máy ${machine.machineCode} đã tồn tại.`)
       return
     }
+    if (typeof window !== 'undefined' && !window.confirm('Xác nhận lưu các thay đổi danh mục?')) return
     setData((current) => {
       const currentMachines = normalizeMixingMachines(current.mixingMachines)
       const exists = currentMachines.some((item) => item.machineCode === editingMachineCode)
@@ -8842,7 +8867,7 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
         : [...currentMachines, machine]
       return addLogToData({ ...current, mixingMachines: normalizeMixingMachines(nextMachines) }, `${editingMachineCode ? 'Cập nhật' : 'Thêm'} máy phối trộn ${formatMixingMachineLabel(machine)}.`)
     })
-    setNotice(`${editingMachineCode ? 'Đã cập nhật' : 'Đã thêm'} máy phối trộn ${formatMixingMachineLabel(machine)}.`)
+    setNotice('Đã lưu thay đổi.')
     resetMachineDraft()
   }
   const deactivateMachine = (machineCode) => {
@@ -8940,8 +8965,9 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
         <div className="section-heading-row">
           <div><span className="section-kicker">Dữ liệu gốc</span><h2>Danh mục máy phối trộn</h2></div>
           <div className="action-row">
+            <button type="button" className="secondary-button" disabled={!machineDraftDirty} onClick={resetMachineDraft}>Hủy thay đổi</button>
             <button type="button" className="secondary-button" disabled={!canCreateMachine} onClick={resetMachineDraft}>Nhập mới</button>
-            <button type="button" className="primary-button" disabled={editingMachineCode ? !canEditMachine : !canCreateMachine} onClick={saveMachine}>{editingMachineCode ? 'Lưu máy' : 'Thêm máy'}</button>
+            <button type="button" className="primary-button" disabled={!machineDraftDirty || (editingMachineCode ? !canEditMachine : !canCreateMachine)} onClick={saveMachine}>Lưu thay đổi</button>
           </div>
         </div>
         {notice && <p className="empty-alert">{notice}</p>}
@@ -9499,7 +9525,15 @@ function LegacyProductionAssignmentPage({ data, setData, user, permissions = [] 
 }
 
 function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, permissions = [], permissionKey, user }) {
-  const rows = storageKey === 'weighingToolCatalog' ? normalizeWeighingToolCatalog(data[storageKey] || []) : (data[storageKey] || [])
+  const sourceRows = useMemo(() => (
+    storageKey === 'weighingToolCatalog'
+      ? normalizeWeighingToolCatalog(data[storageKey] || [])
+      : (data[storageKey] || [])
+  ), [data, storageKey])
+  const [draftRows, setDraftRows] = useState(sourceRows)
+  const [dirtyRowIds, setDirtyRowIds] = useState(new Set())
+  const rows = draftRows
+  const hasUnsavedChanges = dirtyRowIds.size > 0
   const key = permissionKey || storageKey.replace('Catalog', '')
   const canCreate = hasPermission(permissions, `master.${key}.create`)
   const canEdit = hasPermission(permissions, `master.${key}.edit`)
@@ -9515,6 +9549,16 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   const isWeighingToolCatalog = storageKey === 'weighingToolCatalog'
   const weighingToolOptions = activeWeighingTools(data.weighingToolCatalog || [])
   const canImportMaterialCatalog = isMaterialCatalog && (canCreate || canEdit)
+  useEffect(() => {
+    setDraftRows(sourceRows.map((row) => ({ ...row })))
+    setDirtyRowIds(new Set())
+  }, [sourceRows, storageKey])
+  useUnsavedChangesGuard(storageKey, hasUnsavedChanges)
+  const markRowDirty = (rowId) => setDirtyRowIds((current) => {
+    const next = new Set(current)
+    next.add(rowId)
+    return next
+  })
   const materialQrCanvasId = (row) => `material-qr-${String(row.id || row.materialCode || '').replace(/[^a-zA-Z0-9_-]/g, '-')}`
   const getMaterialQrCanvas = (row) => document.getElementById(`modal-${materialQrCanvasId(row)}`)
   const downloadMaterialQr = (row) => {
@@ -9632,9 +9676,8 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   }
   const updateRow = (rowId, field, value) => {
     if (!canEdit) return
-    setData((current) => ({
-      ...current,
-      [storageKey]: (current[storageKey] || []).map((row) => {
+    setDraftRows((currentRows) => (
+      (currentRows || []).map((row) => {
         if (row.id !== rowId) return row
         if (isMaterialCatalog && field === 'mainGroup') {
           const mainGroup = normalizeMainGroup(value)
@@ -9642,8 +9685,9 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
           return { ...row, mainGroup, materialGroup, subclassification: normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, mainGroup), chemicalSubGroup: normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, mainGroup) }
         }
         return { ...row, [field]: value }
-      }),
-    }))
+      })
+    ))
+    markRowDirty(rowId)
   }
   const addRow = () => {
     if (!canCreate) return
@@ -9671,23 +9715,42 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
       next.tareWeightKg = 0
       next.maxLoadKg = 0
     }
-    setData((current) => ({ ...current, [storageKey]: [next, ...(current[storageKey] || [])] }))
+    setDraftRows((currentRows) => [next, ...(currentRows || [])])
+    markRowDirty(next.id)
   }
   const deleteRow = (rowId) => {
     if (!canDelete) return
-    setData((current) => ({ ...current, [storageKey]: (current[storageKey] || []).filter((row) => row.id !== rowId) }))
+    setDraftRows((currentRows) => (currentRows || []).filter((row) => row.id !== rowId))
+    markRowDirty(`delete-${rowId}`)
   }
   const updateMaterialStatus = (rowId, status) => {
     if (!canEdit || !isMaterialCatalog) return
-    setData((current) => ({
-      ...current,
-      materialCatalog: normalizeMaterialCatalog((current.materialCatalog || []).map((row) => row.id === rowId ? { ...row, status } : row)),
-    }))
+    setDraftRows((currentRows) => (currentRows || []).map((row) => row.id === rowId ? { ...row, status } : row))
+    markRowDirty(rowId)
   }
   const toggleMaterialUsageStatus = (row) => {
     if (!canEdit || !isMaterialCatalog) return
     const currentStatus = normalizeMaterialCatalogItem(row)?.status || MATERIAL_STATUS_ACTIVE
     updateMaterialStatus(row.id, currentStatus === MATERIAL_STATUS_INACTIVE ? MATERIAL_STATUS_ACTIVE : MATERIAL_STATUS_INACTIVE)
+  }
+  const normalizeDraftRowsForSave = () => {
+    if (isMaterialCatalog) return normalizeMaterialCatalog(draftRows || [])
+    if (isWeighingToolCatalog) return normalizeWeighingToolCatalog(draftRows || [])
+    return (draftRows || []).map((row) => ({ ...row }))
+  }
+  const saveCatalogChanges = () => {
+    if (!hasUnsavedChanges) return
+    if (typeof window !== 'undefined' && !window.confirm('Xác nhận lưu các thay đổi danh mục?')) return
+    const nextRows = normalizeDraftRowsForSave()
+    setData((current) => ({ ...current, [storageKey]: nextRows }))
+    setDraftRows(nextRows.map((row) => ({ ...row })))
+    setDirtyRowIds(new Set())
+    setNotice('Đã lưu thay đổi.')
+  }
+  const cancelCatalogChanges = () => {
+    setDraftRows(sourceRows.map((row) => ({ ...row })))
+    setDirtyRowIds(new Set())
+    setNotice('Đã hủy thay đổi.')
   }
   return (
     <div className="page-content">
@@ -9695,6 +9758,8 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
         <div className="section-heading-row">
           <div><span className="section-kicker">Dữ liệu gốc</span><h2>{title}</h2></div>
           <div className="action-row">
+            <button className="secondary-button" type="button" disabled={!hasUnsavedChanges} onClick={cancelCatalogChanges}>Hủy thay đổi</button>
+            <button className="primary-button" type="button" disabled={!hasUnsavedChanges} onClick={saveCatalogChanges}>Lưu thay đổi</button>
             {isMaterialCatalog && (
               <>
                 <button className="secondary-button" type="button" disabled={!canImportMaterialCatalog} onClick={() => { setMaterialImportMode('update'); setMaterialImportFile(null); setMaterialImportOpen(true) }}>Nhập Excel</button>
@@ -9716,7 +9781,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id}>
+                <tr key={row.id} className={dirtyRowIds.has(row.id) ? 'catalog-row-dirty' : ''}>
                   {fields.map((field, index) => (
                     <td key={field} data-label={labels[index]}>
                       {isMaterialCatalog && field === 'subclassification' ? (
@@ -10220,6 +10285,7 @@ function App() {
   const initialPage = new URLSearchParams(window.location.search).get('page') || 'dashboard'
   const [selectedPage, setSelectedPage] = useState(initialPage)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [unsavedScopes, setUnsavedScopes] = useState({})
 
   useEffect(() => {
     const orders = normalizeProductionOrders(data.orders || [], data.formulas || [])
@@ -10270,14 +10336,31 @@ function App() {
     setLoginError('')
   }
   const logout = () => {
+    if (Object.values(unsavedScopes).some(Boolean) && !window.confirm('Có thay đổi chưa lưu. Anh có muốn rời khỏi màn hình không?')) return
     localStorage.removeItem(SESSION_KEY)
     setCurrentUser(null)
     setMobileMenuOpen(false)
   }
   const changePage = (nextPage) => {
+    if (nextPage !== selectedPage && Object.values(unsavedScopes).some(Boolean) && !window.confirm('Có thay đổi chưa lưu. Anh có muốn rời khỏi màn hình không?')) return
     setSelectedPage(nextPage)
     setMobileMenuOpen(false)
   }
+
+  useEffect(() => {
+    const handleUnsavedChanges = (event) => {
+      const scope = event.detail?.scope || 'global'
+      const dirty = Boolean(event.detail?.dirty)
+      setUnsavedScopes((current) => {
+        const next = { ...current }
+        if (dirty) next[scope] = true
+        else delete next[scope]
+        return next
+      })
+    }
+    window.addEventListener(UNSAVED_CHANGES_EVENT, handleUnsavedChanges)
+    return () => window.removeEventListener(UNSAVED_CHANGES_EVENT, handleUnsavedChanges)
+  }, [])
 
   if (!user) return <LoginPage onLogin={login} error={loginError} />
 
