@@ -55,9 +55,19 @@ class PageErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
+      const page = this.props.page || ''
+      const message = page === 'chemical'
+        ? 'Không thể mở lệnh cân. Vui lòng kiểm tra phân nhóm vật tư trong Danh mục vật tư.'
+        : page === 'mixing'
+          ? 'Chưa có lệnh sẵn sàng phối trộn.'
+          : page === 'finished-qc'
+            ? 'Chưa có lệnh chờ QC thành phẩm.'
+            : page === 'finished-goods'
+              ? 'Chưa có lệnh chờ nhập kho thành phẩm.'
+              : 'Không thể hiển thị màn hình hiện tại. Vui lòng kiểm tra dữ liệu công đoạn.'
       return (
         <div className="process-alert">
-          Không thể mở lệnh cân. Vui lòng kiểm tra phân nhóm vật tư trong Danh mục vật tư.
+          {message}
         </div>
       )
     }
@@ -4539,6 +4549,9 @@ function FinishedProductQcPage({ data, setData, user }) {
   const qc2Rows = activeOrder ? buildQc2Rows(activeOrder, form.adjustments) : []
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'QC')
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
+  useEffect(() => {
+    logScreenValidation('QC thành phẩm', orders, 'validateFinalQC', validateFinalQC)
+  }, [orders])
 
   const createDemoData = () => {
     const payload = createQc2DemoPayload(data)
@@ -4846,7 +4859,7 @@ function FinishedProductQcPage({ data, setData, user }) {
                               <td><input value={row.note} onChange={(event) => updateExistingAdjustment(row, 'note', event.target.value)} /></td>
                             </tr>
                           ))}
-              {rows.length === 0 && <tr><td className="empty-row" colSpan={fields.length + (isMaterialCatalog ? 2 : 1)}>Chưa có dữ liệu.</td></tr>}
+                          {qc2Rows.length === 0 && <tr><td className="empty-row" colSpan={8}>Chưa có dữ liệu QC thành phẩm.</td></tr>}
                         </tbody>
                       </table>
                     </div>
@@ -5567,7 +5580,9 @@ function WeighingPage({ data = {}, setData, group, user }) {
 
   const startOrder = (order) => {
     if (!order?.id) {
-      setWarning('Không thể mở lệnh cân. Vui lòng kiểm tra phân nhóm vật tư trong Danh mục vật tư.')
+      setWarning(group === CHEMICAL
+        ? 'Không thể mở lệnh cân. Vui lòng kiểm tra phân nhóm vật tư trong Danh mục vật tư.'
+        : 'Không thể mở lệnh cân rắn. Vui lòng kiểm tra nhóm vật tư Rắn trong Danh mục vật tư.')
       return
     }
     const orderItems = getItems(order)
@@ -5575,8 +5590,18 @@ function WeighingPage({ data = {}, setData, group, user }) {
       ? getSupplementTickets(order).flatMap((ticket) => getTicketItems(ticket))
       : getEffectiveFormula(order)
     logMaterialLookupPipeline(order, sourceItems, materialCatalogByCode)
+    const validation = group === CHEMICAL
+      ? validateChemicalWeighing(order, materialCatalogByCode)
+      : validateSolidWeighing(order)
+    console.debug(`[${group === CHEMICAL ? 'Tổ cân Hóa' : 'Tổ cân Rắn'}] validation scope`, {
+      orderId: order.orderCode || order.id,
+      validationFunctionCalled: group === CHEMICAL ? 'validateChemicalWeighing' : 'validateSolidWeighing',
+      validation,
+    })
     if (!orderItems.length && !groupCompleted(order)) {
-      setWarning('Không thể mở lệnh cân. Vui lòng kiểm tra phân nhóm vật tư trong Danh mục vật tư.')
+      setWarning(group === CHEMICAL
+        ? 'Không thể mở lệnh cân. Vui lòng kiểm tra phân nhóm vật tư trong Danh mục vật tư.'
+        : 'Không có vật tư Rắn cần cân cho lệnh này.')
       return
     }
     if (activeOrder && activeOrder.id !== order.id && !(group === CHEMICAL && activeChemicalLineDone)) {
@@ -5648,7 +5673,9 @@ function WeighingPage({ data = {}, setData, group, user }) {
           {warning && <div className="process-alert">{warning}</div>}
           {activeOrderLoadError && (
             <div className="process-alert">
-              Không thể mở lệnh cân. Vui lòng kiểm tra phân nhóm vật tư trong Danh mục vật tư.
+              {group === CHEMICAL
+                ? 'Không thể mở lệnh cân. Vui lòng kiểm tra phân nhóm vật tư trong Danh mục vật tư.'
+                : 'Không thể mở lệnh cân rắn. Vui lòng kiểm tra nhóm vật tư Rắn trong Danh mục vật tư.'}
             </div>
           )}
           <div className="process-alert assignment-context">
@@ -6177,6 +6204,64 @@ function getOrderGroupQrCode(order = {}, group) {
   return ''
 }
 
+function validateChemicalWeighing(order = {}, materialCatalogByCode = null) {
+  const unclassifiedItems = materialCatalogByCode ? getUnclassifiedChemicalItems(order, materialCatalogByCode) : []
+  return {
+    ok: unclassifiedItems.length === 0,
+    missingSubclassificationCodes: unclassifiedItems.filter((item) => !item.catalogMaterialMissing).map((item) => item.materialCode).filter(Boolean),
+    missingCatalogCodes: unclassifiedItems.filter((item) => item.catalogMaterialMissing).map((item) => item.materialCode).filter(Boolean),
+  }
+}
+
+function validateSolidWeighing(order = {}) {
+  const solidItems = getEffectiveFormula(order).filter((item) => normalizeMainGroup(item.mainGroup || item.materialGroup || item.group || '') === MAIN_GROUP_SOLID)
+  return { ok: solidItems.length > 0, solidItemsCount: solidItems.length }
+}
+
+function validateMixing(order = {}) {
+  const requiresChemicalQr = orderHasMainGroup(order, MAIN_GROUP_CHEMICAL)
+  const requiresSolidQr = orderHasMainGroup(order, MAIN_GROUP_SOLID)
+  const hasChemicalMixQR = Boolean(getOrderGroupQrCode(order, CHEMICAL))
+  const hasSolidMixQR = Boolean(getOrderGroupQrCode(order, SOLID))
+  return {
+    ok: (!requiresChemicalQr || hasChemicalMixQR) && (!requiresSolidQr || hasSolidMixQR),
+    requiresChemicalQr,
+    requiresSolidQr,
+    hasChemicalMixQR,
+    hasSolidMixQR,
+    status: requiresChemicalQr && !hasChemicalMixQR ? 'Chờ QR hỗn hợp Hóa' : requiresSolidQr && !hasSolidMixQR ? 'Chờ QR hỗn hợp Rắn' : 'Sẵn sàng phối trộn',
+  }
+}
+
+function validateFinalQC(order = {}) {
+  const mixingDone = Boolean(order.mixingCompletedAt || order.mixing?.completedAt || order.mixing?.status === 'Completed' || order.mixingStatus === 'completed' || order.stage === 'finished-qc')
+  return { ok: mixingDone, mixingDone }
+}
+
+function validateFinishedGoods(order = {}) {
+  const packingDone = Boolean(order.packaging?.completedAt || order.packingStatus === 'completed' || order.packagingStatus === 'Completed' || order.stage === 'finished-goods')
+  return { ok: packingDone, packingDone }
+}
+
+function logScreenValidation(screenName, orders = [], validationFunctionCalled = '', validator = null) {
+  const rows = (Array.isArray(orders) ? orders : []).map((order) => {
+    const validation = validator ? validator(order) : {}
+    return {
+      screenName,
+      orderId: order.orderCode || order.id || '',
+      orderStatus: order.status || order.orderStatus || order.stage || '',
+      hasChemicalMixQR: Boolean(getOrderGroupQrCode(order, CHEMICAL)),
+      hasSolidMixQR: Boolean(getOrderGroupQrCode(order, SOLID)),
+      hasFinalQC: Boolean(order.qc2 || order.qc2Status === 'Đạt' || order.stage === 'packaging' || order.stage === 'finished-goods' || order.stage === 'completed'),
+      hasPacking: Boolean(order.packaging || order.packagingStatus === 'Completed' || order.stage === 'finished-goods' || order.stage === 'completed'),
+      validationFunctionCalled,
+      validationStatus: validation.status || (validation.ok ? 'OK' : 'WAITING'),
+    }
+  })
+  console.debug(`[${screenName}] validation scope`, { validationFunctionCalled, orderCount: rows.length })
+  if (rows.length) console.table(rows)
+}
+
 function getMixingDispatchState(order) {
   const requiresChemicalQr = orderHasMainGroup(order, MAIN_GROUP_CHEMICAL)
   const requiresSolidQr = orderHasMainGroup(order, MAIN_GROUP_SOLID)
@@ -6253,6 +6338,9 @@ function MixingPage({ data, setData, user }) {
     }
     return orderCode(a).localeCompare(orderCode(b), 'vi', { numeric: true })
   })
+  useEffect(() => {
+    logScreenValidation('Tổ phối trộn', readyOrders, 'validateMixing', validateMixing)
+  }, [readyOrders])
   const updateQrForm = (orderId, field, value) => {
     setQrForms((current) => ({ ...current, [orderId]: { ...(current[orderId] || {}), [field]: value } }))
   }
@@ -6653,7 +6741,7 @@ function MixingPage({ data, setData, user }) {
                     </tr>
                   )
                 })}
-              {rows.length === 0 && <tr><td className="empty-row" colSpan={fields.length + (isMaterialCatalog ? 2 : 1)}>Chưa có dữ liệu.</td></tr>}
+              {readyOrders.length === 0 && <tr><td className="empty-row" colSpan={8}>Chưa có lệnh sẵn sàng phối trộn.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -6691,7 +6779,7 @@ function MixingPage({ data, setData, user }) {
                     </tr>
                   )
                 })}
-              {rows.length === 0 && <tr><td className="empty-row" colSpan={fields.length + (isMaterialCatalog ? 2 : 1)}>Chưa có dữ liệu.</td></tr>}
+              {activeMixingOrders.length === 0 && <tr><td className="empty-row" colSpan={8}>Chưa có lệnh đang phối trộn.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -6971,6 +7059,9 @@ function FinishedGoodsPage({ data, setData, user }) {
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'Kho thành phẩm')
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
   const filteredFinishedGoods = filterFinishedGoods(finishedGoods, filters)
+  useEffect(() => {
+    logScreenValidation('Kho thành phẩm', waitingOrders, 'validateFinishedGoods', validateFinishedGoods)
+  }, [waitingOrders])
 
   const createDemoData = () => {
     const payload = createFinishedGoodsDemoPayload(data)
@@ -7115,7 +7206,7 @@ function FinishedGoodsPage({ data, setData, user }) {
                   </tr>
                 )
               })}
-              {rows.length === 0 && <tr><td className="empty-row" colSpan={fields.length + (isMaterialCatalog ? 2 : 1)}>Chưa có dữ liệu.</td></tr>}
+              {waitingOrders.length === 0 && <tr><td className="empty-row" colSpan={11}>Chưa có lệnh chờ nhập kho thành phẩm.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -7170,7 +7261,7 @@ function FinishedGoodsPage({ data, setData, user }) {
                   <td>{item.status}</td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td className="empty-row" colSpan={fields.length + (isMaterialCatalog ? 2 : 1)}>Chưa có dữ liệu.</td></tr>}
+              {filteredFinishedGoods.length === 0 && <tr><td className="empty-row" colSpan={11}>Chưa có thành phẩm nhập kho phù hợp.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -10254,7 +10345,7 @@ function App() {
           </div>
         </header>
         <TopBar title={title} subtitle={subtitle} user={user} onLogout={logout} />
-        <PageErrorBoundary resetKey={page}>
+        <PageErrorBoundary resetKey={page} page={page}>
           {pages[page] || pages.dashboard}
         </PageErrorBoundary>
       </main>
