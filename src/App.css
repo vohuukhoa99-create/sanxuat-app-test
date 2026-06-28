@@ -2518,6 +2518,306 @@ tbody tr:hover {
   white-space: nowrap;
 }
 
+.product-catalog-table-wrapper,
+.supplier-catalog-table-wrapper,
+.employee-catalog-table-wrapper,
+.team-catalog-table-wrapper,
+.shift-catalog-table-wrapper,
+.mixing-machine-catalog-table-wrapper,
+.table-wrapper:has(> .formula-catalog-table) {
+  width: fit-content !important;
+  margin-left: 0 !important;
+  margin-right: auto !important;
+  overflow-x: auto !important;
+  overflow-y: hidden;
+}
+
+.product-catalog-table-wrapper { max-width: 1120px !important; }
+.supplier-catalog-table-wrapper { max-width: 1220px !important; }
+.employee-catalog-table-wrapper { max-width: 1220px !important; }
+.team-catalog-table-wrapper { max-width: 980px !important; }
+.shift-catalog-table-wrapper { max-width: 980px !important; }
+.mixing-machine-catalog-table-wrapper { max-width: 1240px !important; }
+.table-wrapper:has(> .formula-catalog-table) { max-width: 1120px !important; }
+
+.product-catalog-table,
+.supplier-catalog-table,
+.employee-catalog-table,
+.team-catalog-table,
+.shift-catalog-table,
+.mixing-machine-catalog-table,
+.formula-catalog-table {
+  table-layout: fixed !important;
+}
+
+.product-catalog-table {
+  width: 1040px !important;
+  min-width: 1040px !important;
+  max-width: 1040px !important;
+}
+
+.supplier-catalog-table {
+  width: 1180px !important;
+  min-width: 1180px !important;
+  max-width: 1180px !important;
+}
+
+.employee-catalog-table {
+  width: 1170px !important;
+  min-width: 1170px !important;
+  max-width: 1170px !important;
+}
+
+.team-catalog-table {
+  width: 870px !important;
+  min-width: 870px !important;
+  max-width: 870px !important;
+}
+
+.shift-catalog-table {
+  width: 900px !important;
+  min-width: 900px !important;
+  max-width: 900px !important;
+}
+
+.mixing-machine-catalog-table {
+  width: 1200px !important;
+  min-width: 1200px !important;
+  max-width: 1200px !important;
+}
+
+.formula-catalog-table {
+  width: 1030px !important;
+  min-width: 1030px !important;
+  max-width: 1030px !important;
+}
+
+.product-catalog-table th,
+.product-catalog-table td,
+.supplier-catalog-table th,
+.supplier-catalog-table td,
+.employee-catalog-table th,
+.employee-catalog-table td,
+.team-catalog-table th,
+.team-catalog-table td,
+.shift-catalog-table th,
+.shift-catalog-table td,
+.mixing-machine-catalog-table th,
+.mixing-machine-catalog-table td,
+.formula-catalog-table th,
+.formula-catalog-table td {
+  padding: 6px 7px !important;
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+  vertical-align: middle !important;
+}
+
+.product-catalog-table th,
+.supplier-catalog-table th,
+.employee-catalog-table th,
+.team-catalog-table th,
+.shift-catalog-table th,
+.mixing-machine-catalog-table th,
+.formula-catalog-table th {
+  text-align: center !important;
+  white-space: normal;
+}
+
+.product-catalog-table input,
+.product-catalog-table select,
+.supplier-catalog-table input,
+.supplier-catalog-table select,
+.employee-catalog-table input,
+.employee-catalog-table select,
+.team-catalog-table input,
+.team-catalog-table select,
+.shift-catalog-table input,
+.shift-catalog-table select,
+.mixing-machine-catalog-table input,
+.mixing-machine-catalog-table select {
+  width: 100%;
+  min-height: 30px !important;
+  height: 30px !important;
+  padding: 4px 7px !important;
+  font-size: 12px !important;
+  border-radius: 6px !important;
+}
+
+.product-catalog-table th:nth-child(1),
+.product-catalog-table td:nth-child(1) { width: 120px !important; }
+.product-catalog-table th:nth-child(2),
+.product-catalog-table td:nth-child(2) { width: 260px !important; }
+.product-catalog-table th:nth-child(3),
+.product-catalog-table td:nth-child(3) { width: 140px !important; }
+.product-catalog-table th:nth-child(4),
+.product-catalog-table td:nth-child(4) { width: 80px !important; }
+.product-catalog-table th:nth-child(5),
+.product-catalog-table td:nth-child(5) { width: 120px !important; }
+.product-catalog-table th:nth-child(6),
+.product-catalog-table td:nth-child(6) { width: 220px !important; }
+.product-catalog-table th:nth-child(7),
+.product-catalog-table td:nth-child(7) { width: 100px !important; }
+
+.supplier-catalog-table th:nth-child(1),
+.supplier-catalog-table td:nth-child(1) { width: 120px !important; }
+.supplier-catalog-table th:nth-child(2),
+.supplier-catalog-table td:nth-child(2) { width: 240px !important; }
+.supplier-catalog-table th:nth-child(3),
+.supplier-catalog-table td:nth-child(3) { width: 130px !important; }
+.supplier-catalog-table th:nth-child(4),
+.supplier-catalog-table td:nth-child(4) { width: 260px !important; }
+.supplier-catalog-table th:nth-child(5),
+.supplier-catalog-table td:nth-child(5) { width: 120px !important; }
+.supplier-catalog-table th:nth-child(6),
+.supplier-catalog-table td:nth-child(6) { width: 220px !important; }
+.supplier-catalog-table th:nth-child(7),
+.supplier-catalog-table td:nth-child(7) { width: 90px !important; }
+
+.employee-catalog-table th:nth-child(1),
+.employee-catalog-table td:nth-child(1) { width: 120px !important; }
+.employee-catalog-table th:nth-child(2),
+.employee-catalog-table td:nth-child(2) { width: 240px !important; }
+.employee-catalog-table th:nth-child(3),
+.employee-catalog-table td:nth-child(3) { width: 150px !important; }
+.employee-catalog-table th:nth-child(4),
+.employee-catalog-table td:nth-child(4) { width: 130px !important; }
+.employee-catalog-table th:nth-child(5),
+.employee-catalog-table td:nth-child(5) { width: 120px !important; }
+.employee-catalog-table th:nth-child(6),
+.employee-catalog-table td:nth-child(6) { width: 110px !important; }
+.employee-catalog-table th:nth-child(7),
+.employee-catalog-table td:nth-child(7) { width: 210px !important; }
+.employee-catalog-table th:nth-child(8),
+.employee-catalog-table td:nth-child(8) { width: 90px !important; }
+
+.team-catalog-table th:nth-child(1),
+.team-catalog-table td:nth-child(1) { width: 110px !important; }
+.team-catalog-table th:nth-child(2),
+.team-catalog-table td:nth-child(2) { width: 220px !important; }
+.team-catalog-table th:nth-child(3),
+.team-catalog-table td:nth-child(3) { width: 180px !important; }
+.team-catalog-table th:nth-child(4),
+.team-catalog-table td:nth-child(4) { width: 240px !important; }
+.team-catalog-table th:nth-child(5),
+.team-catalog-table td:nth-child(5) { width: 120px !important; }
+.team-catalog-table th:nth-child(6),
+.team-catalog-table td:nth-child(6) { width: 90px !important; }
+
+.shift-catalog-table th:nth-child(1),
+.shift-catalog-table td:nth-child(1) { width: 90px !important; }
+.shift-catalog-table th:nth-child(2),
+.shift-catalog-table td:nth-child(2) { width: 180px !important; }
+.shift-catalog-table th:nth-child(3),
+.shift-catalog-table td:nth-child(3) { width: 110px !important; }
+.shift-catalog-table th:nth-child(4),
+.shift-catalog-table td:nth-child(4) { width: 110px !important; }
+.shift-catalog-table th:nth-child(5),
+.shift-catalog-table td:nth-child(5) { width: 240px !important; }
+.shift-catalog-table th:nth-child(6),
+.shift-catalog-table td:nth-child(6) { width: 120px !important; }
+.shift-catalog-table th:nth-child(7),
+.shift-catalog-table td:nth-child(7) { width: 90px !important; }
+
+.mixing-machine-catalog-table th:nth-child(1),
+.mixing-machine-catalog-table td:nth-child(1) { width: 100px !important; }
+.mixing-machine-catalog-table th:nth-child(2),
+.mixing-machine-catalog-table td:nth-child(2) { width: 220px !important; }
+.mixing-machine-catalog-table th:nth-child(3),
+.mixing-machine-catalog-table td:nth-child(3) { width: 130px !important; }
+.mixing-machine-catalog-table th:nth-child(4),
+.mixing-machine-catalog-table td:nth-child(4) { width: 100px !important; }
+.mixing-machine-catalog-table th:nth-child(5),
+.mixing-machine-catalog-table td:nth-child(5) { width: 180px !important; }
+.mixing-machine-catalog-table th:nth-child(6),
+.mixing-machine-catalog-table td:nth-child(6) { width: 120px !important; }
+.mixing-machine-catalog-table th:nth-child(7),
+.mixing-machine-catalog-table td:nth-child(7) { width: 220px !important; }
+.mixing-machine-catalog-table th:nth-child(8),
+.mixing-machine-catalog-table td:nth-child(8) { width: 130px !important; }
+
+.formula-catalog-table th:nth-child(1),
+.formula-catalog-table td:nth-child(1) { width: 150px !important; }
+.formula-catalog-table th:nth-child(2),
+.formula-catalog-table td:nth-child(2) { width: 240px !important; }
+.formula-catalog-table th:nth-child(3),
+.formula-catalog-table td:nth-child(3) { width: 100px !important; }
+.formula-catalog-table th:nth-child(4),
+.formula-catalog-table td:nth-child(4) { width: 130px !important; }
+.formula-catalog-table th:nth-child(5),
+.formula-catalog-table td:nth-child(5) { width: 130px !important; }
+.formula-catalog-table th:nth-child(6),
+.formula-catalog-table td:nth-child(6) { width: 160px !important; }
+.formula-catalog-table th:nth-child(7),
+.formula-catalog-table td:nth-child(7) { width: 120px !important; }
+
+.product-catalog-table td:nth-child(1),
+.product-catalog-table td:nth-child(4),
+.product-catalog-table td:nth-child(5),
+.product-catalog-table td:nth-child(7),
+.supplier-catalog-table td:nth-child(1),
+.supplier-catalog-table td:nth-child(3),
+.supplier-catalog-table td:nth-child(5),
+.supplier-catalog-table td:nth-child(7),
+.employee-catalog-table td:nth-child(1),
+.employee-catalog-table td:nth-child(5),
+.employee-catalog-table td:nth-child(6),
+.employee-catalog-table td:nth-child(8),
+.team-catalog-table td:nth-child(1),
+.team-catalog-table td:nth-child(5),
+.team-catalog-table td:nth-child(6),
+.shift-catalog-table td:nth-child(1),
+.shift-catalog-table td:nth-child(3),
+.shift-catalog-table td:nth-child(4),
+.shift-catalog-table td:nth-child(6),
+.shift-catalog-table td:nth-child(7),
+.mixing-machine-catalog-table td:nth-child(1),
+.mixing-machine-catalog-table td:nth-child(3),
+.mixing-machine-catalog-table td:nth-child(4),
+.mixing-machine-catalog-table td:nth-child(6),
+.mixing-machine-catalog-table td:nth-child(8),
+.formula-catalog-table td:nth-child(1),
+.formula-catalog-table td:nth-child(3),
+.formula-catalog-table td:nth-child(4),
+.formula-catalog-table td:nth-child(5),
+.formula-catalog-table td:nth-child(7) {
+  text-align: center !important;
+}
+
+.product-catalog-table td:nth-child(2),
+.product-catalog-table td:nth-child(6),
+.supplier-catalog-table td:nth-child(2),
+.supplier-catalog-table td:nth-child(4),
+.supplier-catalog-table td:nth-child(6),
+.employee-catalog-table td:nth-child(2),
+.employee-catalog-table td:nth-child(3),
+.employee-catalog-table td:nth-child(4),
+.employee-catalog-table td:nth-child(7),
+.team-catalog-table td:nth-child(2),
+.team-catalog-table td:nth-child(3),
+.team-catalog-table td:nth-child(4),
+.shift-catalog-table td:nth-child(2),
+.shift-catalog-table td:nth-child(5),
+.mixing-machine-catalog-table td:nth-child(2),
+.mixing-machine-catalog-table td:nth-child(5),
+.mixing-machine-catalog-table td:nth-child(7),
+.formula-catalog-table td:nth-child(2),
+.formula-catalog-table td:nth-child(6) {
+  text-align: left !important;
+}
+
+.product-catalog-table td:last-child button,
+.supplier-catalog-table td:last-child button,
+.employee-catalog-table td:last-child button,
+.team-catalog-table td:last-child button,
+.shift-catalog-table td:last-child button,
+.mixing-machine-catalog-table td:last-child button,
+.formula-catalog-table td:last-child button {
+  min-height: 30px !important;
+  padding: 5px 8px !important;
+  font-size: 11.5px !important;
+  white-space: nowrap;
+}
+
 .material-admin-actions {
   display: grid;
   gap: 8px;

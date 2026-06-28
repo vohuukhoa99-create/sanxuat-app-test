@@ -1348,12 +1348,18 @@ const normalizeEmployeeCatalogData = (employees = productionEmployeeCatalog) => 
   const teamCode = normalizeProductionTeamCode(rawTeamName)
   const employeeCode = employee.employeeCode || employee.code || ''
   const employeeName = employee.employeeName || employee.name || ''
+  const department = employee.department || employee.teamName || employee.productionTeam || employee.productionTeamName || teamNameByCode(teamCode)
+  const role = employee.role || employee.title || employee.operationRole || ''
   return {
     ...employee,
     code: employeeCode,
     name: employeeName,
     employeeCode,
     employeeName,
+    department,
+    role,
+    phone: employee.phone || employee.phoneNumber || '',
+    note: employee.note || employee.notes || '',
     teamName: teamNameByCode(teamCode),
     productionTeam: teamNameByCode(teamCode),
     operationRole: employee.operationRole === 'Kho thành phẩm' ? 'Nhập kho thành phẩm' : employee.operationRole,
@@ -3668,7 +3674,7 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
             {[20, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
           </select></label>
         </div>
-        <SimpleTable headers={['Mã công thức', 'Sản phẩm', 'Version', 'Trạng thái', 'Ngày hiệu lực', 'Người lập', 'Hành động']} rows={pagedFormulas.map((formula) => {
+        <SimpleTable tableClassName="formula-catalog-table" headers={['Mã công thức', 'Sản phẩm', 'Version', 'Trạng thái', 'Ngày hiệu lực', 'Người lập', 'Hành động']} rows={pagedFormulas.map((formula) => {
           const formulaStatus = normalizeFormulaStatus(formula)
           return (
             <tr key={formula.id}>
@@ -8981,8 +8987,8 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
           <label>Trạng thái<select value={machineDraft.status} disabled={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('status', event.target.value)}><option value="READY">READY</option><option value="INACTIVE">INACTIVE</option><option value="MAINTENANCE">MAINTENANCE</option></select></label>
           <label className="wide-field">Ghi chú<textarea value={machineDraft.note} readOnly={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('note', event.target.value)} /></label>
         </div>
-        <div className="table-wrapper">
-          <table className="admin-wide-table">
+        <div className="table-wrapper mixing-machine-catalog-table-wrapper">
+          <table className="admin-wide-table mixing-machine-catalog-table">
             <thead>
               <tr>
                 <th>Mã máy</th>
@@ -9549,6 +9555,19 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   const isMaterialCatalog = storageKey === 'materialCatalog'
   const isWeighingToolCatalog = storageKey === 'weighingToolCatalog'
   const isCustomerCatalog = storageKey === 'customerCatalog'
+  const catalogClassName = storageKey.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
+  const tableWrapperClassName = [
+    'table-wrapper',
+    `${catalogClassName}-table-wrapper`,
+    isWeighingToolCatalog ? 'weighing-tool-table-wrapper' : '',
+  ].filter(Boolean).join(' ')
+  const tableClassName = [
+    'admin-wide-table',
+    `${catalogClassName}-table`,
+    isMaterialCatalog ? 'material-catalog-table' : '',
+    isWeighingToolCatalog ? 'weighing-tool-catalog-table' : '',
+    isCustomerCatalog ? 'customer-catalog-table' : '',
+  ].filter(Boolean).join(' ')
   const weighingToolOptions = activeWeighingTools(data.weighingToolCatalog || [])
   const canImportMaterialCatalog = isMaterialCatalog && (canCreate || canEdit)
   useEffect(() => {
@@ -9772,8 +9791,8 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
           </div>
         </div>
         {notice && <div className="process-alert">{notice}{materialImportBackup && <button className="secondary-button" type="button" onClick={rollbackMaterialImport}>Rollback</button>}</div>}
-        <div className={`table-wrapper ${isWeighingToolCatalog ? 'weighing-tool-table-wrapper' : ''} ${isCustomerCatalog ? 'customer-catalog-table-wrapper' : ''}`}>
-          <table className={`admin-wide-table ${isMaterialCatalog ? 'material-catalog-table' : ''} ${isWeighingToolCatalog ? 'weighing-tool-catalog-table' : ''} ${isCustomerCatalog ? 'customer-catalog-table' : ''}`}>
+        <div className={tableWrapperClassName}>
+          <table className={tableClassName}>
             <thead>
               <tr>
                 {labels.map((label) => <th key={label}>{label}</th>)}
@@ -10395,6 +10414,7 @@ function App() {
     'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'group', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['customerCode', 'customerName', 'channelCode', 'province', 'status', 'note']} labels={['Mã khách hàng', 'Tên khách hàng', 'Nhóm khách hàng', 'Khu vực/Tỉnh thành', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-employees': <MasterCatalogPage title="Danh sách nhân viên" storageKey="employeeCatalog" permissionKey="employee" fields={['employeeCode', 'employeeName', 'department', 'role', 'phone', 'status', 'note']} labels={['Mã nhân viên', 'Họ tên', 'Bộ phận/Tổ', 'Vai trò', 'Điện thoại', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-teams': <MasterCatalogPage title="Danh mục tổ sản xuất" storageKey="teamCatalog" permissionKey="team" fields={['code', 'name', 'leader', 'note', 'status']} labels={['Mã tổ', 'Tên tổ', 'Tổ trưởng', 'Ghi chú', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
     'master-shifts': <MasterCatalogPage title="Danh mục ca làm việc" storageKey="shiftCatalog" permissionKey="shift" fields={['code', 'name', 'startTime', 'endTime', 'note', 'status']} labels={['Mã ca', 'Tên ca', 'Giờ bắt đầu', 'Giờ kết thúc', 'Ghi chú', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
     'admin-machines': <MixingMachineCatalogPage data={data} setData={setData} user={user} permissions={userPermissions} />,
