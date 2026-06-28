@@ -13093,7 +13093,8 @@ body,
 }
 
 .chemical-weighing-table {
-  min-width: 700px !important;
+  width: 100% !important;
+  min-width: 805px !important;
   table-layout: fixed !important;
 }
 
@@ -13105,21 +13106,45 @@ body,
 }
 
 .chemical-weighing-table th:nth-child(1),
-.chemical-weighing-table td:nth-child(1) { width: 38px !important; }
+.chemical-weighing-table td:nth-child(1) { width: 45px !important; }
 .chemical-weighing-table th:nth-child(2),
-.chemical-weighing-table td:nth-child(2) { width: 95px !important; text-align: left !important; }
+.chemical-weighing-table td:nth-child(2) { width: 100px !important; text-align: center !important; }
 .chemical-weighing-table th:nth-child(3),
-.chemical-weighing-table td:nth-child(3) { width: 75px !important; }
+.chemical-weighing-table td:nth-child(3) { width: 110px !important; }
 .chemical-weighing-table th:nth-child(4),
-.chemical-weighing-table td:nth-child(4) { width: 70px !important; }
+.chemical-weighing-table td:nth-child(4) { width: 90px !important; }
 .chemical-weighing-table th:nth-child(5),
-.chemical-weighing-table td:nth-child(5) { width: 120px !important; }
+.chemical-weighing-table td:nth-child(5) { width: 160px !important; }
 .chemical-weighing-table th:nth-child(6),
-.chemical-weighing-table td:nth-child(6) { width: 70px !important; }
+.chemical-weighing-table td:nth-child(6) { width: 100px !important; }
 .chemical-weighing-table th:nth-child(7),
-.chemical-weighing-table td:nth-child(7) { width: 145px !important; }
+.chemical-weighing-table td:nth-child(7) { width: 100px !important; }
 .chemical-weighing-table th:nth-child(8),
-.chemical-weighing-table td:nth-child(8) { width: 87px !important; }
+.chemical-weighing-table td:nth-child(8) { width: 110px !important; }
+
+.chemical-weighing-table .weighing-qr-scan input {
+  max-width: 155px !important;
+  margin: 0 auto;
+}
+
+.chemical-weighing-table .weighing-tool-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.chemical-weighing-table .weighing-tool-values {
+  grid-template-columns: 1fr;
+}
+
+.chemical-weighing-table .weighing-tool-values span {
+  padding: 3px 4px;
+}
+
+.chemical-weighing-table .weighing-tool-panel button {
+  min-height: 28px !important;
+  padding: 4px 6px !important;
+  font-size: 11px !important;
+}
 
 .chemical-three-scale-layout {
   display: block !important;
@@ -13138,8 +13163,9 @@ body,
 }
 
 .chemical-order-summary-compact {
-  grid-template-columns: 130px minmax(180px, 1fr) 140px 170px !important;
-  gap: 8px !important;
+  grid-template-columns: minmax(150px, 18%) minmax(180px, 22%) minmax(210px, 25%) minmax(160px, 20%) !important;
+  justify-content: start !important;
+  gap: 10px !important;
   margin-bottom: 8px !important;
 }
 
