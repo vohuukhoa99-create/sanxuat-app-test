@@ -12399,6 +12399,7 @@ body,
 
 .chemical-weighing-groups {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
   gap: 14px;
   margin: 8px 0;
 }
@@ -12685,6 +12686,10 @@ body,
 }
 
 @media (max-width: 760px) {
+  .chemical-weighing-groups {
+    grid-template-columns: 1fr;
+  }
+
   .chemical-work-mode {
     align-items: stretch;
     flex-direction: column;

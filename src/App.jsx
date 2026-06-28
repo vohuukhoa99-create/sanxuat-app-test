@@ -70,11 +70,18 @@ const SOLID = 'Rắn'
 const CHEMICAL_SCALE_MODE_KEY = 'chemicalScaleWorkMode'
 const CHEMICAL_SCALE_MODE_GLUE = 'glue'
 const CHEMICAL_SCALE_MODE_PASTE_TIN = 'paste-tin'
-const CHEMICAL_PASTE_TIN_TABS = ['paste', 'tin']
 const SCALE_LINE_GLUE = 'CAN_KEO'
 const SCALE_LINE_PASTE = 'CAN_PASTE'
 const SCALE_LINE_COLOR = 'CAN_MAU'
 const SCALE_LINE_SOLID = 'CAN_RAN'
+const SCALE_LINE_PROFILES = {
+  [SCALE_LINE_GLUE]: { scaleLine: SCALE_LINE_GLUE, label: 'Cân Keo', baudRate: 1200, decimalPlaces: 3, reverseFrame: true },
+  [SCALE_LINE_PASTE]: { scaleLine: SCALE_LINE_PASTE, label: 'Cân Paste', baudRate: 1200, decimalPlaces: 3, reverseFrame: true },
+  [SCALE_LINE_COLOR]: { scaleLine: SCALE_LINE_COLOR, label: 'Cân Màu', baudRate: 1200, decimalPlaces: 3, reverseFrame: true },
+  [SCALE_LINE_SOLID]: { scaleLine: SCALE_LINE_SOLID, label: 'Cân Rắn', baudRate: 1200, decimalPlaces: 3, reverseFrame: true },
+}
+const SCALE_PORT_CONFIG_PREFIX = 'scaleSerialPortConfigured'
+const activeScalePortOwners = new WeakMap()
 const CHEMICAL_SUBGROUP_GLUE = 'KEO'
 const CHEMICAL_SUBGROUP_PASTE = 'PASTE'
 const CHEMICAL_SUBGROUP_COLOR = 'MAU'
@@ -101,9 +108,9 @@ const CHEMICAL_SUBGROUP_STATUS_NOT_REQUIRED = 'NOT_REQUIRED'
 const CHEMICAL_MIX_STATUS_COMPLETED = 'COMPLETED'
 const CHEMICAL_MIX_STATUS_PENDING = 'PENDING'
 const CHEMICAL_WEIGHING_GROUPS = [
-  { key: 'glue', label: 'Cân Keo', lineLabel: 'Line Keo riêng', scaleLabel: 'Cân Keo' },
-  { key: 'paste', label: 'Cân Paste', lineLabel: 'Khu Paste / Màu', scaleLabel: 'Cân Paste' },
-  { key: 'tin', label: 'Cân Màu', lineLabel: 'Khu Paste / Màu', scaleLabel: 'Cân Màu' },
+  { key: 'glue', label: 'Cân Keo', lineLabel: 'Line Keo riêng', scaleLabel: 'Cân Keo', scaleLine: SCALE_LINE_GLUE },
+  { key: 'paste', label: 'Cân Paste', lineLabel: 'Khu Paste / Màu', scaleLabel: 'Cân Paste', scaleLine: SCALE_LINE_PASTE },
+  { key: 'tin', label: 'Cân Màu', lineLabel: 'Khu Paste / Màu', scaleLabel: 'Cân Màu', scaleLine: SCALE_LINE_COLOR },
 ]
 function getStoredChemicalScaleMode() {
   if (typeof localStorage === 'undefined') return CHEMICAL_SCALE_MODE_GLUE
@@ -247,6 +254,25 @@ function getStoredScaleBaudRate() {
   if (typeof localStorage === 'undefined') return DEFAULT_SCALE_BAUD_RATE
   const stored = Number(localStorage.getItem(SCALE_BAUD_RATE_KEY))
   return SCALE_BAUD_RATES.includes(stored) ? stored : DEFAULT_SCALE_BAUD_RATE
+}
+function getScaleProfile(scaleType = '') {
+  if (scaleType && typeof scaleType === 'object') return { ...SCALE_SERIAL_CONFIG, ...scaleType }
+  const key = String(scaleType || '')
+  if (SCALE_LINE_PROFILES[key]) return { ...SCALE_SERIAL_CONFIG, ...SCALE_LINE_PROFILES[key] }
+  if (key.includes('paste')) return { ...SCALE_SERIAL_CONFIG, ...SCALE_LINE_PROFILES[SCALE_LINE_PASTE] }
+  if (key.includes('tin') || key.includes('mau') || key.includes('color')) return { ...SCALE_SERIAL_CONFIG, ...SCALE_LINE_PROFILES[SCALE_LINE_COLOR] }
+  if (key.includes('glue') || key.includes('keo')) return { ...SCALE_SERIAL_CONFIG, ...SCALE_LINE_PROFILES[SCALE_LINE_GLUE] }
+  if (key.includes('solid') || key.includes('ran')) return { ...SCALE_SERIAL_CONFIG, ...SCALE_LINE_PROFILES[SCALE_LINE_SOLID] }
+  return { ...SCALE_SERIAL_CONFIG, scaleLine: key || 'SCALE', label: 'Cân', baudRate: DEFAULT_SCALE_BAUD_RATE }
+}
+function getScalePortConfigKey(scaleLine = '') {
+  return `${SCALE_PORT_CONFIG_PREFIX}:${scaleLine || 'SCALE'}`
+}
+function getSerialPortLabel(port = null) {
+  const portInfo = port?.getInfo?.() || {}
+  return portInfo.usbVendorId
+    ? `USB-RS232 VID:${portInfo.usbVendorId} PID:${portInfo.usbProductId || '-'}`
+    : 'Cổng serial đã chọn'
 }
 function getSerialErrorMessage(error, selectedBaudRate) {
   const message = String(error?.message || '')
@@ -433,17 +459,27 @@ function formatScaleWeight(value, scaleType = '') {
 }
 
 function useScaleSerialSession(scaleType = 'chemical', setWarning) {
-  const [scaleStatus, setScaleStatus] = useState('Chưa kết nối cân')
+  const scaleProfile = useMemo(() => getScaleProfile(scaleType), [scaleType])
+  const scalePortConfigKey = getScalePortConfigKey(scaleProfile.scaleLine)
+  const [scaleStatus, setScaleStatus] = useState(() => (
+    typeof localStorage !== 'undefined' && localStorage.getItem(scalePortConfigKey)
+      ? 'Đã cấu hình cổng'
+      : 'Chưa kết nối cân'
+  ))
   const [scaleRawText, setScaleRawText] = useState('')
   const [scaleRawValue, setScaleRawValue] = useState(null)
   const [scaleWeightKg, setScaleWeightKg] = useState(null)
   const [scaleStableWeightKg, setScaleStableWeightKg] = useState(null)
   const [scaleStableReadings, setScaleStableReadings] = useState([])
   const [scaleStableSampleCount, setScaleStableSampleCount] = useState(5)
-  const [scaleToleranceKg, setScaleToleranceKg] = useState(() => getScaleToleranceKg(scaleType))
+  const [scaleToleranceKg, setScaleToleranceKg] = useState(() => getScaleToleranceKg(scaleProfile.scaleLine || scaleProfile.label || scaleType))
   const [scaleSupported, setScaleSupported] = useState(true)
-  const [scaleBaudRate, setScaleBaudRate] = useState(getStoredScaleBaudRate)
-  const [scalePortLabel, setScalePortLabel] = useState('Chưa kết nối')
+  const [scaleBaudRate, setScaleBaudRate] = useState(scaleProfile.baudRate || DEFAULT_SCALE_BAUD_RATE)
+  const [scalePortLabel, setScalePortLabel] = useState(() => (
+    typeof localStorage !== 'undefined' && localStorage.getItem(scalePortConfigKey)
+      ? localStorage.getItem(scalePortConfigKey)
+      : 'Chưa kết nối'
+  ))
   const [isScaleConnected, setIsScaleConnected] = useState(false)
   const [isReadingScale, setIsReadingScale] = useState(false)
   const [scaleDebugLogs, setScaleDebugLogs] = useState([])
@@ -473,11 +509,13 @@ function useScaleSerialSession(scaleType = 'chemical', setWarning) {
     try {
       await scalePortRef.current?.close().catch(() => {})
     } finally {
+      if (scalePortRef.current) activeScalePortOwners.delete(scalePortRef.current)
       scalePortRef.current = null
       isScaleConnectedRef.current = false
       setIsScaleConnected(false)
-      setScaleStatus('Chưa kết nối cân')
-      setScalePortLabel('Chưa kết nối')
+      const configuredPort = typeof localStorage !== 'undefined' ? localStorage.getItem(scalePortConfigKey) : ''
+      setScaleStatus(configuredPort ? 'Đã cấu hình cổng' : 'Chưa kết nối cân')
+      setScalePortLabel(configuredPort || 'Chưa kết nối')
     }
   }
 
@@ -488,10 +526,8 @@ function useScaleSerialSession(scaleType = 'chemical', setWarning) {
     }
   }, [])
   useEffect(() => {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(SCALE_BAUD_RATE_KEY, String(scaleBaudRate))
-    }
-  }, [scaleBaudRate])
+    setScaleBaudRate(scaleProfile.baudRate || DEFAULT_SCALE_BAUD_RATE)
+  }, [scaleProfile.baudRate])
   useEffect(() => {
     scaleStableSampleCountRef.current = scaleStableSampleCount
     setScaleStableWeightKg(getStableScaleWeight(scaleStableReadingsRef.current, scaleToleranceKgRef.current, scaleStableSampleCount))
@@ -502,7 +538,7 @@ function useScaleSerialSession(scaleType = 'chemical', setWarning) {
   }, [scaleToleranceKg])
 
   const handleScaleBaudRateChange = (event) => {
-    const nextBaudRate = Number(event.target.value)
+    const nextBaudRate = scaleProfile.baudRate || Number(event.target.value)
     setScaleBaudRate(nextBaudRate)
     addScaleDebugLog(`Selected BaudRate: ${nextBaudRate}`)
   }
@@ -521,7 +557,7 @@ function useScaleSerialSession(scaleType = 'chemical', setWarning) {
       addScaleDebugLog('Connection fail: Web Serial not supported')
       return
     }
-    const selectedBaudRate = Number(scaleBaudRate)
+    const selectedBaudRate = Number(scaleProfile.baudRate || scaleBaudRate)
     if (!SCALE_BAUD_RATES.includes(selectedBaudRate)) {
       setScaleStatus('Invalid baudrate')
       setWarning?.('Invalid baudrate')
@@ -534,14 +570,19 @@ function useScaleSerialSession(scaleType = 'chemical', setWarning) {
       if (port) {
         isScaleConnectedRef.current = true
         setIsScaleConnected(true)
-        setScaleStatus(`Cân đã được kết nối, tiếp tục sử dụng cổng hiện tại. (${selectedBaudRate} baud)`)
+        setScaleStatus(`${scaleProfile.label} đã được kết nối, tiếp tục sử dụng cổng hiện tại. (${selectedBaudRate} baud)`)
         addScaleDebugLog('Reuse current scale port; skip requestPort/open.')
       } else {
         port = await navigator.serial.requestPort()
-        const portInfo = port.getInfo?.() || {}
-        const portLabel = portInfo.usbVendorId
-          ? `USB-RS232 VID:${portInfo.usbVendorId} PID:${portInfo.usbProductId || '-'}`
-          : 'Cổng serial đã chọn'
+        const currentOwner = activeScalePortOwners.get(port)
+        if (currentOwner && currentOwner !== scaleProfile.label) {
+          const message = `Cổng này đã được dùng cho ${currentOwner}`
+          setScaleStatus(message)
+          setWarning?.(message)
+          addScaleDebugLog(message)
+          return
+        }
+        const portLabel = getSerialPortLabel(port)
         addScaleDebugLog(`Selected COM: ${portLabel}`)
         await port.open({
           baudRate: selectedBaudRate,
@@ -550,12 +591,14 @@ function useScaleSerialSession(scaleType = 'chemical', setWarning) {
           parity: 'none',
           flowControl: 'none',
         })
+        activeScalePortOwners.set(port, scaleProfile.label)
         setScalePortLabel(portLabel)
+        if (typeof localStorage !== 'undefined') localStorage.setItem(scalePortConfigKey, portLabel)
       }
       scalePortRef.current = port
       isScaleConnectedRef.current = true
       setIsScaleConnected(true)
-      setScaleStatus(`Đã kết nối cân (${selectedBaudRate} baud)`)
+      setScaleStatus(`Đã kết nối ${scaleProfile.label} (${selectedBaudRate} baud)`)
       if (!isReadingScaleRef.current && !scaleReaderRef.current) {
         scaleReadingRef.current = true
         isReadingScaleRef.current = true
@@ -584,7 +627,7 @@ function useScaleSerialSession(scaleType = 'chemical', setWarning) {
             const chunk = decoder.decode(value, { stream: true })
             if (!chunk) continue
             scaleSerialBufferRef.current = `${scaleSerialBufferRef.current}${chunk}`.slice(-500)
-            const parsedFrame = parseScaleRollingBuffer(scaleSerialBufferRef.current)
+            const parsedFrame = parseScaleRollingBuffer(scaleSerialBufferRef.current, scaleProfile)
             setScaleFrameDebug(parsedFrame)
             if (parsedFrame.rawFrame) setScaleRawText(parsedFrame.rawFrame)
             const parsed = parsedFrame.parsedKg
@@ -610,11 +653,11 @@ function useScaleSerialSession(scaleType = 'chemical', setWarning) {
         setScalePortLabel('Chưa kết nối')
         return
       }
-      const errorMessage = getSerialErrorMessage(error, scaleBaudRate)
+      const errorMessage = getSerialErrorMessage(error, selectedBaudRate)
       if (errorMessage === 'Port already in use') {
         isScaleConnectedRef.current = Boolean(scalePortRef.current)
         setIsScaleConnected(Boolean(scalePortRef.current))
-        setScaleStatus('Cân đã được kết nối, tiếp tục sử dụng cổng hiện tại.')
+        setScaleStatus(`${scaleProfile.label} đã được kết nối, tiếp tục sử dụng cổng hiện tại.`)
         addScaleDebugLog('Port already in use; keep current scale data and continue.')
         return
       }
@@ -646,6 +689,7 @@ function useScaleSerialSession(scaleType = 'chemical', setWarning) {
     handleScaleBaudRateChange,
     handleStableSampleCountChange,
     handleScaleToleranceChange,
+    scaleProfile,
   }
 }
 
@@ -4884,7 +4928,8 @@ function FinishedProductQcPage({ data, setData, user }) {
 function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, rawMaterialLots = [], materialCatalog = [], weighingTools = [], setWarning, scaleWeighedBy }) {
   const boardItems = Array.isArray(board.items) ? board.items : []
   const boardKey = board.key || 'tin'
-  const scaleSession = useScaleSerialSession(`chemical-${boardKey}`, setWarning)
+  const scaleProfile = SCALE_LINE_PROFILES[board.scaleLine] || getScaleProfile(`chemical-${boardKey}`)
+  const scaleSession = useScaleSerialSession(scaleProfile, setWarning)
   const scaleStabilityStatus = scaleSession.scaleStableWeightKg == null ? 'Đang dao động' : 'Đã ổn định'
   return (
     <section className="chemical-weighing-group">
@@ -4904,20 +4949,15 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
       <div className="scale-serial-panel chemical-scale-serial-panel">
         <div><span>Trạng thái cân</span><strong>{scaleSession.scaleStatus}</strong></div>
         {debugMode && <div><span>COM Port</span><strong>{scaleSession.scalePortLabel}</strong></div>}
-        <label className="scale-baud-select">
-          <span>BaudRate</span>
-          <select value={scaleSession.scaleBaudRate} onChange={scaleSession.handleScaleBaudRateChange}>
-            {SCALE_BAUD_RATES.map((rate) => <option key={rate} value={rate}>{rate}</option>)}
-          </select>
-        </label>
+        <div><span>BaudRate</span><strong>{scaleProfile.baudRate}</strong></div>
         <div className="scale-weight-display"><span className="scale-weight-title">Khối lượng cân</span><strong className="scale-weight-value">{formatScaleWeight(scaleSession.scaleWeightKg, `chemical-${board.key}`)}</strong></div>
-        <div className="scale-stability-settings">
+        {debugMode && <div className="scale-stability-settings">
           <span>Cài đặt ổn định</span>
           <label>Số mẫu ổn định<input type="number" min="1" max="20" step="1" value={scaleSession.scaleStableSampleCount} onChange={scaleSession.handleStableSampleCountChange} /></label>
           <label>Sai số cho phép<div className="scale-tolerance-input"><input type="number" min="0" step="0.001" value={scaleSession.scaleToleranceKg} onChange={scaleSession.handleScaleToleranceChange} /><strong>{formatKg(scaleSession.scaleToleranceKg)}</strong></div></label>
           <em>{scaleStabilityStatus} ({scaleSession.scaleStableReadings.length}/{scaleSession.scaleStableSampleCount})</em>
-        </div>
-        {debugMode && <div><span>Serial Config</span><strong>{scaleSession.scaleBaudRate} baud, 8 data bits, parity none, 1 stop bit, flow none; decimalPlaces={SCALE_SERIAL_CONFIG.decimalPlaces}; sourceUnit={SCALE_SERIAL_CONFIG.sourceUnit}; multiplier={SCALE_SERIAL_CONFIG.multiplier}; reverseFrame={String(SCALE_SERIAL_CONFIG.reverseFrame)}</strong></div>}
+        </div>}
+        {debugMode && <div><span>Serial Config</span><strong>{scaleProfile.baudRate} baud, decimalPlaces={scaleProfile.decimalPlaces}; reverseFrame={String(scaleProfile.reverseFrame)}</strong></div>}
         {debugMode && <div><span>rawFrame</span><strong>{scaleSession.scaleFrameDebug.rawFrame || '-'}</strong></div>}
         {debugMode && <div><span>reversedFrame</span><strong>{scaleSession.scaleFrameDebug.reversedFrame || '-'}</strong></div>}
         {debugMode && <div><span>parsedKg</span><strong>{scaleSession.scaleFrameDebug.parsedKg == null ? '-' : scaleSession.scaleFrameDebug.parsedKg.toFixed(3)}</strong></div>}
@@ -4926,7 +4966,7 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
         {debugMode && <div className="scale-raw-text"><span>Last Frame</span><strong>{scaleSession.scaleRawText || '-'}</strong></div>}
       </div>
       <div className="chemical-scale-actions">
-        <button className="secondary-button weighing-finish-button" type="button" onClick={scaleSession.connectScale}>{scaleSession.isScaleConnected ? 'Đã kết nối cân' : 'Kết nối cân'}</button>
+        <button className="secondary-button weighing-finish-button" type="button" onClick={scaleSession.connectScale}>{scaleSession.isScaleConnected ? `Đã kết nối ${scaleProfile.label}` : `Kết nối ${scaleProfile.label}`}</button>
         {scaleSession.isScaleConnected && <button className="secondary-button weighing-finish-button" type="button" onClick={scaleSession.disconnectScale}>Ngắt kết nối</button>}
       </div>
       {debugMode && <section className="scale-debug-panel">
@@ -5039,7 +5079,6 @@ function WeighingPage({ data = {}, setData, group, user }) {
   const [printQrModal, setPrintQrModal] = useState(null)
   const [weighingDetailModal, setWeighingDetailModal] = useState(null)
   const [chemicalScaleMode, setChemicalScaleMode] = useState(getStoredChemicalScaleMode)
-  const [chemicalScaleTab, setChemicalScaleTab] = useState('paste')
   const [scaleStatus, setScaleStatus] = useState('Chưa kết nối cân')
   const [scaleRawText, setScaleRawText] = useState('')
   const [scaleRawValue, setScaleRawValue] = useState(null)
@@ -5080,13 +5119,11 @@ function WeighingPage({ data = {}, setData, group, user }) {
   const doneCount = activeItems.filter(isDone).length
   const progress = activeItems.length ? Math.round((doneCount / activeItems.length) * 100) : 0
   const activeItem = activeItems.find((item) => !isDone(item))
-  const pasteItemsForActiveOrder = activeItems.filter((item) => getChemicalWeighingGroupKey(item) === 'paste')
-  const pasteDoneForActiveOrder = pasteItemsForActiveOrder.length === 0 || pasteItemsForActiveOrder.every(isDone)
   const chemicalGroupBoards = group === CHEMICAL
     ? CHEMICAL_WEIGHING_GROUPS.map((config) => {
       const items = activeItems.filter((item) => !item.catalogMaterialMissing && !item.chemicalSubGroupMissing && getChemicalWeighingGroupKey(item) === config.key)
       const groupDoneCount = items.filter(isDone).length
-      const activeGroupItem = config.key === 'tin' && !pasteDoneForActiveOrder ? null : items.find((item) => !isDone(item))
+      const activeGroupItem = items.find((item) => !isDone(item))
       const hasStarted = items.some((item) => item.qrStatus || item.weighStatus || item.actualWeight)
       const status = !items.length
         ? 'Không có vật tư'
@@ -5102,7 +5139,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
     ? chemicalGroupBoards.filter((board) => (
       chemicalScaleMode === CHEMICAL_SCALE_MODE_GLUE
         ? board.key === 'glue'
-        : board.key === chemicalScaleTab
+        : board.key === 'paste' || board.key === 'tin'
     ))
     : []
   const unclassifiedChemicalItems = group === CHEMICAL ? activeItems.filter((item) => item.catalogMaterialMissing || item.chemicalSubGroupMissing) : []
@@ -5129,11 +5166,6 @@ function WeighingPage({ data = {}, setData, group, user }) {
       localStorage.setItem(CHEMICAL_SCALE_MODE_KEY, chemicalScaleMode)
     }
   }, [chemicalScaleMode, group])
-  useEffect(() => {
-    if (chemicalScaleMode === CHEMICAL_SCALE_MODE_GLUE) {
-      setChemicalScaleTab('paste')
-    }
-  }, [chemicalScaleMode])
   const canFinish = group !== CHEMICAL && Boolean(activeOrder && activeItems.length && doneCount === activeItems.length)
   const activeWeighingType = activeOrder?.stage === 'supplement-weighing' ? 'Cân bổ sung QC thành phẩm' : 'Cân chính'
   const activeContainers = activeOrder ? getOrderGroupContainers(data.weighedContainers || [], activeOrder, activeWeighingType).filter((item) => item.materialGroup === group) : []
@@ -5641,25 +5673,6 @@ function WeighingPage({ data = {}, setData, group, user }) {
                   Paste / Màu
                 </button>
               </div>
-              {chemicalScaleMode === CHEMICAL_SCALE_MODE_PASTE_TIN && (
-                <div className="chemical-tab-selector" role="tablist" aria-label="Chọn khu cân Paste hoặc Màu">
-                  {CHEMICAL_PASTE_TIN_TABS.map((tabKey) => {
-                    const tabBoard = chemicalGroupBoards.find((board) => board.key === tabKey)
-                    return (
-                      <button
-                        key={tabKey}
-                        type="button"
-                        role="tab"
-                        aria-selected={chemicalScaleTab === tabKey}
-                        className={chemicalScaleTab === tabKey ? 'active' : ''}
-                        onClick={() => setChemicalScaleTab(tabKey)}
-                      >
-                        {tabBoard?.label || tabKey}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
             </div>
           )}
           {group !== CHEMICAL && <div className="scale-serial-panel">
