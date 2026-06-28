@@ -1119,10 +1119,25 @@ const legacyMixingMachineMap = { MX01: 'M01', MX02: 'M02', MX03: 'M03', MX04: 'M
 const normalizeMixingMachineCode = (code) => legacyMixingMachineMap[String(code || '').trim().toUpperCase()] || String(code || '').trim().toUpperCase()
 
 const normalizeMixingMachineStatus = (status) => {
-  if (status === 'Hoạt động' || status === 'Rảnh' || status === 'Đang chạy') return 'READY'
+  if (status === 'Hoạt động' || status === 'Rảnh') return 'READY'
+  if (status === 'Đang chạy' || status === 'RUNNING') return 'RUNNING'
   if (status === 'Ngừng sử dụng' || status === 'Dừng' || status === 'Stopped') return 'INACTIVE'
   if (status === 'Bảo trì' || status === 'Lỗi') return 'MAINTENANCE'
-  return ['READY', 'INACTIVE', 'MAINTENANCE'].includes(status) ? status : 'READY'
+  return ['READY', 'RUNNING', 'INACTIVE', 'MAINTENANCE'].includes(status) ? status : 'READY'
+}
+
+const mixingMachineStatusLabel = (status) => ({
+  READY: 'Sẵn sàng',
+  RUNNING: 'Đang chạy',
+  MAINTENANCE: 'Bảo trì',
+  INACTIVE: 'Ngưng dùng',
+}[normalizeMixingMachineStatus(status)] || '-')
+
+const mixingMachineStatusBadgeClass = (status) => {
+  const normalized = normalizeMixingMachineStatus(status)
+  if (normalized === 'READY') return 'ready'
+  if (normalized === 'RUNNING' || normalized === 'MAINTENANCE') return 'waiting'
+  return 'fail'
 }
 
 const normalizeMixingMachine = (item = {}) => ({
@@ -8882,12 +8897,30 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
       setNotice('Bạn chưa có quyền ngừng sử dụng máy phối trộn.')
       return
     }
+    const targetMachine = machines.find((machine) => machine.machineCode === machineCode)
+    if (normalizeMixingMachineStatus(targetMachine?.status) === 'RUNNING') {
+      setNotice('Máy đang chạy, không thể ngưng dùng.')
+      return
+    }
     const machineLabel = getMixingMachineLabelByCode(machineCode, machines)
     setData((current) => addLogToData({
       ...current,
       mixingMachines: normalizeMixingMachines(current.mixingMachines).map((machine) => machine.machineCode === machineCode ? { ...machine, status: 'INACTIVE' } : machine),
     }, `Ngừng sử dụng máy phối trộn ${machineLabel}.`))
-    setNotice(`Đã chuyển ${machineLabel} sang INACTIVE.`)
+    setNotice(`Đã chuyển ${machineLabel} sang Ngưng dùng.`)
+    if (editingMachineCode === machineCode) resetMachineDraft()
+  }
+  const activateMachine = (machineCode) => {
+    if (!canEditMachine) {
+      setNotice('Bạn chưa có quyền kích hoạt máy phối trộn.')
+      return
+    }
+    const machineLabel = getMixingMachineLabelByCode(machineCode, machines)
+    setData((current) => addLogToData({
+      ...current,
+      mixingMachines: normalizeMixingMachines(current.mixingMachines).map((machine) => machine.machineCode === machineCode ? { ...machine, status: 'READY' } : machine),
+    }, `Kích hoạt máy phối trộn ${machineLabel}.`))
+    setNotice(`Đã kích hoạt ${machineLabel}.`)
     if (editingMachineCode === machineCode) resetMachineDraft()
   }
   const resolveMachineRequest = (order, approved) => {
@@ -8978,13 +9011,13 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
           </div>
         </div>
         {notice && <p className="empty-alert">{notice}</p>}
-        <div className="production-form-grid order-create-form">
+        <div className="production-form-grid order-create-form mixing-machine-catalog-form">
           <label>Mã máy<input value={machineDraft.machineCode} onChange={(event) => updateMachineDraft('machineCode', event.target.value.toUpperCase())} placeholder="M01" disabled={Boolean(editingMachineCode) || !(editingMachineCode ? canEditMachine : canCreateMachine)} /></label>
           <label>Tên máy<input value={machineDraft.machineName} readOnly={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('machineName', event.target.value)} placeholder="Máy phối trộn 500kg" /></label>
           <label>Công suất motor<input value={machineDraft.motorPower} readOnly={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('motorPower', event.target.value)} placeholder="7.5HP" /></label>
           <label>Công suất kg<input type="number" value={machineDraft.capacityKg} readOnly={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('capacityKg', event.target.value)} placeholder="500" /></label>
           <label>Tổ sản xuất/phân xưởng<input value={machineDraft.department} readOnly={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => { updateMachineDraft('department', event.target.value); updateMachineDraft('productionTeam', event.target.value) }} placeholder="Tổ phối trộn" /></label>
-          <label>Trạng thái<select value={machineDraft.status} disabled={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('status', event.target.value)}><option value="READY">READY</option><option value="INACTIVE">INACTIVE</option><option value="MAINTENANCE">MAINTENANCE</option></select></label>
+          <label>Trạng thái<select value={machineDraft.status} disabled={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('status', event.target.value)}><option value="READY">Sẵn sàng</option><option value="RUNNING">Đang chạy</option><option value="MAINTENANCE">Bảo trì</option><option value="INACTIVE">Ngưng dùng</option></select></label>
           <label className="wide-field">Ghi chú<textarea value={machineDraft.note} readOnly={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('note', event.target.value)} /></label>
         </div>
         <div className="table-wrapper mixing-machine-catalog-table-wrapper">
@@ -9009,12 +9042,16 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
                   <td>{machine.motorPower || '-'}</td>
                   <td>{machine.capacityKg}</td>
                   <td>{machine.department || machine.productionTeam || '-'}</td>
-                  <td><span className={`dispatch-badge ${machine.status === 'READY' ? 'ready' : machine.status === 'MAINTENANCE' ? 'waiting' : 'fail'}`}>{machine.status}</span></td>
+                  <td><span className={`dispatch-badge ${mixingMachineStatusBadgeClass(machine.status)}`}>{mixingMachineStatusLabel(machine.status)}</span></td>
                   <td>{machine.note || '-'}</td>
                   <td>
-                    <div className="user-action-group">
-                      <button type="button" className="secondary-button" disabled={!canEditMachine} onClick={() => editMachine(machine)}>Sửa</button>
-                      <button type="button" className="danger-button" disabled={!canDeleteMachine || machine.status === 'INACTIVE'} onClick={() => deactivateMachine(machine.machineCode)}>Ngừng sử dụng</button>
+                    <div className="user-action-group mixing-machine-action-group">
+                      <button type="button" className="secondary-button compact-action-button" disabled={!canEditMachine} onClick={() => editMachine(machine)}>Sửa</button>
+                      {normalizeMixingMachineStatus(machine.status) === 'INACTIVE' ? (
+                        <button type="button" className="secondary-button compact-action-button" disabled={!canEditMachine} onClick={() => activateMachine(machine.machineCode)}>Kích hoạt</button>
+                      ) : (
+                        <button type="button" className="danger-button compact-action-button" disabled={!canDeleteMachine} onClick={() => deactivateMachine(machine.machineCode)}>Ngưng dùng</button>
+                      )}
                     </div>
                   </td>
                 </tr>
