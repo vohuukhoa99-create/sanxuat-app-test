@@ -5079,7 +5079,7 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
   const [scaleActionState, setScaleActionState] = useState(null)
   const scaleStabilityStatus = scaleSession.scaleStableWeightKg == null ? 'Đang dao động' : 'Đã ổn định'
   const showScaleSerialDebug = debugMode || scaleSession.isScaleConnected || scaleSession.scaleDebugLogs.length > 0
-  const activeAction = scaleActionState?.active ? scaleActionState : null
+  const activeAction = scaleActionState?.active && scaleActionState.itemId === board.activeItem?.id ? scaleActionState : null
   return (
     <section className="chemical-weighing-group">
       <div className="chemical-weighing-group-header">
@@ -5096,8 +5096,9 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
         <div><span>Đọc dữ liệu</span><strong>{scaleSession.isReadingScale ? 'Đang đọc liên tục' : 'Chưa đọc'}</strong></div>
         <div className="scale-weight-display"><span className="scale-weight-title">Khối lượng cân</span><strong className="scale-weight-value">{formatScaleWeight(scaleSession.scaleWeightKg, `chemical-${board.key}`)}</strong></div>
         <div className="chemical-scale-inline-actions">
-          <button className="secondary-button" type="button" disabled={!activeAction?.canContinueWeighing} onClick={() => activeAction?.continueStableWeight?.()}>Cân tiếp</button>
-          <button className="primary-button" type="button" disabled={!activeAction?.canConfirmAccumulatedWeight} onClick={() => activeAction?.confirmStableWeight?.()}>✓ Xác nhận</button>
+          <span className={activeAction?.totalAboveTolerance ? 'weighing-fail' : 'weighing-check'}>{activeAction?.weighingDisplayStatus || 'Chờ quét QR'}</span>
+          {activeAction?.canContinueWeighing && <button className="secondary-button" type="button" onClick={() => activeAction.continueStableWeight?.()}>Cân tiếp</button>}
+          {activeAction?.canConfirmAccumulatedWeight && <button className="primary-button" type="button" onClick={() => activeAction.confirmStableWeight?.()}>✓ Xác nhận</button>}
         </div>
         {debugMode && <div className="scale-stability-settings">
           <span>Cài đặt ổn định</span>
@@ -6103,10 +6104,27 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
   const stableScaleWeightKg = scaleStableWeightKg == null ? null : num(scaleStableWeightKg)
   const currentWeight = stableScaleWeightKg == null ? num(item.currentWeight || 0) : stableScaleWeightKg
   const pendingTotalWeight = Number((accumulatedWeight + num(currentWeight)).toFixed(3))
-  const totalWithinTolerance = hasTolerance && currentWeight > 0 && Math.abs(pendingTotalWeight - requiredWeight) <= toleranceKg
+  const lowerToleranceWeight = Number((requiredWeight - num(toleranceKg)).toFixed(3))
+  const upperToleranceWeight = Number((requiredWeight + num(toleranceKg)).toFixed(3))
+  const totalBelowTolerance = hasTolerance && currentWeight > 0 && pendingTotalWeight < lowerToleranceWeight
+  const totalWithinTolerance = hasTolerance && currentWeight > 0 && pendingTotalWeight >= lowerToleranceWeight && pendingTotalWeight <= upperToleranceWeight
+  const totalAboveTolerance = hasTolerance && currentWeight > 0 && pendingTotalWeight > upperToleranceWeight
   const canUseStableWeight = active && qrPassed && !weightPassed && scaleStable && stableScaleWeightKg != null && stableScaleWeightKg > 0
-  const canContinueWeighing = canUseStableWeight && hasTolerance && !totalWithinTolerance
+  const canContinueWeighing = canUseStableWeight && totalBelowTolerance
   const canConfirmAccumulatedWeight = canUseStableWeight && hasTolerance && totalWithinTolerance
+  const weighingDisplayStatus = completed
+    ? 'Hoàn thành'
+    : weightFailed || totalAboveTolerance
+      ? 'Vượt dung sai'
+      : qrFailed
+        ? 'Sai QR'
+        : !qrPassed
+          ? 'Chờ quét QR'
+          : !hasTolerance
+            ? 'Chưa có dung sai'
+            : totalWithinTolerance
+              ? 'Đủ dung sai'
+              : 'Đang cân'
   const selectedLot = rawMaterialLots.find((lot) => lot.lotCode === item.rawMaterialLotCode && lot.materialCode === item.materialCode)
   const remainingBefore = item.rawMaterialRemainingBefore ?? selectedLot?.remainingQty
   const materialStockQty = rawMaterialLots
@@ -6226,7 +6244,11 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
   const continueWeighing = (scaleWeight = null) => {
     const context = getValidatedWeighingContext(scaleWeight)
     if (!context) return
-    if (Math.abs(context.totalWeight - requiredWeight) <= toleranceKg) {
+    if (context.totalWeight > upperToleranceWeight) {
+      setWarning?.('Vượt dung sai')
+      return
+    }
+    if (context.totalWeight >= lowerToleranceWeight && context.totalWeight <= upperToleranceWeight) {
       setWarning?.('Khối lượng đã nằm trong dung sai. Vui lòng bấm Xác nhận.')
       return
     }
@@ -6254,7 +6276,7 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
   const confirmWeight = (scaleWeight = null) => {
     const context = getValidatedWeighingContext(scaleWeight)
     if (!context) return
-    if (Math.abs(context.totalWeight - requiredWeight) > toleranceKg) {
+    if (context.totalWeight < lowerToleranceWeight || context.totalWeight > upperToleranceWeight) {
       setWarning?.(toleranceErrorMessage(requiredWeight, context.totalWeight, toleranceKg))
       return
     }
@@ -6309,13 +6331,15 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       materialCode: item.materialCode,
       canContinueWeighing,
       canConfirmAccumulatedWeight,
+      totalAboveTolerance,
+      weighingDisplayStatus,
       continueStableWeight,
       confirmStableWeight,
       pendingTotalWeight,
       accumulatedWeight,
       currentWeight,
     })
-  }, [active, item.id, item.materialCode, canContinueWeighing, canConfirmAccumulatedWeight, pendingTotalWeight, accumulatedWeight, currentWeight, onActionStateChange])
+  }, [active, item.id, item.materialCode, canContinueWeighing, canConfirmAccumulatedWeight, totalAboveTolerance, weighingDisplayStatus, pendingTotalWeight, accumulatedWeight, currentWeight, onActionStateChange])
   return (
     <tr className={`${active ? 'weighing-active-row' : ''} ${completed ? 'weighing-completed-row' : ''} ${weightFailed || (qrPassed && !hasTolerance) ? 'weighing-weight-fail-row' : ''} ${qrPassed ? 'weighing-qr-pass-row' : ''} ${qrFailed ? 'weighing-qr-fail-row' : ''}`}>
       <td>{index + 1}</td>
@@ -6342,11 +6366,12 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
           <small>Tổng: {currentWeight > 0 ? formatKg(pendingTotalWeight) : '-'}</small>
         </div>
       ) : actual === '' ? '-' : <div className="weighing-inline-action confirmed"><span className="scale-current-weight">{formatScaleWeight(actual, scaleType)}</span><span className="weighing-check">✓ Đã xác nhận</span></div>}</td>
-      <td>{completed ? <span className="weighing-check">Hoàn thành</span> : weightFailed ? <span className="weighing-fail">Ngoài dung sai</span> : qrFailed ? <span className="weighing-fail">Sai QR</span> : qrPassed && !hasTolerance ? <span className="weighing-fail">Chưa có dung sai</span> : active && qrPassed ? <span className="weighing-check">Đang cân</span> : qrPassed ? <span className="weighing-check">Chờ cân</span> : active ? 'Chờ cân' : '-'}</td>
+      <td>{totalAboveTolerance || weightFailed || qrFailed || (qrPassed && !hasTolerance) ? <span className="weighing-fail">{weighingDisplayStatus}</span> : <span className="weighing-check">{weighingDisplayStatus}</span>}</td>
       {showActionColumn && <td>{active && qrPassed && !weightPassed ? (
         <div className="weighing-inline-action weighing-action-buttons">
-          <button className="secondary-button" disabled={!canContinueWeighing} onClick={continueStableWeight}>Cân tiếp</button>
-          <button className="primary-button" disabled={!canConfirmAccumulatedWeight} onClick={confirmStableWeight}>✓ Xác nhận</button>
+          {canContinueWeighing && <button className="secondary-button" onClick={continueStableWeight}>Cân tiếp</button>}
+          {canConfirmAccumulatedWeight && <button className="primary-button" onClick={confirmStableWeight}>✓ Xác nhận</button>}
+          {!canContinueWeighing && !canConfirmAccumulatedWeight && <span className={totalAboveTolerance ? 'weighing-fail' : 'muted-text'}>{weighingDisplayStatus}</span>}
         </div>
       ) : completed ? <span className="weighing-check">Đã khóa</span> : '-'}</td>}
     </tr>
