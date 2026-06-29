@@ -5096,9 +5096,11 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
         <div><span>Đọc dữ liệu</span><strong>{scaleSession.isReadingScale ? 'Đang đọc liên tục' : 'Chưa đọc'}</strong></div>
         <div className="scale-weight-display"><span className="scale-weight-title">Khối lượng cân</span><strong className="scale-weight-value">{formatScaleWeight(scaleSession.scaleWeightKg, `chemical-${board.key}`)}</strong></div>
         <div className="chemical-scale-inline-actions">
-          <span className={activeAction?.totalAboveTolerance ? 'weighing-fail' : 'weighing-check'}>{activeAction?.weighingDisplayStatus || 'Chờ quét QR'}</span>
           {activeAction?.canContinueWeighing && <button className="secondary-button" type="button" onClick={() => activeAction.continueStableWeight?.()}>Cân tiếp</button>}
           {activeAction?.canConfirmAccumulatedWeight && <button className="primary-button" type="button" onClick={() => activeAction.confirmStableWeight?.()}>✓ Xác nhận</button>}
+          {!activeAction?.canContinueWeighing && !activeAction?.canConfirmAccumulatedWeight && (
+            <span className={activeAction?.totalAboveTolerance ? 'weighing-fail' : 'muted-text'}>{activeAction?.weighingDisplayStatus || 'Chờ quét QR'}</span>
+          )}
         </div>
         {debugMode && <div className="scale-stability-settings">
           <span>Cài đặt ổn định</span>
@@ -6102,16 +6104,16 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
   const accumulatedWeight = getWeighingAccumulatedWeight(item)
   const currentScaleWeightKg = scaleWeightKg == null ? null : num(scaleWeightKg)
   const stableScaleWeightKg = scaleStableWeightKg == null ? null : num(scaleStableWeightKg)
-  const currentWeight = stableScaleWeightKg == null ? num(item.currentWeight || 0) : stableScaleWeightKg
+  const currentWeight = currentScaleWeightKg == null ? num(item.currentWeight || 0) : currentScaleWeightKg
   const pendingTotalWeight = Number((accumulatedWeight + num(currentWeight)).toFixed(3))
   const lowerToleranceWeight = Number((requiredWeight - num(toleranceKg)).toFixed(3))
   const upperToleranceWeight = Number((requiredWeight + num(toleranceKg)).toFixed(3))
   const totalBelowTolerance = hasTolerance && currentWeight > 0 && pendingTotalWeight < lowerToleranceWeight
   const totalWithinTolerance = hasTolerance && currentWeight > 0 && pendingTotalWeight >= lowerToleranceWeight && pendingTotalWeight <= upperToleranceWeight
   const totalAboveTolerance = hasTolerance && currentWeight > 0 && pendingTotalWeight > upperToleranceWeight
-  const canUseStableWeight = active && qrPassed && !weightPassed && scaleStable && stableScaleWeightKg != null && stableScaleWeightKg > 0
-  const canContinueWeighing = canUseStableWeight && totalBelowTolerance
-  const canConfirmAccumulatedWeight = canUseStableWeight && hasTolerance && totalWithinTolerance
+  const canUseCurrentWeight = active && qrPassed && !weightPassed && currentWeight > 0
+  const canContinueWeighing = canUseCurrentWeight && totalBelowTolerance
+  const canConfirmAccumulatedWeight = canUseCurrentWeight && hasTolerance && totalWithinTolerance
   const weighingDisplayStatus = completed
     ? 'Hoàn thành'
     : weightFailed || totalAboveTolerance
@@ -6301,27 +6303,25 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       note: item.note,
     }, `${context.supplementalText} PASS ${order.id} - ${item.materialCode}${context.lot ? `, lô ${context.lot.lotCode}` : ''}.`, context.stockIssue)
   }
-  const confirmStableWeight = () => {
-    if (!scaleStable || stableScaleWeightKg == null) {
-      setWarning?.('Vui lòng chờ trọng lượng ổn định trước khi xác nhận cân.')
-      return
-    }
-    if (stableScaleWeightKg <= 0) {
+  const confirmCurrentWeight = () => {
+    if (currentWeight == null || currentWeight <= 0) {
       setWarning?.('Khối lượng cân phải lớn hơn 0.')
       return
     }
-    confirmWeight(stableScaleWeightKg)
+    confirmWeight(currentWeight)
+  }
+  const continueCurrentWeight = () => {
+    if (currentWeight == null || currentWeight <= 0) {
+      setWarning?.('Khối lượng cân phải lớn hơn 0.')
+      return
+    }
+    continueWeighing(currentWeight)
+  }
+  const confirmStableWeight = () => {
+    confirmCurrentWeight()
   }
   const continueStableWeight = () => {
-    if (!scaleStable || stableScaleWeightKg == null) {
-      setWarning?.('Vui lòng chờ trọng lượng ổn định trước khi cân tiếp.')
-      return
-    }
-    if (stableScaleWeightKg <= 0) {
-      setWarning?.('Khối lượng cân phải lớn hơn 0.')
-      return
-    }
-    continueWeighing(stableScaleWeightKg)
+    continueCurrentWeight()
   }
   useEffect(() => {
     if (!onActionStateChange || !active) return
@@ -6333,8 +6333,8 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       canConfirmAccumulatedWeight,
       totalAboveTolerance,
       weighingDisplayStatus,
-      continueStableWeight,
-      confirmStableWeight,
+      continueStableWeight: continueCurrentWeight,
+      confirmStableWeight: confirmCurrentWeight,
       pendingTotalWeight,
       accumulatedWeight,
       currentWeight,
