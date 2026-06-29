@@ -5980,17 +5980,9 @@ function WeighingOrderGroup({ title, orders, activeId, onStart, showStart = fals
   )
 }
 
-function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots = [], materialCatalog = [], weighingTools = [], scaleType, setWarning, scaleWeightKg = null, scaleStableWeightKg = null, scaleStable = false, scaleRawData = '', scaleRawValue = null, scaleWeighedBy = '' }) {
+function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots = [], scaleType, setWarning, scaleWeightKg = null, scaleStableWeightKg = null, scaleStable = false, scaleRawData = '', scaleRawValue = null, scaleWeighedBy = '' }) {
   const [qrInput, setQrInput] = useState(item.qrScanned || '')
   const [qrScanError, setQrScanError] = useState('')
-  const catalogMaterial = materialCatalog.find((row) => normalizeCode(row.materialCode) === normalizeCode(item.materialCode))
-  const applyFor = getWeighingToolApplyForItem(item)
-  const availableTools = weighingTools.filter((tool) => tool.applyFor === applyFor)
-  const initialToolCode = item.weighingToolCode || catalogMaterial?.defaultWeighingToolCode || defaultWeighingToolCodeForItem(item)
-  const [selectedToolCode, setSelectedToolCode] = useState(initialToolCode)
-  useEffect(() => {
-    if (!item.weighingToolCode) setSelectedToolCode(initialToolCode)
-  }, [initialToolCode, item.weighingToolCode])
   const qrInputRef = useRef(null)
   const qrPassed = item.qrStatus === 'PASS'
   const qrFailed = Boolean(qrScanError) || item.qrStatus === 'FAIL'
@@ -6000,15 +5992,8 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
   const hasTolerance = hasFormulaTolerance(item)
   const toleranceKg = hasTolerance ? Number(item.toleranceKg ?? item.tolerance) : ''
   const actual = item.actualWeight === '' || item.actualWeight == null ? '' : num(item.actualWeight)
-  const selectedTool = availableTools.find((tool) => tool.code === selectedToolCode)
-    || weighingTools.find((tool) => tool.code === selectedToolCode)
-    || null
-  const tareWeightKg = selectedTool ? num(selectedTool.tareWeightKg) : 0
-  const currentGrossWeightKg = scaleWeightKg == null ? null : num(scaleWeightKg)
-  const currentNetWeightKg = currentGrossWeightKg == null ? null : Math.max(0, Number((currentGrossWeightKg - tareWeightKg).toFixed(3)))
-  const stableGrossWeightKg = scaleStableWeightKg == null ? null : num(scaleStableWeightKg)
-  const stableNetWeightKg = stableGrossWeightKg == null ? null : Math.max(0, Number((stableGrossWeightKg - tareWeightKg).toFixed(3)))
-  const tareNotExceeded = active && qrPassed && !weightPassed && currentGrossWeightKg != null && selectedTool && currentNetWeightKg === 0 && currentGrossWeightKg < tareWeightKg
+  const currentScaleWeightKg = scaleWeightKg == null ? null : num(scaleWeightKg)
+  const stableScaleWeightKg = scaleStableWeightKg == null ? null : num(scaleStableWeightKg)
   const selectedLot = rawMaterialLots.find((lot) => lot.lotCode === item.rawMaterialLotCode && lot.materialCode === item.materialCode)
   const remainingBefore = item.rawMaterialRemainingBefore ?? selectedLot?.remainingQty
   const materialStockQty = rawMaterialLots
@@ -6056,30 +6041,25 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
   const handleQrScanBlur = (event) => {
     if (event.currentTarget.value.trim()) confirmQr(event.currentTarget.value)
   }
-  const confirmWeight = (grossWeight = null, netWeight = null) => {
+  const confirmWeight = (scaleWeight = null) => {
     if (!active || weightPassed) return
     if (!qrPassed || (!item.rawMaterialLotCode && !item.materialQrOnly)) {
       setWarning?.('Vui lòng quét QR lô nguyên liệu hợp lệ trước khi cân.')
       return
     }
-    if (!selectedTool) {
-      setWarning?.('Vui lòng chọn dụng cụ cân.')
-      return
-    }
-    if (grossWeight == null || netWeight == null) {
+    if (scaleWeight == null) {
       setWarning?.('Vui lòng chờ trọng lượng ổn định trước khi xác nhận cân.')
       return
     }
-    if (netWeight <= 0) {
-      setWarning?.('Khối lượng chưa vượt trọng lượng bì')
+    const actualWeight = num(scaleWeight)
+    if (actualWeight <= 0) {
+      setWarning?.('Khối lượng cân phải lớn hơn 0.')
       return
     }
     if (!hasTolerance) {
       setWarning?.('Chưa có dung sai')
       return
     }
-    const grossWeightKg = num(grossWeight)
-    const actualWeight = num(netWeight)
     const lot = rawMaterialLots.find((row) => row.lotCode === item.rawMaterialLotCode && row.materialCode === item.materialCode)
     const confirmedAt = nowText()
     const scaleAudit = {
@@ -6092,11 +6072,6 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       rawValue: scaleRawValue,
       unit: 'kg',
       confirmedBy: scaleWeighedBy,
-      weighingToolCode: selectedTool.code,
-      weighingToolName: selectedTool.name,
-      tareWeightKg,
-      grossWeightKg,
-      netWeightKg: actualWeight,
     }
     if (item.materialQrOnly) {
       const pass = Math.abs(actualWeight - num(item.requiredKg)) <= toleranceKg
@@ -6151,19 +6126,15 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
     })
   }
   const confirmStableWeight = () => {
-    if (!selectedTool) {
-      setWarning?.('Vui lòng chọn dụng cụ cân.')
-      return
-    }
-    if (!scaleStable || scaleStableWeightKg == null || stableNetWeightKg == null) {
+    if (!scaleStable || stableScaleWeightKg == null) {
       setWarning?.('Vui lòng chờ trọng lượng ổn định trước khi xác nhận cân.')
       return
     }
-    if (stableNetWeightKg <= 0) {
-      setWarning?.('Khối lượng chưa vượt trọng lượng bì')
+    if (stableScaleWeightKg <= 0) {
+      setWarning?.('Khối lượng cân phải lớn hơn 0.')
       return
     }
-    confirmWeight(scaleStableWeightKg, stableNetWeightKg)
+    confirmWeight(stableScaleWeightKg)
   }
   return (
     <tr className={`${active ? 'weighing-active-row' : ''} ${completed ? 'weighing-completed-row' : ''} ${weightFailed || (qrPassed && !hasTolerance) ? 'weighing-weight-fail-row' : ''} ${qrPassed ? 'weighing-qr-pass-row' : ''} ${qrFailed ? 'weighing-qr-fail-row' : ''}`}>
@@ -6185,21 +6156,9 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       </td>
       <td>{stockDisplay === '' || stockDisplay == null ? '-' : formatKg(stockDisplay)}</td>
       <td>{active && qrPassed && !weightPassed ? (
-        <div className="weighing-tool-panel">
-          <label>
-            <span>Dụng cụ cân</span>
-            <select value={selectedToolCode} onChange={(event) => setSelectedToolCode(event.target.value)}>
-              <option value="">Chọn dụng cụ</option>
-              {availableTools.map((tool) => <option key={tool.code} value={tool.code}>{tool.code} - {tool.name}</option>)}
-            </select>
-          </label>
-          <div className="weighing-tool-values">
-            <span>Tare <strong>{selectedTool ? formatKg(tareWeightKg) : '-'}</strong></span>
-            <span>Gross <strong>{formatScaleWeight(currentGrossWeightKg, scaleType)}</strong></span>
-            <span>Net <strong>{currentNetWeightKg == null ? '-' : formatKg(currentNetWeightKg)}</strong></span>
-          </div>
-          {tareNotExceeded && <span className="qr-inline-error">Khối lượng chưa vượt trọng lượng bì</span>}
-          <button className="primary-button" disabled={!selectedTool || !scaleStable || stableNetWeightKg == null || stableNetWeightKg <= 0} onClick={confirmStableWeight}>✓ Xác nhận</button>
+        <div className="weighing-inline-action">
+          <span className="scale-current-weight">{formatScaleWeight(currentScaleWeightKg, scaleType)}</span>
+          <button className="primary-button" disabled={!scaleStable || stableScaleWeightKg == null || stableScaleWeightKg <= 0} onClick={confirmStableWeight}>✓ Xác nhận</button>
         </div>
       ) : actual === '' ? '-' : <div className="weighing-inline-action confirmed"><span className="scale-current-weight">{formatScaleWeight(actual, scaleType)}</span><span className="weighing-check">✓ Đã xác nhận</span></div>}</td>
       <td>{completed ? <span className="weighing-check">Đạt</span> : weightFailed ? <span className="weighing-fail">Ngoài dung sai</span> : qrFailed ? <span className="weighing-fail">Sai QR</span> : qrPassed && !hasTolerance ? <span className="weighing-fail">Chưa có dung sai</span> : qrPassed ? <span className="weighing-check">Chờ cân</span> : active ? 'Đang thao tác' : '-'}</td>
