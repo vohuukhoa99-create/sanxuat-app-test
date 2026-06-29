@@ -35,6 +35,7 @@ const SCALE_SERIAL_CONFIG = {
   reverseFrame: true,
 }
 const debugMode = false
+const SERIAL_DEBUG_LOG_LIMIT = 160
 
 class PageErrorBoundary extends Component {
   state = { hasError: false }
@@ -294,6 +295,15 @@ function getSerialErrorMessage(error, selectedBaudRate) {
   if (/baud/i.test(message)) return 'Invalid baudrate'
   return message || 'Connection failed'
 }
+function formatSerialRawForLog(value = '') {
+  const text = String(value || '')
+  const escaped = text
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/\t/g, '\\t')
+  const charCodes = Array.from(text, (char) => char.charCodeAt(0)).join(',')
+  return escaped || (charCodes ? `[control chars: ${charCodes}]` : '[empty]')
+}
 function normalizeFormulaCode(code) {
   return String(code || '')
     .toUpperCase()
@@ -439,28 +449,69 @@ const parseMaterialQr = (value) => {
   return text.startsWith(MATERIAL_QR_PREFIX) ? { type: 'MATERIAL_CODE', materialCode: text.slice(MATERIAL_QR_PREFIX.length).trim() } : null
 }
 
+function parseScaleNumberFrame(frame = '', config = SCALE_SERIAL_CONFIG) {
+  const decimalPlaces = Math.max(0, Number(config.decimalPlaces) || 0)
+  let normalized = String(frame || '')
+    .replace(/\s+/g, '')
+    .replace(/[^0-9.,+-]/g, '')
+  if (!normalized) return null
+  const trailingSign = normalized.match(/([+-])$/)?.[1]
+  normalized = normalized.replace(/[+-]/g, '')
+  if (trailingSign) normalized = `${trailingSign}${normalized}`
+  const sign = normalized.startsWith('-') ? -1 : 1
+  const unsigned = normalized.replace(/^[+-]/, '')
+  let parsed = NaN
+  if (/[.,]/.test(unsigned)) {
+    parsed = Number(`${sign < 0 ? '-' : ''}${unsigned.replace(',', '.')}`)
+  } else if (/^\d+$/.test(unsigned)) {
+    const padded = unsigned.padStart(decimalPlaces + 1, '0')
+    const integerPart = decimalPlaces ? padded.slice(0, -decimalPlaces) : padded
+    const decimalPart = decimalPlaces ? padded.slice(-decimalPlaces) : ''
+    parsed = Number(`${sign < 0 ? '-' : ''}${integerPart || '0'}${decimalPart ? `.${decimalPart}` : ''}`)
+  }
+  if (!Number.isFinite(parsed) || parsed < 0) return null
+  const multiplier = Number(config.multiplier) || 1
+  return Number((parsed * multiplier).toFixed(3))
+}
+
 function parseScaleRollingBuffer(rollingBuffer = '', config = SCALE_SERIAL_CONFIG) {
   const text = String(rollingBuffer || '')
-  const matches = text.match(/[-+]?\d{1,4}[.,]\d{1,4}/g) || []
-  const lastFrame = matches.at(-1) || ''
+  const frameMatches = text.match(/[-+]?\s*(?:\d[\d\s]*[.,]\s*\d[\d\s]*|\d[\d\s]{2,})\s*[+-]?/g) || []
+  const lastFrame = frameMatches.at(-1) || ''
   const rawFrame = lastFrame.replace(/[^0-9.,+-]/g, '')
-  const reversedFrame = config.reverseFrame
-    ? Array.from(rawFrame).reverse().join('')
-    : rawFrame
-  const normalizedFrame = reversedFrame.replace(',', '.')
+  const reversedFrame = Array.from(rawFrame).reverse().join('')
+  const candidateFrames = [
+    { frame: rawFrame, reversed: false },
+    { frame: reversedFrame, reversed: true },
+  ]
+  const parsedCandidates = candidateFrames
+    .map((candidate) => {
+      const parsedKg = parseScaleNumberFrame(candidate.frame, config)
+      if (parsedKg == null) return null
+      const hasLeadingSign = /^[+-]/.test(candidate.frame)
+      const hasTrailingSign = /[+-]$/.test(candidate.frame)
+      const score = (candidate.reversed === Boolean(config.reverseFrame) ? 2 : 0)
+        + (hasLeadingSign ? 5 : 0)
+        - (hasTrailingSign ? 4 : 0)
+        + (/[.,]/.test(candidate.frame) ? 1 : 0)
+      return { ...candidate, parsedKg, score }
+    })
+    .filter(Boolean)
+    .sort((left, right) => right.score - left.score)
+  const bestCandidate = parsedCandidates[0] || null
+  const parsedKg = bestCandidate?.parsedKg ?? null
+  const parsedFrame = bestCandidate?.frame || ''
   const charCodes = Array.from(rawFrame, (char) => char.charCodeAt(0))
   const extractedDigits = rawFrame.replace(/\D/g, '')
-  const parsed = normalizedFrame ? Number(normalizedFrame) : NaN
-  const multiplier = Number(config.multiplier) || 1
-  const parsedKg = Number.isFinite(parsed) && parsed >= 0 ? Number((parsed * multiplier).toFixed(3)) : null
   const finalDisplayKg = parsedKg == null ? '' : formatKg(parsedKg)
 
   return {
     rawFrame,
     reversedFrame,
+    parsedFrame,
     charCodes,
     extractedDigits,
-    parsedKg: Number.isFinite(parsedKg) ? parsedKg : null,
+    parsedKg,
     finalDisplayKg,
   }
 }
@@ -523,7 +574,7 @@ function useScaleSerialSession(scaleType = 'chemical', setWarning) {
   const scaleToleranceKgRef = useRef(scaleToleranceKg)
   const addScaleDebugLog = (message) => {
     const time = new Date().toLocaleTimeString('vi-VN', { hour12: false })
-    setScaleDebugLogs((logs) => [`${time} - ${message}`, ...logs].slice(0, 80))
+    setScaleDebugLogs((logs) => [`${time} - ${message}`, ...logs].slice(0, SERIAL_DEBUG_LOG_LIMIT))
   }
   const disconnectScale = async () => {
     scaleReadingRef.current = false
@@ -627,10 +678,12 @@ function useScaleSerialSession(scaleType = 'chemical', setWarning) {
       isScaleConnectedRef.current = true
       setIsScaleConnected(true)
       setScaleStatus(`Đã kết nối ${scaleProfile.label} (${selectedBaudRate} baud)`)
+      addScaleDebugLog(`Connection success: ${scaleProfile.label}; readable=${Boolean(port.readable)}`)
       if (!isReadingScaleRef.current && !scaleReaderRef.current) {
         scaleReadingRef.current = true
         isReadingScaleRef.current = true
         setIsReadingScale(true)
+        addScaleDebugLog('Serial read loop requested.')
       }
       if (!scaleWeightKg) {
         setScaleRawText('')
@@ -643,25 +696,38 @@ function useScaleSerialSession(scaleType = 'chemical', setWarning) {
         setScaleStableReadings([])
       }
       setWarning?.('')
+      addScaleDebugLog(`Scale config: baudRate=${selectedBaudRate}, decimalPlaces=${scaleProfile.decimalPlaces}, multiplier=${scaleProfile.multiplier}, reverseFrame=${String(scaleProfile.reverseFrame)}`)
       const decoder = new TextDecoder()
       while (scaleReadingRef.current && port.readable) {
-        if (scaleReaderRef.current) return
+        if (scaleReaderRef.current) {
+          addScaleDebugLog('Reader already active; skip creating another reader.')
+          return
+        }
         const reader = port.readable.getReader()
         scaleReaderRef.current = reader
+        addScaleDebugLog('Serial reader started; waiting for scale data.')
         try {
           while (scaleReadingRef.current) {
             const { value, done } = await reader.read()
-            if (done) break
+            if (done) {
+              addScaleDebugLog('Serial reader returned done=true.')
+              break
+            }
             const chunk = decoder.decode(value, { stream: true })
             if (!chunk) continue
+            const rawLog = formatSerialRawForLog(chunk)
+            addScaleDebugLog(`RAW chunk: "${rawLog}"`)
+            console.debug(`[ScaleSerial:${scaleProfile.label}] RAW chunk`, rawLog)
             scaleSerialBufferRef.current = `${scaleSerialBufferRef.current}${chunk}`.slice(-500)
             const parsedFrame = parseScaleRollingBuffer(scaleSerialBufferRef.current, scaleProfile)
             setScaleFrameDebug(parsedFrame)
             if (parsedFrame.rawFrame) setScaleRawText(parsedFrame.rawFrame)
+            addScaleDebugLog(`Parse: raw="${parsedFrame.rawFrame || '-'}", reversed="${parsedFrame.reversedFrame || '-'}", parsedFrame="${parsedFrame.parsedFrame || '-'}", parsedKg=${parsedFrame.parsedKg ?? 'invalid'}`)
             const parsed = parsedFrame.parsedKg
             if (parsed == null) continue
             setScaleRawValue(parsed)
             setScaleWeightKg(parsed)
+            addScaleDebugLog(`Bind live weight: scaleWeightKg=${parsed.toFixed(3)} kg`)
             const sampleCount = scaleStableSampleCountRef.current
             const nextReadings = [...scaleStableReadingsRef.current, parsed].slice(-sampleCount)
             scaleStableReadingsRef.current = nextReadings
@@ -4983,6 +5049,7 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
   const scaleProfile = SCALE_LINE_PROFILES[board.scaleLine] || getScaleProfile(`chemical-${boardKey}`)
   const scaleSession = useScaleSerialSession(scaleProfile, setWarning)
   const scaleStabilityStatus = scaleSession.scaleStableWeightKg == null ? 'Đang dao động' : 'Đã ổn định'
+  const showScaleSerialDebug = debugMode || scaleSession.isScaleConnected || scaleSession.scaleDebugLogs.length > 0
   return (
     <section className="chemical-weighing-group">
       <div className="chemical-weighing-group-header">
@@ -4996,6 +5063,7 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
       {!scaleSession.scaleSupported && <div className="process-alert">Trình duyệt không hỗ trợ kết nối cân. Vui lòng dùng Chrome hoặc Edge.</div>}
       <div className="scale-serial-panel chemical-scale-serial-panel">
         <div><span>Trạng thái cân</span><strong>{scaleSession.scaleStatus}</strong></div>
+        <div><span>Đọc dữ liệu</span><strong>{scaleSession.isReadingScale ? 'Đang đọc liên tục' : 'Chưa đọc'}</strong></div>
         <div className="scale-weight-display"><span className="scale-weight-title">Khối lượng cân</span><strong className="scale-weight-value">{formatScaleWeight(scaleSession.scaleWeightKg, `chemical-${board.key}`)}</strong></div>
         {debugMode && <div className="scale-stability-settings">
           <span>Cài đặt ổn định</span>
@@ -5003,19 +5071,19 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
           <label>Sai số cho phép<div className="scale-tolerance-input"><input type="number" min="0" step="0.001" value={scaleSession.scaleToleranceKg} onChange={scaleSession.handleScaleToleranceChange} /><strong>{formatKg(scaleSession.scaleToleranceKg)}</strong></div></label>
           <em>{scaleStabilityStatus} ({scaleSession.scaleStableReadings.length}/{scaleSession.scaleStableSampleCount})</em>
         </div>}
-        {debugMode && <div><span>Serial Config</span><strong>{scaleProfile.baudRate} baud, decimalPlaces={scaleProfile.decimalPlaces}; reverseFrame={String(scaleProfile.reverseFrame)}</strong></div>}
-        {debugMode && <div><span>rawFrame</span><strong>{scaleSession.scaleFrameDebug.rawFrame || '-'}</strong></div>}
-        {debugMode && <div><span>reversedFrame</span><strong>{scaleSession.scaleFrameDebug.reversedFrame || '-'}</strong></div>}
-        {debugMode && <div><span>parsedKg</span><strong>{scaleSession.scaleFrameDebug.parsedKg == null ? '-' : scaleSession.scaleFrameDebug.parsedKg.toFixed(3)}</strong></div>}
-        {debugMode && <div><span>finalDisplayKg</span><strong>{scaleSession.scaleFrameDebug.finalDisplayKg || '-'}</strong></div>}
-        {debugMode && <div><span>Raw Value</span><strong>{scaleSession.scaleRawValue == null ? '-' : scaleSession.scaleRawValue.toFixed(3)}</strong></div>}
-        {debugMode && <div className="scale-raw-text"><span>Last Frame</span><strong>{scaleSession.scaleRawText || '-'}</strong></div>}
+        {showScaleSerialDebug && <div><span>Serial Config</span><strong>{scaleProfile.baudRate} baud, decimalPlaces={scaleProfile.decimalPlaces}; reverseFrame={String(scaleProfile.reverseFrame)}</strong></div>}
+        {showScaleSerialDebug && <div><span>rawFrame</span><strong>{scaleSession.scaleFrameDebug.rawFrame || '-'}</strong></div>}
+        {showScaleSerialDebug && <div><span>reversedFrame</span><strong>{scaleSession.scaleFrameDebug.reversedFrame || '-'}</strong></div>}
+        {showScaleSerialDebug && <div><span>parsedKg</span><strong>{scaleSession.scaleFrameDebug.parsedKg == null ? '-' : scaleSession.scaleFrameDebug.parsedKg.toFixed(3)}</strong></div>}
+        {showScaleSerialDebug && <div><span>finalDisplayKg</span><strong>{scaleSession.scaleFrameDebug.finalDisplayKg || '-'}</strong></div>}
+        {showScaleSerialDebug && <div><span>Raw Value</span><strong>{scaleSession.scaleRawValue == null ? '-' : scaleSession.scaleRawValue.toFixed(3)}</strong></div>}
+        {showScaleSerialDebug && <div className="scale-raw-text"><span>Last Frame</span><strong>{scaleSession.scaleRawText || '-'}</strong></div>}
       </div>
       <div className="chemical-scale-actions">
         <button className="secondary-button weighing-finish-button" type="button" onClick={scaleSession.connectScale}>{scaleSession.isScaleConnected ? `Đã kết nối ${scaleProfile.label}` : `Kết nối ${scaleProfile.label}`}</button>
         {scaleSession.isScaleConnected && <button className="secondary-button weighing-finish-button" type="button" onClick={scaleSession.disconnectScale}>Ngắt kết nối</button>}
       </div>
-      {debugMode && <section className="scale-debug-panel">
+      {showScaleSerialDebug && <section className="scale-debug-panel">
         <div className="section-heading-row">
           <h3>Debug serial</h3>
           <button type="button" className="secondary-button" onClick={() => scaleSession.setScaleDebugLogs([])}>Xóa log</button>
