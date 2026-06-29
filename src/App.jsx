@@ -5096,15 +5096,7 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
         <div><span>Đọc dữ liệu</span><strong>{scaleSession.isReadingScale ? 'Đang đọc liên tục' : 'Chưa đọc'}</strong></div>
         <div className="scale-weight-display"><span className="scale-weight-title">Khối lượng cân</span><strong className="scale-weight-value">{formatScaleWeight(scaleSession.scaleWeightKg, `chemical-${board.key}`)}</strong></div>
         <div className="chemical-scale-inline-actions">
-          <ScaleActionButton
-            qrMatched={Boolean(activeAction?.qrMatched)}
-            currentWeight={activeAction?.currentWeight ?? 0}
-            accumulatedWeight={activeAction?.accumulatedWeight ?? 0}
-            requiredWeight={activeAction?.requiredWeight ?? board.activeItem?.requiredWeight ?? board.activeItem?.requiredKg ?? 0}
-            tolerance={activeAction?.hasTolerance ? activeAction.toleranceKg : ''}
-            onContinueWeighing={() => activeAction?.continueStableWeight?.()}
-            onConfirmWeighing={() => activeAction?.confirmStableWeight?.()}
-          />
+          <span className="scale-action-status muted-text">{activeAction?.weighingDisplayStatus || 'Chờ QR'}</span>
         </div>
         {debugMode && <div className="scale-stability-settings">
           <span>Cài đặt ổn định</span>
@@ -5137,9 +5129,9 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
       </section>}
       <SimpleTable
         tableClassName="chemical-weighing-table"
-        headers={['STT', 'Mã vật tư', 'KL cần cân', 'Đã cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái']}
+        headers={['STT', 'Mã vật tư', 'KL cần cân', 'Đã cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái', 'Thao tác']}
         rows={boardItems.map((item, index) => (
-          <WeighingRow key={`${activeOrder?.id || 'order'}-${boardKey}-${item.id || item.materialCode || index}`} order={activeOrder} item={item} index={index} active={item.id === board.activeItem?.id} updateWeight={updateWeight} rawMaterialLots={rawMaterialLots} materialCatalog={materialCatalog} weighingTools={weighingTools} scaleType={`chemical-${boardKey}`} setWarning={setWarning} scaleWeightKg={scaleSession.scaleWeightKg} scaleStableWeightKg={scaleSession.scaleStableWeightKg} scaleStable={scaleSession.scaleStableWeightKg != null} scaleRawData={scaleSession.scaleRawText} scaleRawValue={scaleSession.scaleRawValue} scaleWeighedBy={scaleWeighedBy} showActionColumn={false} onActionStateChange={setScaleActionState} />
+          <WeighingRow key={`${activeOrder?.id || 'order'}-${boardKey}-${item.id || item.materialCode || index}`} order={activeOrder} item={item} index={index} active={item.id === board.activeItem?.id} updateWeight={updateWeight} rawMaterialLots={rawMaterialLots} materialCatalog={materialCatalog} weighingTools={weighingTools} scaleType={`chemical-${boardKey}`} setWarning={setWarning} scaleWeightKg={scaleSession.scaleWeightKg} scaleStableWeightKg={scaleSession.scaleStableWeightKg} scaleStable={scaleSession.scaleStableWeightKg != null} scaleRawData={scaleSession.scaleRawText} scaleRawValue={scaleSession.scaleRawValue} scaleWeighedBy={scaleWeighedBy} onActionStateChange={setScaleActionState} />
         ))}
         empty="Không có vật tư cần cân cho line này"
       />

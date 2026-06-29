@@ -13170,13 +13170,13 @@ body,
 }
 
 .scale-action-button.scale-action-continue {
-  background: #16a34a !important;
-  border-color: #12813b !important;
+  background: #2563eb !important;
+  border-color: #1d4ed8 !important;
 }
 
 .scale-action-button.scale-action-confirm {
-  background: #065f46 !important;
-  border-color: #064e3b !important;
+  background: #16a34a !important;
+  border-color: #12813b !important;
 }
 
 .scale-action-button:hover {
@@ -13213,21 +13213,23 @@ body,
 .chemical-weighing-table th:nth-child(1),
 .chemical-weighing-table td:nth-child(1) { width: 4% !important; }
 .chemical-weighing-table th:nth-child(2),
-.chemical-weighing-table td:nth-child(2) { width: 11% !important; text-align: center !important; }
+.chemical-weighing-table td:nth-child(2) { width: 10% !important; text-align: center !important; }
 .chemical-weighing-table th:nth-child(3),
-.chemical-weighing-table td:nth-child(3) { width: 11% !important; }
+.chemical-weighing-table td:nth-child(3) { width: 9% !important; }
 .chemical-weighing-table th:nth-child(4),
-.chemical-weighing-table td:nth-child(4) { width: 11% !important; }
+.chemical-weighing-table td:nth-child(4) { width: 9% !important; }
 .chemical-weighing-table th:nth-child(5),
-.chemical-weighing-table td:nth-child(5) { width: 10% !important; }
+.chemical-weighing-table td:nth-child(5) { width: 8% !important; }
 .chemical-weighing-table th:nth-child(6),
-.chemical-weighing-table td:nth-child(6) { width: 16% !important; }
+.chemical-weighing-table td:nth-child(6) { width: 14% !important; }
 .chemical-weighing-table th:nth-child(7),
-.chemical-weighing-table td:nth-child(7) { width: 11% !important; }
+.chemical-weighing-table td:nth-child(7) { width: 9% !important; }
 .chemical-weighing-table th:nth-child(8),
-.chemical-weighing-table td:nth-child(8) { width: 13% !important; }
+.chemical-weighing-table td:nth-child(8) { width: 12% !important; }
 .chemical-weighing-table th:nth-child(9),
 .chemical-weighing-table td:nth-child(9) { width: 13% !important; }
+.chemical-weighing-table th:nth-child(10),
+.chemical-weighing-table td:nth-child(10) { width: 12% !important; }
 
 .chemical-weighing-table th {
   text-align: center !important;
