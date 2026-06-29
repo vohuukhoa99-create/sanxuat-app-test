@@ -6106,9 +6106,9 @@ function ScaleActionButton({ qrMatched = false, currentWeight = 0, accumulatedWe
   if (!Number.isFinite(required) || required <= 0 || !hasTolerance) return <span className="scale-action-status weighing-fail">Chưa có dung sai</span>
   if (totalWeight > maxWeight) return <span className="scale-action-status weighing-fail">Vượt dung sai</span>
   if (totalWeight >= minWeight && totalWeight <= maxWeight) {
-    return <button className="primary-button scale-action-button" type="button" onClick={onConfirmWeighing}>✓ Xác nhận</button>
+    return <button className="scale-action-button scale-action-confirm" type="button" onClick={onConfirmWeighing}>✓ Xác nhận</button>
   }
-  return <button className="secondary-button scale-action-button" type="button" onClick={onContinueWeighing}>Cân tiếp</button>
+  return <button className="scale-action-button scale-action-continue" type="button" onClick={onContinueWeighing}>Cân tiếp</button>
 }
 
 function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots = [], scaleType, setWarning, scaleWeightKg = null, scaleStableWeightKg = null, scaleStable = false, scaleRawData = '', scaleRawValue = null, scaleWeighedBy = '', showActionColumn = true, onActionStateChange = null }) {
