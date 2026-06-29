@@ -13077,7 +13077,34 @@ body,
 }
 
 .chemical-scale-serial-panel {
+  grid-template-columns: minmax(160px, 0.9fr) minmax(280px, 1.1fr) !important;
   margin: 8px 0 !important;
+}
+
+.chemical-scale-serial-panel > div:first-child {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+}
+
+.chemical-scale-serial-panel > .scale-weight-display {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  min-width: 0 !important;
+  min-height: 120px !important;
+  max-height: none !important;
+  padding: 12px 18px 14px !important;
+}
+
+.chemical-scale-serial-panel .scale-weight-title {
+  font-size: 20px !important;
+  white-space: nowrap !important;
+}
+
+.chemical-scale-serial-panel .scale-weight-value {
+  font-size: clamp(38px, 5.2vw, 58px) !important;
+  white-space: nowrap !important;
+  overflow-wrap: normal !important;
+  word-break: keep-all !important;
 }
 
 .chemical-scale-actions {
@@ -13094,7 +13121,7 @@ body,
 
 .chemical-weighing-table {
   width: 100% !important;
-  min-width: 805px !important;
+  min-width: 0 !important;
   table-layout: fixed !important;
 }
 
@@ -13102,29 +13129,42 @@ body,
 .chemical-weighing-table td {
   text-align: center !important;
   vertical-align: middle !important;
-  padding: 4px 5px !important;
+  padding: 4px 4px !important;
+  overflow-wrap: normal !important;
 }
 
 .chemical-weighing-table th:nth-child(1),
-.chemical-weighing-table td:nth-child(1) { width: 45px !important; }
+.chemical-weighing-table td:nth-child(1) { width: 6% !important; }
 .chemical-weighing-table th:nth-child(2),
-.chemical-weighing-table td:nth-child(2) { width: 100px !important; text-align: center !important; }
+.chemical-weighing-table td:nth-child(2) { width: 10% !important; text-align: center !important; }
 .chemical-weighing-table th:nth-child(3),
-.chemical-weighing-table td:nth-child(3) { width: 110px !important; }
+.chemical-weighing-table td:nth-child(3) { width: 11% !important; }
 .chemical-weighing-table th:nth-child(4),
-.chemical-weighing-table td:nth-child(4) { width: 90px !important; }
+.chemical-weighing-table td:nth-child(4) { width: 9% !important; }
 .chemical-weighing-table th:nth-child(5),
-.chemical-weighing-table td:nth-child(5) { width: 160px !important; }
+.chemical-weighing-table td:nth-child(5) { width: 12% !important; }
 .chemical-weighing-table th:nth-child(6),
-.chemical-weighing-table td:nth-child(6) { width: 100px !important; }
+.chemical-weighing-table td:nth-child(6) { width: 10% !important; }
 .chemical-weighing-table th:nth-child(7),
-.chemical-weighing-table td:nth-child(7) { width: 100px !important; }
+.chemical-weighing-table td:nth-child(7) { width: 27% !important; }
 .chemical-weighing-table th:nth-child(8),
-.chemical-weighing-table td:nth-child(8) { width: 110px !important; }
+.chemical-weighing-table td:nth-child(8) { width: 15% !important; }
+
+.chemical-weighing-table th {
+  text-align: center !important;
+  white-space: normal !important;
+}
+
+.chemical-weighing-table td {
+  white-space: nowrap !important;
+}
 
 .chemical-weighing-table .weighing-qr-scan input {
-  max-width: 155px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 104px !important;
   margin: 0 auto;
+  padding-inline: 6px !important;
 }
 
 .chemical-weighing-table .weighing-tool-panel {
@@ -13144,6 +13184,22 @@ body,
   min-height: 28px !important;
   padding: 4px 6px !important;
   font-size: 11px !important;
+}
+
+@media (max-width: 980px) {
+  .chemical-scale-serial-panel {
+    grid-template-columns: 1fr !important;
+  }
+
+  .chemical-scale-serial-panel > div:first-child,
+  .chemical-scale-serial-panel > .scale-weight-display {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+  }
+
+  .chemical-weighing-table {
+    min-width: 680px !important;
+  }
 }
 
 .chemical-three-scale-layout {
