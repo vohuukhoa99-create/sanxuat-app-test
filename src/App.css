@@ -13140,6 +13140,18 @@ body,
   margin: 0 0 8px;
 }
 
+.chemical-scale-inline-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+}
+
+.chemical-scale-inline-actions button {
+  min-width: 92px;
+  white-space: nowrap;
+}
+
 .chemical-weighing-group .table-wrapper {
   max-width: 100%;
   overflow-x: auto;
@@ -13160,21 +13172,23 @@ body,
 }
 
 .chemical-weighing-table th:nth-child(1),
-.chemical-weighing-table td:nth-child(1) { width: 6% !important; }
+.chemical-weighing-table td:nth-child(1) { width: 4% !important; }
 .chemical-weighing-table th:nth-child(2),
-.chemical-weighing-table td:nth-child(2) { width: 10% !important; text-align: center !important; }
+.chemical-weighing-table td:nth-child(2) { width: 11% !important; text-align: center !important; }
 .chemical-weighing-table th:nth-child(3),
 .chemical-weighing-table td:nth-child(3) { width: 11% !important; }
 .chemical-weighing-table th:nth-child(4),
-.chemical-weighing-table td:nth-child(4) { width: 9% !important; }
+.chemical-weighing-table td:nth-child(4) { width: 11% !important; }
 .chemical-weighing-table th:nth-child(5),
-.chemical-weighing-table td:nth-child(5) { width: 12% !important; }
+.chemical-weighing-table td:nth-child(5) { width: 10% !important; }
 .chemical-weighing-table th:nth-child(6),
-.chemical-weighing-table td:nth-child(6) { width: 10% !important; }
+.chemical-weighing-table td:nth-child(6) { width: 16% !important; }
 .chemical-weighing-table th:nth-child(7),
-.chemical-weighing-table td:nth-child(7) { width: 27% !important; }
+.chemical-weighing-table td:nth-child(7) { width: 11% !important; }
 .chemical-weighing-table th:nth-child(8),
-.chemical-weighing-table td:nth-child(8) { width: 15% !important; }
+.chemical-weighing-table td:nth-child(8) { width: 13% !important; }
+.chemical-weighing-table th:nth-child(9),
+.chemical-weighing-table td:nth-child(9) { width: 13% !important; }
 
 .chemical-weighing-table th {
   text-align: center !important;

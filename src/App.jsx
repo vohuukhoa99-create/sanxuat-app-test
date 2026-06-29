@@ -5076,8 +5076,10 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
   const boardKey = board.key || 'tin'
   const scaleProfile = SCALE_LINE_PROFILES[board.scaleLine] || getScaleProfile(`chemical-${boardKey}`)
   const scaleSession = useScaleSerialSession(scaleProfile, setWarning)
+  const [scaleActionState, setScaleActionState] = useState(null)
   const scaleStabilityStatus = scaleSession.scaleStableWeightKg == null ? 'Đang dao động' : 'Đã ổn định'
   const showScaleSerialDebug = debugMode || scaleSession.isScaleConnected || scaleSession.scaleDebugLogs.length > 0
+  const activeAction = scaleActionState?.active ? scaleActionState : null
   return (
     <section className="chemical-weighing-group">
       <div className="chemical-weighing-group-header">
@@ -5093,6 +5095,10 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
         <div><span>Trạng thái cân</span><strong>{scaleSession.scaleStatus}</strong></div>
         <div><span>Đọc dữ liệu</span><strong>{scaleSession.isReadingScale ? 'Đang đọc liên tục' : 'Chưa đọc'}</strong></div>
         <div className="scale-weight-display"><span className="scale-weight-title">Khối lượng cân</span><strong className="scale-weight-value">{formatScaleWeight(scaleSession.scaleWeightKg, `chemical-${board.key}`)}</strong></div>
+        <div className="chemical-scale-inline-actions">
+          <button className="secondary-button" type="button" disabled={!activeAction?.canContinueWeighing} onClick={() => activeAction?.continueStableWeight?.()}>Cân tiếp</button>
+          <button className="primary-button" type="button" disabled={!activeAction?.canConfirmAccumulatedWeight} onClick={() => activeAction?.confirmStableWeight?.()}>✓ Xác nhận</button>
+        </div>
         {debugMode && <div className="scale-stability-settings">
           <span>Cài đặt ổn định</span>
           <label>Số mẫu ổn định<input type="number" min="1" max="20" step="1" value={scaleSession.scaleStableSampleCount} onChange={scaleSession.handleStableSampleCountChange} /></label>
@@ -5124,9 +5130,9 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
       </section>}
       <SimpleTable
         tableClassName="chemical-weighing-table"
-        headers={['STT', 'Mã vật tư', 'KL cần cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái', 'Thao tác']}
+        headers={['STT', 'Mã vật tư', 'KL cần cân', 'Đã cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái']}
         rows={boardItems.map((item, index) => (
-          <WeighingRow key={`${activeOrder?.id || 'order'}-${boardKey}-${item.id || item.materialCode || index}`} order={activeOrder} item={item} index={index} active={item.id === board.activeItem?.id} updateWeight={updateWeight} rawMaterialLots={rawMaterialLots} materialCatalog={materialCatalog} weighingTools={weighingTools} scaleType={`chemical-${boardKey}`} setWarning={setWarning} scaleWeightKg={scaleSession.scaleWeightKg} scaleStableWeightKg={scaleSession.scaleStableWeightKg} scaleStable={scaleSession.scaleStableWeightKg != null} scaleRawData={scaleSession.scaleRawText} scaleRawValue={scaleSession.scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
+          <WeighingRow key={`${activeOrder?.id || 'order'}-${boardKey}-${item.id || item.materialCode || index}`} order={activeOrder} item={item} index={index} active={item.id === board.activeItem?.id} updateWeight={updateWeight} rawMaterialLots={rawMaterialLots} materialCatalog={materialCatalog} weighingTools={weighingTools} scaleType={`chemical-${boardKey}`} setWarning={setWarning} scaleWeightKg={scaleSession.scaleWeightKg} scaleStableWeightKg={scaleSession.scaleStableWeightKg} scaleStable={scaleSession.scaleStableWeightKg != null} scaleRawData={scaleSession.scaleRawText} scaleRawValue={scaleSession.scaleRawValue} scaleWeighedBy={scaleWeighedBy} showActionColumn={false} onActionStateChange={setScaleActionState} />
         ))}
         empty="Không có vật tư cần cân cho line này"
       />
@@ -5865,7 +5871,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
                 <strong>{progress}%</strong>
               </div>}
               {group !== CHEMICAL && (
-                <SimpleTable headers={['STT', 'Mã vật tư', 'KL cần cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái', 'Thao tác']} rows={activeItems.map((item, index) => (
+                <SimpleTable headers={['STT', 'Mã vật tư', 'KL cần cân', 'Đã cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái', 'Thao tác']} rows={activeItems.map((item, index) => (
                   <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} materialCatalog={materialCatalog} weighingTools={weighingTools} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
                 ))} empty={`Không có vật tư nhóm ${group}.`} />
               )}
@@ -6079,7 +6085,7 @@ function WeighingOrderGroup({ title, orders, activeId, onStart, showStart = fals
   )
 }
 
-function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots = [], scaleType, setWarning, scaleWeightKg = null, scaleStableWeightKg = null, scaleStable = false, scaleRawData = '', scaleRawValue = null, scaleWeighedBy = '' }) {
+function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots = [], scaleType, setWarning, scaleWeightKg = null, scaleStableWeightKg = null, scaleStable = false, scaleRawData = '', scaleRawValue = null, scaleWeighedBy = '', showActionColumn = true, onActionStateChange = null }) {
   const [qrInput, setQrInput] = useState(item.qrScanned || '')
   const [qrScanError, setQrScanError] = useState('')
   const qrInputRef = useRef(null)
@@ -6295,17 +6301,27 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
     }
     continueWeighing(stableScaleWeightKg)
   }
+  useEffect(() => {
+    if (!onActionStateChange || !active) return
+    onActionStateChange({
+      active,
+      itemId: item.id,
+      materialCode: item.materialCode,
+      canContinueWeighing,
+      canConfirmAccumulatedWeight,
+      continueStableWeight,
+      confirmStableWeight,
+      pendingTotalWeight,
+      accumulatedWeight,
+      currentWeight,
+    })
+  }, [active, item.id, item.materialCode, canContinueWeighing, canConfirmAccumulatedWeight, pendingTotalWeight, accumulatedWeight, currentWeight, onActionStateChange])
   return (
     <tr className={`${active ? 'weighing-active-row' : ''} ${completed ? 'weighing-completed-row' : ''} ${weightFailed || (qrPassed && !hasTolerance) ? 'weighing-weight-fail-row' : ''} ${qrPassed ? 'weighing-qr-pass-row' : ''} ${qrFailed ? 'weighing-qr-fail-row' : ''}`}>
       <td>{index + 1}</td>
       <td>{item.materialCode}</td>
-      <td>
-        <div className="weighing-required-stack">
-          <span>{formatKg(requiredWeight)}</span>
-          <small>Đã cân</small>
-          <strong>{formatKg(accumulatedWeight)} / {formatKg(requiredWeight)}</strong>
-        </div>
-      </td>
+      <td>{formatKg(requiredWeight)}</td>
+      <td><strong>{formatKg(accumulatedWeight)}</strong></td>
       <td>{hasTolerance ? formatToleranceKg(toleranceKg) : 'Chưa có dung sai'}</td>
       <td className={`weighing-qr-cell ${qrPassed ? 'qr-pass' : qrFailed ? 'qr-fail' : ''}`}>
         {qrPassed ? (
@@ -6326,13 +6342,13 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
           <small>Tổng: {currentWeight > 0 ? formatKg(pendingTotalWeight) : '-'}</small>
         </div>
       ) : actual === '' ? '-' : <div className="weighing-inline-action confirmed"><span className="scale-current-weight">{formatScaleWeight(actual, scaleType)}</span><span className="weighing-check">✓ Đã xác nhận</span></div>}</td>
-      <td>{completed ? <span className="weighing-check">Hoàn thành</span> : weightFailed ? <span className="weighing-fail">Ngoài dung sai</span> : qrFailed ? <span className="weighing-fail">Sai QR</span> : qrPassed && !hasTolerance ? <span className="weighing-fail">Chưa có dung sai</span> : qrPassed ? <span className="weighing-check">Chờ cân</span> : active ? 'Đang thao tác' : '-'}</td>
-      <td>{active && qrPassed && !weightPassed ? (
+      <td>{completed ? <span className="weighing-check">Hoàn thành</span> : weightFailed ? <span className="weighing-fail">Ngoài dung sai</span> : qrFailed ? <span className="weighing-fail">Sai QR</span> : qrPassed && !hasTolerance ? <span className="weighing-fail">Chưa có dung sai</span> : active && qrPassed ? <span className="weighing-check">Đang cân</span> : qrPassed ? <span className="weighing-check">Chờ cân</span> : active ? 'Chờ cân' : '-'}</td>
+      {showActionColumn && <td>{active && qrPassed && !weightPassed ? (
         <div className="weighing-inline-action weighing-action-buttons">
           <button className="secondary-button" disabled={!canContinueWeighing} onClick={continueStableWeight}>Cân tiếp</button>
           <button className="primary-button" disabled={!canConfirmAccumulatedWeight} onClick={confirmStableWeight}>✓ Xác nhận</button>
         </div>
-      ) : completed ? <span className="weighing-check">Đã khóa</span> : '-'}</td>
+      ) : completed ? <span className="weighing-check">Đã khóa</span> : '-'}</td>}
     </tr>
   )
 }
