@@ -5096,11 +5096,15 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
         <div><span>Đọc dữ liệu</span><strong>{scaleSession.isReadingScale ? 'Đang đọc liên tục' : 'Chưa đọc'}</strong></div>
         <div className="scale-weight-display"><span className="scale-weight-title">Khối lượng cân</span><strong className="scale-weight-value">{formatScaleWeight(scaleSession.scaleWeightKg, `chemical-${board.key}`)}</strong></div>
         <div className="chemical-scale-inline-actions">
-          {activeAction?.canContinueWeighing && <button className="secondary-button" type="button" onClick={() => activeAction.continueStableWeight?.()}>Cân tiếp</button>}
-          {activeAction?.canConfirmAccumulatedWeight && <button className="primary-button" type="button" onClick={() => activeAction.confirmStableWeight?.()}>✓ Xác nhận</button>}
-          {!activeAction?.canContinueWeighing && !activeAction?.canConfirmAccumulatedWeight && (
-            <span className={activeAction?.totalAboveTolerance ? 'weighing-fail' : 'muted-text'}>{activeAction?.weighingDisplayStatus || 'Chờ quét QR'}</span>
-          )}
+          <ScaleActionButton
+            qrMatched={Boolean(activeAction?.qrMatched)}
+            currentWeight={activeAction?.currentWeight ?? 0}
+            accumulatedWeight={activeAction?.accumulatedWeight ?? 0}
+            requiredWeight={activeAction?.requiredWeight ?? board.activeItem?.requiredWeight ?? board.activeItem?.requiredKg ?? 0}
+            tolerance={activeAction?.hasTolerance ? activeAction.toleranceKg : ''}
+            onContinueWeighing={() => activeAction?.continueStableWeight?.()}
+            onConfirmWeighing={() => activeAction?.confirmStableWeight?.()}
+          />
         </div>
         {debugMode && <div className="scale-stability-settings">
           <span>Cài đặt ổn định</span>
@@ -6088,6 +6092,25 @@ function WeighingOrderGroup({ title, orders, activeId, onStart, showStart = fals
   )
 }
 
+function ScaleActionButton({ qrMatched = false, currentWeight = 0, accumulatedWeight = 0, requiredWeight = 0, tolerance = 0, onContinueWeighing, onConfirmWeighing }) {
+  const current = num(currentWeight)
+  const accumulated = num(accumulatedWeight)
+  const required = num(requiredWeight)
+  const hasTolerance = tolerance !== '' && tolerance !== null && tolerance !== undefined && Number.isFinite(Number(tolerance))
+  const toleranceKg = num(tolerance)
+  const totalWeight = Number((accumulated + current).toFixed(3))
+  const minWeight = Number((required - toleranceKg).toFixed(3))
+  const maxWeight = Number((required + toleranceKg).toFixed(3))
+
+  if (!qrMatched) return <span className="scale-action-status muted-text">Chờ quét QR</span>
+  if (!Number.isFinite(required) || required <= 0 || !hasTolerance) return <span className="scale-action-status weighing-fail">Chưa có dung sai</span>
+  if (totalWeight > maxWeight) return <span className="scale-action-status weighing-fail">Vượt dung sai</span>
+  if (totalWeight >= minWeight && totalWeight <= maxWeight) {
+    return <button className="primary-button scale-action-button" type="button" onClick={onConfirmWeighing}>✓ Xác nhận</button>
+  }
+  return <button className="secondary-button scale-action-button" type="button" onClick={onContinueWeighing}>Cân tiếp</button>
+}
+
 function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots = [], scaleType, setWarning, scaleWeightKg = null, scaleStableWeightKg = null, scaleStable = false, scaleRawData = '', scaleRawValue = null, scaleWeighedBy = '', showActionColumn = true, onActionStateChange = null }) {
   const [qrInput, setQrInput] = useState(item.qrScanned || '')
   const [qrScanError, setQrScanError] = useState('')
@@ -6108,10 +6131,10 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
   const pendingTotalWeight = Number((accumulatedWeight + num(currentWeight)).toFixed(3))
   const lowerToleranceWeight = Number((requiredWeight - num(toleranceKg)).toFixed(3))
   const upperToleranceWeight = Number((requiredWeight + num(toleranceKg)).toFixed(3))
-  const totalBelowTolerance = hasTolerance && currentWeight > 0 && pendingTotalWeight < lowerToleranceWeight
-  const totalWithinTolerance = hasTolerance && currentWeight > 0 && pendingTotalWeight >= lowerToleranceWeight && pendingTotalWeight <= upperToleranceWeight
-  const totalAboveTolerance = hasTolerance && currentWeight > 0 && pendingTotalWeight > upperToleranceWeight
-  const canUseCurrentWeight = active && qrPassed && !weightPassed && currentWeight > 0
+  const totalBelowTolerance = hasTolerance && pendingTotalWeight < lowerToleranceWeight
+  const totalWithinTolerance = hasTolerance && pendingTotalWeight >= lowerToleranceWeight && pendingTotalWeight <= upperToleranceWeight
+  const totalAboveTolerance = hasTolerance && pendingTotalWeight > upperToleranceWeight
+  const canUseCurrentWeight = active && qrPassed && !weightPassed
   const canContinueWeighing = canUseCurrentWeight && totalBelowTolerance
   const canConfirmAccumulatedWeight = canUseCurrentWeight && hasTolerance && totalWithinTolerance
   const weighingDisplayStatus = completed
@@ -6329,6 +6352,10 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       active,
       itemId: item.id,
       materialCode: item.materialCode,
+      qrMatched: qrPassed,
+      requiredWeight,
+      hasTolerance,
+      toleranceKg,
       canContinueWeighing,
       canConfirmAccumulatedWeight,
       totalAboveTolerance,
@@ -6339,7 +6366,7 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       accumulatedWeight,
       currentWeight,
     })
-  }, [active, item.id, item.materialCode, canContinueWeighing, canConfirmAccumulatedWeight, totalAboveTolerance, weighingDisplayStatus, pendingTotalWeight, accumulatedWeight, currentWeight, onActionStateChange])
+  }, [active, item.id, item.materialCode, qrPassed, requiredWeight, toleranceKg, canContinueWeighing, canConfirmAccumulatedWeight, totalAboveTolerance, weighingDisplayStatus, pendingTotalWeight, accumulatedWeight, currentWeight, onActionStateChange])
   return (
     <tr className={`${active ? 'weighing-active-row' : ''} ${completed ? 'weighing-completed-row' : ''} ${weightFailed || (qrPassed && !hasTolerance) ? 'weighing-weight-fail-row' : ''} ${qrPassed ? 'weighing-qr-pass-row' : ''} ${qrFailed ? 'weighing-qr-fail-row' : ''}`}>
       <td>{index + 1}</td>
@@ -6369,9 +6396,15 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       <td>{totalAboveTolerance || weightFailed || qrFailed || (qrPassed && !hasTolerance) ? <span className="weighing-fail">{weighingDisplayStatus}</span> : <span className="weighing-check">{weighingDisplayStatus}</span>}</td>
       {showActionColumn && <td>{active && qrPassed && !weightPassed ? (
         <div className="weighing-inline-action weighing-action-buttons">
-          {canContinueWeighing && <button className="secondary-button" onClick={continueStableWeight}>Cân tiếp</button>}
-          {canConfirmAccumulatedWeight && <button className="primary-button" onClick={confirmStableWeight}>✓ Xác nhận</button>}
-          {!canContinueWeighing && !canConfirmAccumulatedWeight && <span className={totalAboveTolerance ? 'weighing-fail' : 'muted-text'}>{weighingDisplayStatus}</span>}
+          <ScaleActionButton
+            qrMatched={qrPassed}
+            currentWeight={currentWeight}
+            accumulatedWeight={accumulatedWeight}
+            requiredWeight={requiredWeight}
+            tolerance={hasTolerance ? toleranceKg : ''}
+            onContinueWeighing={continueStableWeight}
+            onConfirmWeighing={confirmStableWeight}
+          />
         </div>
       ) : completed ? <span className="weighing-check">Đã khóa</span> : '-'}</td>}
     </tr>

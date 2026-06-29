@@ -13145,10 +13145,24 @@ body,
   gap: 8px;
   justify-content: center;
   align-items: center;
+  min-height: 34px;
+  overflow: visible;
 }
 
+.scale-action-button,
 .chemical-scale-inline-actions button {
+  display: inline-flex !important;
+  visibility: visible !important;
+  align-items: center;
+  justify-content: center;
   min-width: 92px;
+  white-space: nowrap;
+}
+
+.scale-action-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
   white-space: nowrap;
 }
 
