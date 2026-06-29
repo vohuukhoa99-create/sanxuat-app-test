@@ -12380,6 +12380,32 @@ body,
   color: #073723;
 }
 
+.weighing-required-stack {
+  display: grid;
+  gap: 2px;
+  min-width: 112px;
+}
+
+.weighing-required-stack span {
+  font-weight: 700;
+}
+
+.weighing-required-stack small,
+.weighing-inline-action small {
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.weighing-required-stack strong {
+  font-size: 0.86rem;
+}
+
+.weighing-action-buttons {
+  align-items: stretch;
+  min-width: 150px;
+}
+
 .scale-debug-panel {
   margin: 0 0 14px;
   padding: 12px;

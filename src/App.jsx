@@ -516,6 +516,34 @@ function parseScaleRollingBuffer(rollingBuffer = '', config = SCALE_SERIAL_CONFI
   }
 }
 
+function getWeighingAccumulatedWeight(item = {}) {
+  const explicit = item.accumulatedWeight ?? item.accumulatedWeightKg
+  if (explicit !== '' && explicit !== null && explicit !== undefined) return num(explicit)
+  const history = Array.isArray(item.weighingHistory) ? item.weighingHistory : []
+  return Number(history.reduce((sum, entry) => sum + num(entry.weightKg ?? entry.weight), 0).toFixed(3))
+}
+
+function buildScaleWeighingEntry({ order, item, weight, scaleType, weighedBy, action, qr }) {
+  const history = Array.isArray(item.weighingHistory) ? item.weighingHistory : []
+  const weighedAt = nowText()
+  return {
+    id: uid('SWL'),
+    orderId: order?.id || order?.orderCode || '',
+    orderCode: order?.orderCode || order?.id || '',
+    materialCode: item?.materialCode || '',
+    weighingNo: history.length + 1,
+    weightKg: Number(num(weight).toFixed(3)),
+    weight: Number(num(weight).toFixed(3)),
+    weighedBy: weighedBy || '',
+    scaleType: scaleType || '',
+    scaleUsed: scaleType || '',
+    weighedAt,
+    time: weighedAt,
+    qr: qr || item?.qrScanned || item?.rawMaterialQr || '',
+    action,
+  }
+}
+
 function getScaleToleranceKg(scaleType = '') {
   const normalized = normalizeText(scaleType)
   if (normalized.includes('tin') || normalized.includes('mau')) return 0.001
@@ -5096,7 +5124,7 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
       </section>}
       <SimpleTable
         tableClassName="chemical-weighing-table"
-        headers={['STT', 'Mã vật tư', 'KL cần cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái']}
+        headers={['STT', 'Mã vật tư', 'KL cần cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái', 'Thao tác']}
         rows={boardItems.map((item, index) => (
           <WeighingRow key={`${activeOrder?.id || 'order'}-${boardKey}-${item.id || item.materialCode || index}`} order={activeOrder} item={item} index={index} active={item.id === board.activeItem?.id} updateWeight={updateWeight} rawMaterialLots={rawMaterialLots} materialCatalog={materialCatalog} weighingTools={weighingTools} scaleType={`chemical-${boardKey}`} setWarning={setWarning} scaleWeightKg={scaleSession.scaleWeightKg} scaleStableWeightKg={scaleSession.scaleStableWeightKg} scaleStable={scaleSession.scaleStableWeightKg != null} scaleRawData={scaleSession.scaleRawText} scaleRawValue={scaleSession.scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
         ))}
@@ -5543,7 +5571,10 @@ function WeighingPage({ data = {}, setData, group, user }) {
     const stockTransactions = stockIssue && issuedQty > 0
       ? [...(current.stockTransactions || []), { id: uid('STK'), transactionType: 'ISSUE_TO_PRODUCTION', createdAt: nowText(), operator: 'Tổ cân', ...stockIssue, quantityOut: issuedQty }]
       : (current.stockTransactions || [])
-    return addLogToData({ ...current, rawMaterials: nextRawMaterials, stockTransactions, orders: current.orders.map((currentOrder) => {
+    const scaleWeighingLogs = patch.lastWeighingEntry
+      ? [...(current.scaleWeighingLogs || []), patch.lastWeighingEntry]
+      : (current.scaleWeighingLogs || [])
+    return addLogToData({ ...current, rawMaterials: nextRawMaterials, stockTransactions, scaleWeighingLogs, orders: current.orders.map((currentOrder) => {
       if (currentOrder.id !== order.id) return currentOrder
       if (currentOrder.stage === 'supplement-weighing') {
         const updateTickets = (tickets = []) => tickets.map((ticket) => ticket.id === item.ticketId ? { ...ticket, items: getTicketItems(ticket).map((row) => row.id === item.id ? { ...row, ...patch } : row) } : ticket)
@@ -5834,7 +5865,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
                 <strong>{progress}%</strong>
               </div>}
               {group !== CHEMICAL && (
-                <SimpleTable headers={['STT', 'Mã vật tư', 'KL cần cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái']} rows={activeItems.map((item, index) => (
+                <SimpleTable headers={['STT', 'Mã vật tư', 'KL cần cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái', 'Thao tác']} rows={activeItems.map((item, index) => (
                   <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} materialCatalog={materialCatalog} weighingTools={weighingTools} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
                 ))} empty={`Không có vật tư nhóm ${group}.`} />
               )}
@@ -6060,14 +6091,24 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
   const hasTolerance = hasFormulaTolerance(item)
   const toleranceKg = hasTolerance ? Number(item.toleranceKg ?? item.tolerance) : ''
   const actual = item.actualWeight === '' || item.actualWeight == null ? '' : num(item.actualWeight)
+  const requiredWeight = num(item.requiredWeight ?? item.requiredKg)
+  const accumulatedWeight = getWeighingAccumulatedWeight(item)
   const currentScaleWeightKg = scaleWeightKg == null ? null : num(scaleWeightKg)
   const stableScaleWeightKg = scaleStableWeightKg == null ? null : num(scaleStableWeightKg)
+  const currentWeight = stableScaleWeightKg == null ? num(item.currentWeight || 0) : stableScaleWeightKg
+  const pendingTotalWeight = Number((accumulatedWeight + num(currentWeight)).toFixed(3))
+  const totalWithinTolerance = hasTolerance && currentWeight > 0 && Math.abs(pendingTotalWeight - requiredWeight) <= toleranceKg
+  const canUseStableWeight = active && qrPassed && !weightPassed && scaleStable && stableScaleWeightKg != null && stableScaleWeightKg > 0
+  const canContinueWeighing = canUseStableWeight && hasTolerance && !totalWithinTolerance
+  const canConfirmAccumulatedWeight = canUseStableWeight && hasTolerance && totalWithinTolerance
   const selectedLot = rawMaterialLots.find((lot) => lot.lotCode === item.rawMaterialLotCode && lot.materialCode === item.materialCode)
   const remainingBefore = item.rawMaterialRemainingBefore ?? selectedLot?.remainingQty
   const materialStockQty = rawMaterialLots
     .filter((lot) => normalizeCode(lot.materialCode) === normalizeCode(item.materialCode))
     .reduce((sum, lot) => sum + num(lot.remainingQty), 0)
-  const stockDisplay = remainingBefore ?? (materialStockQty ? materialStockQty : '')
+  const stockDisplay = active && !weightPassed
+    ? (selectedLot?.remainingQty ?? remainingBefore ?? (materialStockQty ? materialStockQty : ''))
+    : (remainingBefore ?? (materialStockQty ? materialStockQty : ''))
   const confirmQr = (nextInput = qrInput) => {
     if (!active) return
     const scanned = String(nextInput || '').trim()
@@ -6109,25 +6150,26 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
   const handleQrScanBlur = (event) => {
     if (event.currentTarget.value.trim()) confirmQr(event.currentTarget.value)
   }
-  const confirmWeight = (scaleWeight = null) => {
+  const getValidatedWeighingContext = (scaleWeight = null) => {
     if (!active || weightPassed) return
     if (!qrPassed || (!item.rawMaterialLotCode && !item.materialQrOnly)) {
       setWarning?.('Vui lòng quét QR lô nguyên liệu hợp lệ trước khi cân.')
-      return
+      return null
     }
     if (scaleWeight == null) {
       setWarning?.('Vui lòng chờ trọng lượng ổn định trước khi xác nhận cân.')
-      return
+      return null
     }
     const actualWeight = num(scaleWeight)
     if (actualWeight <= 0) {
       setWarning?.('Khối lượng cân phải lớn hơn 0.')
-      return
+      return null
     }
     if (!hasTolerance) {
       setWarning?.('Chưa có dung sai')
-      return
+      return null
     }
+    const totalWeight = Number((accumulatedWeight + actualWeight).toFixed(3))
     const lot = rawMaterialLots.find((row) => row.lotCode === item.rawMaterialLotCode && row.materialCode === item.materialCode)
     const confirmedAt = nowText()
     const scaleAudit = {
@@ -6141,57 +6183,95 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       unit: 'kg',
       confirmedBy: scaleWeighedBy,
     }
+    const supplementalText = order.stage === 'supplement-weighing' ? `Cân bổ sung ${item.materialGroup === CHEMICAL ? 'hóa' : 'rắn'}` : 'Cân'
     if (item.materialQrOnly) {
-      const pass = Math.abs(actualWeight - num(item.requiredKg)) <= toleranceKg
-      const supplementalText = order.stage === 'supplement-weighing' ? `Cân bổ sung ${item.materialGroup === CHEMICAL ? 'hóa' : 'rắn'}` : 'Cân'
-      if (!pass) {
-        setWarning?.(toleranceErrorMessage(item.requiredKg, actualWeight, toleranceKg))
-        return
-      }
-      setWarning?.('')
-      updateWeight(order, item, {
-        actualWeight,
-        weighStatus: 'PASS',
-        ...scaleAudit,
-        note: item.note,
-      }, `${supplementalText} PASS ${order.id} - ${item.materialCode}.`, null)
-      return
+      return { actualWeight, totalWeight, supplementalText, scaleAudit, stockIssue: null }
     }
     if (!lot) {
       setWarning?.('Không tìm thấy lô nguyên liệu trong kho.')
-      return
+      return null
     }
     if (num(lot.remainingQty) <= 0) {
       setWarning?.('Lô nguyên liệu đã hết tồn.')
-      return
+      return null
     }
     if (num(lot.remainingQty) < actualWeight) {
       setWarning?.('Lô nguyên liệu không đủ tồn kho.')
-      return
-    }
-    const pass = Math.abs(actualWeight - num(item.requiredKg)) <= toleranceKg
-    const supplementalText = order.stage === 'supplement-weighing' ? `Cân bổ sung ${item.materialGroup === CHEMICAL ? 'hóa' : 'rắn'}` : 'Cân'
-    if (!pass) {
-      setWarning?.(toleranceErrorMessage(item.requiredKg, actualWeight, toleranceKg))
-      return
+      return null
     }
     const nextRemaining = num(lot.remainingQty) - actualWeight
+    return {
+      actualWeight,
+      totalWeight,
+      supplementalText,
+      scaleAudit,
+      lot,
+      nextRemaining,
+      stockIssue: {
+        productionOrderId: order.id,
+        materialCode: item.materialCode,
+        lotCode: lot.lotCode,
+        quantityOut: actualWeight,
+        unit: lot.unit || 'kg',
+        scaleType,
+      },
+    }
+  }
+  const continueWeighing = (scaleWeight = null) => {
+    const context = getValidatedWeighingContext(scaleWeight)
+    if (!context) return
+    if (Math.abs(context.totalWeight - requiredWeight) <= toleranceKg) {
+      setWarning?.('Khối lượng đã nằm trong dung sai. Vui lòng bấm Xác nhận.')
+      return
+    }
+    const entry = buildScaleWeighingEntry({ order, item, weight: context.actualWeight, scaleType, weighedBy: scaleWeighedBy, action: 'Cân tiếp', qr: item.qrScanned })
+    const nextHistory = [...(Array.isArray(item.weighingHistory) ? item.weighingHistory : []), entry]
     setWarning?.('')
     updateWeight(order, item, {
-      actualWeight,
-      rawMaterialRemainingBefore: num(lot.remainingQty),
-      rawMaterialRemainingAfter: nextRemaining,
-      weighStatus: 'PASS',
-      ...scaleAudit,
+      requiredWeight,
+      accumulatedWeight: context.totalWeight,
+      currentWeight: 0,
+      actualWeight: '',
+      weighingHistory: nextHistory,
+      status: 'Đang cân',
+      weighStatus: 'Chờ cân',
+      ...(context.lot ? {
+        rawMaterialRemainingBefore: num(context.lot.remainingQty),
+        rawMaterialRemainingAfter: context.nextRemaining,
+      } : {}),
+      lastWeighingAction: 'Cân tiếp',
+      lastWeighingEntry: entry,
+      ...context.scaleAudit,
       note: item.note,
-    }, `${supplementalText} PASS ${order.id} - ${item.materialCode}, lô ${lot.lotCode}.`, {
-      productionOrderId: order.id,
-      materialCode: item.materialCode,
-      lotCode: lot.lotCode,
-      quantityOut: actualWeight,
-      unit: lot.unit || 'kg',
-      scaleType,
-    })
+    }, `${context.supplementalText} cộng dồn ${order.id} - ${item.materialCode}: ${formatKg(context.totalWeight)}.`, context.stockIssue)
+  }
+  const confirmWeight = (scaleWeight = null) => {
+    const context = getValidatedWeighingContext(scaleWeight)
+    if (!context) return
+    if (Math.abs(context.totalWeight - requiredWeight) > toleranceKg) {
+      setWarning?.(toleranceErrorMessage(requiredWeight, context.totalWeight, toleranceKg))
+      return
+    }
+    const entry = buildScaleWeighingEntry({ order, item, weight: context.actualWeight, scaleType, weighedBy: scaleWeighedBy, action: 'Xác nhận', qr: item.qrScanned })
+    const nextHistory = [...(Array.isArray(item.weighingHistory) ? item.weighingHistory : []), entry]
+    setWarning?.('')
+    updateWeight(order, item, {
+      requiredWeight,
+      accumulatedWeight: context.totalWeight,
+      currentWeight: 0,
+      actualWeight: context.totalWeight,
+      weighingHistory: nextHistory,
+      status: 'Hoàn thành',
+      weighStatus: 'PASS',
+      ...(context.lot ? {
+        rawMaterialRemainingBefore: num(context.lot.remainingQty),
+        rawMaterialRemainingAfter: context.nextRemaining,
+      } : {}),
+      lastWeighingAction: 'Xác nhận',
+      lastWeighingEntry: entry,
+      ...context.scaleAudit,
+      note: item.note,
+    }, `${context.supplementalText} PASS ${order.id} - ${item.materialCode}${context.lot ? `, lô ${context.lot.lotCode}` : ''}.`, context.stockIssue)
   }
   const confirmStableWeight = () => {
     if (!scaleStable || stableScaleWeightKg == null) {
@@ -6204,11 +6284,28 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
     }
     confirmWeight(stableScaleWeightKg)
   }
+  const continueStableWeight = () => {
+    if (!scaleStable || stableScaleWeightKg == null) {
+      setWarning?.('Vui lòng chờ trọng lượng ổn định trước khi cân tiếp.')
+      return
+    }
+    if (stableScaleWeightKg <= 0) {
+      setWarning?.('Khối lượng cân phải lớn hơn 0.')
+      return
+    }
+    continueWeighing(stableScaleWeightKg)
+  }
   return (
     <tr className={`${active ? 'weighing-active-row' : ''} ${completed ? 'weighing-completed-row' : ''} ${weightFailed || (qrPassed && !hasTolerance) ? 'weighing-weight-fail-row' : ''} ${qrPassed ? 'weighing-qr-pass-row' : ''} ${qrFailed ? 'weighing-qr-fail-row' : ''}`}>
       <td>{index + 1}</td>
       <td>{item.materialCode}</td>
-      <td>{formatKg(item.requiredKg)}</td>
+      <td>
+        <div className="weighing-required-stack">
+          <span>{formatKg(requiredWeight)}</span>
+          <small>Đã cân</small>
+          <strong>{formatKg(accumulatedWeight)} / {formatKg(requiredWeight)}</strong>
+        </div>
+      </td>
       <td>{hasTolerance ? formatToleranceKg(toleranceKg) : 'Chưa có dung sai'}</td>
       <td className={`weighing-qr-cell ${qrPassed ? 'qr-pass' : qrFailed ? 'qr-fail' : ''}`}>
         {qrPassed ? (
@@ -6226,10 +6323,16 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       <td>{active && qrPassed && !weightPassed ? (
         <div className="weighing-inline-action">
           <span className="scale-current-weight">{formatScaleWeight(currentScaleWeightKg, scaleType)}</span>
-          <button className="primary-button" disabled={!scaleStable || stableScaleWeightKg == null || stableScaleWeightKg <= 0} onClick={confirmStableWeight}>✓ Xác nhận</button>
+          <small>Tổng: {currentWeight > 0 ? formatKg(pendingTotalWeight) : '-'}</small>
         </div>
       ) : actual === '' ? '-' : <div className="weighing-inline-action confirmed"><span className="scale-current-weight">{formatScaleWeight(actual, scaleType)}</span><span className="weighing-check">✓ Đã xác nhận</span></div>}</td>
-      <td>{completed ? <span className="weighing-check">Đạt</span> : weightFailed ? <span className="weighing-fail">Ngoài dung sai</span> : qrFailed ? <span className="weighing-fail">Sai QR</span> : qrPassed && !hasTolerance ? <span className="weighing-fail">Chưa có dung sai</span> : qrPassed ? <span className="weighing-check">Chờ cân</span> : active ? 'Đang thao tác' : '-'}</td>
+      <td>{completed ? <span className="weighing-check">Hoàn thành</span> : weightFailed ? <span className="weighing-fail">Ngoài dung sai</span> : qrFailed ? <span className="weighing-fail">Sai QR</span> : qrPassed && !hasTolerance ? <span className="weighing-fail">Chưa có dung sai</span> : qrPassed ? <span className="weighing-check">Chờ cân</span> : active ? 'Đang thao tác' : '-'}</td>
+      <td>{active && qrPassed && !weightPassed ? (
+        <div className="weighing-inline-action weighing-action-buttons">
+          <button className="secondary-button" disabled={!canContinueWeighing} onClick={continueStableWeight}>Cân tiếp</button>
+          <button className="primary-button" disabled={!canConfirmAccumulatedWeight} onClick={confirmStableWeight}>✓ Xác nhận</button>
+        </div>
+      ) : completed ? <span className="weighing-check">Đã khóa</span> : '-'}</td>
     </tr>
   )
 }
