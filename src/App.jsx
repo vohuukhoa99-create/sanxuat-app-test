@@ -178,7 +178,14 @@ function getChemicalWeighingGroupKey(item = {}) {
   if (scaleLine === SCALE_LINE_COLOR) return 'tin'
   return ''
 }
-const isWeighingQrMatched = (item = {}) => item.qrStatus === 'PASS' || item.qrMatchStatus === 'OK'
+const isWeighingQrMatched = (item = {}) => {
+  const materialCode = normalizeCode(item.materialCode)
+  const scannedMaterialCode = normalizeCode(item.qrScanned || item.rawMaterialQr || item.scannedCode || item.qrMaterialCode)
+  return item.qrMatched === true
+    || item.qrStatus === 'PASS'
+    || item.qrMatchStatus === 'OK'
+    || Boolean(materialCode && scannedMaterialCode && materialCode === scannedMaterialCode)
+}
 const isWeighingItemDone = (item = {}) => isWeighingQrMatched(item) && item.weighStatus === 'PASS'
 const isSameWeighingItem = (left = {}, right = {}) => {
   if (!left || !right) return false
@@ -5526,7 +5533,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
     return addLogToData({ ...current, rawMaterials: nextRawMaterials, stockTransactions, scaleWeighingLogs, orders: current.orders.map((currentOrder) => {
       if (currentOrder.id !== order.id) return currentOrder
       if (currentOrder.stage === 'supplement-weighing') {
-        const updateTickets = (tickets = []) => tickets.map((ticket) => ticket.id === item.ticketId ? { ...ticket, items: getTicketItems(ticket).map((row) => row.id === item.id ? { ...row, ...patch } : row) } : ticket)
+        const updateTickets = (tickets = []) => tickets.map((ticket) => ticket.id === item.ticketId ? { ...ticket, items: getTicketItems(ticket).map((row) => isSameWeighingItem({ ...row, ticketId: ticket.id, adjustmentId: ticket.adjustmentId }, item) ? { ...row, ...patch } : row) } : ticket)
         return {
           ...currentOrder,
           qc2SupplementTickets: updateTickets(getQc2SupplementTickets(currentOrder)),
@@ -5534,7 +5541,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
           updatedAt: nowText(),
         }
       }
-      const apply = (rows) => rows.map((row) => row.id === item.id ? { ...row, ...patch } : row)
+      const apply = (rows) => rows.map((row) => isSameWeighingItem(row, item) ? { ...row, ...patch } : row)
       const activeProductionFormula = apply(getEffectiveFormula(currentOrder))
       const nextOrder = {
         ...currentOrder,
@@ -5554,7 +5561,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
           chemical: chemicalLineState.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED ? 'Completed' : 'Active',
         },
       }
-    }), supplementalWeighing: (current.supplementalWeighing || []).map((ticket) => ticket.id === item.ticketId ? { ...ticket, items: getTicketItems(ticket).map((row) => row.id === item.id ? { ...row, ...patch } : row) } : ticket) }, log, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: assignmentStage, order, result: patch.weighStatus || patch.qrStatus || 'Cập nhật cân' }))
+    }), supplementalWeighing: (current.supplementalWeighing || []).map((ticket) => ticket.id === item.ticketId ? { ...ticket, items: getTicketItems(ticket).map((row) => isSameWeighingItem({ ...row, ticketId: ticket.id, adjustmentId: ticket.adjustmentId }, item) ? { ...row, ...patch } : row) } : ticket) }, log, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: assignmentStage, order, result: patch.weighStatus || patch.qrStatus || 'Cập nhật cân' }))
   })
 
   const finishIfReady = (order) => setData((current) => {
@@ -6060,7 +6067,7 @@ function getAccumulatedWeighingState({ active = true, qrMatched = false, weightP
   }
 }
 
-function getWeighingRowState(row = {}, currentWeight = 0, { active = true } = {}) {
+function getWeighingRowStatus(row = {}, currentWeight = 0, { active = true } = {}) {
   const qrMatched = isWeighingQrMatched(row) || row.qrMatched === true
   const weightPassed = row.weighStatus === 'PASS'
   const weightFailed = row.weighStatus === 'FAIL'
@@ -6080,39 +6087,39 @@ function getWeighingRowState(row = {}, currentWeight = 0, { active = true } = {}
   })
 
   if (qrMatched && weightPassed) {
-    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: true, statusText: 'Hoàn thành', statusTone: 'ok', actionType: 'locked', actionText: 'Đã khóa' }
+    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: true, statusText: 'Hoàn thành', statusTone: 'ok', actionType: 'LOCKED', actionText: 'Đã khóa' }
   }
   if (weightFailed || qrFailed) {
     const statusText = qrFailed ? 'Sai QR' : 'Vượt dung sai'
-    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText, statusTone: 'fail', actionType: active ? 'fail' : 'none', actionText: statusText }
+    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText, statusTone: 'fail', actionType: active ? 'OVER' : 'NONE', actionText: statusText }
   }
   if (!qrMatched) {
-    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Chờ quét QR', statusTone: 'ok', actionType: active ? 'waitingQr' : 'none', actionText: active ? 'Chờ QR' : '-' }
+    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Chờ quét QR', statusTone: 'ok', actionType: active ? 'WAIT_QR' : 'NONE', actionText: active ? 'Chờ QR' : '-' }
   }
   if (!Number.isFinite(requiredWeight) || requiredWeight <= 0 || !hasTolerance) {
-    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Chưa có dung sai', statusTone: 'fail', actionType: active ? 'missingTolerance' : 'none', actionText: active ? 'Chưa có dung sai' : '-' }
+    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Chưa có dung sai', statusTone: 'fail', actionType: active ? 'MISSING_TOLERANCE' : 'NONE', actionText: active ? 'Chưa có dung sai' : '-' }
   }
   if (weighingState.isAboveTolerance) {
-    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Vượt dung sai', statusTone: 'fail', actionType: active ? 'overTolerance' : 'none', actionText: active ? 'Vượt dung sai' : '-' }
+    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Vượt dung sai', statusTone: 'fail', actionType: active ? 'OVER' : 'NONE', actionText: active ? 'Vượt dung sai' : '-' }
   }
   if (weighingState.isWithinTolerance) {
-    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Đủ dung sai', statusTone: 'ok', actionType: active ? 'confirm' : 'none', actionText: active ? '✓ Xác nhận' : '-' }
+    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Đủ dung sai', statusTone: 'ok', actionType: active ? 'CONFIRM' : 'NONE', actionText: active ? '✓ Xác nhận' : '-' }
   }
-  return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Đang cân', statusTone: 'ok', actionType: active ? 'continue' : 'none', actionText: active ? 'Cân tiếp' : '-' }
+  return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Đang cân', statusTone: 'ok', actionType: active ? 'CONTINUE' : 'NONE', actionText: active ? 'Cân tiếp' : '-' }
 }
 
 function ScaleActionButton({ rowState, onContinueWeighing, onConfirmWeighing }) {
-  if (!rowState || rowState.actionType === 'none') return <span>-</span>
-  if (rowState.actionType === 'waitingQr') return <span className="scale-action-status muted-text">Chờ QR</span>
-  if (rowState.actionType === 'missingTolerance') return <span className="scale-action-status weighing-fail">Chưa có dung sai</span>
-  if (rowState.actionType === 'overTolerance' || rowState.actionType === 'fail') return <span className="scale-action-status weighing-fail">{rowState.actionText}</span>
-  if (rowState.actionType === 'confirm') {
+  if (!rowState || rowState.actionType === 'NONE') return <span>-</span>
+  if (rowState.actionType === 'WAIT_QR') return <span className="scale-action-status muted-text">Chờ QR</span>
+  if (rowState.actionType === 'MISSING_TOLERANCE') return <span className="scale-action-status weighing-fail">Chưa có dung sai</span>
+  if (rowState.actionType === 'OVER') return <span className="scale-action-status weighing-fail">{rowState.actionText}</span>
+  if (rowState.actionType === 'CONFIRM') {
     return <button className="scale-action-button scale-action-confirm" type="button" onClick={onConfirmWeighing}>✓ Xác nhận</button>
   }
-  if (rowState.actionType === 'continue') {
+  if (rowState.actionType === 'CONTINUE') {
     return <button className="scale-action-button scale-action-continue" type="button" onClick={onContinueWeighing}>Cân tiếp</button>
   }
-  if (rowState.actionType === 'locked') return <span className="weighing-check">Đã khóa</span>
+  if (rowState.actionType === 'LOCKED') return <span className="weighing-check">Đã khóa</span>
   return <span>-</span>
 }
 
@@ -6126,7 +6133,7 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
   const currentScaleWeightKg = scaleWeightKg == null ? null : num(scaleWeightKg)
   const stableScaleWeightKg = scaleStableWeightKg == null ? null : num(scaleStableWeightKg)
   const currentWeight = currentScaleWeightKg == null ? num(item.currentWeight || 0) : currentScaleWeightKg
-  const rowState = getWeighingRowState(item, currentWeight, { active })
+  const rowState = getWeighingRowStatus(item, currentWeight, { active })
   const qrPassed = rowState.qrMatched
   const qrFailed = Boolean(qrScanError) || rowState.qrFailed
   const weightPassed = rowState.weightPassed
