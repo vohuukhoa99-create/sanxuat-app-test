@@ -19,7 +19,6 @@ export const defaultNavItems = [
   { id: 'reports-machine-performance', label: 'Hiệu suất máy', parentId: 'reports', permission: 'reports' },
   { id: 'master-data', label: 'Dữ liệu gốc', type: 'group' },
   { id: 'master-materials', label: 'Danh mục vật tư', parentId: 'master-data', permission: 'master.material.view' },
-  { id: 'master-weighing-tools', label: 'Danh mục dụng cụ cân', parentId: 'master-data', permission: 'master.material.view' },
   { id: 'master-products', label: 'Danh mục sản phẩm', parentId: 'master-data', permission: 'master.product.view' },
   { id: 'master-suppliers', label: 'Danh mục nhà cung cấp', parentId: 'master-data', permission: 'master.supplier.view' },
   { id: 'master-customers', label: 'Danh mục khách hàng', parentId: 'master-data', permission: 'master.customer.view' },

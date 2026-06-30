@@ -22,7 +22,6 @@ const WEIGHED_CONTAINERS_KEY = 'weighedContainers'
 const PACKING_LOGS_KEY = 'packingLogs'
 const FINISHED_GOODS_KEY = 'finishedGoods'
 const MATERIAL_CATALOG_KEY = 'materialCatalog'
-const WEIGHING_TOOL_CATALOG_KEY = 'weighingToolCatalog'
 const AUTH_KEY = 'sonhoabinh-v3-auth'
 const SESSION_KEY = 'sonhoabinh-v3-session'
 const SCALE_BAUD_RATE_KEY = 'scaleSerialBaudRate'
@@ -183,22 +182,12 @@ const MATERIAL_STATUS_ACTIVE = 'Hoạt động'
 const MATERIAL_STATUS_PAUSED = 'Tạm ngưng'
 const MATERIAL_STATUS_INACTIVE = 'Ngưng sử dụng'
 const materialStatuses = [MATERIAL_STATUS_ACTIVE, MATERIAL_STATUS_PAUSED, MATERIAL_STATUS_INACTIVE]
-const WEIGHING_TOOL_STATUS_ACTIVE = 'ACTIVE'
-const WEIGHING_TOOL_STATUS_INACTIVE = 'INACTIVE'
-const WEIGHING_TOOL_APPLY = {
-  GLUE: 'KEO',
-  PASTE: 'PASTE',
-  TIN: 'TIN_MAU',
-  SOLID: 'RAN',
-}
-const defaultWeighingTools = [
-  { id: 'WT-KEO-30L', code: 'DC-KEO-30L', name: 'Xô/thùng keo 30L', type: 'Thùng', tareWeightKg: 1.62, maxLoadKg: 35, applyFor: WEIGHING_TOOL_APPLY.GLUE, status: WEIGHING_TOOL_STATUS_ACTIVE },
-  { id: 'WT-PASTE-20L', code: 'DC-PASTE-20L', name: 'Thùng Paste 20L', type: 'Thùng', tareWeightKg: 1.215, maxLoadKg: 25, applyFor: WEIGHING_TOOL_APPLY.PASTE, status: WEIGHING_TOOL_STATUS_ACTIVE },
-  { id: 'WT-TIN-2L', code: 'DC-TIN-2L', name: 'Lon Màu 2L', type: 'Lon', tareWeightKg: 0.485, maxLoadKg: 3, applyFor: WEIGHING_TOOL_APPLY.TIN, status: WEIGHING_TOOL_STATUS_ACTIVE },
-  { id: 'WT-TIN-5L', code: 'DC-TIN-5L', name: 'Lon Màu 5L', type: 'Lon', tareWeightKg: 0.732, maxLoadKg: 8, applyFor: WEIGHING_TOOL_APPLY.TIN, status: WEIGHING_TOOL_STATUS_ACTIVE },
-  { id: 'WT-RAN-KHAY', code: 'DC-RAN-KHAY', name: 'Khay/Inox cân rắn', type: 'Khay', tareWeightKg: 0.38, maxLoadKg: 10, applyFor: WEIGHING_TOOL_APPLY.SOLID, status: WEIGHING_TOOL_STATUS_ACTIVE },
-]
 const nonEmptyArray = (...items) => items.find((item) => Array.isArray(item) && item.length > 0) || []
+function stripDeprecatedScaleToolData(source = {}) {
+  const next = { ...(source || {}) }
+  delete next[['weighing', 'Tool', 'Catalog'].join('')]
+  return next
+}
 const nowText = () => new Date().toISOString().slice(0, 16).replace('T', ' ')
 const todayText = () => new Date().toISOString().slice(0, 10)
 const num = (value) => Number(value) || 0
@@ -897,7 +886,6 @@ function normalizeMaterialCatalogItem(item = {}) {
     materialName: String(item.materialName || item.name || item['Tên vật tư'] || item['Ten vat tu'] || item['Tên VT'] || item['Ten VT'] || materialCode).trim(),
     unit: String(item.unit || item['Đơn vị tính'] || item['Don vi tinh'] || item['Đơn vị'] || item['Don vi'] || 'kg').trim(),
     manufacturer: String(item.manufacturer || item.maker || item.supplier || getCatalogCell(item, ['Nhà sản xuất', 'Nha san xuat']) || '').trim(),
-    defaultWeighingToolCode: String(item.defaultWeighingToolCode || item.defaultWeighingTool || item.weighingToolCode || getCatalogCell(item, ['Dụng cụ cân', 'Dung cu can', 'Dụng cụ cân mặc định', 'Dung cu can mac dinh']) || '').trim(),
     mainGroup,
     subclassification,
     materialGroup,
@@ -924,47 +912,6 @@ function normalizeMaterialCatalog(items = []) {
   return Array.from(byCode.values()).sort((a, b) => a.materialCode.localeCompare(b.materialCode, 'vi', { numeric: true }))
 }
 const activeMaterialCatalog = (items = []) => normalizeMaterialCatalog(items).filter((item) => item.status === MATERIAL_STATUS_ACTIVE)
-function getWeighingToolApplyForItem(item = {}) {
-  if (normalizeMainGroup(item.mainGroup || item.materialGroup || item.group || '') === MAIN_GROUP_SOLID) return WEIGHING_TOOL_APPLY.SOLID
-  const groupKey = getChemicalWeighingGroupKey(item)
-  if (groupKey === 'paste') return WEIGHING_TOOL_APPLY.PASTE
-  if (groupKey === 'tin') return WEIGHING_TOOL_APPLY.TIN
-  if (groupKey === 'glue') return WEIGHING_TOOL_APPLY.GLUE
-  return ''
-}
-function defaultWeighingToolCodeForItem(item = {}) {
-  const applyFor = getWeighingToolApplyForItem(item)
-  if (applyFor === WEIGHING_TOOL_APPLY.PASTE) return 'DC-PASTE-20L'
-  if (applyFor === WEIGHING_TOOL_APPLY.TIN) return 'DC-TIN-2L'
-  if (applyFor === WEIGHING_TOOL_APPLY.SOLID) return 'DC-RAN-KHAY'
-  if (applyFor === WEIGHING_TOOL_APPLY.GLUE) return 'DC-KEO-30L'
-  return ''
-}
-function normalizeWeighingToolCatalog(items = []) {
-  const byCode = new Map()
-  ;[...defaultWeighingTools, ...(items || [])].forEach((item) => {
-    const code = String(item.code || item.toolCode || '').trim()
-    if (!code) return
-    byCode.set(code.toUpperCase(), {
-      id: item.id || `WT-${code}`,
-      code,
-      name: String(item.name || item.toolName || code).trim(),
-      type: String(item.type || '').trim(),
-      tareWeightKg: Number(num(item.tareWeightKg).toFixed(3)),
-      maxLoadKg: Number(num(item.maxLoadKg).toFixed(3)),
-      applyFor: String(item.applyFor || '').trim().toUpperCase(),
-      status: item.status === WEIGHING_TOOL_STATUS_INACTIVE ? WEIGHING_TOOL_STATUS_INACTIVE : WEIGHING_TOOL_STATUS_ACTIVE,
-    })
-  })
-  return Array.from(byCode.values()).sort((a, b) => a.code.localeCompare(b.code, 'vi', { numeric: true }))
-}
-const activeWeighingTools = (items = []) => normalizeWeighingToolCatalog(items).filter((item) => item.status === WEIGHING_TOOL_STATUS_ACTIVE)
-function applyDefaultWeighingToolToMaterials(items = []) {
-  return normalizeMaterialCatalog(items).map((item) => ({
-    ...item,
-    defaultWeighingToolCode: item.defaultWeighingToolCode || defaultWeighingToolCodeForItem(item),
-  }))
-}
 const materialHasUsage = (data = {}, materialCode = '') => {
   const code = String(materialCode || '').trim()
   if (!code) return false
@@ -992,11 +939,11 @@ const materialHasUsage = (data = {}, materialCode = '') => {
 function deriveMaterialCatalog(data = {}) {
   const fromFormulas = (data.formulas || []).flatMap((formula) => formula.items || [])
   const fromRawMaterials = normalizeRawMaterialLots(data.rawMaterials || [])
-  return applyDefaultWeighingToolToMaterials([...fromFormulas, ...fromRawMaterials, ...(data.materialCatalog || [])])
+  return normalizeMaterialCatalog([...fromFormulas, ...fromRawMaterials, ...(data.materialCatalog || [])])
 }
 
 function mergeMaterialCatalog(current = [], incoming = []) {
-  return applyDefaultWeighingToolToMaterials([...current, ...incoming])
+  return normalizeMaterialCatalog([...current, ...incoming])
 }
 
 function buildMaterialCatalogByCode(items = []) {
@@ -1027,7 +974,6 @@ function enrichItemFromMaterialCatalog(item = {}, materialCatalogByCode = new Ma
     subclassification,
     materialGroup,
     chemicalSubGroup: subclassification,
-    defaultWeighingToolCode: material?.defaultWeighingToolCode || item.defaultWeighingToolCode || '',
     defaultScaleLine,
     catalogMaterialMissing,
     chemicalSubGroupMissing,
@@ -1047,7 +993,6 @@ function logMaterialLookupPipeline(order = {}, sourceItems = [], materialCatalog
       failReason: material ? '' : 'Không tìm thấy materialCode trong Danh mục vật tư',
       mainGroup: enriched.mainGroup || '',
       subclassification: enriched.subclassification || '',
-      defaultWeighingToolCode: enriched.defaultWeighingToolCode || '',
       defaultScaleLine: enriched.defaultScaleLine || '',
       line: getChemicalWeighingGroupKey(enriched) || (enriched.defaultScaleLine === SCALE_LINE_SOLID ? 'solid' : ''),
     }
@@ -1541,7 +1486,6 @@ const initialData = {
   qc2AdjustmentTickets: [],
   supplementalWeighing: [],
   weighedContainers: [],
-  weighingToolCatalog: defaultWeighingTools,
   stockTransactions: [],
   packingLogs: [],
   finishedGoods: [],
@@ -2290,11 +2234,6 @@ function buildWeighedContainer(order, group, items, containers = [], weighingTyp
     chemicalSubGroup: normalizeChemicalSubGroup(item.chemicalSubGroup, item.materialGroup),
     requiredKg: num(item.requiredKg),
     actualWeight: num(item.actualWeight || item.requiredKg),
-    weighingToolCode: item.weighingToolCode || '',
-    weighingToolName: item.weighingToolName || '',
-    tareWeightKg: num(item.tareWeightKg),
-    grossWeightKg: item.grossWeightKg == null ? '' : num(item.grossWeightKg),
-    netWeightKg: item.netWeightKg == null ? num(item.actualWeight || item.requiredKg) : num(item.netWeightKg),
     qrScanned: item.qrScanned || '',
     qrStatus: item.qrStatus || '',
     qrMatchStatus: item.qrMatchStatus || '',
@@ -3233,10 +3172,6 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
     const subgroup = normalizeChemicalSubGroup(material?.subclassification || material?.chemicalSubGroup, material?.mainGroup || material?.materialGroup)
     return subgroup ? displayChemicalSubGroup(subgroup) : '-'
   }
-  const formulaItemWeighingToolText = (item = {}) => {
-    const material = materialCatalogInfoForFormulaItem(item)
-    return material?.defaultWeighingToolCode || '-'
-  }
   const versions = (data.formulaVersions || []).filter((version) => version.formulaId === selectedId)
   const approvedVersions = versions.filter((version) => version.status === 'Đã duyệt')
   const latestApproved = approvedVersions.at(-1)
@@ -3818,7 +3753,7 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
           <label>Người lập<input readOnly value={selected.createdBy || ''} /></label>
         </div>
         {!canSecureViewFormula && <div className="process-alert">Bạn có quyền xem công thức, nhưng chưa có quyền formula.secure.view nên tỷ lệ phần trăm được ẩn.</div>}
-        <SimpleTable tableClassName="formula-detail-table" headers={['STT', 'Mã vật tư', 'Nhóm', 'Phân nhóm', 'Tỷ lệ %', 'Dung sai', 'Dụng cụ cân', 'Ghi chú']} rows={(selected.items || []).map((item, index) => (
+        <SimpleTable tableClassName="formula-detail-table" headers={['STT', 'Mã vật tư', 'Nhóm', 'Phân nhóm', 'Tỷ lệ %', 'Dung sai', 'Ghi chú']} rows={(selected.items || []).map((item, index) => (
           <tr key={item.id}>
             <td>{index + 1}</td>
             <td>{item.materialCode}</td>
@@ -3826,7 +3761,6 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
             <td>{formulaItemSubGroupText(item)}</td>
             <td>{canSecureViewFormula ? formatPercent(item.ratioPercent) : '-'}</td>
             <td className="formula-tolerance-cell"><input value={toleranceDraft[item.id] ?? formatTolerancePercent(item.tolerancePercent)} onChange={(event) => updateToleranceDraft(item.id, event.target.value)} placeholder="2%" /></td>
-            <td>{formulaItemWeighingToolText(item)}</td>
             <td className="formula-note-cell">{item.note || '-'}</td>
           </tr>
         ))} />
@@ -5071,7 +5005,7 @@ function FinishedProductQcPage({ data, setData, user }) {
   )
 }
 
-function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, rawMaterialLots = [], materialCatalog = [], weighingTools = [], setWarning, scaleWeighedBy }) {
+function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, rawMaterialLots = [], materialCatalog = [], setWarning, scaleWeighedBy }) {
   const boardItems = Array.isArray(board.items) ? board.items : []
   const boardKey = board.key || 'tin'
   const scaleProfile = SCALE_LINE_PROFILES[board.scaleLine] || getScaleProfile(`chemical-${boardKey}`)
@@ -5131,7 +5065,7 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
         tableClassName="chemical-weighing-table"
         headers={['STT', 'Mã vật tư', 'KL cần cân', 'Đã cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái', 'Thao tác']}
         rows={boardItems.map((item, index) => (
-          <WeighingRow key={`${activeOrder?.id || 'order'}-${boardKey}-${item.id || item.materialCode || index}`} order={activeOrder} item={item} index={index} active={item.id === board.activeItem?.id} updateWeight={updateWeight} rawMaterialLots={rawMaterialLots} materialCatalog={materialCatalog} weighingTools={weighingTools} scaleType={`chemical-${boardKey}`} setWarning={setWarning} scaleWeightKg={scaleSession.scaleWeightKg} scaleStableWeightKg={scaleSession.scaleStableWeightKg} scaleStable={scaleSession.scaleStableWeightKg != null} scaleRawData={scaleSession.scaleRawText} scaleRawValue={scaleSession.scaleRawValue} scaleWeighedBy={scaleWeighedBy} onActionStateChange={setScaleActionState} />
+          <WeighingRow key={`${activeOrder?.id || 'order'}-${boardKey}-${item.id || item.materialCode || index}`} order={activeOrder} item={item} index={index} active={item.id === board.activeItem?.id} updateWeight={updateWeight} rawMaterialLots={rawMaterialLots} materialCatalog={materialCatalog} scaleType={`chemical-${boardKey}`} setWarning={setWarning} scaleWeightKg={scaleSession.scaleWeightKg} scaleStableWeightKg={scaleSession.scaleStableWeightKg} scaleStable={scaleSession.scaleStableWeightKg != null} scaleRawData={scaleSession.scaleRawText} scaleRawValue={scaleSession.scaleRawValue} scaleWeighedBy={scaleWeighedBy} onActionStateChange={setScaleActionState} />
         ))}
         empty="Không có vật tư cần cân cho line này"
       />
@@ -5303,7 +5237,6 @@ function WeighingPage({ data = {}, setData, group, user }) {
   const activeWeighingType = activeOrder?.stage === 'supplement-weighing' ? 'Cân bổ sung QC thành phẩm' : 'Cân chính'
   const activeContainers = activeOrder ? getOrderGroupContainers(data.weighedContainers || [], activeOrder, activeWeighingType).filter((item) => item.materialGroup === group) : []
   const completedWeighingContainers = normalizeWeighedContainers(data.weighedContainers || []).filter((item) => item.materialGroup === group).reverse()
-  const weighingTools = activeWeighingTools(data.weighingToolCatalog || [])
   const latestContainer = completedWeighingContainers[0]
   const assignmentStage = group === CHEMICAL ? 'Cân hóa' : 'Cân rắn'
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], assignmentStage)
@@ -5766,7 +5699,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
   const pasteBoard = chemicalBoardByKey.paste
   const colorBoard = chemicalBoardByKey.tin
   const renderChemicalBoard = (board) => board ? (
-    <ChemicalWeighingGroupBoard key={board.key} board={board} activeOrder={activeOrder} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} materialCatalog={materialCatalog} weighingTools={weighingTools} setWarning={setWarning} scaleWeighedBy={scaleWeighedBy} />
+    <ChemicalWeighingGroupBoard key={board.key} board={board} activeOrder={activeOrder} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} materialCatalog={materialCatalog} setWarning={setWarning} scaleWeighedBy={scaleWeighedBy} />
   ) : null
 
   return (
@@ -5871,7 +5804,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
               </div>}
               {group !== CHEMICAL && (
                 <SimpleTable headers={['STT', 'Mã vật tư', 'KL cần cân', 'Đã cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái', 'Thao tác']} rows={activeItems.map((item, index) => (
-                  <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} materialCatalog={materialCatalog} weighingTools={weighingTools} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
+                  <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} materialCatalog={materialCatalog} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
                 ))} empty={`Không có vật tư nhóm ${group}.`} />
               )}
               {showWeighedContainerQrSections && activeContainers.map((container) => <WeighedContainerCard key={container.containerId} container={container} onPrint={handlePrintQr} onDetail={handleViewWeighingDetail} />)}
@@ -9739,11 +9672,7 @@ function LegacyProductionAssignmentPage({ data, setData, user, permissions = [] 
 }
 
 function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, permissions = [], permissionKey, user }) {
-  const sourceRows = useMemo(() => (
-    storageKey === 'weighingToolCatalog'
-      ? normalizeWeighingToolCatalog(data[storageKey] || [])
-      : (data[storageKey] || [])
-  ), [data, storageKey])
+  const sourceRows = useMemo(() => data[storageKey] || [], [data, storageKey])
   const [draftRows, setDraftRows] = useState(sourceRows)
   const [dirtyRowIds, setDirtyRowIds] = useState(new Set())
   const rows = draftRows
@@ -9760,22 +9689,18 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   const [materialImportFile, setMaterialImportFile] = useState(null)
   const [materialImportBackup, setMaterialImportBackup] = useState(null)
   const isMaterialCatalog = storageKey === 'materialCatalog'
-  const isWeighingToolCatalog = storageKey === 'weighingToolCatalog'
   const isCustomerCatalog = storageKey === 'customerCatalog'
   const catalogClassName = storageKey.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
   const tableWrapperClassName = [
     'table-wrapper',
     `${catalogClassName}-table-wrapper`,
-    isWeighingToolCatalog ? 'weighing-tool-table-wrapper' : '',
   ].filter(Boolean).join(' ')
   const tableClassName = [
     'admin-wide-table',
     `${catalogClassName}-table`,
     isMaterialCatalog ? 'material-catalog-table' : '',
-    isWeighingToolCatalog ? 'weighing-tool-catalog-table' : '',
     isCustomerCatalog ? 'customer-catalog-table' : '',
   ].filter(Boolean).join(' ')
-  const weighingToolOptions = activeWeighingTools(data.weighingToolCatalog || [])
   const canImportMaterialCatalog = isMaterialCatalog && (canCreate || canEdit)
   useEffect(() => {
     setDraftRows(sourceRows.map((row) => ({ ...row })))
@@ -9821,7 +9746,6 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
     'Don vi': row.unit || 'kg',
     classification: normalizeMainGroup(row.mainGroup || row.materialGroup || ''),
     'sub-classification': normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, row.mainGroup || row.materialGroup) || 'null',
-    'Dung cu can': row.defaultWeighingToolCode || '',
     'Dung sai mac dinh': row.defaultTolerance || '',
     'Ton kho': row.stockQty ?? '',
     'Trang thai': row.status || MATERIAL_STATUS_ACTIVE,
@@ -9868,7 +9792,6 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
               unit: row.unit || getCatalogCell(row, ['Don vi', 'Đơn vị', 'Don vi tinh', 'Đơn vị tính']) || 'kg',
               mainGroup: importedGroup,
               subclassification: importedSubGroup,
-              defaultWeighingToolCode: row.defaultWeighingToolCode || row.defaultWeighingTool || row.weighingToolCode || getCatalogCell(row, ['Dung cu can', 'Dụng cụ cân', 'Dung cu can mac dinh', 'Dụng cụ cân mặc định']) || '',
               defaultTolerance: row.defaultTolerance || row.defaultToleranceKg || row.tolerance || row.toleranceKg || getCatalogCell(row, ['Dung sai mac dinh', 'Dung sai mặc định', 'Dung sai']) || '',
               stockQty: row.stockQty ?? row.inventoryQty ?? row.stock ?? getCatalogCell(row, ['Ton kho', 'Tồn kho']) ?? '',
               status: row.status || getCatalogCell(row, ['Trang thai', 'Trạng thái']) || MATERIAL_STATUS_ACTIVE,
@@ -9937,12 +9860,6 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
       next.chemicalSubGroup = ''
       next.unit = next.unit || 'kg'
     }
-    if (isWeighingToolCatalog) {
-      next.status = WEIGHING_TOOL_STATUS_ACTIVE
-      next.applyFor = WEIGHING_TOOL_APPLY.GLUE
-      next.tareWeightKg = 0
-      next.maxLoadKg = 0
-    }
     setDraftRows((currentRows) => [next, ...(currentRows || [])])
     markRowDirty(next.id)
   }
@@ -9963,7 +9880,6 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   }
   const normalizeDraftRowsForSave = () => {
     if (isMaterialCatalog) return normalizeMaterialCatalog(draftRows || [])
-    if (isWeighingToolCatalog) return normalizeWeighingToolCatalog(draftRows || [])
     return (draftRows || []).map((row) => ({ ...row }))
   }
   const saveCatalogChanges = () => {
@@ -10016,25 +9932,12 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
                         <span className={`dispatch-badge ${normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, row.mainGroup || row.materialGroup) ? 'ready' : 'waiting'}`}>
                           {displayChemicalSubGroup(normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, row.mainGroup || row.materialGroup))}
                         </span>
-                      ) : isMaterialCatalog && field === 'defaultWeighingToolCode' ? (
-                        <select value={row[field] || ''} disabled={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)}>
-                          <option value="">Tự động theo phân nhóm</option>
-                          {weighingToolOptions.map((tool) => <option key={tool.code} value={tool.code} title={tool.name}>{tool.code}</option>)}
-                        </select>
                       ) : isMaterialCatalog && field === 'status' ? (
                         <select value={normalizeMaterialCatalogItem(row)?.status || MATERIAL_STATUS_ACTIVE} disabled={!canEdit} onChange={(event) => updateMaterialStatus(row.id, event.target.value)}>
                           {materialStatuses.map((status) => <option key={status}>{status}</option>)}
                         </select>
-                      ) : isWeighingToolCatalog && field === 'status' ? (
-                        <select value={row.status || WEIGHING_TOOL_STATUS_ACTIVE} disabled={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)}>
-                          {[WEIGHING_TOOL_STATUS_ACTIVE, WEIGHING_TOOL_STATUS_INACTIVE].map((status) => <option key={status}>{status}</option>)}
-                        </select>
-                      ) : isWeighingToolCatalog && field === 'applyFor' ? (
-                        <select value={row.applyFor || WEIGHING_TOOL_APPLY.GLUE} disabled={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)}>
-                          {Object.values(WEIGHING_TOOL_APPLY).map((applyFor) => <option key={applyFor}>{applyFor}</option>)}
-                        </select>
                       ) : (
-                        <input type={['tareWeightKg', 'maxLoadKg'].includes(field) ? 'number' : 'text'} step={['tareWeightKg', 'maxLoadKg'].includes(field) ? '0.001' : undefined} value={row[field] || ''} readOnly={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)} />
+                        <input value={row[field] || ''} readOnly={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)} />
                       )}
                     </td>
                   ))}
@@ -10441,7 +10344,6 @@ const pageMeta = {
   'admin-permissions': ['Ma trận phân quyền', 'Phân quyền chi tiết theo chức năng'],
   'admin-system-logs': ['Nhật ký hệ thống', 'Truy xuất nhật ký thao tác theo người dùng, nhân viên và công đoạn'],
   'master-materials': ['Danh mục vật tư', 'Dữ liệu gốc vật tư dùng trong sản xuất'],
-  'master-weighing-tools': ['Danh mục dụng cụ cân', 'Dụng cụ cân và trọng lượng bì dùng khi cân vật tư'],
   'master-products': ['Danh mục sản phẩm', 'Dữ liệu gốc sản phẩm'],
   'master-suppliers': ['Danh mục nhà cung cấp', 'Dữ liệu gốc nhà cung cấp'],
   'master-customers': ['Danh mục khách hàng', 'Dữ liệu gốc khách hàng'],
@@ -10455,49 +10357,48 @@ function App() {
   const [data, setData] = useState(() => {
     const seed = seedData()
     const saved = loadStored(DATA_KEY, seed)
+    const savedWithoutScaleTools = stripDeprecatedScaleToolData(saved)
     const storedFormulas = loadStored(FORMULAS_KEY, null)
-    const formulas = normalizeMasterFormulas(nonEmptyArray(storedFormulas, saved.formulas, seed.formulas))
-    const productionLogs = nonEmptyArray(loadStored(PRODUCTION_LOGS_KEY, null), saved.productionLogs, saved.logs, seed.productionLogs)
-    const qc2Logs = nonEmptyArray(loadStored(QC2_LOGS_KEY, null), saved.qc2Logs)
-    const qc2AdjustmentTickets = nonEmptyArray(loadStored(QC2_ADJUSTMENTS_KEY, null), saved.qc2AdjustmentTickets, saved.qc2Adjustments)
-    const supplementalWeighing = nonEmptyArray(loadStored(SUPPLEMENTAL_WEIGHING_KEY, null), saved.supplementalWeighing)
-    const weighedContainers = normalizeWeighedContainers(nonEmptyArray(loadStored(WEIGHED_CONTAINERS_KEY, null), saved.weighedContainers))
-    const packingLogs = nonEmptyArray(loadStored(PACKING_LOGS_KEY, null), saved.packingLogs)
-    const finishedGoods = normalizeFinishedGoodsData(nonEmptyArray(loadStored(FINISHED_GOODS_KEY, null), saved.finishedGoods))
-    const weighingToolCatalog = normalizeWeighingToolCatalog(nonEmptyArray(loadStored(WEIGHING_TOOL_CATALOG_KEY, null), saved.weighingToolCatalog, seed.weighingToolCatalog))
-    const rawMaterials = normalizeRawMaterialLots(nonEmptyArray(saved.rawMaterials, seed.rawMaterials))
+    const formulas = normalizeMasterFormulas(nonEmptyArray(storedFormulas, savedWithoutScaleTools.formulas, seed.formulas))
+    const productionLogs = nonEmptyArray(loadStored(PRODUCTION_LOGS_KEY, null), savedWithoutScaleTools.productionLogs, savedWithoutScaleTools.logs, seed.productionLogs)
+    const qc2Logs = nonEmptyArray(loadStored(QC2_LOGS_KEY, null), savedWithoutScaleTools.qc2Logs)
+    const qc2AdjustmentTickets = nonEmptyArray(loadStored(QC2_ADJUSTMENTS_KEY, null), savedWithoutScaleTools.qc2AdjustmentTickets, savedWithoutScaleTools.qc2Adjustments)
+    const supplementalWeighing = nonEmptyArray(loadStored(SUPPLEMENTAL_WEIGHING_KEY, null), savedWithoutScaleTools.supplementalWeighing)
+    const weighedContainers = normalizeWeighedContainers(nonEmptyArray(loadStored(WEIGHED_CONTAINERS_KEY, null), savedWithoutScaleTools.weighedContainers))
+    const packingLogs = nonEmptyArray(loadStored(PACKING_LOGS_KEY, null), savedWithoutScaleTools.packingLogs)
+    const finishedGoods = normalizeFinishedGoodsData(nonEmptyArray(loadStored(FINISHED_GOODS_KEY, null), savedWithoutScaleTools.finishedGoods))
+    const rawMaterials = normalizeRawMaterialLots(nonEmptyArray(savedWithoutScaleTools.rawMaterials, seed.rawMaterials))
     const materialCatalog = deriveMaterialCatalog({
       formulas,
       rawMaterials,
-      materialCatalog: nonEmptyArray(loadStored(MATERIAL_CATALOG_KEY, null), saved.materialCatalog),
+      materialCatalog: nonEmptyArray(loadStored(MATERIAL_CATALOG_KEY, null), savedWithoutScaleTools.materialCatalog),
     })
     const storedOrders = loadStored(PRODUCTION_ORDERS_KEY, null)
-    const orderSource = nonEmptyArray(storedOrders, saved.productionOrders, saved.orders, seed.orders)
+    const orderSource = nonEmptyArray(storedOrders, savedWithoutScaleTools.productionOrders, savedWithoutScaleTools.orders, seed.orders)
     const orders = applyRealCustomersToDemoOrders(ensureQcDemoOrders(
       normalizeProductionOrders(orderSource, formulas),
       normalizeProductionOrders(seed.orders, formulas),
     ))
     const baseData = {
       ...seed,
-      ...saved,
+      ...savedWithoutScaleTools,
       formulas,
       orders,
-      formulaVersions: saved.formulaVersions || [],
+      formulaVersions: savedWithoutScaleTools.formulaVersions || [],
       qc2Logs,
       qc2AdjustmentTickets,
       supplementalWeighing,
       weighedContainers,
-      weighingToolCatalog,
       packingLogs,
       finishedGoods,
       rawMaterials,
       materialCatalog,
       customerCatalog: normalizeCustomerCatalog(),
-      employeeCatalog: normalizeEmployeeCatalogData(saved.employeeCatalog || productionEmployeeCatalog),
-      teamCatalog: normalizeTeamCatalogData([...(saved.teamCatalog || []), ...seed.teamCatalog]),
-      stockTransactions: saved.stockTransactions || [],
-      mixingMachines: normalizeMixingMachines(saved.mixingMachines),
-      productionAssignments: normalizeProductionAssignmentsData(saved.productionAssignments || seed.productionAssignments || []),
+      employeeCatalog: normalizeEmployeeCatalogData(savedWithoutScaleTools.employeeCatalog || productionEmployeeCatalog),
+      teamCatalog: normalizeTeamCatalogData([...(savedWithoutScaleTools.teamCatalog || []), ...seed.teamCatalog]),
+      stockTransactions: savedWithoutScaleTools.stockTransactions || [],
+      mixingMachines: normalizeMixingMachines(savedWithoutScaleTools.mixingMachines),
+      productionAssignments: normalizeProductionAssignmentsData(savedWithoutScaleTools.productionAssignments || seed.productionAssignments || []),
       productionLogs,
     }
     return weighedContainers.length ? baseData : applyDemoQrData(baseData)
@@ -10526,9 +10427,9 @@ function App() {
     localStorage.setItem(WEIGHED_CONTAINERS_KEY, JSON.stringify(normalizeWeighedContainers(data.weighedContainers || [])))
     localStorage.setItem(PACKING_LOGS_KEY, JSON.stringify(data.packingLogs || []))
     localStorage.setItem(FINISHED_GOODS_KEY, JSON.stringify(normalizeFinishedGoodsData(data.finishedGoods || [])))
-    localStorage.setItem(WEIGHING_TOOL_CATALOG_KEY, JSON.stringify(normalizeWeighingToolCatalog(data.weighingToolCatalog || [])))
     localStorage.setItem(MATERIAL_CATALOG_KEY, JSON.stringify(deriveMaterialCatalog(data)))
-    localStorage.setItem(DATA_KEY, JSON.stringify({ ...data, materialCatalog: deriveMaterialCatalog(data), rawMaterials: normalizeRawMaterialLots(data.rawMaterials || []), orders, productionOrders: orders }))
+    const dataWithoutScaleTools = stripDeprecatedScaleToolData(data)
+    localStorage.setItem(DATA_KEY, JSON.stringify({ ...dataWithoutScaleTools, materialCatalog: deriveMaterialCatalog(data), rawMaterials: normalizeRawMaterialLots(data.rawMaterials || []), orders, productionOrders: orders }))
   }, [data])
   useEffect(() => { localStorage.setItem(AUTH_KEY, JSON.stringify(authData)) }, [authData])
 
@@ -10616,8 +10517,7 @@ function App() {
     'admin-roles': <AdminPage authData={authData} setAuthData={setAuthData} section="roles" />,
     'admin-permissions': <AdminPage authData={authData} setAuthData={setAuthData} section="permissions" />,
     'admin-system-logs': <SystemLogsPage data={data} />,
-    'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'mainGroup', 'subclassification', 'unit', 'defaultWeighingToolCode']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Phân nhóm', 'Đơn vị', 'Dụng cụ cân']} data={data} setData={setData} permissions={userPermissions} user={user} />,
-    'master-weighing-tools': <MasterCatalogPage title="Danh mục dụng cụ cân" storageKey="weighingToolCatalog" permissionKey="material" fields={['code', 'name', 'type', 'tareWeightKg', 'maxLoadKg', 'applyFor', 'status']} labels={['Mã dụng cụ', 'Tên dụng cụ', 'Loại', 'Tare kg', 'Tải tối đa kg', 'Áp dụng cho', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'mainGroup', 'subclassification', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Phân nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} user={user} />,
     'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'group', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['customerCode', 'customerName', 'channelCode', 'province', 'status', 'note']} labels={['Mã khách hàng', 'Tên khách hàng', 'Nhóm khách hàng', 'Khu vực/Tỉnh thành', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
