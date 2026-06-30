@@ -178,6 +178,17 @@ function getChemicalWeighingGroupKey(item = {}) {
   if (scaleLine === SCALE_LINE_COLOR) return 'tin'
   return ''
 }
+const isWeighingQrMatched = (item = {}) => item.qrStatus === 'PASS' || item.qrMatchStatus === 'OK'
+const isWeighingItemDone = (item = {}) => isWeighingQrMatched(item) && item.weighStatus === 'PASS'
+const isSameWeighingItem = (left = {}, right = {}) => {
+  if (!left || !right) return false
+  const leftId = left.id || left.itemId
+  const rightId = right.id || right.itemId
+  if (leftId && rightId && leftId === rightId) return true
+  return normalizeCode(left.materialCode) === normalizeCode(right.materialCode)
+    && String(left.ticketId || '') === String(right.ticketId || '')
+    && String(left.adjustmentId || '') === String(right.adjustmentId || '')
+}
 const MATERIAL_STATUS_ACTIVE = 'Hoạt động'
 const MATERIAL_STATUS_PAUSED = 'Tạm ngưng'
 const MATERIAL_STATUS_INACTIVE = 'Ngưng sử dụng'
@@ -1839,7 +1850,7 @@ function getEffectiveFormula(order = {}) {
 }
 
 function isWeighedDone(item = {}) {
-  return item.qrStatus === 'PASS' && item.weighStatus === 'PASS'
+  return isWeighingItemDone(item)
 }
 
 function getChemicalSubgroupItems(order = {}, subgroupKey = '', materialCatalogByCode = null) {
@@ -5013,7 +5024,7 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
   const [scaleActionState, setScaleActionState] = useState(null)
   const scaleStabilityStatus = scaleSession.scaleStableWeightKg == null ? 'Đang dao động' : 'Đã ổn định'
   const showScaleSerialDebug = debugMode
-  const activeAction = scaleActionState?.active && scaleActionState.itemId === board.activeItem?.id ? scaleActionState : null
+  const activeAction = scaleActionState?.active && isSameWeighingItem(scaleActionState, board.activeItem) ? scaleActionState : null
   return (
     <section className="chemical-weighing-group">
       <div className="chemical-weighing-group-header">
@@ -5065,7 +5076,7 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
         tableClassName="chemical-weighing-table"
         headers={['STT', 'Mã vật tư', 'KL cần cân', 'Đã cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái', 'Thao tác']}
         rows={boardItems.map((item, index) => (
-          <WeighingRow key={`${activeOrder?.id || 'order'}-${boardKey}-${item.id || item.materialCode || index}`} order={activeOrder} item={item} index={index} active={item.id === board.activeItem?.id} updateWeight={updateWeight} rawMaterialLots={rawMaterialLots} materialCatalog={materialCatalog} scaleType={`chemical-${boardKey}`} setWarning={setWarning} scaleWeightKg={scaleSession.scaleWeightKg} scaleStableWeightKg={scaleSession.scaleStableWeightKg} scaleStable={scaleSession.scaleStableWeightKg != null} scaleRawData={scaleSession.scaleRawText} scaleRawValue={scaleSession.scaleRawValue} scaleWeighedBy={scaleWeighedBy} onActionStateChange={setScaleActionState} />
+          <WeighingRow key={`${activeOrder?.id || 'order'}-${boardKey}-${item.id || item.materialCode || index}`} order={activeOrder} item={item} index={index} active={isSameWeighingItem(item, board.activeItem)} updateWeight={updateWeight} rawMaterialLots={rawMaterialLots} materialCatalog={materialCatalog} scaleType={`chemical-${boardKey}`} setWarning={setWarning} scaleWeightKg={scaleSession.scaleWeightKg} scaleStableWeightKg={scaleSession.scaleStableWeightKg} scaleStable={scaleSession.scaleStableWeightKg != null} scaleRawData={scaleSession.scaleRawText} scaleRawValue={scaleSession.scaleRawValue} scaleWeighedBy={scaleWeighedBy} onActionStateChange={setScaleActionState} />
         ))}
         empty="Không có vật tư cần cân cho line này"
       />
@@ -5148,7 +5159,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
       .map(normalizeWeighingItemForGroup)
       .filter(itemBelongsToGroup)
   }
-  const isDone = (item) => item.qrStatus === 'PASS' && item.weighStatus === 'PASS'
+  const isDone = isWeighingItemDone
   const groupCompleted = (order) => {
     if (isSupplementOrder(order)) {
       const items = getItems(order)
@@ -5568,7 +5579,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
       if (item.id !== order.id) return item
       if (item.stage === 'supplement-weighing') {
         const tickets = getQc2SupplementTickets(item).map((ticket) => {
-          const done = getTicketItems(ticket).every((row) => row.qrStatus === 'PASS' && row.weighStatus === 'PASS')
+          const done = getTicketItems(ticket).every(isWeighingItemDone)
           return done ? { ...ticket, status: 'Completed' } : ticket
         })
         const allDone = tickets.every((ticket) => ticket.status === 'Completed')
@@ -5600,7 +5611,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
       const hasChemical = effective.some((row) => normalizeMainGroup(row.mainGroup || row.materialGroup || row.group || '') === MAIN_GROUP_CHEMICAL)
       const solidItems = effective.filter((row) => normalizeMainGroup(row.mainGroup || row.materialGroup || row.group || '') === MAIN_GROUP_SOLID)
       const chemDone = !hasChemical || chemicalLineState.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED
-      const solidDone = solidItems.length === 0 || solidItems.every((row) => row.qrStatus === 'PASS' && row.weighStatus === 'PASS')
+      const solidDone = solidItems.length === 0 || solidItems.every(isWeighingItemDone)
       const bothGroupsDone = chemDone && solidDone
       return {
         ...item,
@@ -5619,7 +5630,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
     })
     const supplementalWeighing = (current.supplementalWeighing || []).map((ticket) => {
       if (ticket.orderId !== order.id) return ticket
-      const done = getTicketItems(ticket).every((row) => row.qrStatus === 'PASS' && row.weighStatus === 'PASS')
+      const done = getTicketItems(ticket).every(isWeighingItemDone)
       return done ? { ...ticket, status: 'Completed' } : ticket
     })
     const logText = groupContainer
@@ -5804,7 +5815,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
               </div>}
               {group !== CHEMICAL && (
                 <SimpleTable headers={['STT', 'Mã vật tư', 'KL cần cân', 'Đã cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái', 'Thao tác']} rows={activeItems.map((item, index) => (
-                  <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={item.id === activeItem?.id} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} materialCatalog={materialCatalog} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
+                  <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={isSameWeighingItem(item, activeItem)} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} materialCatalog={materialCatalog} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
                 ))} empty={`Không có vật tư nhóm ${group}.`} />
               )}
               {showWeighedContainerQrSections && activeContainers.map((container) => <WeighedContainerCard key={container.containerId} container={container} onPrint={handlePrintQr} onDetail={handleViewWeighingDetail} />)}
@@ -6065,7 +6076,7 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
   const [qrInput, setQrInput] = useState(item.qrScanned || '')
   const [qrScanError, setQrScanError] = useState('')
   const qrInputRef = useRef(null)
-  const qrPassed = item.qrStatus === 'PASS'
+  const qrPassed = isWeighingQrMatched(item)
   const qrFailed = Boolean(qrScanError) || item.qrStatus === 'FAIL'
   const weightPassed = item.weighStatus === 'PASS'
   const weightFailed = item.weighStatus === 'FAIL'
