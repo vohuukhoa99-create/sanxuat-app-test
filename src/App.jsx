@@ -6060,56 +6060,87 @@ function getAccumulatedWeighingState({ active = true, qrMatched = false, weightP
   }
 }
 
-function ScaleActionButton({ qrMatched = false, currentWeight = 0, accumulatedWeight = 0, requiredWeight = 0, tolerance = 0, onContinueWeighing, onConfirmWeighing }) {
-  const weighingState = getAccumulatedWeighingState({ qrMatched, currentWeight, accumulatedWeight, requiredWeight, tolerance })
+function getWeighingRowState(row = {}, currentWeight = 0, { active = true } = {}) {
+  const qrMatched = isWeighingQrMatched(row) || row.qrMatched === true
+  const weightPassed = row.weighStatus === 'PASS'
+  const weightFailed = row.weighStatus === 'FAIL'
+  const qrFailed = row.qrStatus === 'FAIL'
+  const requiredWeight = num(row.requiredWeight ?? row.requiredKg)
+  const accumulatedWeight = getWeighingAccumulatedWeight(row)
+  const hasTolerance = hasFormulaTolerance(row)
+  const toleranceKg = hasTolerance ? Number(row.toleranceKg ?? row.tolerance) : ''
+  const weighingState = getAccumulatedWeighingState({
+    active,
+    qrMatched,
+    weightPassed,
+    currentWeight,
+    accumulatedWeight,
+    requiredWeight,
+    tolerance: toleranceKg,
+  })
 
-  if (!qrMatched) return <span className="scale-action-status muted-text">Chờ QR</span>
-  if (!Number.isFinite(weighingState.requiredWeight) || weighingState.requiredWeight <= 0 || !weighingState.hasTolerance) return <span className="scale-action-status weighing-fail">Chưa có dung sai</span>
-  if (weighingState.isAboveTolerance) return <span className="scale-action-status weighing-fail">Vượt dung sai</span>
+  if (qrMatched && weightPassed) {
+    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: true, statusText: 'Hoàn thành', statusTone: 'ok', actionType: 'locked', actionText: 'Đã khóa' }
+  }
+  if (weightFailed || qrFailed) {
+    const statusText = qrFailed ? 'Sai QR' : 'Vượt dung sai'
+    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText, statusTone: 'fail', actionType: active ? 'fail' : 'none', actionText: statusText }
+  }
+  if (!qrMatched) {
+    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Chờ quét QR', statusTone: 'ok', actionType: active ? 'waitingQr' : 'none', actionText: active ? 'Chờ QR' : '-' }
+  }
+  if (!Number.isFinite(requiredWeight) || requiredWeight <= 0 || !hasTolerance) {
+    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Chưa có dung sai', statusTone: 'fail', actionType: active ? 'missingTolerance' : 'none', actionText: active ? 'Chưa có dung sai' : '-' }
+  }
+  if (weighingState.isAboveTolerance) {
+    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Vượt dung sai', statusTone: 'fail', actionType: active ? 'overTolerance' : 'none', actionText: active ? 'Vượt dung sai' : '-' }
+  }
   if (weighingState.isWithinTolerance) {
+    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Đủ dung sai', statusTone: 'ok', actionType: active ? 'confirm' : 'none', actionText: active ? '✓ Xác nhận' : '-' }
+  }
+  return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Đang cân', statusTone: 'ok', actionType: active ? 'continue' : 'none', actionText: active ? 'Cân tiếp' : '-' }
+}
+
+function ScaleActionButton({ rowState, onContinueWeighing, onConfirmWeighing }) {
+  if (!rowState || rowState.actionType === 'none') return <span>-</span>
+  if (rowState.actionType === 'waitingQr') return <span className="scale-action-status muted-text">Chờ QR</span>
+  if (rowState.actionType === 'missingTolerance') return <span className="scale-action-status weighing-fail">Chưa có dung sai</span>
+  if (rowState.actionType === 'overTolerance' || rowState.actionType === 'fail') return <span className="scale-action-status weighing-fail">{rowState.actionText}</span>
+  if (rowState.actionType === 'confirm') {
     return <button className="scale-action-button scale-action-confirm" type="button" onClick={onConfirmWeighing}>✓ Xác nhận</button>
   }
-  return <button className="scale-action-button scale-action-continue" type="button" onClick={onContinueWeighing}>Cân tiếp</button>
+  if (rowState.actionType === 'continue') {
+    return <button className="scale-action-button scale-action-continue" type="button" onClick={onContinueWeighing}>Cân tiếp</button>
+  }
+  if (rowState.actionType === 'locked') return <span className="weighing-check">Đã khóa</span>
+  return <span>-</span>
 }
 
 function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots = [], scaleType, setWarning, scaleWeightKg = null, scaleStableWeightKg = null, scaleStable = false, scaleRawData = '', scaleRawValue = null, scaleWeighedBy = '', showActionColumn = true, onActionStateChange = null }) {
   const [qrInput, setQrInput] = useState(item.qrScanned || '')
   const [qrScanError, setQrScanError] = useState('')
   const qrInputRef = useRef(null)
-  const qrPassed = isWeighingQrMatched(item)
-  const qrFailed = Boolean(qrScanError) || item.qrStatus === 'FAIL'
-  const weightPassed = item.weighStatus === 'PASS'
-  const weightFailed = item.weighStatus === 'FAIL'
-  const completed = qrPassed && weightPassed
-  const hasTolerance = hasFormulaTolerance(item)
-  const toleranceKg = hasTolerance ? Number(item.toleranceKg ?? item.tolerance) : ''
   const actual = item.actualWeight === '' || item.actualWeight == null ? '' : num(item.actualWeight)
   const requiredWeight = num(item.requiredWeight ?? item.requiredKg)
   const accumulatedWeight = getWeighingAccumulatedWeight(item)
   const currentScaleWeightKg = scaleWeightKg == null ? null : num(scaleWeightKg)
   const stableScaleWeightKg = scaleStableWeightKg == null ? null : num(scaleStableWeightKg)
   const currentWeight = currentScaleWeightKg == null ? num(item.currentWeight || 0) : currentScaleWeightKg
-  const weighingState = getAccumulatedWeighingState({ active, qrMatched: qrPassed, weightPassed, currentWeight, accumulatedWeight, requiredWeight, tolerance: toleranceKg })
-  const pendingTotalWeight = weighingState.totalWeight
-  const lowerToleranceWeight = weighingState.minWeight
-  const upperToleranceWeight = weighingState.maxWeight
-  const totalWithinTolerance = weighingState.isWithinTolerance
-  const totalAboveTolerance = weighingState.isAboveTolerance
-  const canContinueWeighing = weighingState.canContinueWeighing
-  const canConfirmAccumulatedWeight = weighingState.canConfirmAccumulatedWeight
-  const weighingDisplayStatus = completed
-    ? 'Hoàn thành'
-    : weightFailed || totalAboveTolerance
-      ? 'Vượt dung sai'
-      : qrFailed
-        ? 'Sai QR'
-        : !qrPassed
-          ? 'Chờ quét QR'
-          : !hasTolerance
-            ? 'Chưa có dung sai'
-            : totalWithinTolerance
-              ? 'Đủ dung sai'
-              : 'Đang cân'
+  const rowState = getWeighingRowState(item, currentWeight, { active })
+  const qrPassed = rowState.qrMatched
+  const qrFailed = Boolean(qrScanError) || rowState.qrFailed
+  const weightPassed = rowState.weightPassed
+  const weightFailed = rowState.weightFailed
+  const completed = rowState.done
+  const hasTolerance = rowState.hasTolerance
+  const toleranceKg = rowState.toleranceKg
+  const pendingTotalWeight = rowState.totalWeight
+  const lowerToleranceWeight = rowState.minWeight
+  const upperToleranceWeight = rowState.maxWeight
+  const totalAboveTolerance = rowState.isAboveTolerance
+  const canContinueWeighing = rowState.canContinueWeighing
+  const canConfirmAccumulatedWeight = rowState.canConfirmAccumulatedWeight
+  const weighingDisplayStatus = rowState.statusText
   const selectedLot = rawMaterialLots.find((lot) => lot.lotCode === item.rawMaterialLotCode && lot.materialCode === item.materialCode)
   const remainingBefore = item.rawMaterialRemainingBefore ?? selectedLot?.remainingQty
   const materialStockQty = rawMaterialLots
@@ -6143,6 +6174,7 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       materialQrOnly: !!result.materialOnly,
       qrStatus: 'PASS',
       qrMatchStatus: 'OK',
+      qrMatched: true,
       note: item.note,
     }, result.materialOnly ? `QR hợp lệ ${order.id} - ${item.materialCode}.` : `QR PASS ${order.id} - ${item.materialCode}, lô ${result.lot.lotCode}.`)
   }
@@ -6352,15 +6384,11 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
           <span className="scale-current-weight">{formatScaleWeight(currentScaleWeightKg, scaleType)}</span>
         </div>
       ) : actual === '' ? '-' : <div className="weighing-inline-action confirmed"><span className="scale-current-weight">{formatScaleWeight(actual, scaleType)}</span><span className="weighing-check">✓ Đã xác nhận</span></div>}</td>
-      <td>{totalAboveTolerance || weightFailed || qrFailed || (qrPassed && !hasTolerance) ? <span className="weighing-fail">{weighingDisplayStatus}</span> : <span className="weighing-check">{weighingDisplayStatus}</span>}</td>
+      <td>{rowState.statusTone === 'fail' || qrFailed ? <span className="weighing-fail">{weighingDisplayStatus}</span> : <span className="weighing-check">{weighingDisplayStatus}</span>}</td>
       {showActionColumn && <td>{active && !weightPassed ? (
         <div className="weighing-inline-action weighing-action-buttons">
           <ScaleActionButton
-            qrMatched={qrPassed}
-            currentWeight={currentWeight}
-            accumulatedWeight={accumulatedWeight}
-            requiredWeight={requiredWeight}
-            tolerance={hasTolerance ? toleranceKg : ''}
+            rowState={rowState}
             onContinueWeighing={continueStableWeight}
             onConfirmWeighing={confirmStableWeight}
           />
