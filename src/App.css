@@ -13660,3 +13660,197 @@ body,
 .weighing-tool-table-wrapper > table.weighing-tool-catalog-table td:nth-child(7) { width: 110px !important; }
 .weighing-tool-table-wrapper > table.weighing-tool-catalog-table th:nth-child(8),
 .weighing-tool-table-wrapper > table.weighing-tool-catalog-table td:nth-child(8) { width: 80px !important; }
+
+/* Compact weighing material tables shared by chemical and solid scales. */
+.weighing-active-board > .table-wrapper:has(.solid-weighing-table),
+.chemical-weighing-group .table-wrapper:has(.chemical-weighing-table) {
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+.solid-weighing-table,
+.chemical-weighing-table {
+  width: 100% !important;
+  min-width: 0 !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+
+.solid-weighing-table th,
+.solid-weighing-table td,
+.chemical-weighing-table th,
+.chemical-weighing-table td {
+  padding: 5px 4px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+}
+
+.solid-weighing-table th,
+.chemical-weighing-table th {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  white-space: normal !important;
+  line-height: 1.15 !important;
+}
+
+.solid-weighing-table th:nth-child(1),
+.solid-weighing-table td:nth-child(1),
+.chemical-weighing-table th:nth-child(1),
+.chemical-weighing-table td:nth-child(1) { width: 40px !important; }
+
+.solid-weighing-table th:nth-child(2),
+.solid-weighing-table td:nth-child(2),
+.chemical-weighing-table th:nth-child(2),
+.chemical-weighing-table td:nth-child(2) { width: 90px !important; }
+
+.solid-weighing-table th:nth-child(3),
+.solid-weighing-table td:nth-child(3),
+.chemical-weighing-table th:nth-child(3),
+.chemical-weighing-table td:nth-child(3) { width: 95px !important; }
+
+.solid-weighing-table th:nth-child(4),
+.solid-weighing-table td:nth-child(4),
+.chemical-weighing-table th:nth-child(4),
+.chemical-weighing-table td:nth-child(4) { width: 95px !important; }
+
+.solid-weighing-table th:nth-child(5),
+.solid-weighing-table td:nth-child(5),
+.chemical-weighing-table th:nth-child(5),
+.chemical-weighing-table td:nth-child(5) { width: 85px !important; }
+
+.solid-weighing-table th:nth-child(6),
+.solid-weighing-table td:nth-child(6),
+.chemical-weighing-table th:nth-child(6),
+.chemical-weighing-table td:nth-child(6) {
+  width: 140px !important;
+  max-width: 140px !important;
+}
+
+.solid-weighing-table th:nth-child(7),
+.solid-weighing-table td:nth-child(7),
+.chemical-weighing-table th:nth-child(7),
+.chemical-weighing-table td:nth-child(7) { width: 100px !important; }
+
+.solid-weighing-table th:nth-child(8),
+.solid-weighing-table td:nth-child(8),
+.chemical-weighing-table th:nth-child(8),
+.chemical-weighing-table td:nth-child(8) { width: 90px !important; }
+
+.solid-weighing-table th:nth-child(9),
+.solid-weighing-table td:nth-child(9),
+.chemical-weighing-table th:nth-child(9),
+.chemical-weighing-table td:nth-child(9) { width: 110px !important; }
+
+.solid-weighing-table th:nth-child(10),
+.solid-weighing-table td:nth-child(10),
+.chemical-weighing-table th:nth-child(10),
+.chemical-weighing-table td:nth-child(10) { width: 100px !important; }
+
+.solid-weighing-table td:nth-child(2),
+.chemical-weighing-table td:nth-child(2) {
+  font-weight: 800 !important;
+}
+
+.solid-weighing-table td:nth-child(3),
+.solid-weighing-table td:nth-child(4),
+.solid-weighing-table td:nth-child(5),
+.solid-weighing-table td:nth-child(7),
+.solid-weighing-table td:nth-child(8),
+.chemical-weighing-table td:nth-child(3),
+.chemical-weighing-table td:nth-child(4),
+.chemical-weighing-table td:nth-child(5),
+.chemical-weighing-table td:nth-child(7),
+.chemical-weighing-table td:nth-child(8) {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+.solid-weighing-table .weighing-check,
+.solid-weighing-table .weighing-fail,
+.solid-weighing-table .scale-action-status,
+.chemical-weighing-table .weighing-check,
+.chemical-weighing-table .weighing-fail,
+.chemical-weighing-table .scale-action-status {
+  min-height: 24px !important;
+  max-width: 100% !important;
+  padding: 3px 6px !important;
+  border-radius: 999px !important;
+  font-size: 11px !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+}
+
+.solid-weighing-table .weighing-inline-action,
+.chemical-weighing-table .weighing-inline-action {
+  min-width: 0 !important;
+  width: 100% !important;
+  gap: 3px !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.solid-weighing-table .weighing-action-buttons,
+.chemical-weighing-table .weighing-action-buttons {
+  min-width: 0 !important;
+}
+
+.solid-weighing-table .scale-action-button,
+.chemical-weighing-table .scale-action-button {
+  width: auto !important;
+  min-width: 78px !important;
+  max-width: 96px !important;
+  min-height: 28px !important;
+  height: 30px !important;
+  padding: 5px 8px !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+}
+
+.solid-weighing-table .scale-current-weight,
+.chemical-weighing-table .scale-current-weight {
+  min-width: 0 !important;
+  font-size: 11px !important;
+  white-space: nowrap !important;
+}
+
+.solid-weighing-table .weighing-qr-cell,
+.chemical-weighing-table .weighing-qr-cell {
+  white-space: nowrap !important;
+}
+
+.solid-weighing-table .weighing-qr-scan,
+.chemical-weighing-table .weighing-qr-scan {
+  width: 100% !important;
+  max-width: 132px !important;
+  margin: 0 auto !important;
+  gap: 2px !important;
+}
+
+.solid-weighing-table .weighing-qr-scan input,
+.chemical-weighing-table .weighing-qr-scan input {
+  width: 100% !important;
+  min-height: 28px !important;
+  height: 28px !important;
+  padding: 4px 6px !important;
+  text-align: center !important;
+  font-size: 11px !important;
+}
+
+@media (max-width: 1100px) {
+  .weighing-active-board > .table-wrapper:has(.solid-weighing-table),
+  .chemical-weighing-group .table-wrapper:has(.chemical-weighing-table) {
+    overflow-x: auto !important;
+  }
+
+  .solid-weighing-table,
+  .chemical-weighing-table {
+    min-width: 945px !important;
+  }
+}
