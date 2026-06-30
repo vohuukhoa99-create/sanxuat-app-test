@@ -6382,7 +6382,6 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       <td>{active && qrPassed && !weightPassed ? (
         <div className="weighing-inline-action">
           <span className="scale-current-weight">{formatScaleWeight(currentScaleWeightKg, scaleType)}</span>
-          <small>Tổng: {currentWeight > 0 ? formatKg(pendingTotalWeight) : '-'}</small>
         </div>
       ) : actual === '' ? '-' : <div className="weighing-inline-action confirmed"><span className="scale-current-weight">{formatScaleWeight(actual, scaleType)}</span><span className="weighing-check">✓ Đã xác nhận</span></div>}</td>
       <td>{totalAboveTolerance || weightFailed || qrFailed || (qrPassed && !hasTolerance) ? <span className="weighing-fail">{weighingDisplayStatus}</span> : <span className="weighing-check">{weighingDisplayStatus}</span>}</td>
