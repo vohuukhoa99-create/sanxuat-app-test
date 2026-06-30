@@ -5078,7 +5078,7 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
   const scaleSession = useScaleSerialSession(scaleProfile, setWarning)
   const [scaleActionState, setScaleActionState] = useState(null)
   const scaleStabilityStatus = scaleSession.scaleStableWeightKg == null ? 'Đang dao động' : 'Đã ổn định'
-  const showScaleSerialDebug = debugMode || scaleSession.isScaleConnected || scaleSession.scaleDebugLogs.length > 0
+  const showScaleSerialDebug = debugMode
   const activeAction = scaleActionState?.active && scaleActionState.itemId === board.activeItem?.id ? scaleActionState : null
   return (
     <section className="chemical-weighing-group">
@@ -5814,19 +5814,19 @@ function WeighingPage({ data = {}, setData, group, user }) {
           {group !== CHEMICAL && <div className="scale-serial-panel">
             <div><span>Trạng thái cân</span><strong>{scaleStatus}</strong></div>
             {debugMode && <div><span>COM Port</span><strong>{scalePortLabel}</strong></div>}
-            <label className="scale-baud-select">
+            {debugMode && <label className="scale-baud-select">
               <span>BaudRate</span>
               <select value={scaleBaudRate} onChange={handleScaleBaudRateChange}>
                 {SCALE_BAUD_RATES.map((rate) => <option key={rate} value={rate}>{rate}</option>)}
               </select>
-            </label>
+            </label>}
             <div className="scale-weight-display"><span className="scale-weight-title">Khối lượng cân</span><strong className="scale-weight-value">{formatScaleWeight(scaleWeightKg, scaleKey)}</strong></div>
-            <div className="scale-stability-settings">
+            {debugMode && <div className="scale-stability-settings">
               <span>Cài đặt ổn định</span>
               <label>Số mẫu ổn định<input type="number" min="1" max="20" step="1" value={scaleStableSampleCount} onChange={handleStableSampleCountChange} /></label>
               <label>Sai số cho phép<div className="scale-tolerance-input"><input type="number" min="0" step="0.001" value={scaleToleranceKg} onChange={handleScaleToleranceChange} /><strong>{formatKg(scaleToleranceKg)}</strong></div></label>
               <em>{scaleStabilityStatus} ({scaleStableReadings.length}/{scaleStableSampleCount})</em>
-            </div>
+            </div>}
             {debugMode && <div><span>Serial Config</span><strong>{scaleBaudRate} baud, 8 data bits, parity none, 1 stop bit, flow none; decimalPlaces={SCALE_SERIAL_CONFIG.decimalPlaces}; sourceUnit={SCALE_SERIAL_CONFIG.sourceUnit}; multiplier={SCALE_SERIAL_CONFIG.multiplier}; reverseFrame={String(SCALE_SERIAL_CONFIG.reverseFrame)}</strong></div>}
             {debugMode && <div><span>rawFrame</span><strong>{scaleFrameDebug.rawFrame || '-'}</strong></div>}
             {debugMode && <div><span>reversedFrame</span><strong>{scaleFrameDebug.reversedFrame || '-'}</strong></div>}
