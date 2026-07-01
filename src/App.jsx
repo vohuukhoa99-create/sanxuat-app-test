@@ -487,6 +487,24 @@ const uniqueProductFormulaVersions = (versions = []) => {
     return true
   })
 }
+const productFormulaSignature = (items = []) => JSON.stringify((items || []).map((item, index) => {
+  const normalized = normalizeProductFormulaItem(item, index)
+  return {
+    materialCode: normalizeCode(normalized.materialCode),
+    materialGroup: normalized.materialGroup || '',
+    subclassification: normalized.subclassification || normalized.chemicalSubGroup || '',
+    ratioPercent: Number(normalized.ratioPercent || 0),
+    tolerancePercent: Number(normalized.tolerancePercent || 0),
+  }
+}))
+const nextProductFormulaVersion = (currentVersion = 'V1.0', versions = []) => {
+  const versionNumbers = [currentVersion, ...(versions || []).map((item) => item.formulaVersion || item.version)]
+    .map((value) => String(value || '').match(/V?(\d+)(?:\.(\d+))?/i))
+    .filter(Boolean)
+    .map((match) => ({ major: Number(match[1] || 1), minor: Number(match[2] || 0) }))
+  const latest = versionNumbers.sort((a, b) => (b.major - a.major) || (b.minor - a.minor))[0] || { major: 1, minor: 0 }
+  return `V${latest.major}.${latest.minor + 1}`
+}
 const formulaToProductVersion = (formula = {}) => {
   const productCode = productCodeFromFormula(formula)
   const version = String(formula.currentVersion || formula.version || 'V1.0').trim() || 'V1.0'
@@ -10138,10 +10156,13 @@ function LegacyProductionAssignmentPage({ data, setData, user, permissions = [] 
 function ProductMasterPage({ data, setData, permissions = [] }) {
   const products = buildProductMasterCatalog(data.productCatalog || [], data.formulas || [], data.formulaVersions || [])
   const materialCatalogByCode = useMemo(() => buildMaterialCatalogByCode(getOfficialMaterialCatalog(data)), [data.materialCatalog, data.rawMaterials, data.formulas])
+  const importFormulaRef = useRef(null)
   const [detailCode, setDetailCode] = useState('')
   const [detailTab, setDetailTab] = useState('info')
+  const [notice, setNotice] = useState('')
   const selectedProduct = products.find((product) => product.productCode === detailCode) || null
   const productFormulaItems = selectedProduct?.formulaItems || []
+  const canImportProduct = hasPermission(permissions, 'master.product.create') || hasPermission(permissions, 'master.product.edit')
   const openDetail = (product, tab = 'info') => {
     setDetailCode(product.productCode)
     setDetailTab(tab)
@@ -10158,12 +10179,155 @@ function ProductMasterPage({ data, setData, permissions = [] }) {
       return addLogToData({ ...current, productCatalog: nextProducts }, `Cập nhật sản phẩm ${nextProduct.productCode}.`)
     })
   }
+  const downloadFormulaTemplate = () => {
+    const rows = [
+      {
+        'Mã sản phẩm': 'SP-DEMO',
+        'Tên sản phẩm': 'Sản phẩm demo',
+        'Nhóm sản phẩm': 'Sơn đá',
+        'Đơn vị': 'kg',
+        Version: 'V1.0',
+        'Ngày hiệu lực': todayText(),
+        'Mã vật tư': 'VT-001',
+        'Tên vật tư': 'Vật tư demo',
+        'Nhóm vật tư': CHEMICAL,
+        'Phân nhóm': '',
+        'Tỷ lệ %': 50,
+        'Dung sai %': 1,
+        'Ghi chú': '',
+      },
+    ]
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(rows), 'Cong thuc san pham')
+    XLSX.writeFile(book, 'mau-cong-thuc-san-pham.xlsx')
+  }
+  const exportProductCatalog = () => {
+    const rows = products.map((product) => ({
+      'Mã sản phẩm': product.productCode,
+      'Tên sản phẩm': product.productName || product.name,
+      'Nhóm sản phẩm': displayProductGroup(product.productGroup),
+      'Đơn vị': product.unit || 'kg',
+      'Version hiện hành': product.currentVersion || '',
+      'Ngày hiệu lực': product.effectiveDate || '',
+      'Trạng thái': normalizeProductStatus(product.status),
+      'Ghi chú': product.note || '',
+      'Số dòng công thức': (product.formulaItems || []).length,
+    }))
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(rows), 'Danh muc san pham')
+    XLSX.writeFile(book, `danh-muc-san-pham-${todayText().replaceAll('-', '')}.xlsx`)
+  }
+  const importFormulaExcel = (file) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const workbook = XLSX.read(event.target.result, { type: 'array' })
+        const sheet = workbook.Sheets[workbook.SheetNames[0]]
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
+        const grouped = new Map()
+        rows.forEach((row, index) => {
+          const productCode = normalizeProductCode(readExcelCell(row, ['Mã sản phẩm', 'Ma san pham', 'Mã SP', 'Ma SP', 'Product Code', 'productCode']))
+          const materialCode = normalizeCode(readExcelCell(row, ['Mã vật tư', 'Ma vat tu', 'Mã VT', 'Ma VT', 'Material Code', 'materialCode']))
+          if (!productCode || !materialCode) return
+          const version = String(readExcelCell(row, ['Version', 'Phiên bản', 'Phien ban', 'formulaVersion']) || 'V1.0').trim() || 'V1.0'
+          const key = `${productCode}__${version}`
+          if (!grouped.has(key)) {
+            grouped.set(key, {
+              productCode,
+              productName: readExcelCell(row, ['Tên sản phẩm', 'Ten san pham', 'Tên SP', 'Ten SP', 'Product Name', 'productName']) || productCode,
+              productGroup: normalizeProductGroup(readExcelCell(row, ['Nhóm sản phẩm', 'Nhom san pham', 'Nhóm SP', 'Nhom SP', 'productGroup'])),
+              unit: readExcelCell(row, ['Đơn vị', 'Don vi', 'Unit', 'unit']) || 'kg',
+              version,
+              effectiveDate: readExcelCell(row, ['Ngày hiệu lực', 'Ngay hieu luc', 'Effective Date', 'effectiveDate']) || todayText(),
+              note: readExcelCell(row, ['Ghi chú', 'Ghi chu', 'Note', 'note']),
+              items: [],
+            })
+          }
+          grouped.get(key).items.push(normalizeProductFormulaItem({
+            id: `${productCode}-${version}-${materialCode}-${index + 1}`,
+            materialCode,
+            materialName: readExcelCell(row, ['Tên vật tư', 'Ten vat tu', 'Tên VT', 'Ten VT', 'Material Name', 'materialName']) || materialCode,
+            materialGroup: normalizeMainGroup(readExcelCell(row, ['Nhóm vật tư', 'Nhom vat tu', 'Nhóm', 'Nhom', 'materialGroup'])),
+            subclassification: readExcelCell(row, ['Phân nhóm', 'Phan nhom', 'Sub Group', 'subclassification']),
+            ratioPercent: readExcelCell(row, ['Tỷ lệ %', 'Ty le %', 'Tỉ lệ %', 'Ti le %', 'ratioPercent']),
+            tolerancePercent: readExcelCell(row, ['Dung sai %', 'Dung sai', 'Tolerance %', 'tolerancePercent']),
+            note: readExcelCell(row, ['Ghi chú', 'Ghi chu', 'Note', 'note']),
+          }, grouped.get(key).items.length))
+        })
+        if (!grouped.size) {
+          setNotice('File Excel chưa có dòng công thức hợp lệ.')
+          return
+        }
+        setData((current) => {
+          const currentProducts = buildProductMasterCatalog(current.productCatalog || [], current.formulas || [], current.formulaVersions || [])
+          const byCode = new Map(currentProducts.map((product) => [product.productCode, product]))
+          let created = 0
+          let updated = 0
+          grouped.forEach((entry) => {
+            const existing = byCode.get(entry.productCode)
+            const existingVersions = existing?.formulaVersions || []
+            const requestedVersion = entry.version || existing?.currentVersion || 'V1.0'
+            const sameVersion = existingVersions.find((version) => (version.formulaVersion || version.version) === requestedVersion)
+            const sameFormula = productFormulaSignature(sameVersion?.items || existing?.formulaItems || []) === productFormulaSignature(entry.items)
+            const appliedVersion = sameVersion && !sameFormula ? nextProductFormulaVersion(requestedVersion, existingVersions) : requestedVersion
+            const versionRecord = {
+              id: `${entry.productCode}-${appliedVersion}-${Date.now()}`,
+              productCode: entry.productCode,
+              formulaVersion: appliedVersion,
+              version: appliedVersion,
+              status: FORMULA_STATUS_ACTIVE,
+              effectiveDate: entry.effectiveDate,
+              createdBy: 'Excel',
+              note: entry.note || (sameVersion && !sameFormula ? `Tạo version mới từ ${requestedVersion}` : ''),
+              items: entry.items,
+            }
+            const keptVersions = existingVersions.filter((version) => (version.formulaVersion || version.version) !== appliedVersion)
+            const nextProduct = normalizeProductMaster({
+              ...(existing || {}),
+              id: existing?.id || `PRD-${entry.productCode}`,
+              productCode: entry.productCode,
+              code: entry.productCode,
+              productName: entry.productName || existing?.productName || existing?.name || entry.productCode,
+              name: entry.productName || existing?.name || existing?.productName || entry.productCode,
+              productGroup: entry.productGroup || existing?.productGroup,
+              unit: entry.unit || existing?.unit || 'kg',
+              status: FORMULA_STATUS_ACTIVE,
+              currentVersion: appliedVersion,
+              effectiveDate: entry.effectiveDate || existing?.effectiveDate,
+              note: entry.note || existing?.note || '',
+              formulaItems: entry.items,
+              formulaVersions: uniqueProductFormulaVersions([versionRecord, ...keptVersions]),
+            }, current.formulas || [], current.formulaVersions || [])
+            if (nextProduct) byCode.set(entry.productCode, nextProduct)
+            if (existing) updated += 1
+            else created += 1
+          })
+          const productCatalog = Array.from(byCode.values()).sort((a, b) => a.productCode.localeCompare(b.productCode, 'vi', { numeric: true }))
+          return addLogToData({ ...current, productCatalog }, `Nhập công thức Excel: tạo ${created} sản phẩm, cập nhật ${updated} sản phẩm.`)
+        })
+        setNotice(`Đã nhập ${grouped.size} công thức/version từ Excel.`)
+      } catch (error) {
+        setNotice(`Không đọc được file Excel: ${error.message || error}`)
+      } finally {
+        if (importFormulaRef.current) importFormulaRef.current.value = ''
+      }
+    }
+    reader.readAsArrayBuffer(file)
+  }
   return (
     <div className="page-content">
       <section className="panel">
         <div className="section-heading-row">
           <div><span className="section-kicker">Dữ liệu gốc</span><h2>Danh mục sản phẩm</h2></div>
+          <div className="action-row">
+            <button type="button" className="secondary-button" onClick={downloadFormulaTemplate}>Tải file mẫu công thức</button>
+            <button type="button" className="secondary-button" disabled={!canImportProduct} onClick={() => importFormulaRef.current?.click()}>Nhập công thức Excel</button>
+            <button type="button" className="secondary-button" onClick={exportProductCatalog}>Xuất danh mục sản phẩm</button>
+          </div>
         </div>
+        <input ref={importFormulaRef} type="file" accept=".xlsx,.xls" hidden onChange={(event) => importFormulaExcel(event.target.files?.[0])} />
+        {notice && <div className="process-alert">{notice}</div>}
         <SimpleTable
           tableClassName="admin-wide-table product-master-table"
           headers={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm sản phẩm', 'Đơn vị', 'Version hiện hành', 'Ngày hiệu lực', 'Trạng thái', 'Ghi chú', 'Hành động']}
@@ -10193,7 +10357,7 @@ function ProductMasterPage({ data, setData, permissions = [] }) {
             <div className="log-tabs">
               {[
                 ['info', 'Thông tin sản phẩm'],
-                ['formula', 'Công thức'],
+                ['formula', 'Công thức gốc'],
                 ['versions', 'Lịch sử version'],
                 ['tolerance', 'Dung sai'],
                 ['packing', 'Đóng gói'],
@@ -10232,9 +10396,10 @@ function ProductMasterPage({ data, setData, permissions = [] }) {
               })} empty="Sản phẩm chưa có công thức." />
             )}
             {detailTab === 'versions' && (
-              <SimpleTable headers={['Version', 'Trạng thái', 'Ngày hiệu lực', 'Người lập', 'Số dòng', 'Ghi chú']} rows={(selectedProduct.formulaVersions || []).map((version, index) => (
+              <SimpleTable headers={['Version', 'Đang áp dụng', 'Trạng thái', 'Ngày hiệu lực', 'Người lập', 'Số dòng', 'Ghi chú']} rows={(selectedProduct.formulaVersions || []).map((version, index) => (
                 <tr key={version.id || `${version.version}-${index}`}>
                   <td>{version.formulaVersion || version.version || '-'}</td>
+                  <td>{(version.formulaVersion || version.version) === selectedProduct.currentVersion ? <span className="dispatch-badge ready">Hiện hành</span> : '-'}</td>
                   <td>{version.status || '-'}</td>
                   <td>{version.effectiveDate || '-'}</td>
                   <td>{version.createdBy || version.approvedBy || '-'}</td>
@@ -11020,7 +11185,8 @@ function App() {
     return session ? normalizeAuthData(loadStored(AUTH_KEY, defaultAuth)).users.find((user) => user.username === session.username) : null
   })
   const [loginError, setLoginError] = useState('')
-  const initialPage = new URLSearchParams(window.location.search).get('page') || 'dashboard'
+  const requestedPage = new URLSearchParams(window.location.search).get('page') || 'dashboard'
+  const initialPage = requestedPage === 'formulas' ? 'master-products' : requestedPage
   const [selectedPage, setSelectedPage] = useState(initialPage)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [unsavedScopes, setUnsavedScopes] = useState({})
@@ -11081,8 +11247,9 @@ function App() {
     setMobileMenuOpen(false)
   }
   const changePage = (nextPage) => {
-    if (nextPage !== selectedPage && Object.values(unsavedScopes).some(Boolean) && !window.confirm('Có thay đổi chưa lưu. Anh có muốn rời khỏi màn hình không?')) return
-    setSelectedPage(nextPage)
+    const normalizedPage = nextPage === 'formulas' ? 'master-products' : nextPage
+    if (normalizedPage !== selectedPage && Object.values(unsavedScopes).some(Boolean) && !window.confirm('Có thay đổi chưa lưu. Anh có muốn rời khỏi màn hình không?')) return
+    setSelectedPage(normalizedPage)
     setMobileMenuOpen(false)
   }
 

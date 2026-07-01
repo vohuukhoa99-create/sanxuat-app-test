@@ -26,7 +26,6 @@ export const defaultNavItems = [
   { id: 'master-teams', label: 'Danh mục tổ sản xuất', parentId: 'master-data', permission: 'master.team.view' },
   { id: 'master-shifts', label: 'Danh mục ca làm việc', parentId: 'master-data', permission: 'master.shift.view' },
   { id: 'admin-machines', label: 'Danh mục máy phối trộn', parentId: 'master-data', permission: 'master.machine.view' },
-  { id: 'formulas', label: 'Công thức gốc', parentId: 'master-data', permission: 'master.formula.view' },
   { id: 'admin', label: 'Quản trị hệ thống', type: 'group' },
   { id: 'admin-users', label: 'Người dùng', parentId: 'admin', permission: 'admin' },
   { id: 'admin-permissions', label: 'Ma trận phân quyền', parentId: 'admin', permission: 'admin' },
