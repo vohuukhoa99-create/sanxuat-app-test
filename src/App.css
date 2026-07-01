@@ -13909,3 +13909,90 @@ body,
     min-width: 880px !important;
   }
 }
+
+/* Highest-specificity compact override for the actual material weighing tables. */
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table,
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table {
+  width: 880px !important;
+  min-width: 880px !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: auto !important;
+  table-layout: fixed !important;
+}
+
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table th,
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table td,
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table th,
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table td {
+  height: 44px !important;
+  padding: 8px 6px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table th:nth-child(1),
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table td:nth-child(1),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table th:nth-child(1),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table td:nth-child(1) { width: 40px !important; }
+
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table th:nth-child(2),
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table td:nth-child(2),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table th:nth-child(2),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table td:nth-child(2) { width: 85px !important; }
+
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table th:nth-child(3),
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table td:nth-child(3),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table th:nth-child(3),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table td:nth-child(3) { width: 90px !important; }
+
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table th:nth-child(4),
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table td:nth-child(4),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table th:nth-child(4),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table td:nth-child(4) { width: 90px !important; }
+
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table th:nth-child(5),
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table td:nth-child(5),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table th:nth-child(5),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table td:nth-child(5) { width: 80px !important; }
+
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table th:nth-child(6),
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table td:nth-child(6),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table th:nth-child(6),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table td:nth-child(6) {
+  width: 125px !important;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table th:nth-child(7),
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table td:nth-child(7),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table th:nth-child(7),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table td:nth-child(7) { width: 95px !important; }
+
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table th:nth-child(8),
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table td:nth-child(8),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table th:nth-child(8),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table td:nth-child(8) { width: 90px !important; }
+
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table th:nth-child(9),
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table td:nth-child(9),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table th:nth-child(9),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table td:nth-child(9) { width: 95px !important; }
+
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table th:nth-child(10),
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table td:nth-child(10),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table th:nth-child(10),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table td:nth-child(10) { width: 90px !important; }
+
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table .weighing-inline-action,
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table .weighing-inline-action,
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table .weighing-action-buttons,
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table .weighing-action-buttons {
+  justify-content: center !important;
+}
+
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table .weighing-qr-scan,
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table .weighing-qr-scan {
+  max-width: 125px !important;
+}
