@@ -454,6 +454,141 @@ const normalizeMasterFormulas = (formulas = []) => (Array.isArray(formulas) ? fo
   }
 })
 const activeMasterFormulas = (formulas = []) => normalizeMasterFormulas(formulas).filter((formula) => formula.status === FORMULA_STATUS_ACTIVE)
+const normalizeProductStatus = (status = '') => {
+  const text = normalizeText(status)
+  if (text.includes('ngung') || text.includes('inactive') || text.includes('luu tru')) return FORMULA_STATUS_ARCHIVED
+  if (text.includes('nhap') || text.includes('draft')) return FORMULA_STATUS_DRAFT
+  return FORMULA_STATUS_ACTIVE
+}
+const normalizeProductCode = (value = '') => normalizeFormulaCodeExact(value || '')
+const productCodeFromFormula = (formula = {}) => normalizeProductCode(formula.productCode || formula.formulaCode || formula.code || formula.id)
+const normalizeProductFormulaItem = (item = {}, index = 0) => {
+  const materialCode = item.materialCode || item.code || ''
+  return {
+    ...item,
+    id: item.id || item.lineId || `${materialCode || 'ITEM'}-${index + 1}`,
+    no: item.no || index + 1,
+    materialCode,
+    materialName: item.materialName || item.name || materialCode,
+    materialGroup: item.materialGroup || item.group || '',
+    chemicalSubGroup: normalizeChemicalSubGroup(item.chemicalSubGroup || item.subclassification || item.materialSubGroup || item.subGroup, item.materialGroup || item.group),
+    subclassification: normalizeChemicalSubGroup(item.subclassification || item.chemicalSubGroup || item.materialSubGroup || item.subGroup, item.materialGroup || item.group),
+    ratioPercent: parsePercentNumber(item.ratioPercent ?? item.percent),
+    tolerancePercent: parseTolerancePercent(item.tolerancePercent ?? item.tolerance ?? item.toleranceKg),
+    note: item.note || '',
+  }
+}
+const uniqueProductFormulaVersions = (versions = []) => {
+  const seen = new Set()
+  return versions.filter((version, index) => {
+    const key = `${version.formulaVersion || version.version || index}-${version.status || ''}-${version.effectiveDate || ''}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+const formulaToProductVersion = (formula = {}) => {
+  const productCode = productCodeFromFormula(formula)
+  const version = String(formula.currentVersion || formula.version || 'V1.0').trim() || 'V1.0'
+  return {
+    id: `${productCode}-${version}`,
+    productCode,
+    formulaVersion: version,
+    version,
+    status: normalizeFormulaStatus(formula),
+    effectiveDate: formula.effectiveDate || '',
+    createdBy: formula.createdBy || '',
+    note: formula.note || '',
+    items: (formula.items || formula.formulaItems || []).map(normalizeProductFormulaItem),
+  }
+}
+const normalizeProductMaster = (product = {}, formulas = [], formulaVersions = []) => {
+  const productCode = normalizeProductCode(product.productCode || product.code || product.formulaCode || product.id)
+  if (!productCode) return null
+  const matchingFormulas = normalizeMasterFormulas(formulas).filter((formula) => productCodeFromFormula(formula) === productCode)
+  const activeFormula = matchingFormulas.find((formula) => normalizeFormulaStatus(formula) === FORMULA_STATUS_ACTIVE) || matchingFormulas[0] || null
+  const formulaItems = (product.formulaItems?.length ? product.formulaItems : activeFormula?.items || []).map(normalizeProductFormulaItem)
+  const currentVersion = product.currentVersion || activeFormula?.version || 'V1.0'
+  const migratedVersions = matchingFormulas.map(formulaToProductVersion)
+  const explicitVersions = (product.formulaVersions || []).map((version) => ({
+    ...version,
+    productCode,
+    formulaVersion: version.formulaVersion || version.version || currentVersion,
+    version: version.version || version.formulaVersion || currentVersion,
+    items: (version.items || version.formulaItems || []).map(normalizeProductFormulaItem),
+  }))
+  const adjustmentVersions = (formulaVersions || [])
+    .filter((version) => matchingFormulas.some((formula) => version.formulaId === formula.id))
+    .map((version) => ({
+      ...version,
+      productCode,
+      formulaVersion: version.adjustedVersion || version.version || currentVersion,
+      version: version.adjustedVersion || version.version || currentVersion,
+      items: (version.items || []).map(normalizeProductFormulaItem),
+    }))
+  return {
+    ...product,
+    id: product.id || `PRD-${productCode}`,
+    productCode,
+    code: productCode,
+    productName: product.productName || product.name || activeFormula?.product || productCode,
+    name: product.name || product.productName || activeFormula?.product || productCode,
+    productGroup: normalizeProductGroup(product.productGroup || activeFormula?.productGroup || product.group) || inferProductGroup({ ...product, product: activeFormula?.product }),
+    unit: product.unit || 'kg',
+    status: normalizeProductStatus(product.status || activeFormula?.status || activeFormula?.formulaStatus),
+    currentVersion,
+    effectiveDate: product.effectiveDate || activeFormula?.effectiveDate || '',
+    createdBy: product.createdBy || activeFormula?.createdBy || '',
+    note: product.note || activeFormula?.note || '',
+    formulaItems,
+    formulaVersions: uniqueProductFormulaVersions([...explicitVersions, ...migratedVersions, ...adjustmentVersions]),
+  }
+}
+const buildProductMasterCatalog = (products = [], formulas = [], formulaVersions = []) => {
+  const byCode = new Map()
+  ;(products || []).forEach((product) => {
+    const normalized = normalizeProductMaster(product, formulas, formulaVersions)
+    if (normalized) byCode.set(normalized.productCode, normalized)
+  })
+  normalizeMasterFormulas(formulas).forEach((formula) => {
+    const productCode = productCodeFromFormula(formula)
+    if (!productCode || byCode.has(productCode)) return
+    const normalized = normalizeProductMaster({
+      id: `PRD-${productCode}`,
+      productCode,
+      code: productCode,
+      productName: formula.product || productCode,
+      name: formula.product || productCode,
+      productGroup: formula.productGroup,
+      unit: 'kg',
+      status: formula.status,
+      currentVersion: formula.version,
+      effectiveDate: formula.effectiveDate,
+      createdBy: formula.createdBy,
+      note: formula.note,
+    }, formulas, formulaVersions)
+    if (normalized) byCode.set(productCode, normalized)
+  })
+  return Array.from(byCode.values()).sort((a, b) => a.productCode.localeCompare(b.productCode, 'vi', { numeric: true }))
+}
+const productMasterToFormulaOption = (product = {}) => ({
+  id: product.productCode,
+  code: product.productCode,
+  formulaCode: product.productCode,
+  productCode: product.productCode,
+  product: product.productName || product.name,
+  productName: product.productName || product.name,
+  productGroup: product.productGroup,
+  version: product.currentVersion || 'V1.0',
+  currentVersion: product.currentVersion || 'V1.0',
+  formulaStatus: product.status || FORMULA_STATUS_ACTIVE,
+  status: product.status || FORMULA_STATUS_ACTIVE,
+  effectiveDate: product.effectiveDate,
+  createdBy: product.createdBy,
+  note: product.note,
+  items: (product.formulaItems || []).map(normalizeProductFormulaItem),
+  formulaVersions: product.formulaVersions || [],
+})
 const formulaHasProductionOrders = (formula = {}, orders = []) => (orders || []).some((order) => (
   [order.formulaId, order.originalFormulaId, order.formulaCode].filter(Boolean).includes(formula.id)
   || [order.formulaCode, order.originalFormulaId].filter(Boolean).includes(formula.code)
@@ -3909,7 +4044,8 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
 }
 
 function OrdersPage({ data, setData, permissions = [] }) {
-  const formulas = normalizeMasterFormulas(data.formulas || [])
+  const productMasterCatalog = buildProductMasterCatalog(data.productCatalog || [], data.formulas || [], data.formulaVersions || [])
+  const formulas = productMasterCatalog.map(productMasterToFormulaOption)
   const activeFormulaOptions = formulas.filter((formula) => formula.status === FORMULA_STATUS_ACTIVE)
   const initialFormula = activeFormulaOptions[0] || null
   const [form, setForm] = useState({ formulaId: initialFormula?.id || '', selectedFormulaCode: getFormulaOptionCode(initialFormula), formulaObject: initialFormula, formulaSearch: formatFormulaInput(initialFormula), productGroup: normalizeProductGroup(initialFormula?.productGroup), quantityKg: 1000, lotPrefix: DEFAULT_PRODUCTION_LOT_PREFIX, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
@@ -3918,7 +4054,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const [detailOrderId, setDetailOrderId] = useState('')
   const [detailTab, setDetailTab] = useState('info')
   const machines = getActiveMixingMachines(normalizeMixingMachines(data.mixingMachines))
-  const productCatalog = Array.isArray(data.productCatalog) ? data.productCatalog : []
+  const productCatalog = productMasterCatalog
   const customerOptions = useMemo(() => normalizeCustomerCatalog(data.customerCatalog), [data.customerCatalog])
   const materialCatalog = useMemo(() => getOfficialMaterialCatalog(data), [data.materialCatalog])
   const materialCatalogByCode = useMemo(() => buildMaterialCatalogByCode(materialCatalog), [materialCatalog])
@@ -3985,7 +4121,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
       setWarning('Vui lòng chọn máy phối trộn.')
       return
     }
-    const sourceLabel = `công thức gốc ${formula.version}`
+    const sourceLabel = `công thức ${formula.currentVersion || formula.version}`
     const id = nextOrderCode()
     const createdAt = nowText()
     const lotCode = buildProductionLotCode(data.orders, form.lotPrefix)
@@ -3996,8 +4132,9 @@ function OrdersPage({ data, setData, permissions = [] }) {
       orderCode: id,
       formulaId: formula.id,
       formulaCode: getFormulaOptionCode(formula),
+      productCode: getFormulaOptionCode(formula),
       selectedFormulaCode: getFormulaOptionCode(formula),
-      formulaVersion: formula.version,
+      formulaVersion: formula.currentVersion || formula.version,
       productName: formula.product,
       product: formula.product,
       productGroup: selectedProductGroup,
@@ -4038,7 +4175,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
       createdAt,
       updatedAt: createdAt,
       originalFormulaId: formula.id,
-      originalFormulaVersion: formula.version,
+      originalFormulaVersion: formula.currentVersion || formula.version,
       formulaSource: 'base',
       formulaVersionId: '',
       originalFormula: formula.items,
@@ -9998,6 +10135,125 @@ function LegacyProductionAssignmentPage({ data, setData, user, permissions = [] 
   )
 }
 
+function ProductMasterPage({ data, setData, permissions = [] }) {
+  const products = buildProductMasterCatalog(data.productCatalog || [], data.formulas || [], data.formulaVersions || [])
+  const materialCatalogByCode = useMemo(() => buildMaterialCatalogByCode(getOfficialMaterialCatalog(data)), [data.materialCatalog, data.rawMaterials, data.formulas])
+  const [detailCode, setDetailCode] = useState('')
+  const [detailTab, setDetailTab] = useState('info')
+  const selectedProduct = products.find((product) => product.productCode === detailCode) || null
+  const productFormulaItems = selectedProduct?.formulaItems || []
+  const openDetail = (product, tab = 'info') => {
+    setDetailCode(product.productCode)
+    setDetailTab(tab)
+  }
+  const upsertProduct = (product, patch) => {
+    const nextProduct = normalizeProductMaster({ ...product, ...patch }, data.formulas || [], data.formulaVersions || [])
+    if (!nextProduct) return
+    setData((current) => {
+      const currentProducts = buildProductMasterCatalog(current.productCatalog || [], current.formulas || [], current.formulaVersions || [])
+      const exists = currentProducts.some((item) => item.productCode === nextProduct.productCode)
+      const nextProducts = exists
+        ? currentProducts.map((item) => item.productCode === nextProduct.productCode ? nextProduct : item)
+        : [nextProduct, ...currentProducts]
+      return addLogToData({ ...current, productCatalog: nextProducts }, `Cập nhật sản phẩm ${nextProduct.productCode}.`)
+    })
+  }
+  return (
+    <div className="page-content">
+      <section className="panel">
+        <div className="section-heading-row">
+          <div><span className="section-kicker">Dữ liệu gốc</span><h2>Danh mục sản phẩm</h2></div>
+        </div>
+        <SimpleTable
+          tableClassName="admin-wide-table product-master-table"
+          headers={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm sản phẩm', 'Đơn vị', 'Version hiện hành', 'Ngày hiệu lực', 'Trạng thái', 'Ghi chú', 'Hành động']}
+          rows={products.map((product) => (
+            <tr key={product.productCode}>
+              <td><strong>{product.productCode}</strong></td>
+              <td>{product.productName || product.name}</td>
+              <td>{displayProductGroup(product.productGroup) || '-'}</td>
+              <td>{product.unit || 'kg'}</td>
+              <td>{product.currentVersion || '-'}</td>
+              <td>{product.effectiveDate || '-'}</td>
+              <td><span className={`dispatch-badge ${normalizeProductStatus(product.status) === FORMULA_STATUS_ACTIVE ? 'ready' : normalizeProductStatus(product.status) === FORMULA_STATUS_DRAFT ? 'waiting' : 'fail'}`}>{normalizeProductStatus(product.status)}</span></td>
+              <td className="ellipsis-cell" title={product.note || ''}>{product.note || '-'}</td>
+              <td><button type="button" className="secondary-button" onClick={() => openDetail(product)}>Chi tiết</button></td>
+            </tr>
+          ))}
+          empty="Chưa có sản phẩm."
+        />
+      </section>
+      {selectedProduct && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="production-modal order-detail-modal product-detail-modal" role="dialog" aria-modal="true">
+            <div className="modal-header">
+              <div><span className="section-kicker">Chi tiết sản phẩm</span><h2>{selectedProduct.productCode}</h2></div>
+              <button type="button" className="icon-button" onClick={() => setDetailCode('')} aria-label="Đóng">×</button>
+            </div>
+            <div className="log-tabs">
+              {[
+                ['info', 'Thông tin sản phẩm'],
+                ['formula', 'Công thức'],
+                ['versions', 'Lịch sử version'],
+                ['tolerance', 'Dung sai'],
+                ['packing', 'Đóng gói'],
+                ['qc', 'QC'],
+                ['docs', 'Tài liệu'],
+              ].map(([tab, label]) => <button key={tab} className={detailTab === tab ? 'active' : ''} onClick={() => setDetailTab(tab)}>{label}</button>)}
+            </div>
+            {detailTab === 'info' && (
+              <div className="production-form-grid">
+                <label>Mã sản phẩm<input readOnly value={selectedProduct.productCode} /></label>
+                <label>Tên sản phẩm<input value={selectedProduct.productName || selectedProduct.name || ''} onChange={(event) => upsertProduct(selectedProduct, { productName: event.target.value, name: event.target.value })} /></label>
+                <label>Nhóm sản phẩm<select value={normalizeProductGroup(selectedProduct.productGroup)} onChange={(event) => upsertProduct(selectedProduct, { productGroup: event.target.value, group: displayProductGroup(event.target.value) })}>{productGroupOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                <label>Đơn vị<input value={selectedProduct.unit || 'kg'} onChange={(event) => upsertProduct(selectedProduct, { unit: event.target.value })} /></label>
+                <label>Version hiện hành<input readOnly value={selectedProduct.currentVersion || 'V1.0'} /></label>
+                <label>Ngày hiệu lực<input type="date" value={selectedProduct.effectiveDate || ''} onChange={(event) => upsertProduct(selectedProduct, { effectiveDate: event.target.value })} /></label>
+                <label>Người lập<input value={selectedProduct.createdBy || ''} onChange={(event) => upsertProduct(selectedProduct, { createdBy: event.target.value })} /></label>
+                <label>Trạng thái<select value={normalizeProductStatus(selectedProduct.status)} onChange={(event) => upsertProduct(selectedProduct, { status: event.target.value })}>{formulaStatuses.map((status) => <option key={status} value={status}>{status}</option>)}</select></label>
+                <label className="wide-field">Ghi chú<input value={selectedProduct.note || ''} onChange={(event) => upsertProduct(selectedProduct, { note: event.target.value })} /></label>
+              </div>
+            )}
+            {detailTab === 'formula' && (
+              <SimpleTable tableClassName="formula-detail-table" headers={['STT', 'Mã vật tư', 'Tên vật tư', 'Nhóm', 'Phân nhóm', 'Tỷ lệ %', 'Dung sai', 'Ghi chú']} rows={productFormulaItems.map((item, index) => {
+                const material = materialCatalogByCode.get(normalizeCode(item.materialCode))
+                return (
+                  <tr key={item.id || `${item.materialCode}-${index}`}>
+                    <td>{index + 1}</td>
+                    <td>{item.materialCode}</td>
+                    <td>{material?.materialName || item.materialName || '-'}</td>
+                    <td>{item.materialGroup || material?.materialGroup || '-'}</td>
+                    <td>{displayChemicalSubGroup(normalizeChemicalSubGroup(item.subclassification || item.chemicalSubGroup || material?.subclassification || material?.chemicalSubGroup, item.materialGroup || material?.materialGroup))}</td>
+                    <td>{formatPercent(item.ratioPercent)}</td>
+                    <td>{formatTolerancePercent(item.tolerancePercent)}</td>
+                    <td>{item.note || '-'}</td>
+                  </tr>
+                )
+              })} empty="Sản phẩm chưa có công thức." />
+            )}
+            {detailTab === 'versions' && (
+              <SimpleTable headers={['Version', 'Trạng thái', 'Ngày hiệu lực', 'Người lập', 'Số dòng', 'Ghi chú']} rows={(selectedProduct.formulaVersions || []).map((version, index) => (
+                <tr key={version.id || `${version.version}-${index}`}>
+                  <td>{version.formulaVersion || version.version || '-'}</td>
+                  <td>{version.status || '-'}</td>
+                  <td>{version.effectiveDate || '-'}</td>
+                  <td>{version.createdBy || version.approvedBy || '-'}</td>
+                  <td>{(version.items || []).length}</td>
+                  <td>{version.note || version.adjustmentReason || '-'}</td>
+                </tr>
+              ))} empty="Chưa có lịch sử version." />
+            )}
+            {detailTab === 'tolerance' && <SimpleTable headers={['Mã vật tư', 'Dung sai']} rows={productFormulaItems.map((item) => <tr key={item.id || item.materialCode}><td>{item.materialCode}</td><td>{formatTolerancePercent(item.tolerancePercent) || '-'}</td></tr>)} empty="Chưa có dữ liệu dung sai." />}
+            {detailTab === 'packing' && <p className="empty-alert">Chưa khai báo cấu hình đóng gói cho sản phẩm này.</p>}
+            {detailTab === 'qc' && <p className="empty-alert">Chưa khai báo tiêu chuẩn QC riêng cho sản phẩm này.</p>}
+            {detailTab === 'docs' && <p className="empty-alert">Chưa đính kèm tài liệu cho sản phẩm này.</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, permissions = [], permissionKey, user }) {
   const sourceRows = useMemo(() => data[storageKey] || [], [data, storageKey])
   const [draftRows, setDraftRows] = useState(sourceRows)
@@ -10672,7 +10928,7 @@ function AdminPage({ authData, setAuthData, section = 'users' }) {
 const pageMeta = {
   dashboard: ['Dashboard', 'Báo cáo nhanh quy trình sản xuất V3'],
   'raw-materials': ['Kho nguyên liệu', 'Nhập NVL, tạo QR/Barcode và lưu localStorage'],
-  formulas: ['Công thức gốc', 'Phòng kỹ thuật quản lý công thức gốc'],
+  formulas: ['Công thức gốc', 'Quản lý sản phẩm và công thức theo dữ liệu gốc sản phẩm'],
   orders: ['Lệnh sản xuất', 'Tạo lệnh từ công thức gốc và chờ QC sản xuất thử'],
   'production-assignments': ['Phân công nhân sự', 'Theo dõi nhân sự trực công đoạn trong từng ca sản xuất'],
   qc: ['QC sản xuất thử', 'QC sản xuất thử - Kiểm tra và hiệu chỉnh lệnh SX trước sản xuất chính thức'],
@@ -10694,7 +10950,7 @@ const pageMeta = {
   'admin-permissions': ['Ma trận phân quyền', 'Phân quyền chi tiết theo chức năng'],
   'admin-system-logs': ['Nhật ký hệ thống', 'Truy xuất nhật ký thao tác theo người dùng, nhân viên và công đoạn'],
   'master-materials': ['Danh mục vật tư', 'Dữ liệu gốc vật tư dùng trong sản xuất'],
-  'master-products': ['Danh mục sản phẩm', 'Dữ liệu gốc sản phẩm'],
+  'master-products': ['Danh mục sản phẩm', 'Dữ liệu gốc sản phẩm và công thức'],
   'master-suppliers': ['Danh mục nhà cung cấp', 'Dữ liệu gốc nhà cung cấp'],
   'master-customers': ['Danh mục khách hàng', 'Dữ liệu gốc khách hàng'],
   'master-employees': ['Danh sách nhân viên', 'Nhân sự vận hành trong phạm vi sản xuất'],
@@ -10710,6 +10966,8 @@ function App() {
     const savedWithoutScaleTools = stripDeprecatedScaleToolData(saved)
     const storedFormulas = loadStored(FORMULAS_KEY, null)
     const formulas = normalizeMasterFormulas(nonEmptyArray(storedFormulas, savedWithoutScaleTools.formulas, seed.formulas))
+    const formulaVersions = savedWithoutScaleTools.formulaVersions || []
+    const productCatalog = buildProductMasterCatalog(nonEmptyArray(savedWithoutScaleTools.productCatalog, seed.productCatalog), formulas, formulaVersions)
     const productionLogs = nonEmptyArray(loadStored(PRODUCTION_LOGS_KEY, null), savedWithoutScaleTools.productionLogs, savedWithoutScaleTools.logs, seed.productionLogs)
     const qc2Logs = nonEmptyArray(loadStored(QC2_LOGS_KEY, null), savedWithoutScaleTools.qc2Logs)
     const qc2AdjustmentTickets = nonEmptyArray(loadStored(QC2_ADJUSTMENTS_KEY, null), savedWithoutScaleTools.qc2AdjustmentTickets, savedWithoutScaleTools.qc2Adjustments)
@@ -10733,8 +10991,9 @@ function App() {
       ...seed,
       ...savedWithoutScaleTools,
       formulas,
+      productCatalog,
       orders,
-      formulaVersions: savedWithoutScaleTools.formulaVersions || [],
+      formulaVersions,
       qc2Logs,
       qc2AdjustmentTickets,
       supplementalWeighing,
@@ -10768,6 +11027,7 @@ function App() {
 
   useEffect(() => {
     const orders = normalizeProductionOrders(data.orders || [], data.formulas || [])
+    const productCatalog = buildProductMasterCatalog(data.productCatalog || [], data.formulas || [], data.formulaVersions || [])
     localStorage.setItem(PRODUCTION_ORDERS_KEY, JSON.stringify(orders))
     localStorage.setItem(FORMULAS_KEY, JSON.stringify(data.formulas || []))
     localStorage.setItem(PRODUCTION_LOGS_KEY, JSON.stringify(data.productionLogs || data.logs || []))
@@ -10779,7 +11039,7 @@ function App() {
     localStorage.setItem(FINISHED_GOODS_KEY, JSON.stringify(normalizeFinishedGoodsData(data.finishedGoods || [])))
     localStorage.setItem(MATERIAL_CATALOG_KEY, JSON.stringify(deriveMaterialCatalog(data)))
     const dataWithoutScaleTools = stripDeprecatedScaleToolData(data)
-    localStorage.setItem(DATA_KEY, JSON.stringify({ ...dataWithoutScaleTools, materialCatalog: deriveMaterialCatalog(data), rawMaterials: normalizeRawMaterialLots(data.rawMaterials || []), orders, productionOrders: orders }))
+    localStorage.setItem(DATA_KEY, JSON.stringify({ ...dataWithoutScaleTools, productCatalog, materialCatalog: deriveMaterialCatalog(data), rawMaterials: normalizeRawMaterialLots(data.rawMaterials || []), orders, productionOrders: orders }))
   }, [data])
   useEffect(() => { localStorage.setItem(AUTH_KEY, JSON.stringify(authData)) }, [authData])
 
@@ -10846,7 +11106,7 @@ function App() {
   const pages = {
     dashboard: <DashboardPage data={data} />,
     'raw-materials': <RawMaterialsPage data={data} setData={setData} />,
-    formulas: <FormulasPage data={data} setData={setData} permissions={userPermissions} user={user} />,
+    formulas: <ProductMasterPage data={data} setData={setData} permissions={userPermissions} />,
     orders: <OrdersPage data={data} setData={setData} permissions={userPermissions} />,
     'production-assignments': <ProductionAssignmentPage data={data} setData={setData} user={user} permissions={userPermissions} />,
     qc: <QCPage data={data} setData={setData} user={user} />,
@@ -10868,7 +11128,7 @@ function App() {
     'admin-permissions': <AdminPage authData={authData} setAuthData={setAuthData} section="permissions" />,
     'admin-system-logs': <SystemLogsPage data={data} />,
     'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'mainGroup', 'subclassification', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Phân nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} user={user} />,
-    'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'productGroup', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm sản phẩm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-products': <ProductMasterPage data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['customerCode', 'customerName', 'channelCode', 'province', 'status', 'note']} labels={['Mã khách hàng', 'Tên khách hàng', 'Nhóm khách hàng', 'Khu vực/Tỉnh thành', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-employees': <MasterCatalogPage title="Danh sách nhân viên" storageKey="employeeCatalog" permissionKey="employee" fields={['employeeCode', 'employeeName', 'department', 'role', 'phone', 'status', 'note']} labels={['Mã nhân viên', 'Họ tên', 'Bộ phận/Tổ', 'Vai trò', 'Điện thoại', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
