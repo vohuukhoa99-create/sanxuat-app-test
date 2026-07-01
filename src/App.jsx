@@ -384,6 +384,36 @@ const FORMULA_STATUS_ACTIVE = 'Đang áp dụng'
 const FORMULA_STATUS_DRAFT = 'Lưu nháp'
 const FORMULA_STATUS_ARCHIVED = 'Lưu trữ'
 const formulaStatuses = [FORMULA_STATUS_ACTIVE, FORMULA_STATUS_DRAFT, FORMULA_STATUS_ARCHIVED]
+const PRODUCT_GROUP_SON_DA = 'SON_DA'
+const PRODUCT_GROUP_KEO_BTP = 'KEO_BTP'
+const PRODUCT_GROUP_SON_NUOC = 'SON_NUOC'
+const productGroupOptions = [
+  { value: PRODUCT_GROUP_SON_DA, label: 'Sơn đá' },
+  { value: PRODUCT_GROUP_KEO_BTP, label: 'Keo/BTP' },
+  { value: PRODUCT_GROUP_SON_NUOC, label: 'Sơn nước' },
+]
+const productGroupLabels = Object.fromEntries(productGroupOptions.map((item) => [item.value, item.label]))
+const normalizeProductGroup = (value = '') => {
+  const raw = String(value || '').trim().toUpperCase()
+  if ([PRODUCT_GROUP_SON_DA, PRODUCT_GROUP_KEO_BTP, PRODUCT_GROUP_SON_NUOC].includes(raw)) return raw
+  const text = normalizeText(value)
+  if (text.includes('mastic') || text.includes('son da') || text.includes('stone')) return PRODUCT_GROUP_SON_DA
+  if (text.includes('keo') || text.includes('btp') || text.includes('ban thanh pham')) return PRODUCT_GROUP_KEO_BTP
+  if (text.includes('son nuoc') || text.includes('hns') || text.includes('water')) return PRODUCT_GROUP_SON_NUOC
+  return ''
+}
+const displayProductGroup = (value = '') => productGroupLabels[normalizeProductGroup(value)] || ''
+const inferProductGroup = (source = {}) => normalizeProductGroup([
+  source.productGroup,
+  source.equipmentGroup,
+  source.group,
+  source.category,
+  source.productType,
+  source.product,
+  source.productName,
+  source.name,
+  source.code,
+].filter(Boolean).join(' '))
 const formulaMatches = (formula = {}, query = '') => {
   const keyword = normalizeText(query)
   if (!keyword) return true
@@ -410,8 +440,10 @@ const normalizeFormulaStatus = (formula = {}) => (
 )
 const normalizeMasterFormulas = (formulas = []) => (Array.isArray(formulas) ? formulas : []).map((formula) => {
   const status = normalizeFormulaStatus(formula)
+  const productGroup = inferProductGroup(formula)
   return {
     ...formula,
+    productGroup,
     formulaStatus: status,
     status,
     items: (formula.items || []).map((item) => ({
@@ -1189,7 +1221,14 @@ const defaultMixingMachines = [
   { machineCode: 'M05', machineName: 'MÁY 5', capacityKg: 1050, motorPower: '20HP', department: 'Tổ phối trộn', productionTeam: 'Tổ phối trộn', status: 'READY', note: '' },
   { machineCode: 'M06', machineName: 'MÁY 6', capacityKg: 1050, motorPower: '20HP', department: 'Tổ phối trộn', productionTeam: 'Tổ phối trộn', status: 'READY', note: '' },
 ]
-const realMixingMachineCodes = new Set(defaultMixingMachines.map((machine) => machine.machineCode))
+const extraDefaultMixingMachines = [
+  { machineCode: 'B01', machineName: 'BỒN KEO 1', capacityKg: 500, motorPower: '10HP', department: 'Tổ phối trộn', productionTeam: 'Tổ phối trộn', equipmentGroup: PRODUCT_GROUP_KEO_BTP, status: 'READY', note: '' },
+  { machineCode: 'B02', machineName: 'BỒN KEO 2', capacityKg: 500, motorPower: '10HP', department: 'Tổ phối trộn', productionTeam: 'Tổ phối trộn', equipmentGroup: PRODUCT_GROUP_KEO_BTP, status: 'READY', note: '' },
+  { machineCode: 'K01', machineName: 'KHUẤY SƠN NƯỚC 1', capacityKg: 1000, motorPower: '15HP', department: 'Tổ phối trộn', productionTeam: 'Tổ phối trộn', equipmentGroup: PRODUCT_GROUP_SON_NUOC, status: 'READY', note: '' },
+  { machineCode: 'K02', machineName: 'KHUẤY SƠN NƯỚC 2', capacityKg: 1000, motorPower: '15HP', department: 'Tổ phối trộn', productionTeam: 'Tổ phối trộn', equipmentGroup: PRODUCT_GROUP_SON_NUOC, status: 'READY', note: '' },
+]
+const systemMixingMachines = [...defaultMixingMachines, ...extraDefaultMixingMachines]
+const realMixingMachineCodes = new Set(systemMixingMachines.map((machine) => machine.machineCode))
 const legacyMixingMachineCodes = new Set(['MX01', 'MX02', 'MX03', 'MX04'])
 const legacyMixingMachineMap = { MX01: 'M01', MX02: 'M02', MX03: 'M03', MX04: 'M04' }
 const normalizeMixingMachineCode = (code) => legacyMixingMachineMap[String(code || '').trim().toUpperCase()] || String(code || '').trim().toUpperCase()
@@ -1216,6 +1255,14 @@ const mixingMachineStatusBadgeClass = (status) => {
   return 'fail'
 }
 
+const defaultEquipmentGroupByMachineCode = (machineCode = '') => {
+  const code = normalizeMixingMachineCode(machineCode)
+  if (/^M0[1-6]$/.test(code)) return PRODUCT_GROUP_SON_DA
+  if (/^B0[1-2]$/.test(code)) return PRODUCT_GROUP_KEO_BTP
+  if (/^K0[1-2]$/.test(code)) return PRODUCT_GROUP_SON_NUOC
+  return ''
+}
+
 const normalizeMixingMachine = (item = {}) => ({
   ...item,
   machineCode: normalizeMixingMachineCode(item.machineCode),
@@ -1224,13 +1271,14 @@ const normalizeMixingMachine = (item = {}) => ({
   capacityKg: num(item.capacityKg),
   department: item.department || item.productionTeam || 'Tổ phối trộn',
   productionTeam: item.productionTeam || item.department || 'Tổ phối trộn',
+  equipmentGroup: normalizeProductGroup(item.equipmentGroup || item.productGroup || item.group) || defaultEquipmentGroupByMachineCode(item.machineCode),
   status: normalizeMixingMachineStatus(item.status),
   note: item.note || '',
 })
 
 const normalizeMixingMachines = (items = []) => {
   const byCode = new Map()
-  defaultMixingMachines.forEach((item) => {
+  systemMixingMachines.forEach((item) => {
     const machine = normalizeMixingMachine(item)
     byCode.set(machine.machineCode, machine)
   })
@@ -1503,6 +1551,7 @@ const initialData = {
     id,
     code: id.replaceAll('-', ' '),
     product: id === 'HNS-252-G1' ? 'HNS 252.G1' : 'HNS 252.R2',
+    productGroup: PRODUCT_GROUP_SON_NUOC,
     version: index === 0 ? 'V3.0' : 'V3.1',
     formulaStatus: FORMULA_STATUS_DRAFT,
     effectiveDate: '2026-06-13',
@@ -1527,6 +1576,8 @@ const initialData = {
   packingLogs: [],
   finishedGoods: [],
   productCatalog: [
+    { id: 'PRD-SON-DA-DEMO', code: 'SON-DA-DEMO', name: 'Sơn đá demo', group: 'Sơn đá', productGroup: PRODUCT_GROUP_SON_DA, unit: 'kg', status: 'Hoáº¡t Ä‘á»™ng', note: 'Sản phẩm demo' },
+    { id: 'PRD-KEO-BTP-DEMO', code: 'KEO-BTP-DEMO', name: 'Keo/BTP demo', group: 'Keo/BTP', productGroup: PRODUCT_GROUP_KEO_BTP, unit: 'kg', status: 'Hoáº¡t Ä‘á»™ng', note: 'Sản phẩm demo' },
     { id: 'PRD-HNS-252-G1', code: 'HNS 252.G1', name: 'HNS 252.G1', group: 'Sơn', unit: 'kg', status: 'Hoạt động', note: 'Sản phẩm demo' },
     { id: 'PRD-HNS-252-R2', code: 'HNS 252.R2', name: 'HNS 252.R2', group: 'Sơn', unit: 'kg', status: 'Hoạt động', note: 'Sản phẩm demo' },
   ],
@@ -1965,6 +2016,7 @@ function normalizeProductionOrders(orders = [], formulas = []) {
     const requestedWeight = num(order.requestedWeight ?? order.quantityKg)
     const assignedMachineCode = normalizeMixingMachineCode(order.assignedMachineCode || order.mixerMachine || order.assignedMixingMachine || order.mixingMachine || order.mixing?.machineCode || '')
     const assignedMachine = machineCatalog.find((machine) => machine.machineCode === assignedMachineCode)
+    const productGroup = normalizeProductGroup(order.productGroup || formula?.productGroup) || inferProductGroup({ ...order, product: order.product || formula?.product, code: formula?.code || order.formulaCode })
     const customerFields = resolveOrderCustomer(order)
     return {
       ...order,
@@ -1975,6 +2027,7 @@ function normalizeProductionOrders(orders = [], formulas = []) {
       formulaVersion: order.formulaVersion || order.originalFormulaVersion || formula?.version || '',
       productName: order.productName || order.product || formula?.product || '',
       product: order.product || order.productName || formula?.product || '',
+      productGroup,
       ...customerFields,
       lot: order.lot || `LOT-${fallbackCode}`,
       requestedWeight,
@@ -2010,6 +2063,7 @@ function normalizeProductionOrders(orders = [], formulas = []) {
       assignedMachineCapacityKg: order.assignedMachineCapacityKg ?? assignedMachine?.capacityKg ?? '',
       assignedMachineMotorPower: order.assignedMachineMotorPower || assignedMachine?.motorPower || '',
       assignedMachineDepartment: order.assignedMachineDepartment || assignedMachine?.department || assignedMachine?.productionTeam || '',
+      assignedMachineEquipmentGroup: order.assignedMachineEquipmentGroup || assignedMachine?.equipmentGroup || '',
       machineChangeHistory: order.machineChangeHistory || [],
       machineAssignmentHistory: order.machineAssignmentHistory || [],
       mixingMachine: normalizeMixingMachineCode(order.mixingMachine || order.mixing?.machineCode || ''),
@@ -3864,6 +3918,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const [detailOrderId, setDetailOrderId] = useState('')
   const [detailTab, setDetailTab] = useState('info')
   const machines = getActiveMixingMachines(normalizeMixingMachines(data.mixingMachines))
+  const productCatalog = Array.isArray(data.productCatalog) ? data.productCatalog : []
   const customerOptions = useMemo(() => normalizeCustomerCatalog(data.customerCatalog), [data.customerCatalog])
   const materialCatalog = useMemo(() => getOfficialMaterialCatalog(data), [data.materialCatalog])
   const materialCatalogByCode = useMemo(() => buildMaterialCatalogByCode(materialCatalog), [materialCatalog])
@@ -3875,6 +3930,15 @@ function OrdersPage({ data, setData, permissions = [] }) {
       formulaCodeEquals(item, form.selectedFormulaCode)
       || (item.id && item.id === form.formulaId)
     ))
+  const matchingProduct = productCatalog.find((product) => (
+    normalizeFormulaCode(product.code) === normalizeFormulaCode(getFormulaOptionCode(formula))
+    || normalizeFormulaCode(product.name) === normalizeFormulaCode(formula?.product || '')
+    || normalizeFormulaCode(product.code) === normalizeFormulaCode(formula?.product || '')
+  ))
+  const selectedProductGroup = normalizeProductGroup(formula?.productGroup || matchingProduct?.productGroup || matchingProduct?.group)
+  const filteredMachines = selectedProductGroup
+    ? machines.filter((machine) => normalizeProductGroup(machine.equipmentGroup) === selectedProductGroup)
+    : []
   const libraryItems = formula ? formula.items.map((item) => ({
     code: item.materialCode,
     name: item.materialCode,
@@ -3906,7 +3970,15 @@ function OrdersPage({ data, setData, permissions = [] }) {
       setWarning('Vui lòng chọn khách hàng hợp lệ từ danh mục.')
       return
     }
-    const assignedMachine = machines.find((machine) => machine.machineCode === form.mixerMachine)
+    if (!selectedProductGroup) {
+      setWarning('Sản phẩm chưa được phân nhóm, vui lòng cập nhật Danh mục sản phẩm.')
+      return
+    }
+    if (!filteredMachines.length) {
+      setWarning('Chưa có thiết bị phù hợp với nhóm sản phẩm này.')
+      return
+    }
+    const assignedMachine = filteredMachines.find((machine) => machine.machineCode === form.mixerMachine)
     if (!assignedMachine) {
       setWarning('Vui lòng chọn máy phối trộn.')
       return
@@ -3926,6 +3998,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
       formulaVersion: formula.version,
       productName: formula.product,
       product: formula.product,
+      productGroup: selectedProductGroup,
       lot: lotCode,
       customer: selectedCustomer.customerName,
       customerName: selectedCustomer.customerName,
@@ -3939,6 +4012,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
       assignedMachineCapacityKg: assignedMachine.capacityKg,
       assignedMachineMotorPower: assignedMachine.motorPower,
       assignedMachineDepartment: assignedMachine.department || assignedMachine.productionTeam,
+      assignedMachineEquipmentGroup: assignedMachine.equipmentGroup,
       machineChangeHistory: [],
       machineAssignmentHistory: [{
         id: uid('MCH'),
@@ -3999,12 +4073,12 @@ function OrdersPage({ data, setData, permissions = [] }) {
             <FormulaSearchCombobox
               formulas={activeFormulaOptions}
               inputValue={form.formulaSearch}
-              onInputChange={(value) => setForm({ ...form, formulaSearch: value, formulaId: '', selectedFormulaCode: '', formulaObject: null })}
+              onInputChange={(value) => setForm({ ...form, formulaSearch: value, formulaId: '', selectedFormulaCode: '', formulaObject: null, mixerMachine: '' })}
               onSelect={(selectedFormula) => {
                 const selectedCode = getFormulaOptionCode(selectedFormula)
-                setForm({ ...form, formulaSearch: selectedCode, formulaId: selectedFormula.id, selectedFormulaCode: selectedCode, formulaObject: selectedFormula })
+                setForm({ ...form, formulaSearch: selectedCode, formulaId: selectedFormula.id, selectedFormulaCode: selectedCode, formulaObject: selectedFormula, mixerMachine: '' })
               }}
-              onInvalid={() => setForm({ ...form, formulaSearch: '', formulaId: '', selectedFormulaCode: '', formulaObject: null })}
+              onInvalid={() => setForm({ ...form, formulaSearch: '', formulaId: '', selectedFormulaCode: '', formulaObject: null, mixerMachine: '' })}
             />
           </label>
           <label>Khối lượng (kg)<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value })} /></label>
@@ -4025,7 +4099,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
               onSelect={(customer) => setForm({ ...form, customerSearch: formatCustomerOption(customer), customer: customer.customerName, customerName: customer.customerName, customerCode: customer.customerCode, province: customer.province || '', channelCode: customer.channelCode || '', customerObject: customer })}
             />
           </label>
-          <label>Máy phối trộn *<select value={form.mixerMachine} onChange={(event) => setForm({ ...form, mixerMachine: event.target.value })}><option value="">Chọn máy</option>{machines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}</select></label>
+          <label>Máy phối trộn *<select value={form.mixerMachine} disabled={!selectedProductGroup || !filteredMachines.length} onChange={(event) => setForm({ ...form, mixerMachine: event.target.value })}><option value="">{!selectedProductGroup ? 'Sản phẩm chưa phân nhóm' : !filteredMachines.length ? 'Chưa có thiết bị phù hợp' : 'Chọn máy'}</option>{filteredMachines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}</select></label>
           <label>Phiếu yêu cầu SX<input value={form.productionRequestNo} placeholder="Nhập số phiếu yêu cầu sản xuất" onChange={(event) => setForm({ ...form, productionRequestNo: event.target.value })} /></label>
           <label>Ghi chú<textarea value={form.note} placeholder="Ví dụ: Giống mẫu đã duyệt ngày .../..." onChange={(event) => setForm({ ...form, note: event.target.value })} /></label>
         </div>
@@ -6561,12 +6635,13 @@ function MixingPage({ data, setData, user }) {
   const activeMixingOrders = orders.filter((order) => order.mixing?.status === 'Active' || order.mixingStatus === 'Active')
   const readyOrders = orders.filter((order) => getMixingDispatchState(order).canStart)
   const mixingHistory = orders.filter((order) => order.mixingStatus === 'completed' || order.mixing?.status === 'Completed' || order.mixingCompletedAt)
+  const assignedMixingMachineCodes = new Set([...activeMixingOrders, ...readyOrders].map(getOrderAssignedMachineCode).filter(Boolean).map(normalizeMixingMachineCode))
   const getMachineActiveOrder = (machineCode) => activeMixingOrders.find((order) => (order.mixingMachine || order.mixing?.machineCode) === machineCode)
   const getAvailableMixingMachines = (currentMachineCode = '') => activeMachines.filter((machine) => {
     const runningOrder = getMachineActiveOrder(machine.machineCode)
     return !runningOrder || machine.machineCode === currentMachineCode
   })
-  const machineRows = activeMachines.map((machine) => {
+  const machineRows = machines.filter((machine) => assignedMixingMachineCodes.has(machine.machineCode)).map((machine) => {
     const activeOrder = getMachineActiveOrder(machine.machineCode)
     return { ...machine, status: activeOrder ? 'Đang chạy' : 'Rảnh', activeOrder }
   })
@@ -6663,10 +6738,12 @@ function MixingPage({ data, setData, user }) {
     const machine = machines.find((item) => item.machineCode === machineCode)
     const runningOrder = machineCode ? getMachineActiveOrder(machineCode) : null
     const requestedKg = num(order.quantityKg || order.requestedWeight)
+    const orderProductGroup = normalizeProductGroup(order.productGroup) || inferProductGroup(order)
     const wrongAssignedMachine = Boolean(assignedMachineCode && machineCode && machineCode !== assignedMachineCode)
+    const wrongEquipmentGroup = Boolean(orderProductGroup && machine && normalizeProductGroup(machine.equipmentGroup) !== orderProductGroup)
     const wrongStatus = machine && normalizeMixingMachineStatus(machine.status) !== 'READY'
     const overCapacity = Boolean(machine?.capacityKg && requestedKg && requestedKg > num(machine.capacityKg))
-    const pass = Boolean(assignedMachineCode && rawQr && rawQr.startsWith('MAYTRON-') && machine && !wrongStatus && !wrongAssignedMachine && !runningOrder && !overCapacity)
+    const pass = Boolean(assignedMachineCode && rawQr && rawQr.startsWith('MAYTRON-') && machine && !wrongStatus && !wrongAssignedMachine && !wrongEquipmentGroup && !runningOrder && !overCapacity)
     const message = pass
       ? ''
       : !assignedMachineCode ? 'Lệnh chưa chỉ định máy trộn'
@@ -6675,6 +6752,7 @@ function MixingPage({ data, setData, user }) {
             : !machine ? 'Máy không tồn tại trong danh mục.'
               : wrongStatus ? 'Máy không ở trạng thái READY.'
                 : wrongAssignedMachine ? 'Máy không đúng máy được phân công.'
+                  : wrongEquipmentGroup ? 'Máy không phù hợp nhóm sản phẩm.'
                   : runningOrder ? 'Máy đang chạy lệnh khác.'
                     : overCapacity ? 'Công suất máy không phù hợp khối lượng lệnh.'
                       : 'QR máy không hợp lệ.'
@@ -7103,7 +7181,7 @@ function MixingPage({ data, setData, user }) {
                         </div>
                       </td>
                       <td><span className={`dispatch-badge ${qrReady ? 'ready' : qrFailed ? 'fail' : 'waiting'}`}>{qrFailed ? (startValidation.messages[0] || 'Sai QR') : qrReady ? 'Sẵn sàng phối trộn' : (requiresChemicalQr && !chemicalScan.pass) ? 'Chờ QR Hóa' : (requiresSolidQr && !solidScan.pass) ? 'Chờ QR Rắn' : 'Chờ quét'}</span></td>
-                      <td><div className="mixing-row-actions"><button type="button" className="secondary-button" onClick={() => openMachineChangeRequest(order)}>Đề nghị đổi máy</button><button className="primary-button start-mixing-button" disabled={!state.canStart || !qrReady || !assignedMachineCode} onClick={() => startMixing(order)}>Bắt đầu phối trộn</button></div></td>
+                      <td><div className="mixing-row-actions"><button className="primary-button start-mixing-button" disabled={!state.canStart || !qrReady || !assignedMachineCode} onClick={() => startMixing(order)}>Bắt đầu phối trộn</button></div></td>
                     </tr>
                   )
                 })}
@@ -9186,6 +9264,7 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
       capacityKg: machine.capacityKg,
       department: machine.department || machine.productionTeam || 'Tổ phối trộn',
       productionTeam: machine.productionTeam || machine.department || 'Tổ phối trộn',
+      equipmentGroup: normalizeProductGroup(machine.equipmentGroup) || defaultEquipmentGroupByMachineCode(machine.machineCode),
       status: normalizeMixingMachineStatus(machine.status),
       note: machine.note || '',
     })
@@ -9200,6 +9279,10 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
     const machine = { ...normalizeMixingMachine(machineDraft), catalogOverride: true }
     if (!machine.machineCode || !machine.machineName || !machine.capacityKg) {
       setNotice('Vui lòng nhập Mã máy, Tên máy và Công suất kg.')
+      return
+    }
+    if (!machine.equipmentGroup) {
+      setNotice('Vui lòng chọn Nhóm sản phẩm cho máy phối trộn.')
       return
     }
     const duplicate = machines.some((item) => item.machineCode === machine.machineCode && item.machineCode !== editingMachineCode)
@@ -9345,6 +9428,7 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
           <label>Công suất kg<input type="number" value={machineDraft.capacityKg} readOnly={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('capacityKg', event.target.value)} placeholder="500" /></label>
           <label>Tổ sản xuất/phân xưởng<input value={machineDraft.department} readOnly={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => { updateMachineDraft('department', event.target.value); updateMachineDraft('productionTeam', event.target.value) }} placeholder="Tổ phối trộn" /></label>
           <label>Trạng thái<select value={machineDraft.status} disabled={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('status', event.target.value)}><option value="READY">Sẵn sàng</option><option value="RUNNING">Đang chạy</option><option value="MAINTENANCE">Bảo trì</option><option value="INACTIVE">Ngưng dùng</option></select></label>
+          <label>Nhóm sản phẩm<select value={normalizeProductGroup(machineDraft.equipmentGroup)} disabled={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('equipmentGroup', event.target.value)}><option value="">Chọn nhóm</option>{productGroupOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           <label className="wide-field">Ghi chú<textarea value={machineDraft.note} readOnly={!(editingMachineCode ? canEditMachine : canCreateMachine)} onChange={(event) => updateMachineDraft('note', event.target.value)} /></label>
         </div>
         <div className="table-wrapper mixing-machine-catalog-table-wrapper">
@@ -9356,6 +9440,7 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
                 <th>Công suất motor</th>
                 <th>Công suất kg</th>
                 <th>Tổ sản xuất/phân xưởng</th>
+                <th>Nhóm sản phẩm</th>
                 <th>Trạng thái</th>
                 <th>Ghi chú</th>
                 <th>Hành động</th>
@@ -9369,6 +9454,7 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
                   <td>{machine.motorPower || '-'}</td>
                   <td>{machine.capacityKg}</td>
                   <td>{machine.department || machine.productionTeam || '-'}</td>
+                  <td>{displayProductGroup(machine.equipmentGroup) || '-'}</td>
                   <td><span className={`dispatch-badge ${mixingMachineStatusBadgeClass(machine.status)}`}>{mixingMachineStatusLabel(machine.status)}</span></td>
                   <td>{machine.note || '-'}</td>
                   <td>
@@ -9914,6 +10000,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   const [materialImportBackup, setMaterialImportBackup] = useState(null)
   const isMaterialCatalog = storageKey === 'materialCatalog'
   const isCustomerCatalog = storageKey === 'customerCatalog'
+  const isProductCatalog = storageKey === 'productCatalog'
   const catalogClassName = storageKey.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
   const tableWrapperClassName = [
     'table-wrapper',
@@ -9926,8 +10013,13 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
     isCustomerCatalog ? 'customer-catalog-table' : '',
   ].filter(Boolean).join(' ')
   const canImportMaterialCatalog = isMaterialCatalog && (canCreate || canEdit)
+  const draftRowFromSource = (row) => {
+    if (!isProductCatalog) return { ...row }
+    const productGroup = normalizeProductGroup(row.productGroup || row.group) || inferProductGroup(row)
+    return { ...row, productGroup, group: displayProductGroup(productGroup) || row.group || '' }
+  }
   useEffect(() => {
-    setDraftRows(sourceRows.map((row) => ({ ...row })))
+    setDraftRows(sourceRows.map(draftRowFromSource))
     setDirtyRowIds(new Set())
   }, [sourceRows, storageKey])
   useUnsavedChangesGuard(storageKey, hasUnsavedChanges)
@@ -10059,6 +10151,10 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
           const materialGroup = displayMaterialGroupFromMainGroup(mainGroup)
           return { ...row, mainGroup, materialGroup, subclassification: normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, mainGroup), chemicalSubGroup: normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, mainGroup) }
         }
+        if (isProductCatalog && field === 'productGroup') {
+          const productGroup = normalizeProductGroup(value)
+          return { ...row, productGroup, group: displayProductGroup(productGroup) || row.group }
+        }
         return { ...row, [field]: value }
       })
     ))
@@ -10084,6 +10180,10 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
       next.chemicalSubGroup = ''
       next.unit = next.unit || 'kg'
     }
+    if (isProductCatalog) {
+      next.productGroup = ''
+      next.unit = next.unit || 'kg'
+    }
     setDraftRows((currentRows) => [next, ...(currentRows || [])])
     markRowDirty(next.id)
   }
@@ -10104,6 +10204,10 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   }
   const normalizeDraftRowsForSave = () => {
     if (isMaterialCatalog) return normalizeMaterialCatalog(draftRows || [])
+    if (isProductCatalog) return (draftRows || []).map((row) => {
+      const productGroup = normalizeProductGroup(row.productGroup || row.group)
+      return { ...row, productGroup, group: displayProductGroup(productGroup) || row.group || '' }
+    })
     return (draftRows || []).map((row) => ({ ...row }))
   }
   const saveCatalogChanges = () => {
@@ -10116,7 +10220,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
     setNotice('Đã lưu thay đổi.')
   }
   const cancelCatalogChanges = () => {
-    setDraftRows(sourceRows.map((row) => ({ ...row })))
+    setDraftRows(sourceRows.map(draftRowFromSource))
     setDirtyRowIds(new Set())
     setNotice('Đã hủy thay đổi.')
   }
@@ -10156,6 +10260,11 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
                         <span className={`dispatch-badge ${normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, row.mainGroup || row.materialGroup) ? 'ready' : 'waiting'}`}>
                           {displayChemicalSubGroup(normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, row.mainGroup || row.materialGroup))}
                         </span>
+                      ) : isProductCatalog && field === 'productGroup' ? (
+                        <select value={normalizeProductGroup(row.productGroup || row.group)} disabled={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)}>
+                          <option value="">Chọn nhóm</option>
+                          {productGroupOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                        </select>
                       ) : isMaterialCatalog && field === 'status' ? (
                         <select value={normalizeMaterialCatalogItem(row)?.status || MATERIAL_STATUS_ACTIVE} disabled={!canEdit} onChange={(event) => updateMaterialStatus(row.id, event.target.value)}>
                           {materialStatuses.map((status) => <option key={status}>{status}</option>)}
@@ -10742,7 +10851,7 @@ function App() {
     'admin-permissions': <AdminPage authData={authData} setAuthData={setAuthData} section="permissions" />,
     'admin-system-logs': <SystemLogsPage data={data} />,
     'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'mainGroup', 'subclassification', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Phân nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} user={user} />,
-    'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'group', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-products': <MasterCatalogPage title="Danh mục sản phẩm" storageKey="productCatalog" fields={['code', 'name', 'productGroup', 'unit', 'status', 'note']} labels={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm sản phẩm', 'Đơn vị', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['customerCode', 'customerName', 'channelCode', 'province', 'status', 'note']} labels={['Mã khách hàng', 'Tên khách hàng', 'Nhóm khách hàng', 'Khu vực/Tỉnh thành', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-employees': <MasterCatalogPage title="Danh sách nhân viên" storageKey="employeeCatalog" permissionKey="employee" fields={['employeeCode', 'employeeName', 'department', 'role', 'phone', 'status', 'note']} labels={['Mã nhân viên', 'Họ tên', 'Bộ phận/Tổ', 'Vai trò', 'Điện thoại', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
