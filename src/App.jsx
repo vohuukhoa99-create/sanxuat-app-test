@@ -12,6 +12,8 @@ import { USE_SUPABASE } from './utils/supabaseMode.js'
 import './App.css'
 
 const DATA_KEY = 'sonhoabinh-v3-data'
+const PRODUCTION_LOT_PREFIXES = ['HBP', 'NIP', 'TOA']
+const DEFAULT_PRODUCTION_LOT_PREFIX = 'HBP'
 const PRODUCTION_ORDERS_KEY = 'productionOrders'
 const FORMULAS_KEY = 'formulas'
 const PRODUCTION_LOGS_KEY = 'productionLogs'
@@ -208,6 +210,23 @@ function stripDeprecatedScaleToolData(source = {}) {
 }
 const nowText = () => new Date().toISOString().slice(0, 16).replace('T', ' ')
 const todayText = () => new Date().toISOString().slice(0, 10)
+const productionLotDateCode = (date = new Date()) => {
+  const yy = String(date.getFullYear()).slice(-2)
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  return `${yy}${mm}${dd}`
+}
+const normalizeProductionLotPrefix = (value = '') => {
+  const prefix = String(value || '').trim().toUpperCase()
+  return PRODUCTION_LOT_PREFIXES.includes(prefix) ? prefix : DEFAULT_PRODUCTION_LOT_PREFIX
+}
+const buildProductionLotCode = (orders = [], prefixValue = DEFAULT_PRODUCTION_LOT_PREFIX, date = new Date()) => {
+  const prefix = normalizeProductionLotPrefix(prefixValue)
+  const dateCode = productionLotDateCode(date)
+  const lotPattern = new RegExp(`^${prefix}\\.${dateCode}\\.(\\d{2})$`)
+  const count = (orders || []).filter((order) => lotPattern.test(String(order.lot || '').trim().toUpperCase())).length
+  return `${prefix}.${dateCode}.${String(count + 1).padStart(2, '0')}`
+}
 const num = (value) => Number(value) || 0
 const kg = (value) => `${num(value).toLocaleString('vi-VN', { maximumFractionDigits: 3 })} kg`
 function formatKg(value) {
@@ -3839,7 +3858,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const formulas = normalizeMasterFormulas(data.formulas || [])
   const activeFormulaOptions = formulas.filter((formula) => formula.status === FORMULA_STATUS_ACTIVE)
   const initialFormula = activeFormulaOptions[0] || null
-  const [form, setForm] = useState({ formulaId: initialFormula?.id || '', selectedFormulaCode: getFormulaOptionCode(initialFormula), formulaObject: initialFormula, formulaSearch: formatFormulaInput(initialFormula), quantityKg: 1000, lot: '', customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
+  const [form, setForm] = useState({ formulaId: initialFormula?.id || '', selectedFormulaCode: getFormulaOptionCode(initialFormula), formulaObject: initialFormula, formulaSearch: formatFormulaInput(initialFormula), quantityKg: 1000, lotPrefix: DEFAULT_PRODUCTION_LOT_PREFIX, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
   const [message, setMessage] = useState('')
   const [warning, setWarning] = useState('')
   const [detailOrderId, setDetailOrderId] = useState('')
@@ -3866,6 +3885,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const preview = formula
     ? buildFormulaItems(libraryItems, num(form.quantityKg)).map((item) => enrichItemFromMaterialCatalog(item, materialCatalogByCode, item.materialGroup || item.group || ''))
     : []
+  const productionLot = buildProductionLotCode(data.orders, form.lotPrefix)
   const nextOrderCode = () => {
     const date = todayText().replaceAll('-', '')
     const countToday = data.orders.filter((order) => String(order.orderCode || order.id || '').includes(`LSX-${date}`)).length + 1
@@ -3894,6 +3914,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
     const sourceLabel = `công thức gốc ${formula.version}`
     const id = nextOrderCode()
     const createdAt = nowText()
+    const lotCode = buildProductionLotCode(data.orders, form.lotPrefix)
     logMaterialLookupPipeline({ id, orderCode: id }, preview, materialCatalogByCode)
     const originalFormulaSnapshot = preview.map((item) => ({ ...item }))
     const order = {
@@ -3905,7 +3926,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
       formulaVersion: formula.version,
       productName: formula.product,
       product: formula.product,
-      lot: form.lot || `LOT-${id}`,
+      lot: lotCode,
       customer: selectedCustomer.customerName,
       customerName: selectedCustomer.customerName,
       customerCode: selectedCustomer.customerCode,
@@ -3923,7 +3944,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
         id: uid('MCH'),
         orderId: id,
         orderCode: id,
-        lot: form.lot || `LOT-${id}`,
+        lot: lotCode,
         assignedMachine: assignedMachine.machineCode,
         performedMachine: '',
         changedBy: 'Phòng SX',
@@ -3964,7 +3985,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
     }
     setData((current) => addLogToData({ ...current, orders: [order, ...current.orders] }, `Sử dụng ${sourceLabel} của ${formula.code} để tạo lệnh SX ${id}, chỉ định máy ${formatMixingMachineLabel(assignedMachine)}.`))
     setMessage('Tạo lệnh sản xuất thành công')
-    setForm((current) => ({ ...current, lot: '', customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' }))
+    setForm((current) => ({ ...current, lotPrefix: DEFAULT_PRODUCTION_LOT_PREFIX, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' }))
   }
   const detailOrder = data.orders.find((order) => order.id === detailOrderId)
   return (
@@ -3987,7 +4008,14 @@ function OrdersPage({ data, setData, permissions = [] }) {
             />
           </label>
           <label>Khối lượng (kg)<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value })} /></label>
-          <label>Mã LOT<input value={form.lot} onChange={(event) => setForm({ ...form, lot: event.target.value })} /></label>
+          <label>Mã LOT
+            <div className="production-lot-field">
+              <select value={form.lotPrefix} onChange={(event) => setForm({ ...form, lotPrefix: event.target.value })}>
+                {PRODUCTION_LOT_PREFIXES.map((prefix) => <option key={prefix} value={prefix}>{prefix}</option>)}
+              </select>
+              <input value="" readOnly placeholder={productionLot} aria-label="Mã LOT dự kiến" />
+            </div>
+          </label>
           <label className="customer-field">Khách hàng *
             <CustomerSearchCombobox
               customers={customerOptions}
@@ -5088,7 +5116,7 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
         </div>
       </section>}
       <SimpleTable
-        tableClassName="chemical-weighing-table"
+        tableClassName="chemical-weighing-table material-weighing-table"
         headers={['STT', 'Mã vật tư', 'KL cần cân', 'Đã cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái', 'Thao tác']}
         rows={boardItems.map((item, index) => (
           <WeighingRow key={`${activeOrder?.id || 'order'}-${boardKey}-${item.id || item.materialCode || index}`} order={activeOrder} item={item} index={index} active={isSameWeighingItem(item, board.activeItem)} updateWeight={updateWeight} rawMaterialLots={rawMaterialLots} materialCatalog={materialCatalog} scaleType={`chemical-${boardKey}`} setWarning={setWarning} scaleWeightKg={scaleSession.scaleWeightKg} scaleStableWeightKg={scaleSession.scaleStableWeightKg} scaleStable={scaleSession.scaleStableWeightKg != null} scaleRawData={scaleSession.scaleRawText} scaleRawValue={scaleSession.scaleRawValue} scaleWeighedBy={scaleWeighedBy} onActionStateChange={setScaleActionState} />
@@ -5829,7 +5857,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
                 <strong>{progress}%</strong>
               </div>}
               {group !== CHEMICAL && (
-                <SimpleTable tableClassName="solid-weighing-table" headers={['STT', 'Mã vật tư', 'KL cần cân', 'Đã cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái', 'Thao tác']} rows={activeItems.map((item, index) => (
+                <SimpleTable tableClassName="solid-weighing-table material-weighing-table" headers={['STT', 'Mã vật tư', 'KL cần cân', 'Đã cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái', 'Thao tác']} rows={activeItems.map((item, index) => (
                   <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={isSameWeighingItem(item, activeItem)} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} materialCatalog={materialCatalog} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
                 ))} empty={`Không có vật tư nhóm ${group}.`} />
               )}

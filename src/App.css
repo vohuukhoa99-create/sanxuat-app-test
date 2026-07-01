@@ -605,7 +605,7 @@ tbody tr:hover {
 
 .production-order-form-grid {
   display: grid;
-  grid-template-columns: 180px 110px 150px minmax(420px, 2fr) 150px 200px minmax(280px, 1fr);
+  grid-template-columns: 180px 110px 210px minmax(420px, 2fr) 150px 200px minmax(280px, 1fr);
   gap: 12px;
   align-items: end;
   margin-bottom: 16px;
@@ -636,6 +636,17 @@ tbody tr:hover {
 .production-order-form-grid textarea {
   resize: vertical;
   min-height: 38px;
+}
+
+.production-lot-field {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 6px;
+}
+
+.production-lot-field input::placeholder {
+  color: #6d8378;
+  opacity: 0.72;
 }
 
 .production-order-form-grid .customer-field {
@@ -13665,13 +13676,14 @@ body,
 .weighing-active-board > .table-wrapper:has(.solid-weighing-table),
 .chemical-weighing-group .table-wrapper:has(.chemical-weighing-table) {
   max-width: 100% !important;
-  overflow-x: hidden !important;
+  overflow-x: auto !important;
 }
 
 .solid-weighing-table,
 .chemical-weighing-table {
-  width: 100% !important;
-  min-width: 0 !important;
+  width: 1068px !important;
+  max-width: 100% !important;
+  min-width: 1068px !important;
   table-layout: fixed !important;
   border-collapse: collapse !important;
 }
@@ -13680,7 +13692,8 @@ body,
 .solid-weighing-table td,
 .chemical-weighing-table th,
 .chemical-weighing-table td {
-  padding: 5px 4px !important;
+  height: 44px !important;
+  padding: 8px 10px !important;
   text-align: center !important;
   vertical-align: middle !important;
   white-space: nowrap !important;
@@ -13701,45 +13714,47 @@ body,
 .solid-weighing-table th:nth-child(1),
 .solid-weighing-table td:nth-child(1),
 .chemical-weighing-table th:nth-child(1),
-.chemical-weighing-table td:nth-child(1) { width: 40px !important; }
+.chemical-weighing-table td:nth-child(1) { width: 48px !important; }
 
 .solid-weighing-table th:nth-child(2),
 .solid-weighing-table td:nth-child(2),
 .chemical-weighing-table th:nth-child(2),
-.chemical-weighing-table td:nth-child(2) { width: 90px !important; }
+.chemical-weighing-table td:nth-child(2) { width: 110px !important; }
 
 .solid-weighing-table th:nth-child(3),
 .solid-weighing-table td:nth-child(3),
 .chemical-weighing-table th:nth-child(3),
-.chemical-weighing-table td:nth-child(3) { width: 95px !important; }
+.chemical-weighing-table td:nth-child(3) { width: 105px !important; }
 
 .solid-weighing-table th:nth-child(4),
 .solid-weighing-table td:nth-child(4),
 .chemical-weighing-table th:nth-child(4),
-.chemical-weighing-table td:nth-child(4) { width: 95px !important; }
+.chemical-weighing-table td:nth-child(4) { width: 105px !important; }
 
 .solid-weighing-table th:nth-child(5),
 .solid-weighing-table td:nth-child(5),
 .chemical-weighing-table th:nth-child(5),
-.chemical-weighing-table td:nth-child(5) { width: 85px !important; }
+.chemical-weighing-table td:nth-child(5) { width: 95px !important; }
 
 .solid-weighing-table th:nth-child(6),
 .solid-weighing-table td:nth-child(6),
 .chemical-weighing-table th:nth-child(6),
 .chemical-weighing-table td:nth-child(6) {
-  width: 140px !important;
-  max-width: 140px !important;
+  width: 170px !important;
+  max-width: 170px !important;
+  padding-left: 5px !important;
+  padding-right: 5px !important;
 }
 
 .solid-weighing-table th:nth-child(7),
 .solid-weighing-table td:nth-child(7),
 .chemical-weighing-table th:nth-child(7),
-.chemical-weighing-table td:nth-child(7) { width: 100px !important; }
+.chemical-weighing-table td:nth-child(7) { width: 115px !important; }
 
 .solid-weighing-table th:nth-child(8),
 .solid-weighing-table td:nth-child(8),
 .chemical-weighing-table th:nth-child(8),
-.chemical-weighing-table td:nth-child(8) { width: 90px !important; }
+.chemical-weighing-table td:nth-child(8) { width: 105px !important; }
 
 .solid-weighing-table th:nth-child(9),
 .solid-weighing-table td:nth-child(9),
@@ -13766,8 +13781,15 @@ body,
 .chemical-weighing-table td:nth-child(5),
 .chemical-weighing-table td:nth-child(7),
 .chemical-weighing-table td:nth-child(8) {
-  text-align: right !important;
+  text-align: center !important;
   font-variant-numeric: tabular-nums !important;
+}
+
+.solid-weighing-table td:nth-child(9),
+.solid-weighing-table td:nth-child(10),
+.chemical-weighing-table td:nth-child(9),
+.chemical-weighing-table td:nth-child(10) {
+  text-align: center !important;
 }
 
 .solid-weighing-table .weighing-check,
@@ -13790,6 +13812,21 @@ body,
   min-width: 0 !important;
   width: 100% !important;
   gap: 3px !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.solid-weighing-table td:nth-child(9) .weighing-check,
+.solid-weighing-table td:nth-child(9) .weighing-fail,
+.solid-weighing-table td:nth-child(10) .weighing-check,
+.solid-weighing-table td:nth-child(10) .weighing-fail,
+.solid-weighing-table td:nth-child(10) .scale-action-status,
+.chemical-weighing-table td:nth-child(9) .weighing-check,
+.chemical-weighing-table td:nth-child(9) .weighing-fail,
+.chemical-weighing-table td:nth-child(10) .weighing-check,
+.chemical-weighing-table td:nth-child(10) .weighing-fail,
+.chemical-weighing-table td:nth-child(10) .scale-action-status {
+  display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
 }
@@ -13828,7 +13865,7 @@ body,
 .solid-weighing-table .weighing-qr-scan,
 .chemical-weighing-table .weighing-qr-scan {
   width: 100% !important;
-  max-width: 132px !important;
+  max-width: 168px !important;
   margin: 0 auto !important;
   gap: 2px !important;
 }
@@ -13838,9 +13875,24 @@ body,
   width: 100% !important;
   min-height: 28px !important;
   height: 28px !important;
-  padding: 4px 6px !important;
+  padding: 4px 8px !important;
   text-align: center !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
+}
+
+.chemical-unclassified-panel .chemical-weighing-table {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  table-layout: auto !important;
+}
+
+.chemical-unclassified-panel .chemical-weighing-table th,
+.chemical-unclassified-panel .chemical-weighing-table td {
+  width: auto !important;
+  max-width: none !important;
+  height: auto !important;
+  padding: 10px 12px !important;
 }
 
 @media (max-width: 1100px) {
@@ -13851,6 +13903,7 @@ body,
 
   .solid-weighing-table,
   .chemical-weighing-table {
-    min-width: 945px !important;
+    max-width: none !important;
+    min-width: 1068px !important;
   }
 }
