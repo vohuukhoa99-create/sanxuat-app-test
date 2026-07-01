@@ -3912,7 +3912,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const formulas = normalizeMasterFormulas(data.formulas || [])
   const activeFormulaOptions = formulas.filter((formula) => formula.status === FORMULA_STATUS_ACTIVE)
   const initialFormula = activeFormulaOptions[0] || null
-  const [form, setForm] = useState({ formulaId: initialFormula?.id || '', selectedFormulaCode: getFormulaOptionCode(initialFormula), formulaObject: initialFormula, formulaSearch: formatFormulaInput(initialFormula), quantityKg: 1000, lotPrefix: DEFAULT_PRODUCTION_LOT_PREFIX, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
+  const [form, setForm] = useState({ formulaId: initialFormula?.id || '', selectedFormulaCode: getFormulaOptionCode(initialFormula), formulaObject: initialFormula, formulaSearch: formatFormulaInput(initialFormula), productGroup: normalizeProductGroup(initialFormula?.productGroup), quantityKg: 1000, lotPrefix: DEFAULT_PRODUCTION_LOT_PREFIX, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
   const [message, setMessage] = useState('')
   const [warning, setWarning] = useState('')
   const [detailOrderId, setDetailOrderId] = useState('')
@@ -3935,7 +3935,9 @@ function OrdersPage({ data, setData, permissions = [] }) {
     || normalizeFormulaCode(product.name) === normalizeFormulaCode(formula?.product || '')
     || normalizeFormulaCode(product.code) === normalizeFormulaCode(formula?.product || '')
   ))
-  const selectedProductGroup = normalizeProductGroup(formula?.productGroup || matchingProduct?.productGroup || matchingProduct?.group)
+  const autoProductGroup = normalizeProductGroup(matchingProduct?.productGroup || formula?.productGroup || matchingProduct?.group)
+  const selectedProductGroup = normalizeProductGroup(form.productGroup || autoProductGroup)
+  const productGroupMissingInCatalog = Boolean(formula && !autoProductGroup)
   const filteredMachines = selectedProductGroup
     ? machines.filter((machine) => normalizeProductGroup(machine.equipmentGroup) === selectedProductGroup)
     : []
@@ -4007,6 +4009,8 @@ function OrdersPage({ data, setData, permissions = [] }) {
       channelCode: selectedCustomer.channelCode || '',
       customerObject: selectedCustomer,
       mixerMachine: form.mixerMachine,
+      mixerId: assignedMachine.machineCode,
+      equipmentId: assignedMachine.machineCode,
       assignedMachineCode: assignedMachine.machineCode,
       assignedMachineName: assignedMachine.machineName,
       assignedMachineCapacityKg: assignedMachine.capacityKg,
@@ -4059,7 +4063,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
     }
     setData((current) => addLogToData({ ...current, orders: [order, ...current.orders] }, `Sử dụng ${sourceLabel} của ${formula.code} để tạo lệnh SX ${id}, chỉ định máy ${formatMixingMachineLabel(assignedMachine)}.`))
     setMessage('Tạo lệnh sản xuất thành công')
-    setForm((current) => ({ ...current, lotPrefix: DEFAULT_PRODUCTION_LOT_PREFIX, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' }))
+    setForm((current) => ({ ...current, productGroup: '', lotPrefix: DEFAULT_PRODUCTION_LOT_PREFIX, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' }))
   }
   const detailOrder = data.orders.find((order) => order.id === detailOrderId)
   return (
@@ -4067,19 +4071,32 @@ function OrdersPage({ data, setData, permissions = [] }) {
       <section className="panel">
         <div className="panel-header-row"><div><h2>Lệnh sản xuất</h2><p className="panel-text">Phòng SX tạo lệnh từ công thức gốc. Hệ thống tự quy đổi khối lượng từng nguyên liệu theo khối lượng yêu cầu.</p></div></div>
         {warning && <div className="process-alert">{warning}</div>}
+        {productGroupMissingInCatalog && !form.productGroup && <div className="process-alert">Sản phẩm chưa được phân nhóm trong Danh mục sản phẩm.</div>}
         {message && <div className="formula-ratio-ok">{message}</div>}
         <div className="production-order-form-grid">
           <label className="formula-field">Mã sản phẩm
             <FormulaSearchCombobox
               formulas={activeFormulaOptions}
               inputValue={form.formulaSearch}
-              onInputChange={(value) => setForm({ ...form, formulaSearch: value, formulaId: '', selectedFormulaCode: '', formulaObject: null, mixerMachine: '' })}
+              onInputChange={(value) => setForm({ ...form, formulaSearch: value, formulaId: '', selectedFormulaCode: '', formulaObject: null, productGroup: '', mixerMachine: '' })}
               onSelect={(selectedFormula) => {
                 const selectedCode = getFormulaOptionCode(selectedFormula)
-                setForm({ ...form, formulaSearch: selectedCode, formulaId: selectedFormula.id, selectedFormulaCode: selectedCode, formulaObject: selectedFormula, mixerMachine: '' })
+                const selectedProduct = productCatalog.find((product) => (
+                  normalizeFormulaCode(product.code) === normalizeFormulaCode(selectedCode)
+                  || normalizeFormulaCode(product.name) === normalizeFormulaCode(selectedFormula.product || '')
+                  || normalizeFormulaCode(product.code) === normalizeFormulaCode(selectedFormula.product || '')
+                ))
+                const nextProductGroup = normalizeProductGroup(selectedProduct?.productGroup || selectedFormula.productGroup || selectedProduct?.group)
+                setForm({ ...form, formulaSearch: selectedCode, formulaId: selectedFormula.id, selectedFormulaCode: selectedCode, formulaObject: selectedFormula, productGroup: nextProductGroup, mixerMachine: '' })
               }}
-              onInvalid={() => setForm({ ...form, formulaSearch: '', formulaId: '', selectedFormulaCode: '', formulaObject: null, mixerMachine: '' })}
+              onInvalid={() => setForm({ ...form, formulaSearch: '', formulaId: '', selectedFormulaCode: '', formulaObject: null, productGroup: '', mixerMachine: '' })}
             />
+          </label>
+          <label className="product-group-field">Nhóm sản phẩm *
+            <select value={selectedProductGroup} onChange={(event) => setForm({ ...form, productGroup: event.target.value, mixerMachine: '' })}>
+              <option value="">Chọn nhóm</option>
+              {productGroupOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
           </label>
           <label>Khối lượng (kg)<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value })} /></label>
           <label>Mã LOT
@@ -4107,8 +4124,8 @@ function OrdersPage({ data, setData, permissions = [] }) {
       </section>
       <section className="panel">
         <h3>Danh sách lệnh</h3>
-        <SimpleTable tableClassName="orders-table" headers={['Mã lệnh SX', 'Sản phẩm', 'Khách hàng', 'Mã sản phẩm', 'Version', 'LOT', 'Khối lượng', 'Máy phối trộn', 'Phiếu yêu cầu SX', 'Ghi chú', 'Trạng thái', 'Ngày tạo', 'Hành động']} rows={data.orders.map((order) => (
-          <tr key={order.id}><td>{order.orderCode || order.id}</td><td>{order.productName || order.product}</td><td>{order.customerName || order.customer || '-'}</td><td>{order.formulaCode || order.originalFormulaId}</td><td>{order.formulaVersion || order.originalFormulaVersion}</td><td>{order.lot}</td><td>{kg(order.requestedWeight ?? order.quantityKg)}</td><td>{getOrderAssignedMachineLabel(order, machines)}</td><td>{order.productionRequestNo || '-'}</td><td className="ellipsis-cell" title={order.note || ''}>{order.note || '-'}</td><td><span className={`flow-pill ${statusClass(order.status)}`}>{displayQcTrialText(order.status)}</span></td><td>{order.createdAt}</td><td><button className="secondary-button" onClick={() => { setDetailOrderId(order.id); setDetailTab('info') }}>Chi tiết</button></td></tr>
+        <SimpleTable tableClassName="orders-table" headers={['Mã lệnh SX', 'Sản phẩm', 'Nhóm SP', 'Khách hàng', 'Mã sản phẩm', 'Version', 'LOT', 'Khối lượng', 'Máy phối trộn', 'Phiếu yêu cầu SX', 'Ghi chú', 'Trạng thái', 'Ngày tạo', 'Hành động']} rows={data.orders.map((order) => (
+          <tr key={order.id}><td>{order.orderCode || order.id}</td><td>{order.productName || order.product}</td><td>{displayProductGroup(order.productGroup) || '-'}</td><td>{order.customerName || order.customer || '-'}</td><td>{order.formulaCode || order.originalFormulaId}</td><td>{order.formulaVersion || order.originalFormulaVersion}</td><td>{order.lot}</td><td>{kg(order.requestedWeight ?? order.quantityKg)}</td><td>{getOrderAssignedMachineLabel(order, machines)}</td><td>{order.productionRequestNo || '-'}</td><td className="ellipsis-cell" title={order.note || ''}>{order.note || '-'}</td><td><span className={`flow-pill ${statusClass(order.status)}`}>{displayQcTrialText(order.status)}</span></td><td>{order.createdAt}</td><td><button className="secondary-button" onClick={() => { setDetailOrderId(order.id); setDetailTab('info') }}>Chi tiết</button></td></tr>
         ))} />
       </section>
       {detailOrder && (

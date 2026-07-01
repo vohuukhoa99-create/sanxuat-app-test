@@ -605,10 +605,11 @@ tbody tr:hover {
 
 .production-order-form-grid {
   display: grid;
-  grid-template-columns: 180px 110px 210px minmax(420px, 2fr) 150px 200px minmax(280px, 1fr);
-  gap: 12px;
+  grid-template-columns: 150px 135px 100px 206px 280px 150px 170px 220px;
+  gap: 10px;
   align-items: end;
   margin-bottom: 16px;
+  overflow-x: auto;
 }
 
 .production-order-form-grid label {
@@ -640,7 +641,7 @@ tbody tr:hover {
 
 .production-lot-field {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-columns: 70px 130px;
   gap: 6px;
 }
 
@@ -650,15 +651,23 @@ tbody tr:hover {
 }
 
 .production-order-form-grid .customer-field {
-  min-width: 420px;
+  min-width: 0;
+  width: 280px;
+  max-width: 280px;
 }
 
 .production-order-form-grid .formula-field {
   position: relative;
   z-index: 9999;
-  width: 180px;
-  min-width: 180px;
-  max-width: 180px;
+  width: 150px;
+  min-width: 150px;
+  max-width: 150px;
+}
+
+.production-order-form-grid .product-group-field {
+  width: 135px;
+  min-width: 135px;
+  max-width: 135px;
 }
 
 .production-order-form-grid .customer-field .customer-combobox {
@@ -12798,7 +12807,7 @@ body,
 
 @media (max-width: 1400px) {
   .production-order-form-grid {
-    grid-template-columns: 180px 110px 150px minmax(360px, 1fr) 150px;
+    grid-template-columns: 150px 135px 100px 206px 280px 150px 170px 220px;
   }
 }
 
@@ -12809,6 +12818,15 @@ body,
 
   .production-order-form-grid .customer-field {
     min-width: 0;
+    width: 100%;
+    max-width: none;
+  }
+
+  .production-order-form-grid .formula-field,
+  .production-order-form-grid .product-group-field {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
   }
 }
 
