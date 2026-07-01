@@ -2163,7 +2163,8 @@ function normalizeProductionOrders(orders = [], formulas = []) {
     const formula = formulas.find((item) => item.id === (order.formulaId || order.originalFormulaId))
       || formulas.find((item) => item.code === order.formulaCode)
       || formulas[0]
-    const fallbackCode = order.orderCode || order.id || `LSX-${todayText().replaceAll('-', '')}-${String(index + 1).padStart(3, '0')}`
+    const fallbackLotCode = order.lotCode || order.lot || ''
+    const fallbackCode = order.orderCode || order.productionOrderCode || order.id || fallbackLotCode || `LSX-${todayText().replaceAll('-', '')}-${String(index + 1).padStart(3, '0')}`
     const originalFormulaSnapshot = normalizeFormulaRows(order.originalFormulaSnapshot || order.productionFormulaSnapshot || order.ingredients || [])
     const activeProductionFormula = normalizeFormulaRows(order.activeProductionFormula || order.qc1AdjustedFormula || order.productionFormulaSnapshot || originalFormulaSnapshot)
     const requestedWeight = num(order.requestedWeight ?? order.quantityKg)
@@ -2175,6 +2176,7 @@ function normalizeProductionOrders(orders = [], formulas = []) {
       ...order,
       id: order.id || fallbackCode,
       orderCode: fallbackCode,
+      productionOrderCode: order.productionOrderCode || fallbackCode,
       formulaId: order.formulaId || order.originalFormulaId || formula?.id || '',
       formulaCode: order.formulaCode || formula?.code || order.formula || '',
       formulaVersion: order.formulaVersion || order.originalFormulaVersion || formula?.version || '',
@@ -2182,7 +2184,8 @@ function normalizeProductionOrders(orders = [], formulas = []) {
       product: order.product || order.productName || formula?.product || '',
       productGroup,
       ...customerFields,
-      lot: order.lot || `LOT-${fallbackCode}`,
+      lot: fallbackLotCode || `LOT-${fallbackCode}`,
+      lotCode: fallbackLotCode || `LOT-${fallbackCode}`,
       requestedWeight,
       quantityKg: requestedWeight,
       status: order.status || 'Chờ QC sản xuất thử',
@@ -2200,8 +2203,9 @@ function normalizeProductionOrders(orders = [], formulas = []) {
       initialOrderSnapshot: order.initialOrderSnapshot || {
         id: order.id || fallbackCode,
         orderCode: fallbackCode,
+        lotCode: fallbackLotCode || `LOT-${fallbackCode}`,
         productName: order.productName || order.product || formula?.product || '',
-        lot: order.lot || `LOT-${fallbackCode}`,
+        lot: fallbackLotCode || `LOT-${fallbackCode}`,
         requestedWeight,
         createdAt: order.createdAt || nowText(),
         originalFormulaSnapshot,
@@ -2338,6 +2342,7 @@ function countBy(rows, keyFn, valueFn = () => 1) {
 function orderCodeText(order) {
   return String(order.orderCode || order.id || '')
 }
+const getOrderLotCode = (order = {}) => order.lotCode || order.lot || order.productionLot || order.orderCode || order.id || ''
 
 function sortOldestOrders(a, b) {
   if (a.createdAt && b.createdAt && a.createdAt !== b.createdAt) {
@@ -4071,6 +4076,8 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const [warning, setWarning] = useState('')
   const [detailOrderId, setDetailOrderId] = useState('')
   const [detailTab, setDetailTab] = useState('info')
+  const [editOrderId, setEditOrderId] = useState('')
+  const [editDraft, setEditDraft] = useState({ mixerMachine: '', customerCode: '', customerSearch: '', customerObject: null, productionRequestNo: '', note: '', reason: '' })
   const machines = getActiveMixingMachines(normalizeMixingMachines(data.mixingMachines))
   const productCatalog = productMasterCatalog
   const customerOptions = useMemo(() => normalizeCustomerCatalog(data.customerCatalog), [data.customerCatalog])
@@ -4106,16 +4113,33 @@ function OrdersPage({ data, setData, permissions = [] }) {
     ? buildFormulaItems(libraryItems, num(form.quantityKg)).map((item) => enrichItemFromMaterialCatalog(item, materialCatalogByCode, item.materialGroup || item.group || ''))
     : []
   const productionLot = buildProductionLotCode(data.orders, form.lotPrefix)
-  const nextOrderCode = () => {
-    const date = todayText().replaceAll('-', '')
-    const countToday = data.orders.filter((order) => String(order.orderCode || order.id || '').includes(`LSX-${date}`)).length + 1
-    return `LSX-${date}-${String(countToday).padStart(3, '0')}`
+  const orderHasStartedProduction = (order = {}) => {
+    const relatedContainers = (data.weighedContainers || []).some((container) => container.orderId === order.id || container.orderCode === order.orderCode || container.lot === getOrderLotCode(order))
+    return relatedContainers
+      || !['Pending', '', undefined, null].includes(order.chemicalStatus)
+      || !['Pending', '', undefined, null].includes(order.solidStatus)
+      || !['Pending', '', undefined, null].includes(order.mixingStatus)
+      || Boolean(order.mixingStartAt || order.mixingCompletedAt || order.mixing?.startedAt)
+  }
+  const openEditOrder = (order) => {
+    const customer = customerOptions.find((item) => item.customerCode === order.customerCode)
+    setEditOrderId(order.id)
+    setEditDraft({
+      mixerMachine: getOrderAssignedMachineCode(order),
+      customerCode: order.customerCode || customer?.customerCode || '',
+      customerSearch: customer ? formatCustomerOption(customer) : (order.customerName || order.customer || ''),
+      customerObject: customer || order.customerObject || null,
+      productionRequestNo: order.productionRequestNo || '',
+      note: order.note || '',
+      reason: '',
+    })
+    setWarning('')
   }
   const create = () => {
     setMessage('')
     setWarning('')
     if (!formula || normalizeFormulaStatus(formula) !== FORMULA_STATUS_ACTIVE) {
-      setWarning('Vui lòng chọn công thức gốc đang áp dụng từ danh mục')
+      setWarning('Vui lòng chọn mã sản phẩm đang áp dụng từ Danh mục sản phẩm.')
       return
     }
     if (!Number.isFinite(Number(form.quantityKg)) || Number(form.quantityKg) <= 0) {
@@ -4140,14 +4164,16 @@ function OrdersPage({ data, setData, permissions = [] }) {
       return
     }
     const sourceLabel = `công thức ${formula.currentVersion || formula.version}`
-    const id = nextOrderCode()
     const createdAt = nowText()
     const lotCode = buildProductionLotCode(data.orders, form.lotPrefix)
+    const id = lotCode
     logMaterialLookupPipeline({ id, orderCode: id }, preview, materialCatalogByCode)
     const originalFormulaSnapshot = preview.map((item) => ({ ...item }))
     const order = {
       id,
       orderCode: id,
+      productionOrderCode: id,
+      lotCode,
       formulaId: formula.id,
       formulaCode: getFormulaOptionCode(formula),
       productCode: getFormulaOptionCode(formula),
@@ -4216,15 +4242,81 @@ function OrdersPage({ data, setData, permissions = [] }) {
       finishedGoodsStatus: 'Pending',
       scaleStatus: { chemical: 'Pending', solid: 'Pending' },
     }
-    setData((current) => addLogToData({ ...current, orders: [order, ...current.orders] }, `Sử dụng ${sourceLabel} của ${formula.code} để tạo lệnh SX ${id}, chỉ định máy ${formatMixingMachineLabel(assignedMachine)}.`))
+    setData((current) => addLogToData({ ...current, orders: [order, ...current.orders] }, `Sử dụng ${sourceLabel} của ${formula.code} để tạo mã lô ${lotCode}, chỉ định máy ${formatMixingMachineLabel(assignedMachine)}.`))
     setMessage('Tạo lệnh sản xuất thành công')
     setForm((current) => ({ ...current, productGroup: '', lotPrefix: DEFAULT_PRODUCTION_LOT_PREFIX, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' }))
   }
   const detailOrder = data.orders.find((order) => order.id === detailOrderId)
+  const editOrder = data.orders.find((order) => order.id === editOrderId)
+  const editProductGroup = normalizeProductGroup(editOrder?.productGroup)
+  const editMachines = editProductGroup ? machines.filter((machine) => normalizeProductGroup(machine.equipmentGroup) === editProductGroup) : []
+  const selectedEditCustomer = editDraft.customerObject || customerOptions.find((customer) => customer.customerCode === editDraft.customerCode)
+  const saveEditOrder = () => {
+    if (!editOrder) return
+    if (orderHasStartedProduction(editOrder)) {
+      setWarning('Lệnh đã qua QC/cân/phối trộn. Vui lòng dùng luồng Đề nghị đổi máy nếu cần đổi máy.')
+      return
+    }
+    const nextMachine = editMachines.find((machine) => machine.machineCode === editDraft.mixerMachine)
+    if (!nextMachine) {
+      setWarning('Máy phối trộn không hợp lệ hoặc không thuộc nhóm sản phẩm.')
+      return
+    }
+    if (!selectedEditCustomer) {
+      setWarning('Vui lòng chọn khách hàng hợp lệ từ danh mục.')
+      return
+    }
+    const oldMachine = getOrderAssignedMachineCode(editOrder)
+    const changedAt = nowText()
+    const historyItem = {
+      id: uid('MCH'),
+      orderId: editOrder.id,
+      orderCode: editOrder.orderCode || editOrder.id,
+      lot: getOrderLotCode(editOrder),
+      oldMachine,
+      newMachine: nextMachine.machineCode,
+      changedBy: 'Phòng SX',
+      changedAt,
+      reason: editDraft.reason || 'Sửa lệnh trước khi bắt đầu cân',
+    }
+    setData((current) => {
+      const nextOrders = (current.orders || []).map((order) => {
+        if (order.id !== editOrder.id) return order
+        return {
+          ...order,
+          customer: selectedEditCustomer.customerName,
+          customerName: selectedEditCustomer.customerName,
+          customerCode: selectedEditCustomer.customerCode,
+          province: selectedEditCustomer.province || '',
+          channelCode: selectedEditCustomer.channelCode || '',
+          customerObject: selectedEditCustomer,
+          productionRequestNo: editDraft.productionRequestNo,
+          note: editDraft.note,
+          mixerMachine: nextMachine.machineCode,
+          mixerId: nextMachine.machineCode,
+          equipmentId: nextMachine.machineCode,
+          assignedMachineCode: nextMachine.machineCode,
+          assignedMixingMachine: nextMachine.machineCode,
+          assignedMachineName: nextMachine.machineName,
+          assignedMachineCapacityKg: nextMachine.capacityKg,
+          assignedMachineMotorPower: nextMachine.motorPower,
+          assignedMachineDepartment: nextMachine.department || nextMachine.productionTeam,
+          assignedMachineEquipmentGroup: nextMachine.equipmentGroup,
+          machineChangeHistory: oldMachine !== nextMachine.machineCode ? [...(order.machineChangeHistory || []), historyItem] : (order.machineChangeHistory || []),
+          machineAssignmentHistory: oldMachine !== nextMachine.machineCode ? [...(order.machineAssignmentHistory || []), historyItem] : (order.machineAssignmentHistory || []),
+          updatedAt: changedAt,
+        }
+      })
+      return addLogToData({ ...current, orders: nextOrders }, `Sửa lệnh mã lô ${getOrderLotCode(editOrder)}: máy ${oldMachine || '-'} -> ${nextMachine.machineCode}, khách hàng ${selectedEditCustomer.customerName}. Lý do: ${historyItem.reason}.`)
+    })
+    setEditOrderId('')
+    setMessage('Đã cập nhật lệnh sản xuất.')
+    setWarning('')
+  }
   return (
     <div className="page-content">
       <section className="panel">
-        <div className="panel-header-row"><div><h2>Lệnh sản xuất</h2><p className="panel-text">Phòng SX tạo lệnh từ công thức gốc. Hệ thống tự quy đổi khối lượng từng nguyên liệu theo khối lượng yêu cầu.</p></div></div>
+        <div className="panel-header-row"><div><h2>Lệnh sản xuất</h2><p className="panel-text">Phòng SX tạo lệnh từ Danh mục sản phẩm. Hệ thống tự quy đổi khối lượng từng nguyên liệu theo khối lượng yêu cầu.</p></div></div>
         {warning && <div className="process-alert">{warning}</div>}
         {productGroupMissingInCatalog && !form.productGroup && <div className="process-alert">Sản phẩm chưa được phân nhóm trong Danh mục sản phẩm.</div>}
         {message && <div className="formula-ratio-ok">{message}</div>}
@@ -4253,15 +4345,16 @@ function OrdersPage({ data, setData, permissions = [] }) {
               {productGroupOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
-          <label>Khối lượng (kg)<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value })} /></label>
-          <label>Mã LOT
+          <label>Khối lượng kg<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value })} /></label>
+          <label>Mã lô
             <div className="production-lot-field">
               <select value={form.lotPrefix} onChange={(event) => setForm({ ...form, lotPrefix: event.target.value })}>
                 {PRODUCTION_LOT_PREFIXES.map((prefix) => <option key={prefix} value={prefix}>{prefix}</option>)}
               </select>
-              <input value="" readOnly placeholder={productionLot} aria-label="Mã LOT dự kiến" />
+              <input value="" readOnly placeholder={productionLot.replace(`${form.lotPrefix}.`, '')} aria-label="Mã lô dự kiến" />
             </div>
           </label>
+          <label>Máy phối trộn *<select value={form.mixerMachine} disabled={!selectedProductGroup || !filteredMachines.length} onChange={(event) => setForm({ ...form, mixerMachine: event.target.value })}><option value="">{!selectedProductGroup ? 'Sản phẩm chưa phân nhóm' : !filteredMachines.length ? 'Chưa có thiết bị phù hợp' : 'Chọn máy'}</option>{filteredMachines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}</select></label>
           <label className="customer-field">Khách hàng *
             <CustomerSearchCombobox
               customers={customerOptions}
@@ -4271,7 +4364,6 @@ function OrdersPage({ data, setData, permissions = [] }) {
               onSelect={(customer) => setForm({ ...form, customerSearch: formatCustomerOption(customer), customer: customer.customerName, customerName: customer.customerName, customerCode: customer.customerCode, province: customer.province || '', channelCode: customer.channelCode || '', customerObject: customer })}
             />
           </label>
-          <label>Máy phối trộn *<select value={form.mixerMachine} disabled={!selectedProductGroup || !filteredMachines.length} onChange={(event) => setForm({ ...form, mixerMachine: event.target.value })}><option value="">{!selectedProductGroup ? 'Sản phẩm chưa phân nhóm' : !filteredMachines.length ? 'Chưa có thiết bị phù hợp' : 'Chọn máy'}</option>{filteredMachines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}</select></label>
           <label>Phiếu yêu cầu SX<input value={form.productionRequestNo} placeholder="Nhập số phiếu yêu cầu sản xuất" onChange={(event) => setForm({ ...form, productionRequestNo: event.target.value })} /></label>
           <label>Ghi chú<textarea value={form.note} placeholder="Ví dụ: Giống mẫu đã duyệt ngày .../..." onChange={(event) => setForm({ ...form, note: event.target.value })} /></label>
         </div>
@@ -4279,15 +4371,24 @@ function OrdersPage({ data, setData, permissions = [] }) {
       </section>
       <section className="panel">
         <h3>Danh sách lệnh</h3>
-        <SimpleTable tableClassName="orders-table" headers={['Mã lệnh SX', 'Sản phẩm', 'Nhóm SP', 'Khách hàng', 'Mã sản phẩm', 'Version', 'LOT', 'Khối lượng', 'Máy phối trộn', 'Phiếu yêu cầu SX', 'Ghi chú', 'Trạng thái', 'Ngày tạo', 'Hành động']} rows={data.orders.map((order) => (
-          <tr key={order.id}><td>{order.orderCode || order.id}</td><td>{order.productName || order.product}</td><td>{displayProductGroup(order.productGroup) || '-'}</td><td>{order.customerName || order.customer || '-'}</td><td>{order.formulaCode || order.originalFormulaId}</td><td>{order.formulaVersion || order.originalFormulaVersion}</td><td>{order.lot}</td><td>{kg(order.requestedWeight ?? order.quantityKg)}</td><td>{getOrderAssignedMachineLabel(order, machines)}</td><td>{order.productionRequestNo || '-'}</td><td className="ellipsis-cell" title={order.note || ''}>{order.note || '-'}</td><td><span className={`flow-pill ${statusClass(order.status)}`}>{displayQcTrialText(order.status)}</span></td><td>{order.createdAt}</td><td><button className="secondary-button" onClick={() => { setDetailOrderId(order.id); setDetailTab('info') }}>Chi tiết</button></td></tr>
+        <SimpleTable tableClassName="orders-table" headers={['Mã lô', 'Mã SP', 'Khối lượng kg', 'Máy phối trộn', 'Tên khách hàng', 'Nhóm SP', 'Trạng thái', 'Hành động']} rows={data.orders.map((order) => (
+          <tr key={order.id}>
+            <td><strong>{getOrderLotCode(order)}</strong></td>
+            <td>{order.productCode || order.formulaCode || order.originalFormulaId}</td>
+            <td>{kg(order.requestedWeight ?? order.quantityKg)}</td>
+            <td>{getOrderAssignedMachineLabel(order, machines)}</td>
+            <td>{order.customerName || order.customer || '-'}</td>
+            <td>{displayProductGroup(order.productGroup) || '-'}</td>
+            <td><span className={`flow-pill ${statusClass(order.status)}`}>{displayQcTrialText(order.status)}</span></td>
+            <td><div className="action-row compact-actions"><button className="secondary-button" onClick={() => { setDetailOrderId(order.id); setDetailTab('info') }}>Chi tiết</button><button className="secondary-button" onClick={() => openEditOrder(order)}>Sửa lệnh</button></div></td>
+          </tr>
         ))} />
       </section>
       {detailOrder && (
         <div className="modal-backdrop" role="presentation">
           <div className="production-modal order-detail-modal" role="dialog" aria-modal="true">
             <div className="modal-header">
-              <div><span className="section-kicker">Chi tiết lệnh sản xuất</span><h2>{detailOrder.orderCode || detailOrder.id}</h2></div>
+              <div><span className="section-kicker">Chi tiết lệnh sản xuất</span><h2>{getOrderLotCode(detailOrder)}</h2></div>
               <button type="button" className="icon-button" onClick={() => setDetailOrderId('')} aria-label="Đóng">×</button>
             </div>
             <div className="log-tabs">
@@ -4303,6 +4404,47 @@ function OrdersPage({ data, setData, permissions = [] }) {
               ].map(([id, label]) => <button key={id} className={detailTab === id ? 'active' : ''} onClick={() => setDetailTab(id)}>{label}</button>)}
             </div>
             <OrderDetailTabs order={detailOrder} tab={detailTab} productionLogs={data.productionLogs || []} qc2Logs={data.qc2Logs || []} permissions={permissions} />
+          </div>
+        </div>
+      )}
+      {editOrder && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="production-modal order-detail-modal" role="dialog" aria-modal="true">
+            <div className="modal-header">
+              <div><span className="section-kicker">Sửa lệnh</span><h2>{getOrderLotCode(editOrder)}</h2></div>
+              <button type="button" className="icon-button" onClick={() => setEditOrderId('')} aria-label="Đóng">×</button>
+            </div>
+            {orderHasStartedProduction(editOrder) && <div className="process-alert">Lệnh đã qua QC/cân/phối trộn. Không sửa trực tiếp; hãy dùng luồng Đề nghị đổi máy nếu cần đổi máy.</div>}
+            <div className="production-log-grid">
+              <div><span>Mã lô</span><strong>{getOrderLotCode(editOrder)}</strong></div>
+              <div><span>Mã sản phẩm</span><strong>{editOrder.productCode || editOrder.formulaCode || '-'}</strong></div>
+              <div><span>Khối lượng</span><strong>{kg(editOrder.requestedWeight ?? editOrder.quantityKg)}</strong></div>
+              <div><span>Version</span><strong>{editOrder.formulaVersion || editOrder.originalFormulaVersion || '-'}</strong></div>
+            </div>
+            <div className="production-form-grid">
+              <label>Máy phối trộn
+                <select value={editDraft.mixerMachine} disabled={orderHasStartedProduction(editOrder)} onChange={(event) => setEditDraft({ ...editDraft, mixerMachine: event.target.value })}>
+                  <option value="">Chọn máy</option>
+                  {editMachines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}
+                </select>
+              </label>
+              <label>Khách hàng
+                <CustomerSearchCombobox
+                  customers={customerOptions}
+                  value={selectedEditCustomer}
+                  inputValue={editDraft.customerSearch}
+                  onInputChange={(value) => setEditDraft({ ...editDraft, customerSearch: value, customerCode: '', customerObject: null })}
+                  onSelect={(customer) => setEditDraft({ ...editDraft, customerSearch: formatCustomerOption(customer), customerCode: customer.customerCode, customerObject: customer })}
+                />
+              </label>
+              <label>Phiếu yêu cầu SX<input value={editDraft.productionRequestNo} disabled={orderHasStartedProduction(editOrder)} onChange={(event) => setEditDraft({ ...editDraft, productionRequestNo: event.target.value })} /></label>
+              <label>Lý do sửa<input value={editDraft.reason} disabled={orderHasStartedProduction(editOrder)} placeholder="Nhập lý do sửa" onChange={(event) => setEditDraft({ ...editDraft, reason: event.target.value })} /></label>
+              <label className="wide-field">Ghi chú<textarea value={editDraft.note} disabled={orderHasStartedProduction(editOrder)} onChange={(event) => setEditDraft({ ...editDraft, note: event.target.value })} /></label>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="secondary-button" onClick={() => setEditOrderId('')}>Hủy</button>
+              <button type="button" className="primary-button" disabled={orderHasStartedProduction(editOrder)} onClick={saveEditOrder}>Lưu thay đổi</button>
+            </div>
           </div>
         </div>
       )}
@@ -4382,7 +4524,7 @@ function FormulaSearchCombobox({ formulas = [], inputValue = '', onInputChange, 
     <div className="customer-combobox formula-combobox">
       <input
         value={query}
-        placeholder="Chọn mã công thức"
+        placeholder="Chọn mã sản phẩm"
         onFocus={(event) => {
           event.target.select()
           setShowAll(true)
@@ -4543,12 +4685,11 @@ function OrderDetailTabs({ order, tab, productionLogs, qc2Logs, permissions = []
     return (
       <div className="production-log-grid">
         {[
-          ['Mã lệnh SX', order.orderCode || order.id],
+          ['Mã lô', getOrderLotCode(order)],
           ['Sản phẩm', order.productName || order.product],
           ['Khách hàng', order.customerName || order.customer || '-'],
-          ['Công thức gốc', order.formulaCode || order.originalFormulaId],
+          ['Mã sản phẩm', order.productCode || order.formulaCode || order.originalFormulaId],
           ['Version', order.formulaVersion || order.originalFormulaVersion],
-          ['LOT', order.lot],
           ['Khối lượng yêu cầu', kg(order.requestedWeight ?? order.quantityKg)],
           ['Trạng thái', displayQcTrialText(order.status)],
           ['Ngày tạo', order.createdAt],

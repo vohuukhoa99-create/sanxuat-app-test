@@ -605,7 +605,7 @@ tbody tr:hover {
 
 .production-order-form-grid {
   display: grid;
-  grid-template-columns: 150px 135px 100px 206px 280px 150px 170px 220px;
+  grid-template-columns: 150px 135px 100px 206px 150px 280px 170px 220px;
   gap: 10px;
   align-items: end;
   margin-bottom: 16px;
@@ -975,13 +975,74 @@ tbody tr:hover {
 }
 
 .orders-table {
-  min-width: 1320px;
+  width: auto;
+  min-width: 1120px;
+  table-layout: fixed;
 }
 
 .orders-table th,
 .orders-table td {
-  padding: 9px 8px;
+  padding: 8px 10px;
   font-size: 13px;
+}
+
+.orders-table th {
+  text-align: center;
+}
+
+.orders-table th:nth-child(1),
+.orders-table td:nth-child(1) {
+  width: 150px;
+}
+
+.orders-table th:nth-child(2),
+.orders-table td:nth-child(2) {
+  width: 120px;
+}
+
+.orders-table th:nth-child(3),
+.orders-table td:nth-child(3) {
+  width: 100px;
+  text-align: center;
+}
+
+.orders-table th:nth-child(4),
+.orders-table td:nth-child(4) {
+  width: 140px;
+}
+
+.orders-table th:nth-child(5),
+.orders-table td:nth-child(5) {
+  width: 260px;
+}
+
+.orders-table th:nth-child(6),
+.orders-table td:nth-child(6) {
+  width: 100px;
+  text-align: center;
+}
+
+.orders-table th:nth-child(7),
+.orders-table td:nth-child(7) {
+  width: 130px;
+  text-align: center;
+}
+
+.orders-table th:nth-child(8),
+.orders-table td:nth-child(8) {
+  width: 150px;
+  text-align: center;
+}
+
+.compact-actions {
+  justify-content: center;
+  gap: 6px;
+}
+
+.compact-actions button {
+  min-height: 32px;
+  padding: 6px 8px;
+  font-size: 12px;
 }
 
 .ellipsis-cell {
