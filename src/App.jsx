@@ -4371,14 +4371,14 @@ function OrdersPage({ data, setData, permissions = [] }) {
       </section>
       <section className="panel">
         <h3>Danh sách lệnh</h3>
-        <SimpleTable tableClassName="orders-table" headers={['Mã lô', 'Mã SP', 'Khối lượng kg', 'Máy phối trộn', 'Tên khách hàng', 'Nhóm SP', 'Trạng thái', 'Hành động']} rows={data.orders.map((order) => (
+        <SimpleTable tableClassName="orders-table" headers={['Mã lô', 'Mã SP', 'Nhóm SP', 'Khối lượng kg', 'Máy phối trộn', 'Tên khách hàng', 'Trạng thái', 'Hành động']} rows={data.orders.map((order) => (
           <tr key={order.id}>
             <td><strong>{getOrderLotCode(order)}</strong></td>
             <td>{order.productCode || order.formulaCode || order.originalFormulaId}</td>
+            <td>{displayProductGroup(order.productGroup) || '-'}</td>
             <td>{kg(order.requestedWeight ?? order.quantityKg)}</td>
             <td>{getOrderAssignedMachineLabel(order, machines)}</td>
             <td>{order.customerName || order.customer || '-'}</td>
-            <td>{displayProductGroup(order.productGroup) || '-'}</td>
             <td><span className={`flow-pill ${statusClass(order.status)}`}>{displayQcTrialText(order.status)}</span></td>
             <td><div className="action-row compact-actions"><button className="secondary-button" onClick={() => { setDetailOrderId(order.id); setDetailTab('info') }}>Chi tiết</button><button className="secondary-button" onClick={() => openEditOrder(order)}>Sửa lệnh</button></div></td>
           </tr>
