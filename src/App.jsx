@@ -7677,8 +7677,10 @@ function MixingPage({ data, setData, user }) {
                   const assignedMachineCode = getAssignedMachineCode(order)
                   const assignedMachine = machines.find((machine) => machine.machineCode === assignedMachineCode)
                   const state = getMixingDispatchState(order)
+                  const isMixingActive = order.mixing?.status === 'Active' || order.mixingStatus === 'Active'
+                  const supplement = order.stage === 'mixing-supplement' || order.mixing?.supplement
                   return (
-                    <tr key={order.id} className={qrFailed ? 'mixing-qr-fail-row' : ''}>
+                    <tr key={order.id} className={!isMixingActive && qrFailed ? 'mixing-qr-fail-row' : ''}>
                       <td>{getOrderLotCode(order)}</td>
                       <td>{order.productName || order.product}</td>
                       <td>
@@ -7692,7 +7694,9 @@ function MixingPage({ data, setData, user }) {
                       <td><span className={`dispatch-badge ${getWeighingStatusTone(solidFlow)}`}>{solidFlow.label}</span></td>
                       <td>
                         <div className="mixing-scan-cell">
-                          {!requiresChemicalQr ? (
+                          {isMixingActive ? (
+                            <span className="weighing-check">✓ OK Hóa</span>
+                          ) : !requiresChemicalQr ? (
                             <span className={`dispatch-badge ${getWeighingStatusTone(chemicalFlow)}`}>{chemicalFlow.status === 'not_required' ? 'Không yêu cầu' : chemicalFlow.label}</span>
                           ) : chemicalScan.pass ? (
                             <>
@@ -7708,7 +7712,9 @@ function MixingPage({ data, setData, user }) {
                       </td>
                       <td>
                         <div className="mixing-scan-cell">
-                          {!requiresSolidQr ? (
+                          {isMixingActive ? (
+                            <span className="weighing-check">✓ OK Rắn</span>
+                          ) : !requiresSolidQr ? (
                             <span className={`dispatch-badge ${getWeighingStatusTone(solidFlow)}`}>{solidFlow.status === 'not_required' ? 'Không yêu cầu' : solidFlow.label}</span>
                           ) : solidScan.pass ? (
                             <>
@@ -7724,7 +7730,9 @@ function MixingPage({ data, setData, user }) {
                       </td>
                       <td>
                         <div className="mixing-scan-cell">
-                          {machineScan.pass ? (
+                          {isMixingActive ? (
+                            <span className="weighing-check">✓ OK Máy</span>
+                          ) : machineScan.pass ? (
                             <span className="weighing-check">✓ OK Máy</span>
                           ) : (
                             <>
@@ -7734,8 +7742,8 @@ function MixingPage({ data, setData, user }) {
                           )}
                         </div>
                       </td>
-                      <td><span className={`dispatch-badge ${state.className}`}>{state.canStart ? (qrFailed ? (startValidation.messages[0] || 'Sai QR') : qrReady ? 'Sẵn sàng phối trộn' : requiresChemicalQr && !chemicalScan.pass ? 'Chờ QR Hóa' : requiresSolidQr && !solidScan.pass ? 'Chờ QR Rắn' : !machineScan.pass ? 'Chờ QR Máy' : 'Chờ quét') : state.label}</span></td>
-                      <td><div className="mixing-row-actions"><button className="primary-button start-mixing-button" disabled={!state.canStart || !qrReady || !assignedMachineCode} onClick={() => startMixing(order)}>Bắt đầu phối trộn</button></div></td>
+                      <td><span className={`dispatch-badge ${isMixingActive ? 'mixing' : state.className}`}>{isMixingActive ? 'Đang phối trộn' : state.canStart ? (qrFailed ? (startValidation.messages[0] || 'Sai QR') : qrReady ? 'Sẵn sàng phối trộn' : requiresChemicalQr && !chemicalScan.pass ? 'Chờ QR Hóa' : requiresSolidQr && !solidScan.pass ? 'Chờ QR Rắn' : !machineScan.pass ? 'Chờ QR Máy' : 'Chờ quét') : state.label}</span></td>
+                      <td><div className="mixing-row-actions">{isMixingActive ? <button className="secondary-button" onClick={() => completeMixing(order, supplement)}>{supplement ? 'Hoàn thành bổ sung' : 'Hoàn thành phối trộn'}</button> : <button className="primary-button start-mixing-button" disabled={!state.canStart || !qrReady || !assignedMachineCode} onClick={() => startMixing(order)}>Bắt đầu phối trộn</button>}</div></td>
                     </tr>
                   )
                 })}
