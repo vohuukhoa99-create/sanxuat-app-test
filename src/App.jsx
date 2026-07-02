@@ -4251,6 +4251,37 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const editProductGroup = normalizeProductGroup(editOrder?.productGroup)
   const editMachines = editProductGroup ? machines.filter((machine) => normalizeProductGroup(machine.equipmentGroup) === editProductGroup) : []
   const selectedEditCustomer = editDraft.customerObject || customerOptions.find((customer) => customer.customerCode === editDraft.customerCode)
+  const orderExportRows = (order = {}) => ([
+    { 'Nhóm': 'Thông tin định danh', 'Trường': 'Mã lô', 'Giá trị': getOrderLotCode(order) },
+    { 'Nhóm': 'Thông tin định danh', 'Trường': 'Mã SP', 'Giá trị': order.productCode || order.formulaCode || order.originalFormulaId || '' },
+    { 'Nhóm': 'Thông tin định danh', 'Trường': 'Nhóm SP', 'Giá trị': displayProductGroup(order.productGroup) || '' },
+    { 'Nhóm': 'Thông tin định danh', 'Trường': 'Khối lượng', 'Giá trị': kg(order.requestedWeight ?? order.quantityKg) },
+    { 'Nhóm': 'Thông tin vận hành', 'Trường': 'Máy phối trộn', 'Giá trị': getOrderAssignedMachineLabel(order, machines) },
+    { 'Nhóm': 'Thông tin vận hành', 'Trường': 'Khách hàng', 'Giá trị': order.customerName || order.customer || '' },
+    { 'Nhóm': 'Thông tin vận hành', 'Trường': 'Phiếu yêu cầu SX', 'Giá trị': order.productionRequestNo || '' },
+    { 'Nhóm': 'Thông tin kiểm soát', 'Trường': 'Version', 'Giá trị': order.formulaVersion || order.originalFormulaVersion || '' },
+    { 'Nhóm': 'Thông tin kiểm soát', 'Trường': 'Trạng thái', 'Giá trị': displayQcTrialText(order.status) },
+    { 'Nhóm': 'Thông tin kiểm soát', 'Trường': 'Ngày tạo', 'Giá trị': order.createdAt || '' },
+    { 'Nhóm': 'Thông tin kiểm soát', 'Trường': 'Ghi chú', 'Giá trị': order.note || '' },
+  ])
+  const printOrder = () => window.print()
+  const exportOrderPdf = (order) => {
+    if (!order) return
+    const doc = new jsPDF()
+    doc.text(`Lenh san xuat - ${getOrderLotCode(order)}`, 14, 14)
+    autoTable(doc, {
+      startY: 20,
+      head: [['Nhom', 'Truong', 'Gia tri']],
+      body: orderExportRows(order).map((row) => [row['Nhóm'], row['Trường'], row['Giá trị']]),
+    })
+    doc.save(`lenh-san-xuat-${getOrderLotCode(order).replace(/[^a-zA-Z0-9_-]/g, '-')}.pdf`)
+  }
+  const exportOrderExcel = (order) => {
+    if (!order) return
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(orderExportRows(order)), 'Lenh san xuat')
+    XLSX.writeFile(book, `lenh-san-xuat-${getOrderLotCode(order).replace(/[^a-zA-Z0-9_-]/g, '-')}.xlsx`)
+  }
   const saveEditOrder = () => {
     if (!editOrder) return
     if (orderHasStartedProduction(editOrder)) {
@@ -4404,6 +4435,16 @@ function OrdersPage({ data, setData, permissions = [] }) {
               ].map(([id, label]) => <button key={id} className={detailTab === id ? 'active' : ''} onClick={() => setDetailTab(id)}>{label}</button>)}
             </div>
             <OrderDetailTabs order={detailOrder} tab={detailTab} productionLogs={data.productionLogs || []} qc2Logs={data.qc2Logs || []} permissions={permissions} />
+            <div className="modal-actions order-modal-actions">
+              <div className="modal-secondary-actions">
+                <button type="button" className="secondary-button" onClick={printOrder}>In</button>
+                <button type="button" className="secondary-button" onClick={() => exportOrderPdf(detailOrder)}>Xuất PDF</button>
+                <button type="button" className="secondary-button" onClick={() => exportOrderExcel(detailOrder)}>Xuất Excel</button>
+              </div>
+              <div className="modal-primary-actions">
+                <button type="button" className="secondary-button" onClick={() => setDetailOrderId('')}>Hủy</button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -4415,35 +4456,57 @@ function OrdersPage({ data, setData, permissions = [] }) {
               <button type="button" className="icon-button" onClick={() => setEditOrderId('')} aria-label="Đóng">×</button>
             </div>
             {orderHasStartedProduction(editOrder) && <div className="process-alert">Lệnh đã qua QC/cân/phối trộn. Không sửa trực tiếp; hãy dùng luồng Đề nghị đổi máy nếu cần đổi máy.</div>}
-            <div className="production-log-grid">
-              <div><span>Mã lô</span><strong>{getOrderLotCode(editOrder)}</strong></div>
-              <div><span>Mã sản phẩm</span><strong>{editOrder.productCode || editOrder.formulaCode || '-'}</strong></div>
-              <div><span>Khối lượng</span><strong>{kg(editOrder.requestedWeight ?? editOrder.quantityKg)}</strong></div>
-              <div><span>Version</span><strong>{editOrder.formulaVersion || editOrder.originalFormulaVersion || '-'}</strong></div>
+            <div className="order-modal-sections">
+              <section className="order-modal-section">
+                <h3>Thông tin định danh</h3>
+                <div className="order-modal-field-grid identity-grid">
+                  <div className="field-readonly field-lot"><span>Mã lô</span><strong>{getOrderLotCode(editOrder)}</strong></div>
+                  <div className="field-readonly field-product-code"><span>Mã SP</span><strong>{editOrder.productCode || editOrder.formulaCode || '-'}</strong></div>
+                  <div className="field-readonly field-product-group"><span>Nhóm SP</span><strong>{displayProductGroup(editOrder.productGroup) || '-'}</strong></div>
+                  <div className="field-readonly field-weight"><span>Khối lượng</span><strong>{kg(editOrder.requestedWeight ?? editOrder.quantityKg)}</strong></div>
+                </div>
+              </section>
+              <section className="order-modal-section">
+                <h3>Thông tin vận hành</h3>
+                <div className="order-modal-field-grid operation-grid">
+                  <label className="field-machine">Máy phối trộn
+                    <select value={editDraft.mixerMachine} disabled={orderHasStartedProduction(editOrder)} onChange={(event) => setEditDraft({ ...editDraft, mixerMachine: event.target.value })}>
+                      <option value="">Chọn máy</option>
+                      {editMachines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}
+                    </select>
+                  </label>
+                  <label className="field-customer">Khách hàng
+                    <CustomerSearchCombobox
+                      customers={customerOptions}
+                      value={selectedEditCustomer}
+                      inputValue={editDraft.customerSearch}
+                      onInputChange={(value) => setEditDraft({ ...editDraft, customerSearch: value, customerCode: '', customerObject: null })}
+                      onSelect={(customer) => setEditDraft({ ...editDraft, customerSearch: formatCustomerOption(customer), customerCode: customer.customerCode, customerObject: customer })}
+                    />
+                  </label>
+                  <label className="field-request">Phiếu yêu cầu SX<input value={editDraft.productionRequestNo} disabled={orderHasStartedProduction(editOrder)} onChange={(event) => setEditDraft({ ...editDraft, productionRequestNo: event.target.value })} /></label>
+                </div>
+              </section>
+              <section className="order-modal-section">
+                <h3>Thông tin kiểm soát</h3>
+                <div className="order-modal-field-grid control-grid">
+                  <div className="field-readonly field-version"><span>Version</span><strong>{editOrder.formulaVersion || editOrder.originalFormulaVersion || '-'}</strong></div>
+                  <div className="field-readonly field-status"><span>Trạng thái</span><strong>{displayQcTrialText(editOrder.status)}</strong></div>
+                  <label className="field-reason">Lý do sửa<input value={editDraft.reason} disabled={orderHasStartedProduction(editOrder)} placeholder="Nhập lý do sửa" onChange={(event) => setEditDraft({ ...editDraft, reason: event.target.value })} /></label>
+                  <label className="field-note">Ghi chú<textarea value={editDraft.note} disabled={orderHasStartedProduction(editOrder)} onChange={(event) => setEditDraft({ ...editDraft, note: event.target.value })} /></label>
+                </div>
+              </section>
             </div>
-            <div className="production-form-grid">
-              <label>Máy phối trộn
-                <select value={editDraft.mixerMachine} disabled={orderHasStartedProduction(editOrder)} onChange={(event) => setEditDraft({ ...editDraft, mixerMachine: event.target.value })}>
-                  <option value="">Chọn máy</option>
-                  {editMachines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}
-                </select>
-              </label>
-              <label>Khách hàng
-                <CustomerSearchCombobox
-                  customers={customerOptions}
-                  value={selectedEditCustomer}
-                  inputValue={editDraft.customerSearch}
-                  onInputChange={(value) => setEditDraft({ ...editDraft, customerSearch: value, customerCode: '', customerObject: null })}
-                  onSelect={(customer) => setEditDraft({ ...editDraft, customerSearch: formatCustomerOption(customer), customerCode: customer.customerCode, customerObject: customer })}
-                />
-              </label>
-              <label>Phiếu yêu cầu SX<input value={editDraft.productionRequestNo} disabled={orderHasStartedProduction(editOrder)} onChange={(event) => setEditDraft({ ...editDraft, productionRequestNo: event.target.value })} /></label>
-              <label>Lý do sửa<input value={editDraft.reason} disabled={orderHasStartedProduction(editOrder)} placeholder="Nhập lý do sửa" onChange={(event) => setEditDraft({ ...editDraft, reason: event.target.value })} /></label>
-              <label className="wide-field">Ghi chú<textarea value={editDraft.note} disabled={orderHasStartedProduction(editOrder)} onChange={(event) => setEditDraft({ ...editDraft, note: event.target.value })} /></label>
-            </div>
-            <div className="modal-actions">
-              <button type="button" className="secondary-button" onClick={() => setEditOrderId('')}>Hủy</button>
-              <button type="button" className="primary-button" disabled={orderHasStartedProduction(editOrder)} onClick={saveEditOrder}>Lưu thay đổi</button>
+            <div className="modal-actions order-modal-actions">
+              <div className="modal-secondary-actions">
+                <button type="button" className="secondary-button" onClick={printOrder}>In</button>
+                <button type="button" className="secondary-button" onClick={() => exportOrderPdf(editOrder)}>Xuất PDF</button>
+                <button type="button" className="secondary-button" onClick={() => exportOrderExcel(editOrder)}>Xuất Excel</button>
+              </div>
+              <div className="modal-primary-actions">
+                <button type="button" className="secondary-button" onClick={() => setEditOrderId('')}>Hủy</button>
+                <button type="button" className="primary-button" disabled={orderHasStartedProduction(editOrder)} onClick={saveEditOrder}>Lưu thay đổi</button>
+              </div>
             </div>
           </div>
         </div>
@@ -4683,20 +4746,33 @@ function OrderDetailTabs({ order, tab, productionLogs, qc2Logs, permissions = []
 
   if (tab === 'info') {
     return (
-      <div className="production-log-grid">
-        {[
-          ['Mã lô', getOrderLotCode(order)],
-          ['Sản phẩm', order.productName || order.product],
-          ['Khách hàng', order.customerName || order.customer || '-'],
-          ['Mã sản phẩm', order.productCode || order.formulaCode || order.originalFormulaId],
-          ['Version', order.formulaVersion || order.originalFormulaVersion],
-          ['Khối lượng yêu cầu', kg(order.requestedWeight ?? order.quantityKg)],
-          ['Trạng thái', displayQcTrialText(order.status)],
-          ['Ngày tạo', order.createdAt],
-          ['Cân hóa', order.chemicalStatus || order.scaleStatus?.chemical || 'Pending'],
-          ['Cân rắn', order.solidStatus || order.scaleStatus?.solid || 'Pending'],
-          ['Phối trộn', order.mixingStatus || order.mixing?.status || 'Pending'],
-        ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}
+      <div className="order-modal-sections">
+        <section className="order-modal-section">
+          <h3>Thông tin định danh</h3>
+          <div className="order-modal-field-grid identity-grid">
+            <div className="field-readonly field-lot"><span>Mã lô</span><strong>{getOrderLotCode(order)}</strong></div>
+            <div className="field-readonly field-product-code"><span>Mã SP</span><strong>{order.productCode || order.formulaCode || order.originalFormulaId}</strong></div>
+            <div className="field-readonly field-product-group"><span>Nhóm SP</span><strong>{displayProductGroup(order.productGroup) || '-'}</strong></div>
+            <div className="field-readonly field-weight"><span>Khối lượng</span><strong>{kg(order.requestedWeight ?? order.quantityKg)}</strong></div>
+          </div>
+        </section>
+        <section className="order-modal-section">
+          <h3>Thông tin vận hành</h3>
+          <div className="order-modal-field-grid operation-grid">
+            <div className="field-readonly field-machine"><span>Máy phối trộn</span><strong>{getOrderAssignedMachineCode(order) || '-'}</strong></div>
+            <div className="field-readonly field-customer"><span>Khách hàng</span><strong>{order.customerName || order.customer || '-'}</strong></div>
+            <div className="field-readonly field-request"><span>Phiếu yêu cầu SX</span><strong>{order.productionRequestNo || '-'}</strong></div>
+          </div>
+        </section>
+        <section className="order-modal-section">
+          <h3>Thông tin kiểm soát</h3>
+          <div className="order-modal-field-grid control-grid">
+            <div className="field-readonly field-version"><span>Version</span><strong>{order.formulaVersion || order.originalFormulaVersion || '-'}</strong></div>
+            <div className="field-readonly field-status"><span>Trạng thái</span><strong>{displayQcTrialText(order.status)}</strong></div>
+            <div className="field-readonly field-request"><span>Ngày tạo</span><strong>{order.createdAt || '-'}</strong></div>
+            <div className="field-readonly field-note"><span>Ghi chú</span><strong>{order.note || '-'}</strong></div>
+          </div>
+        </section>
       </div>
     )
   }
