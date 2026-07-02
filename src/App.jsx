@@ -431,8 +431,8 @@ const formulaMatches = (formula = {}, query = '') => {
     formula.currentVersion,
     formula.version,
   ].filter(Boolean).join(' '))
-  const compactFormulaCode = searchText.replace(/\s+/g, '')
-  const compactKeyword = keyword.replace(/\s+/g, '')
+  const compactFormulaCode = searchText.replace(/[^a-z0-9]+/g, '')
+  const compactKeyword = keyword.replace(/[^a-z0-9]+/g, '')
   return searchText.includes(keyword) || compactFormulaCode.includes(compactKeyword)
 }
 const formulaCodeEquals = (formula = {}, value = '') => normalizeFormulaCode(getFormulaOptionCode(formula)) === normalizeFormulaCode(value)
@@ -612,8 +612,8 @@ const productMasterToFormulaOption = (product = {}) => ({
   productGroup: normalizeProductCatalogGroup(product.productGroup),
   version: product.currentVersion || 'V1.0',
   currentVersion: product.currentVersion || 'V1.0',
-  formulaStatus: product.status || FORMULA_STATUS_ACTIVE,
-  status: product.status || FORMULA_STATUS_ACTIVE,
+  formulaStatus: normalizeProductStatus(product.status),
+  status: normalizeProductStatus(product.status),
   effectiveDate: product.effectiveDate,
   createdBy: product.createdBy,
   note: product.note,
@@ -4086,8 +4086,8 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
 
 function OrdersPage({ data, setData, permissions = [] }) {
   const productMasterCatalog = buildProductMasterCatalog(data.productCatalog || [], data.formulas || [], data.formulaVersions || [])
-  const formulas = productMasterCatalog.map(productMasterToFormulaOption)
-  const activeFormulaOptions = formulas.filter((formula) => formula.status === FORMULA_STATUS_ACTIVE)
+  const productOptions = productMasterCatalog.map(productMasterToFormulaOption)
+  const activeFormulaOptions = productOptions.filter((product) => normalizeProductStatus(product.status) === FORMULA_STATUS_ACTIVE)
   const initialFormula = activeFormulaOptions[0] || null
   const [form, setForm] = useState({ formulaId: initialFormula?.id || '', selectedFormulaCode: getFormulaOptionCode(initialFormula), formulaObject: initialFormula, formulaSearch: formatFormulaInput(initialFormula), productGroup: normalizeProductGroup(initialFormula?.productGroup), quantityKg: 1000, lotPrefix: DEFAULT_PRODUCTION_LOT_PREFIX, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
   const [message, setMessage] = useState('')
@@ -4378,11 +4378,11 @@ function OrdersPage({ data, setData, permissions = [] }) {
               onSelect={(selectedFormula) => {
                 const selectedCode = getFormulaOptionCode(selectedFormula)
                 const selectedProduct = productCatalog.find((product) => (
-                  normalizeFormulaCode(product.code) === normalizeFormulaCode(selectedCode)
-                  || normalizeFormulaCode(product.name) === normalizeFormulaCode(selectedFormula.product || '')
-                  || normalizeFormulaCode(product.code) === normalizeFormulaCode(selectedFormula.product || '')
+                  normalizeFormulaCode(product.productCode || product.code) === normalizeFormulaCode(selectedCode)
+                  || normalizeFormulaCode(product.name || product.productName) === normalizeFormulaCode(selectedFormula.product || selectedFormula.productName || '')
+                  || normalizeFormulaCode(product.productCode || product.code) === normalizeFormulaCode(selectedFormula.product || selectedFormula.productName || '')
                 ))
-                const nextProductGroup = normalizeProductGroup(selectedProduct?.productGroup || selectedFormula.productGroup || selectedProduct?.group)
+                const nextProductGroup = normalizeProductCatalogGroup(selectedProduct?.productGroup || selectedFormula.productGroup || selectedProduct?.group)
                 setForm({ ...form, formulaSearch: selectedCode, formulaId: selectedFormula.id, selectedFormulaCode: selectedCode, formulaObject: selectedFormula, productGroup: nextProductGroup, mixerMachine: '' })
               }}
               onInvalid={() => setForm({ ...form, formulaSearch: '', formulaId: '', selectedFormulaCode: '', formulaObject: null, productGroup: '', mixerMachine: '' })}
