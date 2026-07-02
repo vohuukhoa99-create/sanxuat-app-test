@@ -747,6 +747,17 @@ function getWeighingAccumulatedWeight(item = {}) {
   return Number(history.reduce((sum, entry) => sum + num(entry.weightKg ?? entry.weight), 0).toFixed(3))
 }
 
+function getContinuationCurrentWeight(rawWeight = 0, baselineWeight = null, baselineReleased = false) {
+  const raw = num(rawWeight)
+  if (baselineWeight === '' || baselineWeight === null || baselineWeight === undefined || !Number.isFinite(Number(baselineWeight))) return raw
+  const baseline = num(baselineWeight)
+  if (baseline <= 0) return raw
+  const epsilon = 0.001
+  if (baselineReleased) return raw
+  if (raw <= baseline + epsilon) return 0
+  return Number((raw - baseline).toFixed(3))
+}
+
 function buildScaleWeighingEntry({ order, item, weight, scaleType, weighedBy, action, qr }) {
   const history = Array.isArray(item.weighingHistory) ? item.weighingHistory : []
   const weighedAt = nowText()
@@ -6661,6 +6672,9 @@ function getWeighingRowStatus(row = {}, currentWeight = 0, { active = true } = {
   if (weighingState.isWithinTolerance) {
     return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Đạt', statusTone: 'ok', actionType: active ? 'CONFIRM' : 'NONE', actionText: active ? '✓ Xác nhận' : '-' }
   }
+  if (accumulatedWeight > 0 && currentWeight <= 0) {
+    return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Chờ cân tiếp', statusTone: 'ok', actionType: active ? 'CONTINUE' : 'NONE', actionText: active ? 'Cân tiếp' : '-' }
+  }
   return { ...weighingState, qrMatched, weightPassed, weightFailed, qrFailed, done: false, statusText: 'Chưa đủ', statusTone: 'ok', actionType: active ? 'CONTINUE' : 'NONE', actionText: active ? 'Cân tiếp' : '-' }
 }
 
@@ -6682,13 +6696,16 @@ function ScaleActionButton({ rowState, onContinueWeighing, onConfirmWeighing }) 
 function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots = [], scaleType, setWarning, scaleWeightKg = null, scaleStableWeightKg = null, scaleStable = false, scaleRawData = '', scaleRawValue = null, scaleWeighedBy = '', showActionColumn = true, onActionStateChange = null }) {
   const [qrInput, setQrInput] = useState(item.qrScanned || '')
   const [qrScanError, setQrScanError] = useState('')
+  const [continueBaselineReleased, setContinueBaselineReleased] = useState(false)
   const qrInputRef = useRef(null)
   const actual = item.actualWeight === '' || item.actualWeight == null ? '' : num(item.actualWeight)
   const requiredWeight = num(item.requiredWeight ?? item.requiredKg)
   const accumulatedWeight = getWeighingAccumulatedWeight(item)
   const currentScaleWeightKg = scaleWeightKg == null ? null : num(scaleWeightKg)
   const stableScaleWeightKg = scaleStableWeightKg == null ? null : num(scaleStableWeightKg)
-  const currentWeight = currentScaleWeightKg == null ? num(item.currentWeight || 0) : currentScaleWeightKg
+  const rawCurrentWeight = currentScaleWeightKg == null ? num(item.currentWeight || 0) : currentScaleWeightKg
+  const continueBaselineWeight = item.continueScaleBaselineWeight ?? item.scaleContinueBaselineWeight ?? null
+  const currentWeight = getContinuationCurrentWeight(rawCurrentWeight, continueBaselineWeight, continueBaselineReleased)
   const rowState = getWeighingRowStatus(item, currentWeight, { active })
   const qrPassed = rowState.qrMatched
   const qrFailed = Boolean(qrScanError) || rowState.qrFailed
@@ -6703,6 +6720,17 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
   const canContinueWeighing = rowState.canContinueWeighing
   const canConfirmAccumulatedWeight = rowState.canConfirmAccumulatedWeight
   const weighingDisplayStatus = rowState.statusText
+  useEffect(() => {
+    setContinueBaselineReleased(false)
+  }, [item.id, item.materialCode, continueBaselineWeight])
+  useEffect(() => {
+    if (continueBaselineReleased) return
+    if (continueBaselineWeight === '' || continueBaselineWeight === null || continueBaselineWeight === undefined) return
+    const baseline = num(continueBaselineWeight)
+    if (baseline > 0 && rawCurrentWeight < baseline - 0.001) {
+      setContinueBaselineReleased(true)
+    }
+  }, [continueBaselineReleased, continueBaselineWeight, rawCurrentWeight])
   const selectedLot = rawMaterialLots.find((lot) => lot.lotCode === item.rawMaterialLotCode && lot.materialCode === item.materialCode)
   const remainingBefore = item.rawMaterialRemainingBefore ?? selectedLot?.remainingQty
   const materialStockQty = rawMaterialLots
@@ -6737,6 +6765,8 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       qrStatus: 'PASS',
       qrMatchStatus: 'OK',
       qrMatched: true,
+      continueScaleBaselineWeight: null,
+      scaleContinueBaselineWeight: null,
       note: item.note,
     }, result.materialOnly ? `QR hợp lệ ${order.id} - ${item.materialCode}.` : `QR PASS ${order.id} - ${item.materialCode}, lô ${result.lot.lotCode}.`)
   }
@@ -6839,6 +6869,8 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       accumulatedWeight: context.totalWeight,
       currentWeight: 0,
       actualWeight: '',
+      continueScaleBaselineWeight: rawCurrentWeight,
+      scaleContinueBaselineWeight: rawCurrentWeight,
       weighingHistory: nextHistory,
       status: 'Đang cân',
       weighStatus: 'Chờ cân',
@@ -6867,6 +6899,8 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       accumulatedWeight: context.totalWeight,
       currentWeight: 0,
       actualWeight: context.totalWeight,
+      continueScaleBaselineWeight: null,
+      scaleContinueBaselineWeight: null,
       weighingHistory: nextHistory,
       status: 'Hoàn thành',
       weighStatus: 'PASS',
@@ -6943,7 +6977,7 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       <td>{stockDisplay === '' || stockDisplay == null ? '-' : formatKg(stockDisplay)}</td>
       <td>{active && qrPassed && !weightPassed ? (
         <div className="weighing-inline-action">
-          <span className="scale-current-weight">{formatScaleWeight(currentScaleWeightKg, scaleType)}</span>
+          <span className="scale-current-weight">{formatScaleWeight(currentWeight, scaleType)}</span>
         </div>
       ) : actual === '' ? '-' : <div className="weighing-inline-action confirmed"><span className="scale-current-weight">{formatScaleWeight(actual, scaleType)}</span><span className="weighing-check">✓ Đã xác nhận</span></div>}</td>
       <td>{rowState.statusTone === 'fail' || qrFailed ? <span className="weighing-fail">{weighingDisplayStatus}</span> : <span className="weighing-check">{weighingDisplayStatus}</span>}</td>
