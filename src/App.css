@@ -741,7 +741,7 @@ tbody tr:hover {
 
 .production-order-form-grid {
   display: grid;
-  grid-template-columns: 160px 120px 100px 196px 150px minmax(300px, 1fr) 170px 220px;
+  grid-template-columns: 160px 92px 88px 172px 138px minmax(360px, 1fr) 170px 220px;
   gap: 10px 12px;
   align-items: end;
   margin-bottom: 16px;
@@ -777,7 +777,7 @@ tbody tr:hover {
 
 .production-lot-field {
   display: grid;
-  grid-template-columns: 70px 120px;
+  grid-template-columns: 64px 104px;
   gap: 6px;
 }
 
@@ -789,7 +789,7 @@ tbody tr:hover {
 .production-order-form-grid .customer-field {
   position: relative;
   z-index: 60;
-  min-width: 300px;
+  min-width: 340px;
   width: 100%;
   max-width: none;
 }
@@ -803,9 +803,9 @@ tbody tr:hover {
 }
 
 .production-order-form-grid .product-group-field {
-  width: 120px;
-  min-width: 120px;
-  max-width: 120px;
+  width: 92px;
+  min-width: 92px;
+  max-width: 92px;
 }
 
 .production-order-form-grid .customer-field .customer-combobox {
@@ -13010,7 +13010,7 @@ body,
 
 @media (max-width: 1400px) {
   .production-order-form-grid {
-    grid-template-columns: 160px 120px 100px 196px 150px minmax(300px, 1fr);
+    grid-template-columns: 160px 92px 88px 172px 138px minmax(340px, 1fr);
   }
 
   .production-order-form-grid label:nth-last-child(-n+2) {
