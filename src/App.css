@@ -13068,11 +13068,6 @@ body,
   min-width: 120px;
 }
 
-.machine-qr-cell > strong {
-  font-size: 12px;
-  white-space: nowrap;
-}
-
 /* Final weighing table alignment: 8-column chemical/solid material board. */
 .weighing-active-board > .table-wrapper table {
   min-width: 895px !important;
