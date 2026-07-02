@@ -2185,6 +2185,10 @@ function normalizeProductionOrders(orders = [], formulas = []) {
     const fallbackCode = order.orderCode || order.productionOrderCode || order.id || fallbackLotCode || `LSX-${todayText().replaceAll('-', '')}-${String(index + 1).padStart(3, '0')}`
     const originalFormulaSnapshot = normalizeFormulaRows(order.originalFormulaSnapshot || order.productionFormulaSnapshot || order.ingredients || [])
     const activeProductionFormula = normalizeFormulaRows(order.activeProductionFormula || order.qc1AdjustedFormula || order.productionFormulaSnapshot || originalFormulaSnapshot)
+    const hasChemicalMaterials = activeProductionFormula.some((item) => normalizeMainGroup(item.mainGroup || item.materialGroup || item.group || '') === MAIN_GROUP_CHEMICAL)
+    const hasSolidMaterials = activeProductionFormula.some((item) => normalizeMainGroup(item.mainGroup || item.materialGroup || item.group || '') === MAIN_GROUP_SOLID)
+    const weighChemicalStatus = normalizeWeighFlowStatus(order.weighChemicalStatus || order.chemicalStatus || order.scaleStatus?.chemical || (hasChemicalMaterials ? 'pending' : 'not_required'))
+    const weighSolidStatus = normalizeWeighFlowStatus(order.weighSolidStatus || order.solidStatus || order.scaleStatus?.solid || (hasSolidMaterials ? 'pending' : 'not_required'))
     const requestedWeight = num(order.requestedWeight ?? order.quantityKg)
     const assignedMachineCode = normalizeMixingMachineCode(order.assignedMachineCode || order.mixerMachine || order.assignedMixingMachine || order.mixingMachine || order.mixing?.machineCode || '')
     const assignedMachine = machineCatalog.find((machine) => machine.machineCode === assignedMachineCode)
@@ -2228,9 +2232,11 @@ function normalizeProductionOrders(orders = [], formulas = []) {
         createdAt: order.createdAt || nowText(),
         originalFormulaSnapshot,
       },
-      chemicalStatus: order.chemicalStatus || order.scaleStatus?.chemical || 'Pending',
-      solidStatus: order.solidStatus || order.scaleStatus?.solid || 'Pending',
-      mixingStatus: order.mixingStatus || order.mixing?.status || 'Pending',
+      weighChemicalStatus,
+      weighSolidStatus,
+      chemicalStatus: order.chemicalStatus || order.scaleStatus?.chemical || (hasChemicalMaterials ? 'Pending' : 'NotRequired'),
+      solidStatus: order.solidStatus || order.scaleStatus?.solid || (hasSolidMaterials ? 'Pending' : 'NotRequired'),
+      mixingStatus: order.mixingStatus || order.mixing?.status || (['completed', 'not_required'].includes(weighChemicalStatus) && ['completed', 'not_required'].includes(weighSolidStatus) ? 'ready' : 'waiting_weigh'),
       mixerMachine: assignedMachineCode || order.mixerMachine || '',
       assignedMixingMachine: assignedMachineCode || order.assignedMixingMachine || '',
       assignedMachineCode,
@@ -2257,8 +2263,8 @@ function normalizeProductionOrders(orders = [], formulas = []) {
       packingStatus: order.packingStatus || order.packagingStatus || (order.packaging ? 'Completed' : 'Pending'),
       finishedGoodsStatus: order.finishedGoodsStatus || (order.stage === 'completed' ? 'Completed' : 'Pending'),
       scaleStatus: {
-        chemical: order.scaleStatus?.chemical || order.chemicalStatus || 'Pending',
-        solid: order.scaleStatus?.solid || order.solidStatus || 'Pending',
+        chemical: order.scaleStatus?.chemical || order.chemicalStatus || (hasChemicalMaterials ? 'Pending' : 'NotRequired'),
+        solid: order.scaleStatus?.solid || order.solidStatus || (hasSolidMaterials ? 'Pending' : 'NotRequired'),
       },
     }
   })
@@ -4187,6 +4193,8 @@ function OrdersPage({ data, setData, permissions = [] }) {
     const id = lotCode
     logMaterialLookupPipeline({ id, orderCode: id }, preview, materialCatalogByCode)
     const originalFormulaSnapshot = preview.map((item) => ({ ...item }))
+    const hasChemicalMaterials = preview.some((item) => normalizeMainGroup(item.mainGroup || item.materialGroup || item.group || '') === MAIN_GROUP_CHEMICAL)
+    const hasSolidMaterials = preview.some((item) => normalizeMainGroup(item.mainGroup || item.materialGroup || item.group || '') === MAIN_GROUP_SOLID)
     const order = {
       id,
       orderCode: id,
@@ -4248,9 +4256,11 @@ function OrdersPage({ data, setData, permissions = [] }) {
       qc2Adjustments: [],
       qc1AdjustedFormula: null,
       qc2AdjustedFormula: [],
-      chemicalStatus: 'Pending',
-      solidStatus: 'Pending',
-      mixingStatus: 'Pending',
+      weighChemicalStatus: hasChemicalMaterials ? 'pending' : 'not_required',
+      weighSolidStatus: hasSolidMaterials ? 'pending' : 'not_required',
+      chemicalStatus: hasChemicalMaterials ? 'Pending' : 'NotRequired',
+      solidStatus: hasSolidMaterials ? 'Pending' : 'NotRequired',
+      mixingStatus: 'waiting_weigh',
       mixingMachine: '',
       mixingStartAt: '',
       mixingCompletedAt: '',
@@ -4258,7 +4268,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
       qc2Status: 'Pending',
       packagingStatus: 'Pending',
       finishedGoodsStatus: 'Pending',
-      scaleStatus: { chemical: 'Pending', solid: 'Pending' },
+      scaleStatus: { chemical: hasChemicalMaterials ? 'Pending' : 'NotRequired', solid: hasSolidMaterials ? 'Pending' : 'NotRequired' },
     }
     setData((current) => addLogToData({ ...current, orders: [order, ...current.orders] }, `Sử dụng ${sourceLabel} của ${formula.code} để tạo mã lô ${lotCode}, chỉ định máy ${formatMixingMachineLabel(assignedMachine)}.`))
     setMessage('Tạo lệnh sản xuất thành công')
@@ -5682,22 +5692,27 @@ function WeighingPage({ data = {}, setData, group, user }) {
       .filter(itemBelongsToGroup)
   }
   const isDone = isWeighingItemDone
+  const groupFlow = (order) => getWeighingGroupFlow(order, group, materialCatalogByCode)
   const groupCompleted = (order) => {
     if (isSupplementOrder(order)) {
       const items = getItems(order)
       return items.length > 0 && items.every(isDone)
     }
-    if (group === CHEMICAL) {
-      return getChemicalLineState(order, materialCatalogByCode).chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED
-        || Boolean(order[completionKey])
-        || order[statusKey] === 'Completed'
-        || order.scaleStatus?.[scaleKey] === 'Completed'
-    }
-    return Boolean(order[completionKey]) || order[statusKey] === 'Completed' || order.scaleStatus?.[scaleKey] === 'Completed'
+    return groupFlow(order).status === 'completed'
   }
-  const orders = Array.isArray(data.orders) ? data.orders : []
-  const relevantOrders = orders.filter((order) => getItems(order).length > 0 || groupCompleted(order))
-  const pendingOrders = relevantOrders.filter((order) => ['weighing', 'supplement-weighing'].includes(order.stage) && !groupCompleted(order) && getItems(order).length > 0)
+  const orders = normalizeProductionOrders(Array.isArray(data.orders) ? data.orders : [], data.formulas || [])
+  const isTerminalWeighingOrder = (order = {}) => ['mixing', 'mixing-supplement', 'finished-qc', 'packaging', 'finished-goods', 'completed'].includes(order.stage)
+    || ['Active', 'completed'].includes(order.mixingStatus)
+    || ['Active', 'Completed'].includes(order.mixing?.status)
+  const relevantOrders = orders.filter((order) => (
+    isSupplementOrder(order)
+      ? getItems(order).length > 0 || groupCompleted(order)
+      : !isTerminalWeighingOrder(order) && ['pending', 'weighing', 'not_required', 'completed'].includes(groupFlow(order).status)
+  ))
+  const pendingOrders = relevantOrders.filter((order) => {
+    if (isSupplementOrder(order)) return !groupCompleted(order) && getItems(order).length > 0
+    return ['pending', 'weighing', 'not_required'].includes(groupFlow(order).status)
+  })
   const completedOrders = relevantOrders.filter((order) => groupCompleted(order))
   const [activeOrderId, setActiveOrderId] = useState('')
   const [warning, setWarning] = useState('')
@@ -5729,10 +5744,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
   const scaleToleranceKgRef = useRef(scaleToleranceKg)
   const activeOrder = relevantOrders.find((order) => order.id === activeOrderId)
   const activeOrderLoadError = Boolean(activeOrderId && !activeOrder)
-  const waitingOrders = pendingOrders.filter((order) => (
-    order.id !== activeOrder?.id
-    && (group === CHEMICAL || order.status === 'Chờ cân')
-  ))
+  const waitingOrders = pendingOrders.filter((order) => order.id !== activeOrder?.id)
   const activeItems = activeOrder ? getItems(activeOrder) : []
   const activeChemicalMissingCatalogWarnings = group === CHEMICAL && activeOrder
     ? activeItems.filter((item) => item.catalogMaterialMissing).map((item) => item.materialCode || item.materialName || item.id || 'Vật tư chưa rõ mã')
@@ -6001,12 +6013,19 @@ function WeighingPage({ data = {}, setData, group, user }) {
       const nextOrders = current.orders.map((item) => {
         if (item.id !== sourceOrder.id) return item
         const chemicalLineState = getChemicalLineState({ ...item, chemicalMixQrCode: qrCode }, materialCatalogByCode)
+        const solidFlow = getWeighingGroupFlow(item, SOLID, materialCatalogByCode)
+        const readyMixing = isWeighingFlowDone(solidFlow)
         return {
           ...item,
           ...chemicalLineState,
           ChemicalCompleted: true,
+          weighChemicalStatus: 'completed',
           chemicalStatus: 'Completed',
           scaleStatus: { ...(item.scaleStatus || {}), chemical: 'Completed' },
+          ReadyMixing: readyMixing,
+          stage: readyMixing ? 'mixing' : item.stage,
+          status: readyMixing ? 'Sẵn sàng phối trộn' : 'Đang cân',
+          mixingStatus: readyMixing ? 'ready' : 'waiting_weigh',
           chemicalMixQrCode: qrCode,
           chemicalMixQrPrintedAt: printedAt,
           chemicalMixQrPrintedBy: printedBy,
@@ -6070,6 +6089,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
         ...nextOrder,
         ...chemicalLineState,
         ChemicalCompleted: chemicalLineState.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED,
+        weighChemicalStatus: chemicalLineState.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED ? 'completed' : 'weighing',
         chemicalStatus: chemicalLineState.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED ? 'Completed' : 'Active',
         scaleStatus: {
           ...(nextOrder.scaleStatus || {}),
@@ -6135,18 +6155,27 @@ function WeighingPage({ data = {}, setData, group, user }) {
       const chemDone = !hasChemical || chemicalLineState.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED
       const solidDone = solidItems.length === 0 || solidItems.every(isWeighingItemDone)
       const bothGroupsDone = chemDone && solidDone
+      const nextChemicalFlowStatus = hasChemical ? (chemDone ? 'completed' : normalizeWeighFlowStatus(item.weighChemicalStatus || item.chemicalStatus || item.scaleStatus?.chemical)) : 'not_required'
+      const nextSolidFlowStatus = solidItems.length ? (solidDone ? 'completed' : normalizeWeighFlowStatus(item.weighSolidStatus || item.solidStatus || item.scaleStatus?.solid)) : 'not_required'
       return {
         ...item,
         ...chemicalLineState,
         ChemicalCompleted: chemDone,
         SolidCompleted: solidDone,
         ReadyMixing: bothGroupsDone,
+        weighChemicalStatus: nextChemicalFlowStatus,
+        weighSolidStatus: nextSolidFlowStatus,
         chemicalStatus: chemDone ? 'Completed' : item.chemicalStatus,
         solidStatus: solidDone ? 'Completed' : item.solidStatus,
         solidContainerQr: groupContainer && group !== CHEMICAL ? groupContainer.qrCode : item.solidContainerQr,
-        scaleStatus: { ...(item.scaleStatus || {}), chemical: chemDone ? 'Completed' : item.scaleStatus?.chemical, solid: solidDone ? 'Completed' : item.scaleStatus?.solid },
+        scaleStatus: {
+          ...(item.scaleStatus || {}),
+          chemical: hasChemical ? (chemDone ? 'Completed' : item.scaleStatus?.chemical) : 'NotRequired',
+          solid: solidItems.length ? (solidDone ? 'Completed' : item.scaleStatus?.solid) : 'NotRequired',
+        },
         stage: bothGroupsDone ? 'mixing' : item.stage,
         status: bothGroupsDone ? 'Sẵn sàng phối trộn' : 'Đang cân',
+        mixingStatus: bothGroupsDone ? 'ready' : 'waiting_weigh',
         updatedAt: nowText(),
       }
     })
@@ -6192,6 +6221,11 @@ function WeighingPage({ data = {}, setData, group, user }) {
         : 'Không có vật tư Rắn cần cân cho lệnh này.')
       return
     }
+    const currentFlow = groupFlow(order)
+    if (currentFlow.status === 'not_required') {
+      setWarning(currentFlow.label)
+      return
+    }
     if (activeOrder && activeOrder.id !== order.id && !(group === CHEMICAL && activeChemicalMixCompleted)) {
       setWarning('Đang có một lệnh cân. Vui lòng hoàn thành lệnh hiện tại trước.')
       return
@@ -6208,11 +6242,13 @@ function WeighingPage({ data = {}, setData, group, user }) {
             ...item,
             stage: supplement ? item.stage : 'weighing',
             status: supplement ? 'Đang cân bổ sung' : 'Đang cân',
+            [group === CHEMICAL ? 'weighChemicalStatus' : 'weighSolidStatus']: item[group === CHEMICAL ? 'weighChemicalStatus' : 'weighSolidStatus'] === 'completed' ? 'completed' : 'weighing',
             [statusKey]: item[statusKey] === 'Completed' ? 'Completed' : 'Active',
             scaleStatus: {
               ...currentScaleStatus,
               [scaleKey]: currentScaleStatus[scaleKey] === 'Completed' ? 'Completed' : 'Active',
             },
+            mixingStatus: ['Active', 'completed'].includes(item.mixingStatus) ? item.mixingStatus : 'waiting_weigh',
             updatedAt: startedAt,
           }
         }),
@@ -6250,7 +6286,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
             <article><span>Hoàn thành:</span><strong>{String(completedOrders.length).padStart(2, '0')}</strong></article>
           </section>
           <h2>Danh sách lệnh sản xuất</h2>
-          <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders} activeId={activeOrder?.id} onStart={startOrder} showStart />
+          <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders.map((order) => ({ ...order, weighingFlow: groupFlow(order) }))} activeId={activeOrder?.id} onStart={startOrder} showStart />
         </aside>}
         <main className="weighing-active-board scale-main-panel">
           <div className="section-heading-row">
@@ -6365,7 +6401,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
                     <article><span>Hoàn thành:</span><strong>{String(completedOrders.length).padStart(2, '0')}</strong></article>
                   </section>
                   <ChemicalMixSummary order={activeOrder} lineState={activeChemicalLineState} canPrint={canPrintChemicalMixQr} onPrint={printChemicalMixQr} />
-                  <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders} activeId={activeOrder?.id} onStart={startOrder} showStart />
+                  <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders.map((order) => ({ ...order, weighingFlow: groupFlow(order) }))} activeId={activeOrder?.id} onStart={startOrder} showStart />
                 </section>
                 <div className="chemical-color-scale">
                   {renderChemicalBoard(colorBoard)}
@@ -6542,11 +6578,12 @@ function WeighingOrderGroup({ title, orders, activeId, onStart, showStart = fals
       <h3>{title}</h3>
       {orders.map((order) => (
         <article key={order.id} className={`weighing-order-card ${order.id === activeId ? 'active' : ''}`}>
-          <strong>{order.orderCode || order.id}</strong>
+          <strong>{getOrderLotCode(order)}</strong>
           <span>{order.productName || order.product}</span>
-          <span>{order.lot}</span>
+          <span>{order.lotCode || order.lot}</span>
           <span>{kg(order.requestedWeight ?? order.quantityKg)}</span>
-          {showStart && <button className="secondary-button weighing-start-button" onClick={() => onStart(order)}>Bắt đầu cân</button>}
+          {order.weighingFlow?.label && <span className={`dispatch-badge ${getWeighingStatusTone(order.weighingFlow)}`}>{order.weighingFlow.label}</span>}
+          {showStart && <button className="secondary-button weighing-start-button" disabled={order.weighingFlow?.status === 'not_required'} onClick={() => onStart(order)}>Bắt đầu cân</button>}
         </article>
       ))}
       {orders.length === 0 && <p className="muted-text">Không có lệnh.</p>}
@@ -6928,6 +6965,57 @@ function orderHasMainGroup(order = {}, mainGroup) {
   return getEffectiveFormula(order).some((item) => normalizeMainGroup(item.mainGroup || item.materialGroup || item.group || '') === normalizedMainGroup)
 }
 
+function getOrderMainGroupItems(order = {}, mainGroup) {
+  const normalizedMainGroup = normalizeMainGroup(mainGroup)
+  return getEffectiveFormula(order).filter((item) => normalizeMainGroup(item.mainGroup || item.materialGroup || item.group || '') === normalizedMainGroup)
+}
+
+function normalizeWeighFlowStatus(value = '') {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (['completed', 'complete', 'done', 'hoàn thành', 'da can', 'đã cân'].includes(normalized)) return 'completed'
+  if (['active', 'weighing', 'dang can', 'đang cân'].includes(normalized)) return 'weighing'
+  if (['not_required', 'notrequired', 'not required', 'khong yeu cau', 'không yêu cầu', 'n/a'].includes(normalized)) return 'not_required'
+  return 'pending'
+}
+
+function getWeighingGroupFlow(order = {}, group, materialCatalogByCode = null) {
+  const mainGroup = group === CHEMICAL ? MAIN_GROUP_CHEMICAL : MAIN_GROUP_SOLID
+  const flowKey = group === CHEMICAL ? 'weighChemicalStatus' : 'weighSolidStatus'
+  const statusKey = group === CHEMICAL ? 'chemicalStatus' : 'solidStatus'
+  const scaleKey = group === CHEMICAL ? 'chemical' : 'solid'
+  const labelSuffix = group === CHEMICAL ? 'hóa' : 'rắn'
+  const items = getOrderMainGroupItems(order, mainGroup)
+  if (!items.length) {
+    return { status: 'not_required', label: `Không yêu cầu cân ${labelSuffix}`, items, mainGroup }
+  }
+  const explicitStatus = normalizeWeighFlowStatus(order[flowKey] || order[statusKey] || order.scaleStatus?.[scaleKey])
+  const completedByLegacyStatus = explicitStatus === 'completed'
+    || normalizeWeighFlowStatus(order[statusKey]) === 'completed'
+    || normalizeWeighFlowStatus(order.scaleStatus?.[scaleKey]) === 'completed'
+    || Boolean(group === CHEMICAL ? order.ChemicalCompleted : order.SolidCompleted)
+  const completedByItems = group === CHEMICAL
+    ? Boolean(materialCatalogByCode && getChemicalLineState(order, materialCatalogByCode).chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED)
+    : items.every(isWeighingItemDone)
+  if (completedByLegacyStatus || completedByItems) {
+    return { status: 'completed', label: `Đã cân ${labelSuffix}`, items, mainGroup }
+  }
+  if (explicitStatus === 'weighing') {
+    return { status: 'weighing', label: `Đang cân ${labelSuffix}`, items, mainGroup }
+  }
+  return { status: 'pending', label: `Chờ cân ${labelSuffix}`, items, mainGroup }
+}
+
+function isWeighingFlowDone(flow = {}) {
+  return flow.status === 'completed' || flow.status === 'not_required'
+}
+
+function getWeighingStatusTone(flow = {}) {
+  if (flow.status === 'completed') return 'done'
+  if (flow.status === 'weighing') return 'mixing'
+  if (flow.status === 'not_required') return 'locked'
+  return 'waiting'
+}
+
 function getOrderGroupQrCode(order = {}, group) {
   if (group === CHEMICAL) return order.mixingQrConfirmation?.chemicalQr || order.chemicalMixQrCode || ''
   if (group === SOLID) return order.mixingQrConfirmation?.solidQr || order.solidContainerQr || ''
@@ -6949,8 +7037,10 @@ function validateSolidWeighing(order = {}) {
 }
 
 function validateMixing(order = {}) {
-  const requiresChemicalQr = orderHasMainGroup(order, MAIN_GROUP_CHEMICAL)
-  const requiresSolidQr = orderHasMainGroup(order, MAIN_GROUP_SOLID)
+  const chemicalFlow = getWeighingGroupFlow(order, CHEMICAL)
+  const solidFlow = getWeighingGroupFlow(order, SOLID)
+  const requiresChemicalQr = chemicalFlow.status === 'completed'
+  const requiresSolidQr = solidFlow.status === 'completed'
   const hasChemicalMixQR = Boolean(getOrderGroupQrCode(order, CHEMICAL))
   const hasSolidMixQR = Boolean(getOrderGroupQrCode(order, SOLID))
   return {
@@ -6993,32 +7083,28 @@ function logScreenValidation(screenName, orders = [], validationFunctionCalled =
 }
 
 function getMixingDispatchState(order) {
-  const requiresChemicalQr = orderHasMainGroup(order, MAIN_GROUP_CHEMICAL)
-  const requiresSolidQr = orderHasMainGroup(order, MAIN_GROUP_SOLID)
-  const chemicalQrReady = !requiresChemicalQr || Boolean(getOrderGroupQrCode(order, CHEMICAL))
-  const solidQrReady = !requiresSolidQr || Boolean(getOrderGroupQrCode(order, SOLID))
-  const chemicalCompleted = order.scaleStatus?.chemical === 'Completed' || order.chemicalStatus === 'Completed' || order.chemicalStatus === 'completed'
-  const solidCompleted = order.scaleStatus?.solid === 'Completed' || order.solidStatus === 'Completed' || order.solidStatus === 'completed'
-  const chemicalActive = order.scaleStatus?.chemical === 'Active' || order.chemicalStatus === 'Active' || order.chemicalStatus === 'active'
-  const solidActive = order.scaleStatus?.solid === 'Active' || order.solidStatus === 'Active' || order.solidStatus === 'active'
-  const weighingStarted = chemicalActive || solidActive || chemicalCompleted || solidCompleted || order.status === 'Đang cân'
+  const chemicalFlow = getWeighingGroupFlow(order, CHEMICAL)
+  const solidFlow = getWeighingGroupFlow(order, SOLID)
+  const chemicalDone = isWeighingFlowDone(chemicalFlow)
+  const solidDone = isWeighingFlowDone(solidFlow)
+  const hasAssignedMachine = Boolean(getOrderAssignedMachineCode(order))
   if (order.stage === 'completed') return { label: 'Hoàn thành', className: 'done', canStart: false }
   if (order.stage === 'finished-goods') return { label: 'HOÀN THÀNH', className: 'done', canStart: false }
   if (order.stage === 'packaging') return { label: 'HOÀN THÀNH', className: 'packing', canStart: false }
   if (order.stage === 'finished-qc') return { label: 'CHỜ QC THÀNH PHẨM', className: 'qc2', canStart: false }
   if (order.mixing?.status === 'Active' || order.mixingStatus === 'Active') return { label: 'ĐANG PHỐI TRỘN', className: 'mixing', canStart: false }
   if (order.stage === 'mixing-supplement') return { label: 'Chờ phối trộn bổ sung', className: 'ready', canStart: true, supplement: true }
-  if (!requiresChemicalQr && !requiresSolidQr) return { label: 'Chờ cân', className: 'waiting', canStart: false }
-  if (chemicalQrReady && solidQrReady) return { label: 'Sẵn sàng phối trộn', className: 'ready', canStart: true }
-  if (requiresChemicalQr && !chemicalQrReady) return { label: 'Chờ QR Hóa', className: 'waiting', canStart: false }
-  if (requiresSolidQr && !solidQrReady) return { label: 'Chờ QR Rắn', className: 'waiting', canStart: false }
-  if (weighingStarted || order.stage === 'supplement-weighing') return { label: 'Đang cân', className: 'weighing', canStart: false }
+  if (chemicalDone && solidDone) return { label: hasAssignedMachine ? 'Sẵn sàng phối trộn' : 'Chưa chỉ định máy', className: hasAssignedMachine ? 'ready' : 'waiting', canStart: hasAssignedMachine }
+  if (chemicalFlow.status === 'weighing' || solidFlow.status === 'weighing' || order.stage === 'supplement-weighing') return { label: 'Đang cân', className: 'weighing', canStart: false }
+  if (!chemicalDone && !solidDone) return { label: 'Chờ cân hóa/rắn', className: 'waiting', canStart: false }
+  if (!chemicalDone) return { label: chemicalFlow.label, className: 'waiting', canStart: false }
+  if (!solidDone) return { label: solidFlow.label, className: 'waiting', canStart: false }
   return { label: 'Chờ cân', className: 'waiting', canStart: false }
 }
 
 function getMixingProgress(order) {
-  const chemicalCompleted = order.scaleStatus?.chemical === 'Completed' || order.chemicalStatus === 'completed'
-  const solidCompleted = order.scaleStatus?.solid === 'Completed' || order.solidStatus === 'completed'
+  const chemicalCompleted = isWeighingFlowDone(getWeighingGroupFlow(order, CHEMICAL))
+  const solidCompleted = isWeighingFlowDone(getWeighingGroupFlow(order, SOLID))
   const steps = [
     Boolean(order.qc1Result || order.stage !== 'qc1'),
     chemicalCompleted,
@@ -7033,7 +7119,7 @@ function getMixingProgress(order) {
 function MixingPage({ data, setData, user }) {
   const machines = normalizeMixingMachines(data.mixingMachines)
   const activeMachines = getActiveMixingMachines(machines)
-  const orders = data.orders
+  const orders = normalizeProductionOrders(data.orders || [], data.formulas || [])
   const [qrForms, setQrForms] = useState({})
   const [qrScanStates, setQrScanStates] = useState({})
   const [changeRequestDraft, setChangeRequestDraft] = useState(null)
@@ -7041,7 +7127,7 @@ function MixingPage({ data, setData, user }) {
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'Phối trộn')
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
   const activeMixingOrders = orders.filter((order) => order.mixing?.status === 'Active' || order.mixingStatus === 'Active')
-  const readyOrders = orders.filter((order) => getMixingDispatchState(order).canStart)
+  const readyOrders = orders.filter((order) => !['packaging', 'finished-goods', 'completed'].includes(order.stage))
   const mixingHistory = orders.filter((order) => order.mixingStatus === 'completed' || order.mixing?.status === 'Completed' || order.mixingCompletedAt)
   const assignedMixingMachineCodes = new Set([...activeMixingOrders, ...readyOrders].map(getOrderAssignedMachineCode).filter(Boolean).map(normalizeMixingMachineCode))
   const getMachineActiveOrder = (machineCode) => activeMixingOrders.find((order) => (order.mixingMachine || order.mixing?.machineCode) === machineCode)
@@ -7079,7 +7165,7 @@ function MixingPage({ data, setData, user }) {
   }
   const qrFieldByGroup = (group) => group === CHEMICAL ? 'chemicalQr' : 'solidQr'
   const qrStateKeyByGroup = (group) => group === CHEMICAL ? 'chemical' : 'solid'
-  const requiresMixingQr = (order, group) => orderHasMainGroup(order, group === CHEMICAL ? MAIN_GROUP_CHEMICAL : MAIN_GROUP_SOLID)
+  const requiresMixingQr = (order, group) => getWeighingGroupFlow(order, group).status === 'completed'
   const getMixingQrScan = (order, group) => {
     const field = qrFieldByGroup(group)
     const stateKey = qrStateKeyByGroup(group)
@@ -7110,8 +7196,8 @@ function MixingPage({ data, setData, user }) {
     }
   }
   const mixingQrReady = (order) => (
-    getMixingQrScan(order, CHEMICAL).pass
-    && getMixingQrScan(order, SOLID).pass
+    (!requiresMixingQr(order, CHEMICAL) || getMixingQrScan(order, CHEMICAL).pass)
+    && (!requiresMixingQr(order, SOLID) || getMixingQrScan(order, SOLID).pass)
     && getMachineQrScan(order).pass
   )
   const validateSingleMixingQr = (order, qrText, group) => {
@@ -7185,10 +7271,10 @@ function MixingPage({ data, setData, user }) {
     const chemicalScan = getMixingQrScan(order, CHEMICAL)
     const solidScan = getMixingQrScan(order, SOLID)
     const machineScan = getMachineQrScan(order)
-    const requiresChemical = true
-    const requiresSolid = true
-    const chemicalOk = chemicalScan.pass
-    const solidOk = solidScan.pass
+    const requiresChemical = requiresMixingQr(order, CHEMICAL)
+    const requiresSolid = requiresMixingQr(order, SOLID)
+    const chemicalOk = !requiresChemical || chemicalScan.pass
+    const solidOk = !requiresSolid || solidScan.pass
     const machineOk = machineScan.pass
     const messages = [
       !chemicalOk ? (chemicalScan.message || 'Chờ quét MIX Hóa.') : '',
@@ -7406,11 +7492,11 @@ function MixingPage({ data, setData, user }) {
     }
     const startValidation = getMixingStartValidation(order)
     if (!startValidation.ok) {
-      setWarning(startValidation.messages[0] || 'Vui lòng quét đúng QR Hóa, QR Rắn và QR máy trước khi bắt đầu phối trộn.')
+      setWarning(startValidation.messages[0] || 'Vui lòng quét đúng các QR bắt buộc trước khi bắt đầu phối trộn.')
       return
     }
     if (!mixingQrReady(order)) {
-      setWarning('Vui lòng quét đúng QR Hóa, QR Rắn và QR máy trước khi bắt đầu phối trộn.')
+      setWarning('Vui lòng quét đúng các QR bắt buộc trước khi bắt đầu phối trộn.')
       return
     }
     const runningOrder = getMachineActiveOrder(machineCode)
@@ -7522,7 +7608,7 @@ function MixingPage({ data, setData, user }) {
         </div>
       </section>
       <section className="panel mixing-ready-section">
-          <h3>Lệnh sẵn sàng phối trộn</h3>
+          <h3>Theo dõi lệnh phối trộn</h3>
           <div className="ready-mixing-table-wrapper">
             <table className="ready-mixing-table">
               <thead>
@@ -7530,6 +7616,8 @@ function MixingPage({ data, setData, user }) {
                   <th>Mã lô</th>
                   <th>Sản phẩm</th>
                   <th>Máy trộn</th>
+                  <th>Cân hóa</th>
+                  <th>Cân rắn</th>
                   <th>QR Hóa</th>
                   <th>QR Rắn</th>
                   <th>QR Máy</th>
@@ -7545,6 +7633,8 @@ function MixingPage({ data, setData, user }) {
                   const startValidation = getMixingStartValidation(order)
                   const requiresChemicalQr = requiresMixingQr(order, CHEMICAL)
                   const requiresSolidQr = requiresMixingQr(order, SOLID)
+                  const chemicalFlow = getWeighingGroupFlow(order, CHEMICAL)
+                  const solidFlow = getWeighingGroupFlow(order, SOLID)
                   const chemicalFail = chemicalScan.state?.status === 'fail'
                   const solidFail = solidScan.state?.status === 'fail'
                   const machineFail = machineScan.state?.status === 'fail'
@@ -7564,9 +7654,13 @@ function MixingPage({ data, setData, user }) {
                           <span className="dispatch-badge fail">Lệnh chưa chỉ định máy trộn</span>
                         )}
                       </td>
+                      <td><span className={`dispatch-badge ${getWeighingStatusTone(chemicalFlow)}`}>{chemicalFlow.label}</span></td>
+                      <td><span className={`dispatch-badge ${getWeighingStatusTone(solidFlow)}`}>{solidFlow.label}</span></td>
                       <td>
                         <div className="mixing-scan-cell">
-                          {chemicalScan.pass ? (
+                          {!requiresChemicalQr ? (
+                            <span className={`dispatch-badge ${getWeighingStatusTone(chemicalFlow)}`}>{chemicalFlow.status === 'not_required' ? 'Không yêu cầu' : chemicalFlow.label}</span>
+                          ) : chemicalScan.pass ? (
                             <>
                               <span className="weighing-check">✓ OK Hóa</span>
                             </>
@@ -7580,7 +7674,9 @@ function MixingPage({ data, setData, user }) {
                       </td>
                       <td>
                         <div className="mixing-scan-cell">
-                          {solidScan.pass ? (
+                          {!requiresSolidQr ? (
+                            <span className={`dispatch-badge ${getWeighingStatusTone(solidFlow)}`}>{solidFlow.status === 'not_required' ? 'Không yêu cầu' : solidFlow.label}</span>
+                          ) : solidScan.pass ? (
                             <>
                               <span className="weighing-check">✓ OK Rắn</span>
                             </>
@@ -7604,12 +7700,12 @@ function MixingPage({ data, setData, user }) {
                           )}
                         </div>
                       </td>
-                      <td><span className={`dispatch-badge ${qrReady ? 'ready' : qrFailed ? 'fail' : 'waiting'}`}>{qrFailed ? (startValidation.messages[0] || 'Sai QR') : qrReady ? 'Sẵn sàng phối trộn' : !chemicalScan.pass ? 'Chờ QR Hóa' : !solidScan.pass ? 'Chờ QR Rắn' : !machineScan.pass ? 'Chờ QR Máy' : 'Chờ quét'}</span></td>
+                      <td><span className={`dispatch-badge ${state.className}`}>{state.canStart ? (qrFailed ? (startValidation.messages[0] || 'Sai QR') : qrReady ? 'Sẵn sàng phối trộn' : requiresChemicalQr && !chemicalScan.pass ? 'Chờ QR Hóa' : requiresSolidQr && !solidScan.pass ? 'Chờ QR Rắn' : !machineScan.pass ? 'Chờ QR Máy' : 'Chờ quét') : state.label}</span></td>
                       <td><div className="mixing-row-actions"><button className="primary-button start-mixing-button" disabled={!state.canStart || !qrReady || !assignedMachineCode} onClick={() => startMixing(order)}>Bắt đầu phối trộn</button></div></td>
                     </tr>
                   )
                 })}
-              {readyOrders.length === 0 && <tr><td className="empty-row" colSpan={8}>Chưa có lệnh sẵn sàng phối trộn.</td></tr>}
+              {readyOrders.length === 0 && <tr><td className="empty-row" colSpan={10}>Chưa có lệnh phối trộn.</td></tr>}
               </tbody>
             </table>
           </div>
