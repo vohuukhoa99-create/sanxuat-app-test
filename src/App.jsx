@@ -7102,7 +7102,7 @@ function MixingPage({ data, setData, user }) {
       message: state?.message || validation?.message || '',
     }
   }
-  const normalizeMachineQrCode = (value = '') => String(value || '').trim().toUpperCase().replace(/^MAYTRON[-_\s]*/, '')
+  const normalizeMachineQrCode = (value = '') => String(value || '').trim().toUpperCase().replace(/^MIXER[-_\s]*/, '')
   const getMachineQrScan = (order) => {
     const qrCode = order.mixingQrConfirmation?.machineQr || ''
     const state = qrScanStates[order.id]?.machine || null
@@ -7174,15 +7174,15 @@ function MixingPage({ data, setData, user }) {
     const wrongEquipmentGroup = Boolean(orderProductGroup && machine && normalizeProductGroup(machine.equipmentGroup) !== orderProductGroup)
     const wrongStatus = machine && normalizeMixingMachineStatus(machine.status) !== 'READY'
     const overCapacity = Boolean(machine?.capacityKg && requestedKg && requestedKg > num(machine.capacityKg))
-    const pass = Boolean(assignedMachineCode && rawQr && rawQr.startsWith('MAYTRON-') && machine && !wrongStatus && !wrongAssignedMachine && !wrongEquipmentGroup && !runningOrder && !overCapacity)
+    const pass = Boolean(assignedMachineCode && rawQr && rawQr.startsWith('MIXER-') && machine && !wrongStatus && !wrongAssignedMachine && !wrongEquipmentGroup && !runningOrder && !overCapacity)
     const message = pass
       ? ''
       : !assignedMachineCode ? 'Lệnh chưa chỉ định máy trộn'
         : !rawQr ? 'Chưa quét QR máy.'
-          : !rawQr.startsWith('MAYTRON-') ? 'QR máy sai định dạng.'
+          : !rawQr.startsWith('MIXER-') ? 'QR máy sai định dạng MIXER-{mã máy}.'
             : !machine ? 'Máy không tồn tại trong danh mục.'
               : wrongStatus ? 'Máy không ở trạng thái READY.'
-                : wrongAssignedMachine ? 'Máy không đúng máy được phân công.'
+                : wrongAssignedMachine ? 'Sai máy phối trộn.'
                   : wrongEquipmentGroup ? 'Máy không phù hợp nhóm sản phẩm.'
                   : runningOrder ? 'Máy đang chạy lệnh khác.'
                     : overCapacity ? 'Công suất máy không phù hợp khối lượng lệnh.'
@@ -9767,6 +9767,41 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
     setNotice(`Đã kích hoạt ${machineLabel}.`)
     if (editingMachineCode === machineCode) resetMachineDraft()
   }
+  const machineQrValue = (machineCode = '') => `MIXER-${normalizeMixingMachineCode(machineCode)}`
+  const machineQrCanvasId = (machineCode = '') => `machine-qr-${normalizeMixingMachineCode(machineCode).replace(/[^a-zA-Z0-9_-]/g, '-')}`
+  const getMachineQrCanvas = (machineCode = '') => (
+    typeof document === 'undefined' ? null : document.getElementById(machineQrCanvasId(machineCode))
+  )
+  const downloadMachineQr = (machine) => {
+    const canvas = getMachineQrCanvas(machine.machineCode)
+    if (!canvas) {
+      setNotice('Chưa tạo được QR máy.')
+      return
+    }
+    const qrValue = machineQrValue(machine.machineCode)
+    const link = document.createElement('a')
+    link.href = canvas.toDataURL('image/png')
+    link.download = `qr-may-phoi-tron-${normalizeMixingMachineCode(machine.machineCode)}.png`
+    link.click()
+    setNotice(`Đã tải QR máy ${qrValue}.`)
+  }
+  const printMachineQr = (machine) => {
+    const canvas = getMachineQrCanvas(machine.machineCode)
+    if (!canvas) {
+      setNotice('Chưa tạo được QR máy.')
+      return
+    }
+    const qrValue = machineQrValue(machine.machineCode)
+    const image = canvas.toDataURL('image/png')
+    const printWindow = window.open('', '_blank', 'width=420,height=560')
+    if (!printWindow) {
+      setNotice('Trình duyệt đã chặn cửa sổ in QR.')
+      return
+    }
+    printWindow.document.write(`<html><head><title>QR máy ${qrValue}</title><style>body{font-family:Arial,sans-serif;text-align:center;padding:24px}img{width:220px;height:220px}strong{display:block;margin-top:14px;font-size:22px}span{display:block;margin-top:6px;color:#555}</style></head><body><img src="${image}" alt="QR máy"/><strong>${qrValue}</strong><span>${machine.machineName || formatMixingMachineLabel(machine)}</span><script>window.onload=function(){window.print()}</script></body></html>`)
+    printWindow.document.close()
+    setNotice(`Đã mở cửa sổ in QR máy ${qrValue}.`)
+  }
   const resolveMachineRequest = (order, approved) => {
     const request = order.machineChangeRequest
     if (!request) return
@@ -9876,6 +9911,7 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
                 <th>Tổ sản xuất/phân xưởng</th>
                 <th>Nhóm sản phẩm</th>
                 <th>Trạng thái</th>
+                <th>QR máy</th>
                 <th>Ghi chú</th>
                 <th>Hành động</th>
               </tr>
@@ -9890,6 +9926,18 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
                   <td>{machine.department || machine.productionTeam || '-'}</td>
                   <td>{displayProductGroup(machine.equipmentGroup) || '-'}</td>
                   <td><span className={`dispatch-badge ${mixingMachineStatusBadgeClass(machine.status)}`}>{mixingMachineStatusLabel(machine.status)}</span></td>
+                  <td>
+                    <div className="machine-qr-cell">
+                      <strong>{machineQrValue(machine.machineCode)}</strong>
+                      <div className="qr-hidden-canvas">
+                        <QRCodeCanvas id={machineQrCanvasId(machine.machineCode)} value={machineQrValue(machine.machineCode)} size={220} includeMargin />
+                      </div>
+                      <div className="user-action-group mixing-machine-action-group">
+                        <button type="button" className="secondary-button compact-action-button" onClick={() => printMachineQr(machine)}>In</button>
+                        <button type="button" className="secondary-button compact-action-button" onClick={() => downloadMachineQr(machine)}>Tải QR</button>
+                      </div>
+                    </div>
+                  </td>
                   <td>{machine.note || '-'}</td>
                   <td>
                     <div className="user-action-group mixing-machine-action-group">
