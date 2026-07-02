@@ -19,7 +19,14 @@ export function filterCustomerCatalog(customers = [], customerSearch = '') {
   if (!keyword) return source.slice(0, 30)
 
   return source
-    .filter((customer) => normalizeText(customer.customerName || customer.name).includes(keyword))
+    .filter((customer) => normalizeText([
+      customer.customerCode,
+      customer.code,
+      customer.customerName,
+      customer.name,
+      customer.channelCode,
+      customer.province,
+    ].filter(Boolean).join(' ')).includes(keyword))
     .slice(0, 50)
 }
 

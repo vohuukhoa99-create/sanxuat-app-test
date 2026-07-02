@@ -745,7 +745,7 @@ tbody tr:hover {
   gap: 10px;
   align-items: end;
   margin-bottom: 16px;
-  overflow-x: auto;
+  overflow: visible;
 }
 
 .production-order-form-grid label {
@@ -787,6 +787,8 @@ tbody tr:hover {
 }
 
 .production-order-form-grid .customer-field {
+  position: relative;
+  z-index: 60;
   min-width: 0;
   width: 280px;
   max-width: 280px;
@@ -827,10 +829,11 @@ tbody tr:hover {
 
 .customer-combobox-menu {
   position: absolute;
-  z-index: 40;
+  z-index: 10000;
   top: calc(100% + 4px);
   left: 0;
   right: 0;
+  min-width: 260px;
   max-height: 260px;
   overflow-y: auto;
   border: 1px solid rgba(7, 34, 26, 0.18);
@@ -843,7 +846,7 @@ tbody tr:hover {
   top: 100%;
   left: 0;
   right: auto;
-  width: 100%;
+  width: 340px;
   z-index: 9999;
   max-height: 260px;
 }

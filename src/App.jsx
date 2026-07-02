@@ -375,7 +375,10 @@ const realCustomerFields = (index = 0) => {
 const formatCustomerOption = (customer = {}) => customer.customerName || ''
 const getFormulaOptionCode = (formula = {}) => formula.formulaCode || formula.code || formula.productCode || formula.id || ''
 const formatFormulaSuggestion = (formula = {}) => {
-  return getFormulaOptionCode(formula)
+  const code = getFormulaOptionCode(formula)
+  const name = formula.productName || formula.product || formula.name || ''
+  const version = formula.currentVersion || formula.version || ''
+  return [code, name && name !== code ? name : '', version].filter(Boolean).join(' - ')
 }
 const formatFormulaInput = (formula = {}) => {
   return getFormulaOptionCode(formula)
@@ -419,10 +422,18 @@ const inferProductGroup = (source = {}) => normalizeProductGroup([
 const formulaMatches = (formula = {}, query = '') => {
   const keyword = normalizeText(query)
   if (!keyword) return true
-  const formulaCode = normalizeText(getFormulaOptionCode(formula))
-  const compactFormulaCode = formulaCode.replace(/\s+/g, '')
+  const searchText = normalizeText([
+    getFormulaOptionCode(formula),
+    formula.productCode,
+    formula.productName,
+    formula.product,
+    formula.name,
+    formula.currentVersion,
+    formula.version,
+  ].filter(Boolean).join(' '))
+  const compactFormulaCode = searchText.replace(/\s+/g, '')
   const compactKeyword = keyword.replace(/\s+/g, '')
-  return formulaCode.includes(keyword) || compactFormulaCode.includes(compactKeyword)
+  return searchText.includes(keyword) || compactFormulaCode.includes(compactKeyword)
 }
 const formulaCodeEquals = (formula = {}, value = '') => normalizeFormulaCode(getFormulaOptionCode(formula)) === normalizeFormulaCode(value)
 const isDemoFormulaCode = (formula = {}) => {
@@ -4562,7 +4573,7 @@ function CustomerSearchCombobox({ customers = [], value = {}, inputValue = '', o
         <div className="customer-combobox-menu">
           {filteredCustomers.length ? filteredCustomers.map((customer) => (
             <button type="button" key={customer.customerCode || customer.id} onMouseDown={(event) => event.preventDefault()} onClick={() => selectCustomer(customer)}>
-              <span>{customer.customerName}</span>
+              <span>{[customer.customerCode, customer.customerName].filter(Boolean).join(' - ')}</span>
             </button>
           )) : <div className="customer-combobox-empty">Không có khách hàng phù hợp</div>}
         </div>
