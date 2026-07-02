@@ -403,6 +403,8 @@ const normalizeProductGroup = (value = '') => {
   return ''
 }
 const displayProductGroup = (value = '') => productGroupLabels[normalizeProductGroup(value)] || ''
+const normalizeProductCatalogGroup = () => PRODUCT_GROUP_SON_DA
+const normalizeOrderProductGroup = () => PRODUCT_GROUP_SON_DA
 const inferProductGroup = (source = {}) => normalizeProductGroup([
   source.productGroup,
   source.equipmentGroup,
@@ -440,7 +442,7 @@ const normalizeFormulaStatus = (formula = {}) => (
 )
 const normalizeMasterFormulas = (formulas = []) => (Array.isArray(formulas) ? formulas : []).map((formula) => {
   const status = normalizeFormulaStatus(formula)
-  const productGroup = inferProductGroup(formula)
+  const productGroup = normalizeProductCatalogGroup()
   return {
     ...formula,
     productGroup,
@@ -551,7 +553,7 @@ const normalizeProductMaster = (product = {}, formulas = [], formulaVersions = [
     code: productCode,
     productName: product.productName || product.name || activeFormula?.product || productCode,
     name: product.name || product.productName || activeFormula?.product || productCode,
-    productGroup: normalizeProductGroup(product.productGroup || activeFormula?.productGroup || product.group) || inferProductGroup({ ...product, product: activeFormula?.product }),
+    productGroup: normalizeProductCatalogGroup(),
     unit: product.unit || 'kg',
     status: normalizeProductStatus(product.status || activeFormula?.status || activeFormula?.formulaStatus),
     currentVersion,
@@ -596,7 +598,7 @@ const productMasterToFormulaOption = (product = {}) => ({
   productCode: product.productCode,
   product: product.productName || product.name,
   productName: product.productName || product.name,
-  productGroup: product.productGroup,
+  productGroup: normalizeProductCatalogGroup(),
   version: product.currentVersion || 'V1.0',
   currentVersion: product.currentVersion || 'V1.0',
   formulaStatus: product.status || FORMULA_STATUS_ACTIVE,
@@ -1415,6 +1417,11 @@ const defaultEquipmentGroupByMachineCode = (machineCode = '') => {
   if (/^K0[1-2]$/.test(code)) return PRODUCT_GROUP_SON_NUOC
   return ''
 }
+const normalizeEquipmentGroupForMachine = (item = {}) => {
+  const defaultGroup = defaultEquipmentGroupByMachineCode(item.machineCode)
+  if (defaultGroup === PRODUCT_GROUP_SON_DA) return PRODUCT_GROUP_SON_DA
+  return normalizeProductGroup(item.equipmentGroup || item.productGroup || item.group) || defaultGroup
+}
 
 const normalizeMixingMachine = (item = {}) => ({
   ...item,
@@ -1424,7 +1431,7 @@ const normalizeMixingMachine = (item = {}) => ({
   capacityKg: num(item.capacityKg),
   department: item.department || item.productionTeam || 'Tổ phối trộn',
   productionTeam: item.productionTeam || item.department || 'Tổ phối trộn',
-  equipmentGroup: normalizeProductGroup(item.equipmentGroup || item.productGroup || item.group) || defaultEquipmentGroupByMachineCode(item.machineCode),
+  equipmentGroup: normalizeEquipmentGroupForMachine(item),
   status: normalizeMixingMachineStatus(item.status),
   note: item.note || '',
 })
@@ -2170,7 +2177,7 @@ function normalizeProductionOrders(orders = [], formulas = []) {
     const requestedWeight = num(order.requestedWeight ?? order.quantityKg)
     const assignedMachineCode = normalizeMixingMachineCode(order.assignedMachineCode || order.mixerMachine || order.assignedMixingMachine || order.mixingMachine || order.mixing?.machineCode || '')
     const assignedMachine = machineCatalog.find((machine) => machine.machineCode === assignedMachineCode)
-    const productGroup = normalizeProductGroup(order.productGroup || formula?.productGroup) || inferProductGroup({ ...order, product: order.product || formula?.product, code: formula?.code || order.formulaCode })
+    const productGroup = normalizeOrderProductGroup(order.productGroup || formula?.productGroup, { ...order, product: order.product || formula?.product, code: formula?.code || order.formulaCode })
     const customerFields = resolveOrderCustomer(order)
     return {
       ...order,
@@ -7127,7 +7134,7 @@ function MixingPage({ data, setData, user }) {
     const machine = machines.find((item) => item.machineCode === machineCode)
     const runningOrder = machineCode ? getMachineActiveOrder(machineCode) : null
     const requestedKg = num(order.quantityKg || order.requestedWeight)
-    const orderProductGroup = normalizeProductGroup(order.productGroup) || inferProductGroup(order)
+    const orderProductGroup = normalizeOrderProductGroup(order.productGroup, order)
     const wrongAssignedMachine = Boolean(assignedMachineCode && machineCode && machineCode !== assignedMachineCode)
     const wrongEquipmentGroup = Boolean(orderProductGroup && machine && normalizeProductGroup(machine.equipmentGroup) !== orderProductGroup)
     const wrongStatus = machine && normalizeMixingMachineStatus(machine.status) !== 'READY'
@@ -9653,7 +9660,7 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
       capacityKg: machine.capacityKg,
       department: machine.department || machine.productionTeam || 'Tổ phối trộn',
       productionTeam: machine.productionTeam || machine.department || 'Tổ phối trộn',
-      equipmentGroup: normalizeProductGroup(machine.equipmentGroup) || defaultEquipmentGroupByMachineCode(machine.machineCode),
+      equipmentGroup: normalizeEquipmentGroupForMachine(machine),
       status: normalizeMixingMachineStatus(machine.status),
       note: machine.note || '',
     })
@@ -10670,7 +10677,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   const canImportMaterialCatalog = isMaterialCatalog && (canCreate || canEdit)
   const draftRowFromSource = (row) => {
     if (!isProductCatalog) return { ...row }
-    const productGroup = normalizeProductGroup(row.productGroup || row.group) || inferProductGroup(row)
+    const productGroup = normalizeProductCatalogGroup()
     return { ...row, productGroup, group: displayProductGroup(productGroup) || row.group || '' }
   }
   useEffect(() => {
@@ -10807,7 +10814,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
           return { ...row, mainGroup, materialGroup, subclassification: normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, mainGroup), chemicalSubGroup: normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, mainGroup) }
         }
         if (isProductCatalog && field === 'productGroup') {
-          const productGroup = normalizeProductGroup(value)
+          const productGroup = normalizeProductCatalogGroup()
           return { ...row, productGroup, group: displayProductGroup(productGroup) || row.group }
         }
         return { ...row, [field]: value }
@@ -10836,7 +10843,8 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
       next.unit = next.unit || 'kg'
     }
     if (isProductCatalog) {
-      next.productGroup = ''
+      next.productGroup = normalizeProductCatalogGroup()
+      next.group = displayProductGroup(next.productGroup)
       next.unit = next.unit || 'kg'
     }
     setDraftRows((currentRows) => [next, ...(currentRows || [])])
@@ -10860,7 +10868,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   const normalizeDraftRowsForSave = () => {
     if (isMaterialCatalog) return normalizeMaterialCatalog(draftRows || [])
     if (isProductCatalog) return (draftRows || []).map((row) => {
-      const productGroup = normalizeProductGroup(row.productGroup || row.group)
+      const productGroup = normalizeProductCatalogGroup()
       return { ...row, productGroup, group: displayProductGroup(productGroup) || row.group || '' }
     })
     return (draftRows || []).map((row) => ({ ...row }))
