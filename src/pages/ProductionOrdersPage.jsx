@@ -73,6 +73,7 @@ const blankIngredient = (quantityKg, no) => ({
 
 const calcMaterialPerLot = (ratioPercent, quantityKg) =>
   Number((((Number(ratioPercent) || 0) * (Number(quantityKg) || 0)) / 100).toFixed(3))
+const getOrderLotCode = (order = {}) => order.lot || order.lotCode || order.orderCode || order.id || ''
 
 function CustomerSearchCombobox({ value = {}, inputValue = '', onInputChange, onSelect }) {
   const [open, setOpen] = useState(false)
@@ -202,7 +203,7 @@ function OrderCreateModal({ onClose, onSave }) {
           <section className="form-section">
             <h3>A. Thông tin chung</h3>
             <div className="production-form-grid">
-              <label>Mã lệnh sản xuất<input value={form.id} onChange={(event) => updateField('id', event.target.value)} required /></label>
+              <label>Mã lô<input value={form.lot || form.id} onChange={(event) => { updateField('lot', event.target.value); updateField('id', event.target.value) }} required /></label>
               <label>Ngày sản xuất<input type="date" value={form.productionDate} onChange={(event) => updateField('productionDate', event.target.value)} /></label>
               <label>Khách hàng / CT-KH
                 <CustomerSearchCombobox
@@ -214,7 +215,6 @@ function OrderCreateModal({ onClose, onSave }) {
               </label>
               <label>Tên sản phẩm<input value={form.product} onChange={(event) => updateField('product', event.target.value)} required /></label>
               <label>Mã sản phẩm / công thức<input value={form.formula} onChange={(event) => updateField('formula', event.target.value)} required /></label>
-              <label>Mã lô / LOT<input value={form.lot} onChange={(event) => updateField('lot', event.target.value)} /></label>
               <label>Khối lượng yêu cầu<input type="number" min="0" step="0.001" value={form.quantityKg} onChange={(event) => updateField('quantityKg', event.target.value)} required /></label>
               <label>Tổng số mẻ sản xuất<input type="number" min="0" step="1" value={form.batchCount} onChange={(event) => updateField('batchCount', event.target.value)} /></label>
               <label>Thời gian vào máy<input type="datetime-local" value={form.machineInTime} onChange={(event) => updateField('machineInTime', event.target.value)} /></label>
@@ -301,11 +301,10 @@ export function ProductionOrdersPage({ orders, onCreateOrder }) {
           <table>
             <thead>
               <tr>
-                <th>Lệnh</th>
+                <th>Mã lô</th>
                 <th>Sản phẩm</th>
                 <th>Khách hàng</th>
                 <th>Công thức</th>
-                <th>LOT</th>
                 <th>Trạng thái</th>
                 <th>Khối lượng</th>
                 <th>Nguyên liệu</th>
@@ -315,11 +314,10 @@ export function ProductionOrdersPage({ orders, onCreateOrder }) {
             <tbody>
               {sortedOrders.map((order) => (
                 <tr key={order.id}>
-                  <td>{order.id}</td>
+                  <td>{getOrderLotCode(order)}</td>
                   <td>{order.product}</td>
                   <td>{order.customerName || order.customer || '-'}</td>
                   <td>{order.formula}</td>
-                  <td>{order.lot || '-'}</td>
                   <td><span className="status-pill">{order.status || order.stage}</span></td>
                   <td>{order.quantityKg} kg</td>
                   <td>{order.ingredients?.length || '-'}</td>

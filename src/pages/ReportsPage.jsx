@@ -7,6 +7,7 @@ import { customerCatalog } from '../data/customerCatalog.js'
 
 const stages = ['Lệnh sản xuất', 'Cân hóa', 'Cân rắn', 'Phối trộn', 'QC', 'Hoàn thành']
 const customerOptions = Array.from(new Set((customerCatalog || []).map((customer) => customer.customerName).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+const getOrderLotCode = (order = {}) => order.lot || order.lotCode || order.orderCode || order.id || '-'
 
 function isChemicalGroup(group = '') {
   const value = String(group).toLowerCase()
@@ -63,7 +64,7 @@ function normalizeIngredient(item, order, stage) {
     : formatKg(item.actualWeight ?? item.actual)
   const variance = actualKg ? Number((actualKg - requiredKg).toFixed(3)) : 0
   return {
-    orderId: order.id,
+    orderId: getOrderLotCode(order),
     date: order.productionDate || String(order.createdAt || '').slice(0, 10),
     stage,
     materialCode: item.materialCode || '',
@@ -293,7 +294,7 @@ export function ReportsPage({ orders }) {
     'Tỷ lệ hoàn thành': `${row.completionRate}%`,
   }))
   const lossRows = lossRowsRaw.map((order) => ({
-    'Mã lệnh SX': order.id,
+    'Mã lô': getOrderLotCode(order),
     'Sản phẩm': order.product,
     'Khối lượng yêu cầu': displayKg(order.requiredKg),
     'Khối lượng thực tế': order.actualKg ? displayKg(order.actualKg) : '-',
@@ -304,7 +305,7 @@ export function ReportsPage({ orders }) {
   }))
   const errorRows = errorRowsRaw.map((row) => ({
     Ngày: row.date || '-',
-    'Mã lệnh SX': row.orderId,
+    'Mã lô': row.orderId,
     'Công đoạn': row.stage,
     'Mã vật tư': row.materialCode,
     'Tên nguyên liệu': row.materialName,
@@ -317,7 +318,7 @@ export function ReportsPage({ orders }) {
     'Ghi chú': row.note || '-',
   }))
   const progressRows = progressRowsRaw.map((order) => ({
-    'Mã lệnh SX': order.id,
+    'Mã lô': getOrderLotCode(order),
     'Khách hàng': order.customer || '-',
     'Sản phẩm': order.product,
     'Trạng thái hiện tại': order.status,
@@ -348,7 +349,7 @@ export function ReportsPage({ orders }) {
         <div className="report-filters">
           <label>Từ ngày<input type="date" value={filters.fromDate} onChange={(event) => updateFilter('fromDate', event.target.value)} /></label>
           <label>Đến ngày<input type="date" value={filters.toDate} onChange={(event) => updateFilter('toDate', event.target.value)} /></label>
-          <label>Mã lệnh SX<input value={filters.orderId} onChange={(event) => updateFilter('orderId', event.target.value)} /></label>
+          <label>Mã lô<input value={filters.orderId} onChange={(event) => updateFilter('orderId', event.target.value)} /></label>
           <label>Khách hàng
             <CustomerFilterCombobox
               options={customerOptions}

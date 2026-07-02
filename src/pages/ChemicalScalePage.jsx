@@ -219,7 +219,7 @@ export function ChemicalScalePage({ orders, onUpdateOrder }) {
               <table className="queue-table">
                 <thead>
                   <tr>
-                    <th>Mã lệnh SX</th>
+                    <th>Mã lô</th>
                     <th>Tên sản phẩm</th>
                     <th>Khối lượng</th>
                     <th>Trạng thái</th>
@@ -229,7 +229,7 @@ export function ChemicalScalePage({ orders, onUpdateOrder }) {
                 <tbody>
                   {chemicalOrders.map((order) => (
                     <tr key={order.id} className={activeOrder?.id === order.id ? 'active-order-row' : ''}>
-                      <td>{order.id}</td>
+                      <td>{order.lot || order.id}</td>
                       <td>{order.product}</td>
                       <td>{order.quantityKg} kg</td>
                       <td><span className={`flow-pill ${statusClass(order.chemicalStatus)}`}>{order.chemicalStatus}</span></td>

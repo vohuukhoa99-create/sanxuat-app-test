@@ -404,10 +404,10 @@ export function DashboardPage({ orders }) {
       </section>
 
       <section className="dashboard-table-grid">
-        <DashboardTable title="Top lệnh cần chú ý" headers={['Mã lệnh', 'Khách hàng', 'Sản phẩm', 'Khối lượng', 'Trạng thái', 'Công đoạn', 'Vấn đề', 'Thời gian tồn', 'Người phụ trách', 'Hành động']}>
+        <DashboardTable title="Top mã lô cần chú ý" headers={['Mã lô', 'Khách hàng', 'Sản phẩm', 'Khối lượng', 'Trạng thái', 'Công đoạn', 'Vấn đề', 'Thời gian tồn', 'Người phụ trách', 'Hành động']}>
           {attentionRows.map((row) => (
             <tr key={`${row.order.id}-${row.issue}`}>
-              <td>{row.order.id}</td><td>{row.order.customer || '-'}</td><td>{row.order.product}</td><td>{kgText(row.order.requiredKg)}</td><td>{row.order.currentStage}</td><td>{row.stage}</td><td>{row.issue}</td><td>{row.age}</td><td>{row.order.owner || '-'}</td><td><button className="secondary-button">Xem chi tiết</button></td>
+              <td>{row.order.lot || row.order.orderCode || row.order.id}</td><td>{row.order.customer || '-'}</td><td>{row.order.product}</td><td>{kgText(row.order.requiredKg)}</td><td>{row.order.currentStage}</td><td>{row.stage}</td><td>{row.issue}</td><td>{row.age}</td><td>{row.order.owner || '-'}</td><td><button className="secondary-button">Xem chi tiết</button></td>
             </tr>
           ))}
         </DashboardTable>

@@ -3512,7 +3512,7 @@ function FormulasPage({ data, setData, permissions = [], user = null }) {
   const deleteFormula = (formula) => {
     if (!canDeleteFormula) return
     if (formulaHasProductionOrders(formula, data.orders || [])) {
-      setFormulaMessage(`Công thức ${formula.code || formula.id} đã phát sinh Lệnh sản xuất, không thể xóa. Vui lòng chuyển sang Ngưng áp dụng.`)
+      setFormulaMessage(`Công thức ${formula.code || formula.id} đã phát sinh mã lô, không thể xóa. Vui lòng chuyển sang Ngưng áp dụng.`)
       return
     }
     setData((current) => addLogToData({
@@ -4286,7 +4286,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const exportOrderPdf = (order) => {
     if (!order) return
     const doc = new jsPDF()
-    doc.text(`Lenh san xuat - ${getOrderLotCode(order)}`, 14, 14)
+    doc.text(`Ma lo - ${getOrderLotCode(order)}`, 14, 14)
     autoTable(doc, {
       startY: 20,
       head: [['Nhom', 'Truong', 'Gia tri']],
@@ -4297,7 +4297,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const exportOrderExcel = (order) => {
     if (!order) return
     const book = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(orderExportRows(order)), 'Lenh san xuat')
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(orderExportRows(order)), 'Ma lo')
     XLSX.writeFile(book, `lenh-san-xuat-${getOrderLotCode(order).replace(/[^a-zA-Z0-9_-]/g, '-')}.xlsx`)
   }
   const saveEditOrder = () => {
@@ -4963,11 +4963,10 @@ function QC1({ data, setData, user }) {
                   <span className="section-kicker">Đang QC sản xuất thử</span>
                   <h2>Đang QC sản xuất thử</h2>
                   <div className="qc-trial-summary-grid">
-                    <div><span>Mã lệnh SX</span><strong>{activeOrder.orderCode || activeOrder.id}</strong></div>
+                    <div><span>Mã lô</span><strong>{getOrderLotCode(activeOrder)}</strong></div>
                     <div><span>Sản phẩm</span><strong>{activeOrder.productName || activeOrder.product}</strong></div>
                     <div><span>Công thức gốc</span><strong>{activeOrder.formulaCode || activeOrder.originalFormulaId} / {activeOrder.formulaVersion || activeOrder.originalFormulaVersion}</strong></div>
                     <div><span>Khối lượng</span><strong>{kg(activeOrder.requestedWeight ?? activeOrder.quantityKg)}</strong></div>
-                    <div><span>LOT</span><strong>{activeOrder.lot}</strong></div>
                     <div><span>Khách hàng</span><strong>{activeOrder.customerName || activeOrder.customer || '-'}</strong></div>
                   </div>
                 </div>
@@ -5108,7 +5107,7 @@ function QC2({ data, setData }) {
   return <section className="panel"><h2>QC2 - Test màu thành phẩm</h2>{orders.map((order) => {
     const form = getForm(order.id)
     return <article className="v3-card" key={order.id}>
-      <div className="section-heading-row"><div><h3>{order.id} - {order.product}</h3><p className="panel-text">LOT {order.lot}, khối lượng sau phối trộn {kg(order.mixing?.finalWeightKg || order.quantityKg)}</p></div><button className="primary-button" onClick={() => save(order)}>Lưu kết quả QC2</button></div>
+      <div className="section-heading-row"><div><h3>{getOrderLotCode(order)} - {order.product}</h3><p className="panel-text">Mã lô {getOrderLotCode(order)}, khối lượng sau phối trộn {kg(order.mixing?.finalWeightKg || order.quantityKg)}</p></div><button className="primary-button" onClick={() => save(order)}>Lưu kết quả QC2</button></div>
       <div className="production-form-grid">
         <label>Kết quả<select value={form.result} onChange={(event) => setForm(order.id, { result: event.target.value })}><option>OK</option><option>Cần chỉnh màu</option><option>Không đạt</option></select></label>
         {['color', 'ph', 'viscosity', 'density', 'coverage', 'note'].map((field) => <label key={field}>{({ color: 'Màu sắc', ph: 'pH', viscosity: 'Độ nhớt', density: 'Tỷ trọng', coverage: 'Độ phủ', note: 'Ghi chú' })[field]}<input value={form[field]} onChange={(event) => setForm(order.id, { [field]: event.target.value })} /></label>)}
@@ -5391,7 +5390,7 @@ function FinishedProductQcPage({ data, setData, user }) {
               <button key={order.id} className={`qc-queue-item ${order.id === activeOrder?.id ? 'active' : ''}`} onClick={() => selectOrder(order)}>
                 <strong>{order.orderCode || order.id}</strong>
                 <span>{order.productName || order.product}</span>
-                <span>LOT {order.lot}</span>
+                <span>Mã lô {getOrderLotCode(order)}</span>
                 <span>{kg(order.mixing?.finalWeightKg || order.quantityKg)}</span>
                 <span>Số lần QC2: {qc2AttemptCount(order, data)}</span>
               </button>
@@ -5415,10 +5414,9 @@ function FinishedProductQcPage({ data, setData, user }) {
                   </div>
                 </div>
                 <div className="qc-order-summary finished-qc-info-grid qc-finished-info-grid">
-                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Mã lệnh SX</span><strong className="value">{activeOrder.orderCode || activeOrder.id}</strong></div>
+                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Mã lô</span><strong className="value">{getOrderLotCode(activeOrder)}</strong></div>
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Khách hàng</span><strong className="value">{activeOrder.customerName || activeOrder.customer || '-'}</strong></div>
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Sản phẩm</span><strong className="value">{activeOrder.productName || activeOrder.product}</strong></div>
-                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">LOT</span><strong className="value">{activeOrder.lot}</strong></div>
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Công thức gốc</span><strong className="value">{activeOrder.formulaCode || activeOrder.originalFormulaId}</strong></div>
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Khối lượng yêu cầu</span><strong className="value">{kg(activeOrder.requestedWeight ?? activeOrder.quantityKg)}</strong></div>
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Khối lượng sau phối trộn</span><strong className="value">{kg(activeOrder.mixing?.finalWeightKg || activeOrder.quantityKg)}</strong></div>
@@ -6336,9 +6334,8 @@ function WeighingPage({ data = {}, setData, group, user }) {
                 </div>
               )}
               <div className={`weighing-order-summary ${group === CHEMICAL ? 'chemical-order-summary-compact' : ''}`}>
-                <div><span>Mã lệnh SX</span><strong>{activeOrder.orderCode || activeOrder.id}</strong></div>
+                <div><span>Mã lô</span><strong>{getOrderLotCode(activeOrder)}</strong></div>
                 <div><span>Sản phẩm</span><strong>{activeOrder.productName || activeOrder.product}</strong></div>
-                <div><span>LOT</span><strong>{activeOrder.lot}</strong></div>
                 <div><span>Tiến độ đã cân</span><strong>Đã cân {doneCount}/{activeItems.length} vật tư</strong></div>
               </div>
               {group !== CHEMICAL && <div className="weighing-progress-card">
@@ -6412,13 +6409,12 @@ function WeighingPage({ data = {}, setData, group, user }) {
             <h3>Danh sách lệnh đã cân</h3>
             <SimpleTable
               tableClassName="weighed-container-history-table"
-              headers={['Mã QR hỗn hợp', 'Mã lệnh SX', 'Sản phẩm', 'LOT', 'Nhóm hỗn hợp', 'Tổng kg', 'Thời gian cân', 'Trạng thái', 'Hành động']}
+              headers={['Mã QR hỗn hợp', 'Mã lô', 'Sản phẩm', 'Nhóm hỗn hợp', 'Tổng kg', 'Thời gian cân', 'Trạng thái', 'Hành động']}
               rows={completedWeighingContainers.map((container) => (
                 <tr key={container.containerId || container.qrCode}>
                   <td>{container.qrCode}</td>
-                  <td>{container.orderCode}</td>
+                  <td>{container.lot || container.orderCode}</td>
                   <td>{container.productName}</td>
-                  <td>{container.lot}</td>
                   <td>{container.materialGroup}</td>
                   <td>{kg(container.totalWeight)}</td>
                   <td>{container.completedAt || '-'}</td>
@@ -6459,9 +6455,8 @@ function WeighingPage({ data = {}, setData, group, user }) {
               <button type="button" className="icon-button" onClick={() => setWeighingDetailModal(null)} aria-label="Đóng">×</button>
             </div>
             <div className="weighed-container-detail-grid">
-              <div><span>Mã lệnh SX</span><strong>{weighingDetailModal.orderCode}</strong></div>
+              <div><span>Mã lô</span><strong>{weighingDetailModal.lot || weighingDetailModal.orderCode}</strong></div>
               <div><span>Sản phẩm</span><strong>{weighingDetailModal.productName}</strong></div>
-              <div><span>LOT</span><strong>{weighingDetailModal.lot}</strong></div>
               <div><span>Nhóm hỗn hợp</span><strong>{weighingDetailModal.materialGroup}</strong></div>
               <div><span>Tổng kg</span><strong>{kg(weighingDetailModal.totalWeight)}</strong></div>
               <div><span>Thời gian cân</span><strong>{weighingDetailModal.completedAt || '-'}</strong></div>
@@ -6506,9 +6501,8 @@ function WeighedContainerCard({ container, onPrint, onDetail, title = 'QR hỗn 
         <span className="dispatch-badge ready">{container.status}</span>
       </div>
       <div className="weighed-container-grid">
-        <div><span>Mã lệnh SX</span><strong>{container.orderCode}</strong></div>
+        <div><span>Mã lô</span><strong>{container.lot || container.orderCode}</strong></div>
         <div><span>Sản phẩm</span><strong>{container.productName}</strong></div>
-        <div><span>LOT</span><strong>{container.lot}</strong></div>
         <div><span>Nhóm hỗn hợp</span><strong>{container.materialGroup}</strong></div>
         <div><span>Tổng kg</span><strong>{kg(container.totalWeight)}</strong></div>
         <div><span>Thời gian tạo</span><strong>{container.completedAt}</strong></div>
@@ -6531,9 +6525,8 @@ function QrPrintTicket({ container }) {
       <strong className="qr-print-text">{container.qrCode}</strong>
       <div className="qr-print-info">
         <div><span>Mã QR</span><strong>{container.qrCode}</strong></div>
-        <div><span>Lệnh SX</span><strong>{container.orderCode}</strong></div>
+        <div><span>Mã lô</span><strong>{container.lot || container.orderCode}</strong></div>
         <div><span>Sản phẩm</span><strong>{container.productName}</strong></div>
-        <div><span>LOT</span><strong>{container.lot}</strong></div>
         <div><span>Nhóm</span><strong>{container.materialGroup}</strong></div>
         <div><span>Tổng kg</span><strong>{kg(container.totalWeight)}</strong></div>
         <div><span>Loại cân</span><strong>{container.weighingType}</strong></div>
@@ -7159,7 +7152,7 @@ function MixingPage({ data, setData, user }) {
               : !sameOrder || !sameLot ? `${label} không đúng lệnh này.`
                 : !groupMatched ? `${label} sai nhóm hỗn hợp.`
                   : !readyStatus ? `${label} chưa sẵn sàng phối trộn.`
-                    : `${label} sai lệnh SX, LOT, trạng thái hoặc nhóm hỗn hợp.`
+                    : `${label} sai mã lô, trạng thái hoặc nhóm hỗn hợp.`
     return { pass: finalPass, container, usedByOtherOrder, usedByThisOrder, message }
   }
   const validateMixingMachineQr = (order, qrText) => {
@@ -7318,7 +7311,7 @@ function MixingPage({ data, setData, user }) {
   }
   const createDemoQrData = () => {
     setData((current) => applyDemoQrData(current))
-    setWarning('Đã tạo dữ liệu demo QR hỗn hợp. Có sẵn 1 lệnh PASS, 1 lệnh sai LOT và 1 lệnh sai nhóm.')
+    setWarning('Đã tạo dữ liệu demo QR hỗn hợp. Có sẵn 1 mã lô PASS, 1 mã lô sai và 1 mã nhóm sai.')
   }
   const getAssignedMachineCode = (order) => getOrderAssignedMachineCode(order)
   const openMachineChangeRequest = (order) => {
@@ -7504,7 +7497,7 @@ function MixingPage({ data, setData, user }) {
                 <th>Máy</th>
                 <th>Công suất</th>
                 <th>Trạng thái</th>
-                <th>Lệnh hiện tại</th>
+                <th>Mã lô hiện tại</th>
                 <th>Tiến độ</th>
                 <th>Hành động</th>
               </tr>
@@ -7534,9 +7527,8 @@ function MixingPage({ data, setData, user }) {
             <table className="ready-mixing-table">
               <thead>
                 <tr>
-                  <th>Mã lệnh SX</th>
+                  <th>Mã lô</th>
                   <th>Sản phẩm</th>
-                  <th>LOT</th>
                   <th>Máy trộn</th>
                   <th>QR Hóa</th>
                   <th>QR Rắn</th>
@@ -7563,9 +7555,8 @@ function MixingPage({ data, setData, user }) {
                   const state = getMixingDispatchState(order)
                   return (
                     <tr key={order.id} className={qrFailed ? 'mixing-qr-fail-row' : ''}>
-                      <td>{order.orderCode || order.id}</td>
+                      <td>{getOrderLotCode(order)}</td>
                       <td>{order.productName || order.product}</td>
-                      <td>{order.lot}</td>
                       <td>
                         {assignedMachineCode ? (
                           <strong>{assignedMachine ? formatMixingMachineLabel(assignedMachine) : getOrderAssignedMachineLabel(order, machines)}</strong>
@@ -7618,7 +7609,7 @@ function MixingPage({ data, setData, user }) {
                     </tr>
                   )
                 })}
-              {readyOrders.length === 0 && <tr><td className="empty-row" colSpan={9}>Chưa có lệnh sẵn sàng phối trộn.</td></tr>}
+              {readyOrders.length === 0 && <tr><td className="empty-row" colSpan={8}>Chưa có lệnh sẵn sàng phối trộn.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -7629,9 +7620,8 @@ function MixingPage({ data, setData, user }) {
             <table className="mixing-active-table">
               <thead>
                 <tr>
-                  <th>Mã lệnh SX</th>
+                  <th>Mã lô</th>
                   <th>Sản phẩm</th>
-                  <th>LOT</th>
                   <th>Máy phối trộn</th>
                   <th>Giờ bắt đầu</th>
                   <th>Tiến độ</th>
@@ -7645,9 +7635,8 @@ function MixingPage({ data, setData, user }) {
                   const progress = getMixingProgress(order)
                   return (
                     <tr key={order.id}>
-                      <td>{order.orderCode || order.id}</td>
+                      <td>{getOrderLotCode(order)}</td>
                       <td>{order.productName || order.product}</td>
-                      <td>{order.lot}</td>
                       <td>{getOrderAssignedMachineLabel(order, machines)}</td>
                       <td>{order.mixingStartAt || order.mixing?.startedAt || '-'}</td>
                       <td><div className="mix-progress mixing-progress"><div className="mixing-progress-bar"><i style={{ width: `${progress}%` }} /></div><strong>{progress}%</strong></div></td>
@@ -7656,20 +7645,19 @@ function MixingPage({ data, setData, user }) {
                     </tr>
                   )
                 })}
-              {activeMixingOrders.length === 0 && <tr><td className="empty-row" colSpan={8}>Chưa có lệnh đang phối trộn.</td></tr>}
+              {activeMixingOrders.length === 0 && <tr><td className="empty-row" colSpan={7}>Chưa có lệnh đang phối trộn.</td></tr>}
               </tbody>
             </table>
           </div>
         </section>
         <section className="panel mixing-dispatch">
           <h3>Danh sách lệnh sản xuất</h3>
-          <SimpleTable headers={['Lệnh', 'Sản phẩm', 'LOT', 'Máy phối trộn', 'Giờ bắt đầu', 'Giờ kết thúc', 'Thời gian phối trộn', 'Trạng thái']} rows={productionOrders.map((order) => {
+          <SimpleTable headers={['Mã lô', 'Sản phẩm', 'Máy phối trộn', 'Giờ bắt đầu', 'Giờ kết thúc', 'Thời gian phối trộn', 'Trạng thái']} rows={productionOrders.map((order) => {
             const state = getMixingDispatchState(order)
             return (
               <tr key={order.id}>
-                <td>{order.orderCode || order.id}</td>
+                <td>{getOrderLotCode(order)}</td>
                 <td>{order.productName || order.product}</td>
-                <td>{order.lot}</td>
                 <td>{getOrderAssignedMachineLabel(order, machines)}</td>
                 <td>{order.mixingStartAt || order.mixing?.startedAt || '-'}</td>
                 <td>{order.mixingCompletedAt || order.mixing?.completedAt || '-'}</td>
@@ -7681,9 +7669,9 @@ function MixingPage({ data, setData, user }) {
         </section>
         <section className="panel mixing-history-panel">
           <h3>Lịch sử phối trộn</h3>
-          <SimpleTable headers={['Lệnh', 'Sản phẩm', 'Máy phối trộn', 'Giờ bắt đầu', 'Giờ kết thúc', 'Thời gian phối trộn', 'Trạng thái']} rows={mixingHistory.slice().reverse().map((order) => (
+          <SimpleTable headers={['Mã lô', 'Sản phẩm', 'Máy phối trộn', 'Giờ bắt đầu', 'Giờ kết thúc', 'Thời gian phối trộn', 'Trạng thái']} rows={mixingHistory.slice().reverse().map((order) => (
             <tr key={order.id}>
-              <td>{order.orderCode || order.id}</td>
+              <td>{getOrderLotCode(order)}</td>
               <td>{order.productName || order.product}</td>
               <td>{getOrderAssignedMachineLabel(order, machines)}</td>
               <td>{order.mixingStartAt || order.mixing?.startedAt || '-'}</td>
@@ -7850,11 +7838,10 @@ function PackagingPage({ data, setData, user }) {
       <section className="panel packaging-layout">
         <aside className="packaging-list">
           <h2>Danh sách lệnh chờ đóng gói</h2>
-          <SimpleTable headers={['Mã lệnh SX', 'Sản phẩm', 'LOT', 'Khối lượng sau QC thành phẩm', 'Trạng thái', 'Hành động']} rows={orders.map((order) => (
+          <SimpleTable headers={['Mã lô', 'Sản phẩm', 'Khối lượng sau QC thành phẩm', 'Trạng thái', 'Hành động']} rows={orders.map((order) => (
             <tr key={order.id} className={order.id === activeOrder?.id ? 'current-row' : ''}>
-              <td>{order.orderCode || order.id}</td>
+              <td>{getOrderLotCode(order)}</td>
               <td>{order.productName || order.product}</td>
-              <td>{order.lot}</td>
               <td>{kg(qc2FinalWeight(order))}</td>
               <td><span className={`dispatch-badge ${order.packingStatus === 'completed' || order.packagingStatus === 'Completed' ? 'done' : order.status === 'Đang đóng gói' ? 'mixing' : 'waiting'}`}>{order.status}</span></td>
               <td><button className="secondary-button" onClick={() => { setActiveOrderId(order.id); setWarning('') }}>Chọn</button></td>
@@ -7869,7 +7856,7 @@ function PackagingPage({ data, setData, user }) {
               <div className="section-heading-row">
                 <div>
                   <span className="section-kicker">Chi tiết lệnh đang đóng gói</span>
-                  <h2>{activeOrder.orderCode || activeOrder.id}</h2>
+                  <h2>{getOrderLotCode(activeOrder)}</h2>
                 </div>
                 <div className="action-row touch-actions">
                   <button className="secondary-button touch-button" onClick={beginPackaging}>Bắt đầu đóng gói</button>
@@ -7879,9 +7866,8 @@ function PackagingPage({ data, setData, user }) {
               </div>
               {warning && <div className="process-alert">{warning}</div>}
               <div className="qc-order-summary">
-                <div><span>Mã lệnh SX</span><strong>{activeOrder.orderCode || activeOrder.id}</strong></div>
+                <div><span>Mã lô</span><strong>{getOrderLotCode(activeOrder)}</strong></div>
                 <div><span>Sản phẩm</span><strong>{activeOrder.productName || activeOrder.product}</strong></div>
-                <div><span>LOT</span><strong>{activeOrder.lot}</strong></div>
                 <div><span>Khối lượng sau QC thành phẩm</span><strong>{kg(totals.qcWeight)}</strong></div>
                 <div><span>Khối lượng đã đóng gói</span><strong>{kg(totals.totalPackedWeight)}</strong></div>
                 <div><span>Khối lượng còn lại</span><strong>{kg(totals.remainingWeight)}</strong></div>
@@ -8004,15 +7990,14 @@ function FinishedGoodsPage({ data, setData, user }) {
         completedAt,
         updatedAt: completedAt,
       } : order),
-    }, `Nhập kho thành phẩm ${activeOrder.id}, mã ${form.finishedCode}. Hoàn thành lệnh SX.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: 'Kho thành phẩm', order: activeOrder, result: 'Nhập kho thành phẩm' })))
+    }, `Nhập kho thành phẩm mã lô ${getOrderLotCode(activeOrder)}, mã ${form.finishedCode}. Hoàn thành.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: 'Kho thành phẩm', order: activeOrder, result: 'Nhập kho thành phẩm' })))
     setActiveOrder(null)
     setForm(null)
   }
   const exportRows = filteredFinishedGoods.map((item) => ({
     'Mã TP': item.finishedCode,
-    'Mã lệnh SX': item.orderCode || item.orderId,
+    'Mã lô': item.lot || item.orderCode || item.orderId,
     'Sản phẩm': item.productName || item.product,
-    LOT: item.lot,
     'Quy cách': item.spec,
     'Số thùng': item.boxes,
     'Khối lượng': item.weight,
@@ -8031,8 +8016,8 @@ function FinishedGoodsPage({ data, setData, user }) {
     const doc = new jsPDF({ orientation: 'landscape' })
     doc.text('Bao cao kho thanh pham', 14, 14)
     autoTable(doc, {
-      head: [['Ma TP', 'Lenh SX', 'San pham', 'LOT', 'Quy cach', 'So thung', 'Khoi luong', 'Ngay nhap', 'Vi tri', 'Nguoi nhap', 'Trang thai']],
-      body: filteredFinishedGoods.map((item) => [item.finishedCode, item.orderCode || item.orderId, item.productName || item.product, item.lot, item.spec, item.boxes, item.weight, item.importDate, item.location, item.receiver, item.status]),
+      head: [['Ma TP', 'Ma lo', 'San pham', 'Quy cach', 'So thung', 'Khoi luong', 'Ngay nhap', 'Vi tri', 'Nguoi nhap', 'Trang thai']],
+      body: filteredFinishedGoods.map((item) => [item.finishedCode, item.lot || item.orderCode || item.orderId, item.productName || item.product, item.spec, item.boxes, item.weight, item.importDate, item.location, item.receiver, item.status]),
       startY: 20,
     })
     doc.save('kho-thanh-pham.pdf')
@@ -8050,9 +8035,8 @@ function FinishedGoodsPage({ data, setData, user }) {
           <table className="finished-warehouse-table warehouse-table">
             <thead>
               <tr>
-                <th>Mã lệnh SX</th>
+                <th>Mã lô</th>
                 <th>Sản phẩm</th>
-                <th>LOT</th>
                 <th>Khách hàng</th>
                 <th><span>Khối lượng sau</span><span>QC thành phẩm</span></th>
                 <th><span>Tổng khối lượng</span><span>đã đóng gói</span></th>
@@ -8069,9 +8053,8 @@ function FinishedGoodsPage({ data, setData, user }) {
                 const details = packingLog?.packingDetails || order.packaging?.details || []
                 return (
                   <tr key={order.id}>
-                    <td>{order.orderCode || order.id}</td>
+                    <td>{getOrderLotCode(order)}</td>
                     <td>{order.productName || order.product}</td>
-                    <td>{order.lot}</td>
                     <td>{order.customerName || order.customer || '-'}</td>
                     <td>{kg(qc2FinalWeight(order))}</td>
                     <td>{kg(packingLog?.totalPackedWeight || order.packaging?.totalPackedWeight || 0)}</td>
@@ -8083,7 +8066,7 @@ function FinishedGoodsPage({ data, setData, user }) {
                   </tr>
                 )
               })}
-              {waitingOrders.length === 0 && <tr><td className="empty-row" colSpan={11}>Chưa có lệnh chờ nhập kho thành phẩm.</td></tr>}
+              {waitingOrders.length === 0 && <tr><td className="empty-row" colSpan={10}>Chưa có lệnh chờ nhập kho thành phẩm.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -8100,9 +8083,8 @@ function FinishedGoodsPage({ data, setData, user }) {
         <div className="production-form-grid finished-goods-filters">
           <label>Từ ngày<input type="date" value={filters.fromDate} onChange={(event) => setFilters({ ...filters, fromDate: event.target.value })} /></label>
           <label>Đến ngày<input type="date" value={filters.toDate} onChange={(event) => setFilters({ ...filters, toDate: event.target.value })} /></label>
-          <label>Mã lệnh SX<input value={filters.orderCode} onChange={(event) => setFilters({ ...filters, orderCode: event.target.value })} /></label>
+          <label>Mã lô<input value={filters.orderCode} onChange={(event) => setFilters({ ...filters, orderCode: event.target.value })} /></label>
           <label>Sản phẩm<input value={filters.product} onChange={(event) => setFilters({ ...filters, product: event.target.value })} /></label>
-          <label>LOT<input value={filters.lot} onChange={(event) => setFilters({ ...filters, lot: event.target.value })} /></label>
           <label>Vị trí kho<input value={filters.location} onChange={(event) => setFilters({ ...filters, location: event.target.value })} /></label>
         </div>
         <div className="finished-goods-table-wrapper warehouse-table-wrapper">
@@ -8110,9 +8092,8 @@ function FinishedGoodsPage({ data, setData, user }) {
             <thead>
               <tr>
                 <th>Mã TP</th>
-                <th>Mã lệnh SX</th>
+                <th>Mã lô</th>
                 <th>Sản phẩm</th>
-                <th>LOT</th>
                 <th>Quy cách</th>
                 <th>Số thùng</th>
                 <th>Khối lượng</th>
@@ -8126,9 +8107,8 @@ function FinishedGoodsPage({ data, setData, user }) {
               {filteredFinishedGoods.map((item) => (
                 <tr key={item.id}>
                   <td>{item.finishedCode}</td>
-                  <td>{item.orderCode || item.orderId}</td>
+                  <td>{item.lot || item.orderCode || item.orderId}</td>
                   <td>{item.productName || item.product}</td>
-                  <td>{item.lot}</td>
                   <td>{item.spec}</td>
                   <td>{item.boxes}</td>
                   <td>{kg(item.weight)}</td>
@@ -8153,9 +8133,8 @@ function FinishedGoodsPage({ data, setData, user }) {
             </div>
             <div className="production-form-grid">
               <label>Mã thành phẩm<input value={form.finishedCode} onChange={(event) => updateForm('finishedCode', event.target.value)} /></label>
-              <label>Mã lệnh SX<input readOnly value={form.orderCode} /></label>
+              <label>Mã lô<input readOnly value={form.lot || form.orderCode} /></label>
               <label>Sản phẩm<input readOnly value={form.productName} /></label>
-              <label>LOT<input readOnly value={form.lot} /></label>
               <label>Khối lượng nhập kho<input type="number" value={form.weight} onChange={(event) => updateForm('weight', event.target.value)} /></label>
               <label>Số thùng nhập kho<input type="number" value={form.boxes} onChange={(event) => updateForm('boxes', event.target.value)} /></label>
               <label>Quy cách<input value={form.spec} onChange={(event) => updateForm('spec', event.target.value)} /></label>
@@ -8390,12 +8369,11 @@ function historyInfoRows(record) {
   const packed = record.packingLog?.totalPackedWeight || order.packaging?.totalPackedWeight || 0
   const imported = record.finishedRows.reduce((sum, item) => sum + num(item.weight), 0)
   return [
-    ['Mã lệnh SX', order.orderCode || order.id],
+    ['Mã lô', getOrderLotCode(order)],
     ['Công thức gốc', order.formulaCode || order.originalFormulaId || '-'],
     ['Version', order.formulaVersion || order.originalFormulaVersion || '-'],
     ['Khách hàng', order.customerName || order.customer || '-'],
     ['Sản phẩm', order.productName || order.product || '-'],
-    ['LOT', order.lot || '-'],
     ['Khối lượng yêu cầu', kg(order.requestedWeight ?? order.quantityKg)],
     ['Khối lượng sau QC1', kg(formulaRows.reduce((sum, item) => sum + item.qc1Kg, 0))],
     ['Khối lượng sau QC2', kg(formulaRows.reduce((sum, item) => sum + item.finalKg, 0))],
@@ -8472,11 +8450,11 @@ function SystemLogsPage({ data }) {
           <label>Nhân viên<input value={filters.employee} onChange={(event) => updateFilter('employee', event.target.value)} /></label>
           <label>Vai trò<input value={filters.role} onChange={(event) => updateFilter('role', event.target.value)} /></label>
           <label>Công đoạn<input value={filters.stage} onChange={(event) => updateFilter('stage', event.target.value)} /></label>
-          <label>Mã lệnh SX<input value={filters.orderCode} onChange={(event) => updateFilter('orderCode', event.target.value)} /></label>
+          <label>Mã lô<input value={filters.orderCode} onChange={(event) => updateFilter('orderCode', event.target.value)} /></label>
         </div>
       </section>
       <section className="panel">
-        <SimpleTable headers={['Người dùng', 'Nhân viên', 'Vai trò', 'Công đoạn', 'Lệnh sản xuất', 'Thời gian', 'Nội dung thao tác', 'Kết quả']} rows={filtered.map((log) => (
+        <SimpleTable headers={['Người dùng', 'Nhân viên', 'Vai trò', 'Công đoạn', 'Mã lô', 'Thời gian', 'Nội dung thao tác', 'Kết quả']} rows={filtered.map((log) => (
           <tr key={log.id}>
             <td>{log.username}</td>
             <td>{log.employee}</td>
@@ -8520,11 +8498,10 @@ function LogsPage({ data }) {
     const order = record.order
     return {
       STT: index + 1,
-      'Mã lệnh SX': order.orderCode || order.id,
+      'Mã lô': getOrderLotCode(order),
       'Ngày tạo': order.createdAt || '-',
       'Khách hàng': order.customerName || order.customer || '-',
       'Sản phẩm': order.productName || order.product || '-',
-      LOT: order.lot || '-',
       'Khối lượng yêu cầu': order.requestedWeight ?? order.quantityKg,
       'Trạng thái hiện tại': displayQcTrialText(order.orderStatus || order.status || '-'),
       'Công đoạn hiện tại': record.currentStage,
@@ -8572,9 +8549,8 @@ function LogsPage({ data }) {
         <div className="production-form-grid">
           <label>Từ ngày<input type="date" value={filters.fromDate} onChange={(event) => setFilters({ ...filters, fromDate: event.target.value })} /></label>
           <label>Đến ngày<input type="date" value={filters.toDate} onChange={(event) => setFilters({ ...filters, toDate: event.target.value })} /></label>
-          <label>Mã lệnh SX<input value={filters.orderCode} onChange={(event) => setFilters({ ...filters, orderCode: event.target.value })} /></label>
+          <label>Mã lô<input value={filters.orderCode} onChange={(event) => setFilters({ ...filters, orderCode: event.target.value })} /></label>
           <label>Sản phẩm<input value={filters.product} onChange={(event) => setFilters({ ...filters, product: event.target.value })} /></label>
-          <label>LOT<input value={filters.lot} onChange={(event) => setFilters({ ...filters, lot: event.target.value })} /></label>
           <label>Khách hàng
             <CustomerFilterCombobox
               options={customerOptions}
@@ -8592,10 +8568,10 @@ function LogsPage({ data }) {
         </div>
       </section>
       <section className="panel">
-        <h3>Bảng tổng hợp lệnh SX</h3>
-        <SimpleTable headers={['STT', 'Mã lệnh SX', 'Ngày tạo', 'Khách hàng', 'Sản phẩm', 'LOT', 'Khối lượng yêu cầu', 'Trạng thái hiện tại', 'Công đoạn hiện tại', 'Số lần QC sản xuất thử điều chỉnh', 'Số lần QC2 điều chỉnh', 'Tổng kg bổ sung', 'Thời gian hoàn thành', 'Hành động']} rows={filtered.map((record, index) => {
+        <h3>Bảng tổng hợp mã lô</h3>
+        <SimpleTable headers={['STT', 'Mã lô', 'Ngày tạo', 'Khách hàng', 'Sản phẩm', 'Khối lượng yêu cầu', 'Trạng thái hiện tại', 'Công đoạn hiện tại', 'Số lần QC sản xuất thử điều chỉnh', 'Số lần QC2 điều chỉnh', 'Tổng kg bổ sung', 'Thời gian hoàn thành', 'Hành động']} rows={filtered.map((record, index) => {
           const order = record.order
-          return <tr key={order.id}><td>{index + 1}</td><td>{order.orderCode || order.id}</td><td>{order.createdAt || '-'}</td><td>{order.customerName || order.customer || '-'}</td><td>{order.productName || order.product || '-'}</td><td>{order.lot || '-'}</td><td>{kg(order.requestedWeight ?? order.quantityKg)}</td><td>{displayQcTrialText(order.orderStatus || order.status || '-')}</td><td>{record.currentStage}</td><td>{record.qc1Rows.filter((row) => (row.changes || []).length).length}</td><td>{record.qc2Rows.length}</td><td>{kg(record.totalSupplementKg)}</td><td>{order.completedAt || '-'}</td><td><button className="primary-button" onClick={() => { setSelectedId(order.id); setTab('info') }}>Xem chi tiết</button></td></tr>
+          return <tr key={order.id}><td>{index + 1}</td><td>{getOrderLotCode(order)}</td><td>{order.createdAt || '-'}</td><td>{order.customerName || order.customer || '-'}</td><td>{order.productName || order.product || '-'}</td><td>{kg(order.requestedWeight ?? order.quantityKg)}</td><td>{displayQcTrialText(order.orderStatus || order.status || '-')}</td><td>{record.currentStage}</td><td>{record.qc1Rows.filter((row) => (row.changes || []).length).length}</td><td>{record.qc2Rows.length}</td><td>{kg(record.totalSupplementKg)}</td><td>{order.completedAt || '-'}</td><td><button className="primary-button" onClick={() => { setSelectedId(order.id); setTab('info') }}>Xem chi tiết</button></td></tr>
         })} />
       </section>
       {selected && <ProductionHistoryModal record={selected} tab={tab} setTab={setTab} onClose={() => setSelectedId('')} />}
@@ -8640,14 +8616,14 @@ function ProductionHistoryModal({ record, tab, setTab, onClose }) {
       const rows = log?.packingDetails || []
       return <SimpleTable headers={['Quy cách 25kg / 10kg / 5kg', 'Số thùng', 'Khối lượng đóng gói', 'Sai lệch', 'Người đóng gói', 'Thời gian hoàn tất']} rows={rows.map((item, index) => <tr key={index}><td>{item.spec || `${item.sizeKg} kg`}</td><td>{item.boxes}</td><td>{kg(item.actualWeight)}</td><td>{kg((item.actualWeight || 0) - (item.convertedWeight || 0))}</td><td>{log?.packer || '-'}</td><td>{log?.completedAt || '-'}</td></tr>)} />
     }
-    if (tab === 'warehouse') return <SimpleTable headers={['Mã TP', 'LOT', 'Quy cách', 'Số thùng', 'Khối lượng nhập kho', 'Vị trí kho', 'Người nhập', 'Ngày nhập kho']} rows={record.finishedRows.map((item) => <tr key={item.id}><td>{item.finishedCode}</td><td>{item.lot}</td><td>{item.spec}</td><td>{item.boxes}</td><td>{kg(item.weight)}</td><td>{item.location}</td><td>{item.receiver || '-'}</td><td>{item.importDate}</td></tr>)} />
+    if (tab === 'warehouse') return <SimpleTable headers={['Mã TP', 'Mã lô', 'Quy cách', 'Số thùng', 'Khối lượng nhập kho', 'Vị trí kho', 'Người nhập', 'Ngày nhập kho']} rows={record.finishedRows.map((item) => <tr key={item.id}><td>{item.finishedCode}</td><td>{item.lot || item.orderCode || item.orderId}</td><td>{item.spec}</td><td>{item.boxes}</td><td>{kg(item.weight)}</td><td>{item.location}</td><td>{item.receiver || '-'}</td><td>{item.importDate}</td></tr>)} />
     return <SimpleTable headers={['Thời gian', 'Công đoạn', 'Người thực hiện', 'Nội dung', 'Trạng thái']} rows={record.timeline.map((item, index) => <tr key={index}><td>{item.time || '-'}</td><td>{item.stage || '-'}</td><td>{item.actor || '-'}</td><td>{item.content || '-'}</td><td>{item.status || '-'}</td></tr>)} />
   }
   return (
     <div className="modal-backdrop" role="presentation">
       <div className="production-history-modal" role="dialog" aria-modal="true">
         <div className="modal-header">
-          <div><span className="section-kicker">Truy xuất vòng đời lệnh SX</span><h2>{order.orderCode || order.id}</h2></div>
+          <div><span className="section-kicker">Truy xuất vòng đời mã lô</span><h2>{getOrderLotCode(order)}</h2></div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Đóng">×</button>
         </div>
         <div className="log-tabs">{tabs.map(([id, label]) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>)}</div>
@@ -8738,7 +8714,7 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
     setProductionDraftFilters(productionDefaultFilters)
     setProductionFilters(productionDefaultFilters)
   }
-  const orderCodeText = (order = {}) => order.orderCode || order.id || ''
+  const orderCodeText = (order = {}) => getOrderLotCode(order)
   const orderProductText = (order = {}) => order.productName || order.product || '-'
   const orderFormulaText = (order = {}) => [order.originalFormulaId || order.formulaId || order.formulaCode, order.originalFormulaVersion || order.formulaVersion].filter(Boolean).join('/') || '-'
   const orderDateText = (order = {}) => String(order.createdAt || '').slice(0, 10)
@@ -8825,14 +8801,14 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
     }
   })
   const exportProductionExcel = () => {
-    const headers = ['Mã lệnh SX', 'Ngày tạo', 'Sản phẩm', 'LOT', 'Công thức', 'Khối lượng kế hoạch', 'Khối lượng thực tế nếu có', 'Máy phối trộn', 'QC sản xuất thử', 'Cân hóa', 'Cân rắn', 'Phối trộn', 'QC thành phẩm', 'Đóng gói', 'Kho thành phẩm', 'Trạng thái hiện tại', 'Người thao tác gần nhất', 'Thời gian thao tác gần nhất']
+    const headers = ['Mã lô', 'Ngày tạo', 'Sản phẩm', 'Công thức', 'Khối lượng kế hoạch', 'Khối lượng thực tế nếu có', 'Máy phối trộn', 'QC sản xuất thử', 'Cân hóa', 'Cân rắn', 'Phối trộn', 'QC thành phẩm', 'Đóng gói', 'Kho thành phẩm', 'Trạng thái hiện tại', 'Người thao tác gần nhất', 'Thời gian thao tác gần nhất']
     const sheetRows = [
       ['Báo cáo sản xuất'],
       [productionFilterSummary],
       [`Ngày xuất: ${nowText()}`],
       [],
       headers,
-      ...productionRows.map((row) => [row.orderCode, row.createdAt, row.product, row.lot, row.formula, row.plannedWeight, row.actualWeight || '', row.machine, row.qc1, row.chemical, row.solid, row.mixing, row.qc2, row.packaging, row.warehouse, row.status, row.latestActor, row.latestTime]),
+      ...productionRows.map((row) => [row.orderCode, row.createdAt, row.product, row.formula, row.plannedWeight, row.actualWeight || '', row.machine, row.qc1, row.chemical, row.solid, row.mixing, row.qc2, row.packaging, row.warehouse, row.status, row.latestActor, row.latestTime]),
     ]
     const book = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(sheetRows), 'Bao cao san xuat')
@@ -8916,7 +8892,7 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
     const latestAction = record.timeline?.slice().reverse().find((item) => item.time || item.actor) || {}
     return {
       record,
-      lot: order.lot || '-',
+      lot: orderCodeText(order),
       orderCode: orderCodeText(order),
       createdAt: order.createdAt || '-',
       customer: orderCustomerText(order) || '-',
@@ -8939,20 +8915,19 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
   const traceFilterSummary = [
     `Từ ngày: ${activeTraceFilters.fromDate || '-'}`,
     `Đến ngày: ${activeTraceFilters.toDate || '-'}`,
-    `LOT: ${activeTraceFilters.lot || 'Tất cả'}`,
-    `Lệnh: ${activeTraceFilters.orderCode || 'Tất cả'}`,
+    `Mã lô: ${activeTraceFilters.lot || activeTraceFilters.orderCode || 'Tất cả'}`,
     `Sản phẩm: ${activeTraceFilters.product === 'all' ? 'Tất cả' : activeTraceFilters.product}`,
     `Máy: ${activeTraceFilters.machineCode === 'all' ? 'Tất cả' : activeTraceFilters.machineCode}`,
   ].join(' | ')
   const exportTraceExcel = () => {
-    const headers = ['LOT', 'Lệnh sản xuất', 'Ngày tạo', 'Khách hàng', 'Sản phẩm', 'Nhóm sản phẩm', 'Công thức', 'Khối lượng', 'Máy phối trộn', 'Người cân hóa', 'Người cân rắn', 'Người phối trộn', 'Người QC', 'Người đóng gói', 'Người nhập kho TP', 'Công đoạn hiện tại', 'Trạng thái', 'Thời gian thao tác gần nhất']
+    const headers = ['Mã lô', 'Ngày tạo', 'Khách hàng', 'Sản phẩm', 'Nhóm sản phẩm', 'Công thức', 'Khối lượng', 'Máy phối trộn', 'Người cân hóa', 'Người cân rắn', 'Người phối trộn', 'Người QC', 'Người đóng gói', 'Người nhập kho TP', 'Công đoạn hiện tại', 'Trạng thái', 'Thời gian thao tác gần nhất']
     const sheetRows = [
       ['Truy xuất lô sản xuất'],
       [traceFilterSummary],
       [`Ngày xuất: ${nowText()}`],
       [],
       headers,
-      ...traceRows.map((row) => [row.lot, row.orderCode, row.createdAt, row.customer, row.product, row.productGroup, row.formula, row.quantity, row.machine, row.chemicalActor, row.solidActor, row.mixingActor, row.qcActor, row.packingActor, row.warehouseActor, row.stage, row.status, row.latestTime]),
+      ...traceRows.map((row) => [row.lot, row.createdAt, row.customer, row.product, row.productGroup, row.formula, row.quantity, row.machine, row.chemicalActor, row.solidActor, row.mixingActor, row.qcActor, row.packingActor, row.warehouseActor, row.stage, row.status, row.latestTime]),
     ]
     const book = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(sheetRows), 'Truy xuat lo')
@@ -9024,8 +8999,7 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
               <option value="all">Tất cả sản phẩm</option>
               {productOptions.map((product) => <option key={product} value={product}>{product}</option>)}
             </select></label>
-            <label>LOT<input value={productionDraftFilters.lot} onChange={(event) => updateProductionFilter('lot', event.target.value)} placeholder="Nhập LOT" /></label>
-            <label>Lệnh sản xuất<input value={productionDraftFilters.orderCode} onChange={(event) => updateProductionFilter('orderCode', event.target.value)} placeholder="Mã lệnh SX" /></label>
+            <label>Mã lô<input value={productionDraftFilters.orderCode} onChange={(event) => updateProductionFilter('orderCode', event.target.value)} placeholder="Mã lô" /></label>
             <label>Công thức<select value={productionDraftFilters.formula} onChange={(event) => updateProductionFilter('formula', event.target.value)}>
               <option value="all">Tất cả công thức</option>
               {formulaOptions.map((formula) => <option key={formula} value={formula}>{formula}</option>)}
@@ -9070,7 +9044,7 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
             </div>
           )
         })}</div></section>
-        <section className="panel report-table-panel"><h2>Báo cáo lệnh sản xuất</h2><SimpleTable tableClassName="report-wide-table" headers={['Mã lệnh SX', 'Ngày tạo', 'Sản phẩm', 'LOT', 'Công thức', 'Khối lượng kế hoạch', 'Khối lượng thực tế nếu có', 'Máy phối trộn', 'QC sản xuất thử', 'Cân hóa', 'Cân rắn', 'Phối trộn', 'QC thành phẩm', 'Đóng gói', 'Kho thành phẩm', 'Trạng thái hiện tại', 'Người thao tác gần nhất', 'Thời gian thao tác gần nhất']} rows={productionRows.map((row) => <tr key={row.order.id}><td>{row.orderCode}</td><td>{row.createdAt}</td><td>{row.product}</td><td>{row.lot}</td><td>{row.formula}</td><td>{kg(row.plannedWeight)}</td><td>{row.actualWeight ? kg(row.actualWeight) : '-'}</td><td>{row.machine}</td><td>{row.qc1}</td><td>{row.chemical}</td><td>{row.solid}</td><td>{row.mixing}</td><td>{row.qc2}</td><td>{row.packaging}</td><td>{row.warehouse}</td><td>{row.status}</td><td>{row.latestActor}</td><td>{row.latestTime}</td></tr>)} empty="Không có lệnh sản xuất phù hợp bộ lọc." /></section>
+        <section className="panel report-table-panel"><h2>Báo cáo lệnh sản xuất</h2><SimpleTable tableClassName="report-wide-table" headers={['Mã lô', 'Ngày tạo', 'Sản phẩm', 'Công thức', 'Khối lượng kế hoạch', 'Khối lượng thực tế nếu có', 'Máy phối trộn', 'QC sản xuất thử', 'Cân hóa', 'Cân rắn', 'Phối trộn', 'QC thành phẩm', 'Đóng gói', 'Kho thành phẩm', 'Trạng thái hiện tại', 'Người thao tác gần nhất', 'Thời gian thao tác gần nhất']} rows={productionRows.map((row) => <tr key={row.order.id}><td>{row.orderCode}</td><td>{row.createdAt}</td><td>{row.product}</td><td>{row.formula}</td><td>{kg(row.plannedWeight)}</td><td>{row.actualWeight ? kg(row.actualWeight) : '-'}</td><td>{row.machine}</td><td>{row.qc1}</td><td>{row.chemical}</td><td>{row.solid}</td><td>{row.mixing}</td><td>{row.qc2}</td><td>{row.packaging}</td><td>{row.warehouse}</td><td>{row.status}</td><td>{row.latestActor}</td><td>{row.latestTime}</td></tr>)} empty="Không có lệnh sản xuất phù hợp bộ lọc." /></section>
       </>
     )
     if (tab === 'qc') return (
@@ -9081,28 +9055,28 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
           <article className="panel report-table-panel"><h3>Top nguyên liệu bổ sung</h3><SimpleTable headers={['Nguyên liệu', 'Kg bổ sung']} rows={topMaterials.map(([name, value]) => <tr key={name}><td>{name}</td><td>{kg(value)}</td></tr>)} /></article>
           <article className="panel report-table-panel"><h3>Top QC điều chỉnh</h3><SimpleTable headers={['Người điều chỉnh', 'Số phiếu']} rows={topQc.map(([name, value]) => <tr key={name || '-'}><td>{name || '-'}</td><td>{value}</td></tr>)} /></article>
         </section>
-        <section className="panel report-table-panel"><h2>Chi tiết QC</h2><SimpleTable tableClassName="report-wide-table" headers={['Lệnh', 'LOT', 'QC1', 'QC2', 'Số lần chỉnh màu', 'Kg bổ sung', 'Trạng thái']} rows={orders.map((order) => {
+        <section className="panel report-table-panel"><h2>Chi tiết QC</h2><SimpleTable tableClassName="report-wide-table" headers={['Mã lô', 'QC1', 'QC2', 'Số lần chỉnh màu', 'Kg bổ sung', 'Trạng thái']} rows={orders.map((order) => {
           const adjustments = getQc2Adjustments(order)
           const totalSupplement = adjustments.reduce((sum, ticket) => sum + getAdjustmentItems(ticket).reduce((lineSum, item) => lineSum + Math.max(0, num(item.adjustmentKg ?? item.requiredKg)), 0), 0)
-          return <tr key={order.id}><td>{order.id}</td><td>{order.lot}</td><td>{displayQcTrialText(order.qc1Result) || '-'}</td><td>{order.qc2?.result || '-'}</td><td>{adjustments.length}</td><td>{kg(totalSupplement)}</td><td>{displayQcTrialText(order.status)}</td></tr>
+          return <tr key={order.id}><td>{getOrderLotCode(order)}</td><td>{displayQcTrialText(order.qc1Result) || '-'}</td><td>{order.qc2?.result || '-'}</td><td>{adjustments.length}</td><td>{kg(totalSupplement)}</td><td>{displayQcTrialText(order.status)}</td></tr>
         })} /></section>
       </>
     )
     if (tab === 'warehouse') return (
       <>
         {renderKpis(reportKpis.warehouse)}
-        <section className="panel report-table-panel"><h2>Báo cáo đóng gói</h2><SimpleTable tableClassName="report-wide-table" headers={['Phiếu đóng gói', 'Lệnh SX', 'Sản phẩm', 'LOT', 'Khối lượng QC2', 'Đã đóng gói', 'Còn lại', 'Sai lệch', 'Người đóng gói', 'Trạng thái']} rows={packingLogs.map((log) => <tr key={log.packingId}><td>{log.packingId}</td><td>{log.orderCode || log.orderId}</td><td>{log.productName}</td><td>{log.lot}</td><td>{kg(log.qc2FinalWeight)}</td><td>{kg(log.totalPackedWeight)}</td><td>{kg(log.remainingWeight)}</td><td>{kg(log.differenceWeight)}</td><td>{log.packer || '-'}</td><td>{log.status === 'completed' ? 'Hoàn thành' : log.status}</td></tr>)} /></section>
-        <section className="panel report-table-panel"><h2>Báo cáo kho thành phẩm</h2><SimpleTable tableClassName="report-wide-table" headers={['Mã TP', 'Lệnh SX', 'Sản phẩm', 'LOT', 'Quy cách', 'Số thùng', 'Khối lượng', 'Ngày nhập', 'Vị trí', 'Người nhập']} rows={finishedGoods.map((item) => <tr key={item.id}><td>{item.finishedCode}</td><td>{item.orderCode || item.orderId}</td><td>{item.productName}</td><td>{item.lot}</td><td>{item.spec}</td><td>{item.boxes}</td><td>{kg(item.weight)}</td><td>{item.importDate}</td><td>{item.location}</td><td>{item.receiver || '-'}</td></tr>)} /></section>
+        <section className="panel report-table-panel"><h2>Báo cáo đóng gói</h2><SimpleTable tableClassName="report-wide-table" headers={['Phiếu đóng gói', 'Mã lô', 'Sản phẩm', 'Khối lượng QC2', 'Đã đóng gói', 'Còn lại', 'Sai lệch', 'Người đóng gói', 'Trạng thái']} rows={packingLogs.map((log) => <tr key={log.packingId}><td>{log.packingId}</td><td>{log.lot || log.orderCode || log.orderId}</td><td>{log.productName}</td><td>{kg(log.qc2FinalWeight)}</td><td>{kg(log.totalPackedWeight)}</td><td>{kg(log.remainingWeight)}</td><td>{kg(log.differenceWeight)}</td><td>{log.packer || '-'}</td><td>{log.status === 'completed' ? 'Hoàn thành' : log.status}</td></tr>)} /></section>
+        <section className="panel report-table-panel"><h2>Báo cáo kho thành phẩm</h2><SimpleTable tableClassName="report-wide-table" headers={['Mã TP', 'Mã lô', 'Sản phẩm', 'Quy cách', 'Số thùng', 'Khối lượng', 'Ngày nhập', 'Vị trí', 'Người nhập']} rows={finishedGoods.map((item) => <tr key={item.id}><td>{item.finishedCode}</td><td>{item.lot || item.orderCode || item.orderId}</td><td>{item.productName}</td><td>{item.spec}</td><td>{item.boxes}</td><td>{kg(item.weight)}</td><td>{item.importDate}</td><td>{item.location}</td><td>{item.receiver || '-'}</td></tr>)} /></section>
       </>
     )
     if (tab === 'machines') return (
       <>
         {renderKpis(reportKpis.machines)}
-        <section className="panel report-table-panel"><h2>Máy phối trộn</h2><SimpleTable headers={['Mã máy', 'Tên máy', 'Công suất motor', 'Công suất kg/mẻ', 'Trạng thái', 'Lệnh đang chạy']} rows={machines.map((machine) => {
+        <section className="panel report-table-panel"><h2>Máy phối trộn</h2><SimpleTable headers={['Mã máy', 'Tên máy', 'Công suất motor', 'Công suất kg/mẻ', 'Trạng thái', 'Mã lô đang chạy']} rows={machines.map((machine) => {
           const activeOrder = orders.find((order) => (order.mixingMachine || order.mixing?.machineCode) === machine.machineCode && (order.mixing?.status === 'Active' || order.mixingStatus === 'Active'))
-          return <tr key={machine.machineCode}><td>{machine.machineCode}</td><td>{formatMixingMachineLabel(machine)}</td><td>{machine.motorPower || '-'}</td><td>{machine.capacityKg}</td><td>{machine.status}</td><td>{activeOrder?.id || '-'}</td></tr>
+          return <tr key={machine.machineCode}><td>{machine.machineCode}</td><td>{formatMixingMachineLabel(machine)}</td><td>{machine.motorPower || '-'}</td><td>{machine.capacityKg}</td><td>{machine.status}</td><td>{activeOrder ? getOrderLotCode(activeOrder) : '-'}</td></tr>
         })} /></section>
-        <section className="panel report-table-panel"><h2>Lệnh phối trộn</h2><SimpleTable tableClassName="report-wide-table" headers={['Lệnh', 'Sản phẩm', 'LOT', 'Máy', 'Trạng thái phối trộn', 'Bắt đầu', 'Hoàn thành']} rows={orders.filter((order) => order.mixing || order.mixingStatus || ['mixing', 'mixing-supplement'].includes(order.stage)).map((order) => <tr key={order.id}><td>{order.id}</td><td>{order.product}</td><td>{order.lot}</td><td>{getOrderAssignedMachineLabel(order, machines)}</td><td>{order.mixingStatus || order.mixing?.status || '-'}</td><td>{order.mixingStartAt || order.mixing?.startedAt || '-'}</td><td>{order.mixingCompletedAt || order.mixing?.completedAt || '-'}</td></tr>)} /></section>
+        <section className="panel report-table-panel"><h2>Lệnh phối trộn</h2><SimpleTable tableClassName="report-wide-table" headers={['Mã lô', 'Sản phẩm', 'Máy', 'Trạng thái phối trộn', 'Bắt đầu', 'Hoàn thành']} rows={orders.filter((order) => order.mixing || order.mixingStatus || ['mixing', 'mixing-supplement'].includes(order.stage)).map((order) => <tr key={order.id}><td>{getOrderLotCode(order)}</td><td>{order.product}</td><td>{getOrderAssignedMachineLabel(order, machines)}</td><td>{order.mixingStatus || order.mixing?.status || '-'}</td><td>{order.mixingStartAt || order.mixing?.startedAt || '-'}</td><td>{order.mixingCompletedAt || order.mixing?.completedAt || '-'}</td></tr>)} /></section>
       </>
     )
     if (tab === 'trace') return (
@@ -9115,8 +9089,7 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
           <div className="report-filters">
             <label>Từ ngày<input type="date" value={traceDraftFilters.fromDate} onChange={(event) => updateTraceFilter('fromDate', event.target.value)} /></label>
             <label>Đến ngày<input type="date" value={traceDraftFilters.toDate} onChange={(event) => updateTraceFilter('toDate', event.target.value)} /></label>
-            <label>LOT<input value={traceLot} onChange={(event) => updateTraceFilter('lot', event.target.value)} placeholder="VD: LOT-HNS-G1-001" /></label>
-            <label>Lệnh sản xuất<input value={traceDraftFilters.orderCode} onChange={(event) => updateTraceFilter('orderCode', event.target.value)} placeholder="Mã lệnh SX" /></label>
+            <label>Mã lô<input value={traceDraftFilters.orderCode} onChange={(event) => updateTraceFilter('orderCode', event.target.value)} placeholder="Mã lô" /></label>
             <label>Khách hàng
               <CustomerFilterCombobox
                 options={customerOptions}
@@ -9163,10 +9136,9 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
           <p className="panel-text">{traceFilterSummary}</p>
         </section>
         <section className="panel report-table-panel">
-          <SimpleTable tableClassName="report-wide-table" headers={['LOT', 'Lệnh sản xuất', 'Ngày tạo', 'Khách hàng', 'Sản phẩm', 'Nhóm sản phẩm', 'Công thức', 'Khối lượng', 'Máy phối trộn', 'Người cân hóa', 'Người cân rắn', 'Người phối trộn', 'Người QC', 'Người đóng gói', 'Người nhập kho TP', 'Công đoạn hiện tại', 'Trạng thái', 'Thời gian thao tác gần nhất']} rows={traceRows.map((row) => (
+          <SimpleTable tableClassName="report-wide-table" headers={['Mã lô', 'Ngày tạo', 'Khách hàng', 'Sản phẩm', 'Nhóm sản phẩm', 'Công thức', 'Khối lượng', 'Máy phối trộn', 'Người cân hóa', 'Người cân rắn', 'Người phối trộn', 'Người QC', 'Người đóng gói', 'Người nhập kho TP', 'Công đoạn hiện tại', 'Trạng thái', 'Thời gian thao tác gần nhất']} rows={traceRows.map((row) => (
             <tr key={row.record.order.id}>
               <td>{row.lot}</td>
-              <td>{row.orderCode}</td>
               <td>{row.createdAt}</td>
               <td>{row.customer}</td>
               <td>{row.product}</td>
@@ -9191,7 +9163,7 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
     return (
       <>
         {renderKpis(reportKpis.qr)}
-        <section className="panel report-table-panel"><h2>QR hỗn hợp đã tạo</h2><SimpleTable tableClassName="report-wide-table" headers={['QR', 'Lệnh', 'Nhóm', 'Khối lượng', 'Trạng thái', 'Thời gian']} rows={weighedContainers.map((item) => <tr key={item.id || item.qrCode}><td>{item.qrCode || item.id}</td><td>{item.orderCode || item.orderId || '-'}</td><td>{item.materialGroup || '-'}</td><td>{kg(item.totalWeight || item.weight)}</td><td>{item.status || '-'}</td><td>{item.createdAt || item.confirmedAt || '-'}</td></tr>)} /></section>
+        <section className="panel report-table-panel"><h2>QR hỗn hợp đã tạo</h2><SimpleTable tableClassName="report-wide-table" headers={['QR', 'Mã lô', 'Nhóm', 'Khối lượng', 'Trạng thái', 'Thời gian']} rows={weighedContainers.map((item) => <tr key={item.id || item.qrCode}><td>{item.qrCode || item.id}</td><td>{item.lot || item.orderCode || item.orderId || '-'}</td><td>{item.materialGroup || '-'}</td><td>{kg(item.totalWeight || item.weight)}</td><td>{item.status || '-'}</td><td>{item.createdAt || item.confirmedAt || '-'}</td></tr>)} /></section>
         <section className="panel report-table-panel"><h2>Lỗi xác nhận QR</h2><SimpleTable headers={['Thời gian', 'Nội dung']} rows={qrFailLogs.map((log) => <tr key={log.id}><td>{log.time || '-'}</td><td>{log.entry}</td></tr>)} /></section>
       </>
     )
@@ -9548,7 +9520,7 @@ function MachinePerformanceReportPage({ data }) {
       runTimeText: hasRunTime ? formatMinutes(totalRunMinutes) : 'Chưa có dữ liệu',
       idleTimeText: 'Chưa có dữ liệu',
       utilizationPercent,
-      lastOrder: lastOrder?.orderCode || lastOrder?.id || '-',
+      lastOrder: lastOrder ? getOrderLotCode(lastOrder) : '-',
     }
   })
   const exportRows = rows.map((row) => ({
@@ -9563,7 +9535,7 @@ function MachinePerformanceReportPage({ data }) {
     'Thời gian chạy': row.runTimeText,
     'Thời gian dừng/chờ': row.idleTimeText,
     'Hiệu suất sử dụng %': row.utilizationPercent,
-    'Lệnh gần nhất': row.lastOrder,
+    'Mã lô gần nhất': row.lastOrder,
   }))
   const filterSummary = [
     `Chu kỳ: ${appliedFilters.period === 'today' ? 'Hôm nay' : appliedFilters.period === 'week' ? 'Tuần này' : appliedFilters.period === 'month' ? 'Tháng này' : 'Tùy chọn'}`,
@@ -9573,7 +9545,7 @@ function MachinePerformanceReportPage({ data }) {
     `Máy: ${appliedFilters.machineCode === 'all' ? 'Tất cả' : appliedFilters.machineCode}`,
     `Trạng thái: ${appliedFilters.orderStatus === 'all' ? 'Tất cả' : appliedFilters.orderStatus}`,
     `Sản phẩm: ${appliedFilters.product === 'all' ? 'Tất cả' : appliedFilters.product}`,
-    `LOT: ${appliedFilters.lot || 'Tất cả'}`,
+    `Mã lô: ${appliedFilters.lot || 'Tất cả'}`,
   ].join(' | ')
   const exportExcel = () => {
     const sheetRows = [
@@ -9593,7 +9565,7 @@ function MachinePerformanceReportPage({ data }) {
         'Thời gian chạy': '',
         'Thời gian dừng/chờ': '',
         'Hiệu suất sử dụng %': '',
-        'Lệnh gần nhất': '',
+        'Mã lô gần nhất': '',
       }),
       ...exportRows.map((row) => Object.values(row)),
     ]
@@ -9633,7 +9605,7 @@ function MachinePerformanceReportPage({ data }) {
             <option value="all">Tất cả sản phẩm</option>
             {productOptions.map((product) => <option key={product} value={product}>{product}</option>)}
           </select></label>
-          <label>LOT<input value={draftFilters.lot} onChange={(event) => updateFilter('lot', event.target.value)} placeholder="Nhập LOT" /></label>
+          <label>Mã lô<input value={draftFilters.lot} onChange={(event) => updateFilter('lot', event.target.value)} placeholder="Nhập mã lô" /></label>
         </div>
         <div className="action-row">
           <button className="primary-button" type="button" onClick={applyFilters}>Lọc báo cáo</button>
@@ -9643,7 +9615,7 @@ function MachinePerformanceReportPage({ data }) {
         <p className="panel-text">{filterSummary}</p>
         <SimpleTable
           tableClassName="report-wide-table"
-          headers={['Mã máy', 'Tên máy', 'Công suất thiết kế kg/mẻ', 'Số lệnh được phân công', 'Số lệnh đang chạy', 'Số lệnh hoàn thành', 'Tổng sản lượng kg', 'Sản lượng trung bình/lệnh', 'Thời gian chạy', 'Thời gian dừng/chờ', 'Hiệu suất sử dụng %', 'Lệnh gần nhất']}
+          headers={['Mã máy', 'Tên máy', 'Công suất thiết kế kg/mẻ', 'Số lệnh được phân công', 'Số lệnh đang chạy', 'Số lệnh hoàn thành', 'Tổng sản lượng kg', 'Sản lượng trung bình/lệnh', 'Thời gian chạy', 'Thời gian dừng/chờ', 'Hiệu suất sử dụng %', 'Mã lô gần nhất']}
           rows={rows.map(({ machine, assignedCount, activeCount, completedCount, totalOutputKg, averageOutputKg, runTimeText, idleTimeText, utilizationPercent, lastOrder }) => (
             <tr key={machine.machineCode}>
               <td>{machine.machineCode}</td>
@@ -9958,9 +9930,9 @@ function MixingMachineCatalogPage({ data, setData, user, permissions = [] }) {
       <section className="panel">
         <h3>Đề nghị đổi máy</h3>
         {!canApproveMachineChange && <div className="process-alert">Chỉ Admin hoặc Sản xuất được duyệt đổi máy.</div>}
-        <SimpleTable headers={['Lệnh', 'Máy hiện tại', 'Máy đề nghị', 'Lý do', 'Thời gian', 'Hành động']} rows={pendingMachineRequests.map((order) => (
+        <SimpleTable headers={['Mã lô', 'Máy hiện tại', 'Máy đề nghị', 'Lý do', 'Thời gian', 'Hành động']} rows={pendingMachineRequests.map((order) => (
           <tr key={order.id}>
-            <td>{order.orderCode || order.id}</td>
+            <td>{getOrderLotCode(order)}</td>
             <td>{getMixingMachineLabelByCode(order.machineChangeRequest.currentMachine, machines)}</td>
             <td>{getMixingMachineLabelByCode(order.machineChangeRequest.requestedMachine, machines)}</td>
             <td>{order.machineChangeRequest.reason}</td>
@@ -11434,7 +11406,7 @@ const pageMeta = {
   logs: ['Nhật ký sản xuất', 'Lịch sử thao tác toàn quy trình'],
   reports: ['Báo cáo', 'Dashboard và báo cáo V3'],
   'reports-production': ['Báo cáo sản xuất', 'Tổng hợp pipeline, lệnh sản xuất và sản lượng'],
-  'reports-trace': ['Truy xuất lô sản xuất', 'Tra cứu người thao tác, công đoạn, thời gian và máy theo LOT'],
+  'reports-trace': ['Truy xuất lô sản xuất', 'Tra cứu người thao tác, công đoạn, thời gian và máy theo mã lô'],
   'reports-staff-performance': ['Hiệu suất nhân sự', 'Theo dõi phân công và thao tác của nhân sự sản xuất'],
   'reports-machine-performance': ['Hiệu suất máy', 'Theo dõi trạng thái và lệnh phối trộn theo máy'],
   admin: ['Quản trị hệ thống', 'Vai trò và phân quyền'],

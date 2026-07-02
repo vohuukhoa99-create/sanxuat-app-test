@@ -248,12 +248,11 @@ export function MixingPage({ orders, onUpdateOrder }) {
             <thead>
               <tr>
                 <th>STT</th>
-                <th>Mã lệnh SX</th>
+                <th>Mã lô</th>
                 <th>Ngày sản xuất</th>
                 <th>Khách hàng</th>
                 <th>Tên sản phẩm</th>
                 <th>Mã công thức</th>
-                <th>Mã LOT</th>
                 <th>Khối lượng yêu cầu</th>
                 <th>Số mẻ</th>
                 <th>Trạng thái cân hóa</th>
@@ -270,12 +269,11 @@ export function MixingPage({ orders, onUpdateOrder }) {
                 return (
                   <tr key={order.id} className={isSelected ? 'active-order-row' : ''} onClick={() => setSelectedOrderId(order.id)}>
                     <td>{index + 1}</td>
-                    <td>{order.id}</td>
+                    <td>{order.lot || order.id}</td>
                     <td>{order.productionDate || order.createdAt || '-'}</td>
                     <td>{order.customer || '-'}</td>
                     <td>{order.product}</td>
                     <td>{order.formula || '-'}</td>
-                    <td>{order.lot || '-'}</td>
                     <td>{formatKg(order.quantityKg)}</td>
                     <td>{order.batchCount || '-'}</td>
                     <td><span className={`flow-pill ${statusClass(order.scaleStatus?.chemical || 'Pending')}`}>{order.scaleStatus?.chemical || 'Pending'}</span></td>
@@ -295,7 +293,7 @@ export function MixingPage({ orders, onUpdateOrder }) {
                 )
               })}
               {mixingOrders.length === 0 && (
-                <tr><td colSpan="14" className="empty-row">Không có lệnh sản xuất.</td></tr>
+                <tr><td colSpan="13" className="empty-row">Không có lệnh sản xuất.</td></tr>
               )}
             </tbody>
           </table>
@@ -310,10 +308,9 @@ export function MixingPage({ orders, onUpdateOrder }) {
           </div>
 
           <div className="mixing-info-grid">
-            <div><span>Mã lệnh SX</span><strong>{selectedOrder.id}</strong></div>
+            <div><span>Mã lô</span><strong>{selectedOrder.lot || selectedOrder.id}</strong></div>
             <div><span>Tên sản phẩm</span><strong>{selectedOrder.product}</strong></div>
             <div><span>Khách hàng</span><strong>{selectedOrder.customer || '-'}</strong></div>
-            <div><span>Mã LOT</span><strong>{selectedOrder.lot || '-'}</strong></div>
             <div><span>Khối lượng yêu cầu</span><strong>{formatKg(selectedOrder.quantityKg)}</strong></div>
             <div><span>Số mẻ</span><strong>{selectedOrder.batchCount || '-'}</strong></div>
             <div><span>Công thức</span><strong>{selectedOrder.formula || '-'}</strong></div>

@@ -4,6 +4,7 @@ import { customerCatalog } from '../data/customerCatalog.js'
 
 const emptyText = '-'
 const customerOptions = Array.from(new Set((customerCatalog || []).map((customer) => customer.customerName).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+const getOrderLotCode = (order = {}) => order.lot || order.lotCode || order.orderCode || order.id || emptyText
 
 function isChemicalGroup(group = '') {
   const value = String(group).toLowerCase()
@@ -76,10 +77,10 @@ function normalizeOrder(order) {
   const ingredients = order.ingredients || []
   const chemicalRows = ingredients
     .filter((item) => isChemicalGroup(item.materialGroup))
-    .map((item, index) => normalizeIngredient(item, order.id, index, 'Hóa chế'))
+    .map((item, index) => normalizeIngredient(item, getOrderLotCode(order), index, 'Hóa chế'))
   const solidRows = ingredients
     .filter((item) => isSolidGroup(item.materialGroup))
-    .map((item, index) => normalizeIngredient(item, order.id, index, 'Nguyên liệu rắn'))
+    .map((item, index) => normalizeIngredient(item, getOrderLotCode(order), index, 'Nguyên liệu rắn'))
   const actualWeight = Number(order.mixing?.finalWeightKg ?? order.actualWeightKg ?? '')
   const requestedWeight = Number(order.quantityKg ?? 0)
   const lossRate = Number.isFinite(actualWeight) && actualWeight > 0 && requestedWeight > 0
@@ -123,10 +124,9 @@ function getSummaryRows(orders) {
   return orders.map((order, index) => ({
     STT: index + 1,
     Ngày: order.productionDate || emptyText,
-    'Mã lệnh SX': order.id,
+    'Mã lô': getOrderLotCode(order),
     'Khách hàng': order.customer || emptyText,
     'Sản phẩm': order.product || emptyText,
-    'Mã LOT': order.lot || emptyText,
     'Khối lượng yêu cầu': displayKg(order.quantityKg),
     'Khối lượng thực tế': displayKg(order.actualWeightKg),
     'Tỷ lệ hao hụt': order.lossRate === '' ? emptyText : `${order.lossRate}%`,
@@ -138,7 +138,7 @@ function getSummaryRows(orders) {
 function getWeighRows(orders, type) {
   return orders.flatMap((order) =>
     (type === 'chemical' ? order.chemicalRows : order.solidRows).map((item) => ({
-      'Mã lệnh SX': order.id,
+      'Mã lô': getOrderLotCode(order),
       'Mã vật tư': item.materialCode,
       [type === 'chemical' ? 'Tên hóa chất' : 'Tên nguyên liệu rắn']: item.materialName,
       'Khối lượng yêu cầu': displayKg(item.requiredKg),
@@ -157,7 +157,7 @@ function getWeighRows(orders, type) {
 
 function getMixQcRows(orders) {
   return orders.map((order) => ({
-    'Mã lệnh SX': order.id,
+    'Mã lô': getOrderLotCode(order),
     'Người phối trộn': order.mixing?.operator || emptyText,
     'Máy trộn số': order.mixing?.mixerNo || emptyText,
     'Thời gian bắt đầu': order.mixingStartedAt || emptyText,
@@ -197,7 +197,7 @@ function downloadFile(filename, mimeType, content) {
 
 function exportExcel(orders) {
   const sheets = [
-    ['Tổng hợp lệnh SX', getSummaryRows(orders)],
+    ['Tổng hợp mã lô', getSummaryRows(orders)],
     ['Chi tiết cân hóa', getWeighRows(orders, 'chemical')],
     ['Chi tiết cân rắn', getWeighRows(orders, 'solid')],
     ['Phối trộn và QC', getMixQcRows(orders)],
@@ -229,7 +229,7 @@ function exportPdf(orders) {
       <body>
         <button onclick="window.print()">Lưu PDF</button>
         <h1>NHẬT KÝ SẢN XUẤT</h1>
-        ${tableToHtml('Thông tin tổng hợp lệnh', getSummaryRows(orders))}
+        ${tableToHtml('Thông tin tổng hợp mã lô', getSummaryRows(orders))}
         ${tableToHtml('Bảng chi tiết cân hóa', getWeighRows(orders, 'chemical'))}
         ${tableToHtml('Bảng chi tiết cân rắn', getWeighRows(orders, 'solid'))}
         ${tableToHtml('Bảng phối trộn / QC', getMixQcRows(orders))}
@@ -250,7 +250,7 @@ function OrderDetail({ order, logs, onClose }) {
     <section className="panel production-log-detail">
       <div className="section-heading-row">
         <div>
-          <h3>Chi tiết nhật ký {order.id}</h3>
+          <h3>Chi tiết nhật ký {getOrderLotCode(order)}</h3>
           <p className="panel-text">{order.product}</p>
         </div>
         <button className="secondary-button" onClick={onClose}>Đóng chi tiết</button>
@@ -266,12 +266,11 @@ function OrderDetail({ order, logs, onClose }) {
       {tab === 'info' && (
         <div className="production-log-grid">
           {[
-            ['Mã lệnh SX', order.id],
+            ['Mã lô', getOrderLotCode(order)],
             ['Ngày sản xuất', order.productionDate],
             ['Khách hàng', order.customer],
             ['Tên sản phẩm', order.product],
             ['Mã công thức', order.formula],
-            ['Mã LOT', order.lot],
             ['Khối lượng yêu cầu', displayKg(order.quantityKg)],
             ['Khối lượng thực tế', displayKg(order.actualWeightKg)],
             ['Tỷ lệ hao hụt', order.lossRate === '' ? emptyText : `${order.lossRate}%`],
@@ -327,7 +326,7 @@ function WeighingTable({ rows, type }) {
       <table className="production-log-wide-table">
         <thead>
           <tr>
-            <th>Mã lệnh SX</th>
+            <th>Mã lô</th>
             <th>Mã vật tư</th>
             <th>{type === 'chemical' ? 'Tên hóa chất' : 'Tên nguyên liệu rắn'}</th>
             <th>Khối lượng yêu cầu</th>
@@ -411,7 +410,7 @@ export function ProductionLogPage({ orders = [], logs = [] }) {
         <div className="production-log-filters">
           <label>Từ ngày<input type="date" value={filters.fromDate} onChange={(event) => updateFilter('fromDate', event.target.value)} /></label>
           <label>Đến ngày<input type="date" value={filters.toDate} onChange={(event) => updateFilter('toDate', event.target.value)} /></label>
-          <label>Mã lệnh SX<input value={filters.orderId} onChange={(event) => updateFilter('orderId', event.target.value)} /></label>
+          <label>Mã lô<input value={filters.orderId} onChange={(event) => updateFilter('orderId', event.target.value)} /></label>
           <label>Khách hàng
             <CustomerFilterCombobox
               options={customerOptions}
@@ -431,10 +430,9 @@ export function ProductionLogPage({ orders = [], logs = [] }) {
               <tr>
                 <th>STT</th>
                 <th>Ngày</th>
-                <th>Mã lệnh SX</th>
+                <th>Mã lô</th>
                 <th>Khách hàng</th>
                 <th>Sản phẩm</th>
-                <th>Mã LOT</th>
                 <th>Khối lượng yêu cầu</th>
                 <th>Khối lượng thực tế</th>
                 <th>Tỷ lệ hao hụt</th>
@@ -448,10 +446,9 @@ export function ProductionLogPage({ orders = [], logs = [] }) {
                 <tr key={order.id}>
                   <td>{index + 1}</td>
                   <td>{order.productionDate || emptyText}</td>
-                  <td>{order.id}</td>
+                  <td>{getOrderLotCode(order)}</td>
                   <td>{order.customer || emptyText}</td>
                   <td>{order.product || emptyText}</td>
-                  <td>{order.lot || emptyText}</td>
                   <td>{displayKg(order.quantityKg)}</td>
                   <td>{displayKg(order.actualWeightKg)}</td>
                   <td>{order.lossRate === '' ? emptyText : `${order.lossRate}%`}</td>

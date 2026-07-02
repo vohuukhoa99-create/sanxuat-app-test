@@ -1,5 +1,6 @@
 export function QCPage({ orders, onAdvance, logs, addLog }) {
   const qcOrders = orders.filter((order) => order.stage === 'qc');
+  const getOrderLotCode = (order = {}) => order.lot || order.lotCode || order.orderCode || order.id || '-'
 
   const handlePass = (orderId) => {
     onAdvance(orderId, 'completed');
@@ -19,7 +20,7 @@ export function QCPage({ orders, onAdvance, logs, addLog }) {
           <table>
             <thead>
               <tr>
-                <th>Lệnh</th>
+                <th>Mã lô</th>
                 <th>Sản phẩm</th>
                 <th>Khối lượng</th>
                 <th>Hành động</th>
@@ -28,7 +29,7 @@ export function QCPage({ orders, onAdvance, logs, addLog }) {
             <tbody>
               {qcOrders.map((order) => (
                 <tr key={order.id}>
-                  <td>{order.id}</td>
+                  <td>{getOrderLotCode(order)}</td>
                   <td>{order.product}</td>
                   <td>{order.quantityKg} kg</td>
                   <td className="action-row">
