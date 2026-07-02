@@ -406,8 +406,8 @@ const normalizeProductGroup = (value = '') => {
   return ''
 }
 const displayProductGroup = (value = '') => productGroupLabels[normalizeProductGroup(value)] || ''
-const normalizeProductCatalogGroup = () => PRODUCT_GROUP_SON_DA
-const normalizeOrderProductGroup = () => PRODUCT_GROUP_SON_DA
+const normalizeProductCatalogGroup = (value = '') => normalizeProductGroup(value) || PRODUCT_GROUP_SON_DA
+const normalizeOrderProductGroup = (value = '', source = {}) => normalizeProductGroup(value) || inferProductGroup(source) || PRODUCT_GROUP_SON_DA
 const inferProductGroup = (source = {}) => normalizeProductGroup([
   source.productGroup,
   source.equipmentGroup,
@@ -453,7 +453,7 @@ const normalizeFormulaStatus = (formula = {}) => (
 )
 const normalizeMasterFormulas = (formulas = []) => (Array.isArray(formulas) ? formulas : []).map((formula) => {
   const status = normalizeFormulaStatus(formula)
-  const productGroup = normalizeProductCatalogGroup()
+  const productGroup = normalizeProductCatalogGroup(formula.productGroup || inferProductGroup(formula))
   return {
     ...formula,
     productGroup,
@@ -564,7 +564,7 @@ const normalizeProductMaster = (product = {}, formulas = [], formulaVersions = [
     code: productCode,
     productName: product.productName || product.name || activeFormula?.product || productCode,
     name: product.name || product.productName || activeFormula?.product || productCode,
-    productGroup: normalizeProductCatalogGroup(),
+    productGroup: normalizeProductCatalogGroup(product.productGroup || activeFormula?.productGroup || product.group || inferProductGroup({ ...product, product: activeFormula?.product })),
     unit: product.unit || 'kg',
     status: normalizeProductStatus(product.status || activeFormula?.status || activeFormula?.formulaStatus),
     currentVersion,
@@ -609,7 +609,7 @@ const productMasterToFormulaOption = (product = {}) => ({
   productCode: product.productCode,
   product: product.productName || product.name,
   productName: product.productName || product.name,
-  productGroup: normalizeProductCatalogGroup(),
+  productGroup: normalizeProductCatalogGroup(product.productGroup),
   version: product.currentVersion || 'V1.0',
   currentVersion: product.currentVersion || 'V1.0',
   formulaStatus: product.status || FORMULA_STATUS_ACTIVE,
@@ -10416,24 +10416,23 @@ function ProductMasterPage({ data, setData, permissions = [] }) {
   }
   const downloadFormulaTemplate = () => {
     const rows = [
-      {
-        'Mã sản phẩm': 'SP-DEMO',
-        'Tên sản phẩm': 'Sản phẩm demo',
-        'Nhóm sản phẩm': 'Sơn đá',
-        'Đơn vị': 'kg',
-        Version: 'V1.0',
-        'Ngày hiệu lực': todayText(),
-        'Mã vật tư': 'VT-001',
-        'Tên vật tư': 'Vật tư demo',
-        'Nhóm vật tư': CHEMICAL,
-        'Phân nhóm': '',
-        'Tỷ lệ %': 50,
-        'Dung sai %': 1,
-        'Ghi chú': '',
-      },
+      ['MẪU CÔNG THỨC GỐC', '', '', '', ''],
+      ['', '', '', '', ''],
+      ['', '', '', '', ''],
+      ['', '', '', '', ''],
+      ['', '', '', '', ''],
+      ['', '', '', '', ''],
+      ['', '', '', '', ''],
+      ['Thông tin', 'Mã sản phẩm', 'SP-DEMO', 'Nhóm sản phẩm', 'Sơn đá'],
+      ['', '', '', '', ''],
+      ['', '', '', '', ''],
+      ['STT', 'Mã vật tư / nguyên liệu', 'Tỷ lệ %', 'Số lượng / tỷ lệ quy đổi', 'Dung sai'],
+      [1, 'VT-001', 50, '', 1],
+      [2, 'VT-002', 50, '', 1],
+      ['', 'TỔNG CỘNG', 100, '', ''],
     ]
     const book = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(rows), 'Cong thuc san pham')
+    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(rows), 'Cong thuc goc')
     XLSX.writeFile(book, 'mau-cong-thuc-san-pham.xlsx')
   }
   const exportProductCatalog = () => {
@@ -10459,89 +10458,107 @@ function ProductMasterPage({ data, setData, permissions = [] }) {
       try {
         const workbook = XLSX.read(event.target.result, { type: 'array' })
         const sheet = workbook.Sheets[workbook.SheetNames[0]]
-        const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
-        const grouped = new Map()
-        rows.forEach((row, index) => {
-          const productCode = normalizeProductCode(readExcelCell(row, ['Mã sản phẩm', 'Ma san pham', 'Mã SP', 'Ma SP', 'Product Code', 'productCode']))
-          const materialCode = normalizeCode(readExcelCell(row, ['Mã vật tư', 'Ma vat tu', 'Mã VT', 'Ma VT', 'Material Code', 'materialCode']))
-          if (!productCode || !materialCode) return
-          const version = String(readExcelCell(row, ['Version', 'Phiên bản', 'Phien ban', 'formulaVersion']) || 'V1.0').trim() || 'V1.0'
-          const key = `${productCode}__${version}`
-          if (!grouped.has(key)) {
-            grouped.set(key, {
-              productCode,
-              productName: readExcelCell(row, ['Tên sản phẩm', 'Ten san pham', 'Tên SP', 'Ten SP', 'Product Name', 'productName']) || productCode,
-              productGroup: normalizeProductGroup(readExcelCell(row, ['Nhóm sản phẩm', 'Nhom san pham', 'Nhóm SP', 'Nhom SP', 'productGroup'])),
-              unit: readExcelCell(row, ['Đơn vị', 'Don vi', 'Unit', 'unit']) || 'kg',
-              version,
-              effectiveDate: readExcelCell(row, ['Ngày hiệu lực', 'Ngay hieu luc', 'Effective Date', 'effectiveDate']) || todayText(),
-              note: readExcelCell(row, ['Ghi chú', 'Ghi chu', 'Note', 'note']),
-              items: [],
-            })
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+        const productCode = normalizeProductCode(rows[7]?.[2])
+        const rawProductGroup = rows[7]?.[4]
+        const productGroup = normalizeProductGroup(rawProductGroup)
+        const errors = []
+        if (!productCode) errors.push('Ô C8 bắt buộc có Mã sản phẩm.')
+        if (!String(rawProductGroup || '').trim()) errors.push('Ô E8 bắt buộc có Nhóm sản phẩm.')
+        if (String(rawProductGroup || '').trim() && !productGroup) errors.push(`Ô E8 Nhóm sản phẩm không hợp lệ: ${rawProductGroup}.`)
+        const items = []
+        const parseRequiredRatio = (value) => {
+          const text = String(value ?? '').replace('%', '').replace(',', '.').trim()
+          if (!text) return null
+          const number = Number(text)
+          return Number.isFinite(number) ? number : null
+        }
+        for (let rowIndex = 11; rowIndex < rows.length; rowIndex += 1) {
+          const row = rows[rowIndex] || []
+          const rowText = normalizeText(row.map((cell) => String(cell || '')).join(' '))
+          if (rowText.includes('tong cong')) break
+          if (!row.some((cell) => String(cell || '').trim())) continue
+          const excelRowNumber = rowIndex + 1
+          const materialCode = normalizeCode(row[1])
+          const ratioValue = row[2]
+          const quantityValue = row[3]
+          const ratioNumber = parseRequiredRatio(ratioValue)
+          const quantityNumber = parseRequiredRatio(quantityValue)
+          if (!materialCode) {
+            errors.push(`Dòng ${excelRowNumber}, cột B: thiếu Mã vật tư / nguyên liệu.`)
+            continue
           }
-          grouped.get(key).items.push(normalizeProductFormulaItem({
-            id: `${productCode}-${version}-${materialCode}-${index + 1}`,
+          if (!Number.isFinite(ratioNumber) && !Number.isFinite(quantityNumber)) {
+            errors.push(`Dòng ${excelRowNumber}, cột C/D: Tỷ lệ % hoặc Số lượng / tỷ lệ quy đổi không hợp lệ.`)
+            continue
+          }
+          const material = materialCatalogByCode.get(normalizeCode(materialCode))
+          items.push(normalizeProductFormulaItem({
+            id: `${productCode || 'PRODUCT'}-${materialCode}-${items.length + 1}`,
+            no: row[0] || items.length + 1,
             materialCode,
-            materialName: readExcelCell(row, ['Tên vật tư', 'Ten vat tu', 'Tên VT', 'Ten VT', 'Material Name', 'materialName']) || materialCode,
-            materialGroup: normalizeMainGroup(readExcelCell(row, ['Nhóm vật tư', 'Nhom vat tu', 'Nhóm', 'Nhom', 'materialGroup'])),
-            subclassification: readExcelCell(row, ['Phân nhóm', 'Phan nhom', 'Sub Group', 'subclassification']),
-            ratioPercent: readExcelCell(row, ['Tỷ lệ %', 'Ty le %', 'Tỉ lệ %', 'Ti le %', 'ratioPercent']),
-            tolerancePercent: readExcelCell(row, ['Dung sai %', 'Dung sai', 'Tolerance %', 'tolerancePercent']),
-            note: readExcelCell(row, ['Ghi chú', 'Ghi chu', 'Note', 'note']),
-          }, grouped.get(key).items.length))
-        })
-        if (!grouped.size) {
-          setNotice('File Excel chưa có dòng công thức hợp lệ.')
+            materialName: material?.materialName || materialCode,
+            materialGroup: material?.mainGroup || material?.materialGroup || '',
+            subclassification: material?.subclassification || material?.chemicalSubGroup || '',
+            ratioPercent: Number.isFinite(ratioNumber) ? ratioNumber : quantityNumber,
+            quantityRatio: quantityValue,
+            tolerancePercent: row[4],
+            note: '',
+          }, items.length))
+        }
+        if (!items.length) errors.push('Không có dòng nguyên liệu hợp lệ từ dòng 12 đến trước dòng TỔNG CỘNG.')
+        const totalPercent = formulaTotalPercent(items)
+        if (items.length && !formulaPercentIsValid(totalPercent)) errors.push(`Tổng tỷ lệ không gần bằng 100%: ${formatPercent(totalPercent)}.`)
+        if (errors.length) {
+          setNotice(`Import lỗi: ${errors.join(' | ')}`)
           return
         }
+        const applyImportedVersion = typeof window === 'undefined' ? true : window.confirm(`Áp dụng version mới cho ${productCode}? Bấm OK để đặt làm hiện hành, Cancel để chỉ lưu version.`)
+        let noticeText = ''
         setData((current) => {
           const currentProducts = buildProductMasterCatalog(current.productCatalog || [], current.formulas || [], current.formulaVersions || [])
           const byCode = new Map(currentProducts.map((product) => [product.productCode, product]))
           let created = 0
           let updated = 0
-          grouped.forEach((entry) => {
-            const existing = byCode.get(entry.productCode)
-            const existingVersions = existing?.formulaVersions || []
-            const requestedVersion = entry.version || existing?.currentVersion || 'V1.0'
-            const sameVersion = existingVersions.find((version) => (version.formulaVersion || version.version) === requestedVersion)
-            const sameFormula = productFormulaSignature(sameVersion?.items || existing?.formulaItems || []) === productFormulaSignature(entry.items)
-            const appliedVersion = sameVersion && !sameFormula ? nextProductFormulaVersion(requestedVersion, existingVersions) : requestedVersion
-            const versionRecord = {
-              id: `${entry.productCode}-${appliedVersion}-${Date.now()}`,
-              productCode: entry.productCode,
-              formulaVersion: appliedVersion,
-              version: appliedVersion,
-              status: FORMULA_STATUS_ACTIVE,
-              effectiveDate: entry.effectiveDate,
-              createdBy: 'Excel',
-              note: entry.note || (sameVersion && !sameFormula ? `Tạo version mới từ ${requestedVersion}` : ''),
-              items: entry.items,
-            }
-            const keptVersions = existingVersions.filter((version) => (version.formulaVersion || version.version) !== appliedVersion)
-            const nextProduct = normalizeProductMaster({
-              ...(existing || {}),
-              id: existing?.id || `PRD-${entry.productCode}`,
-              productCode: entry.productCode,
-              code: entry.productCode,
-              productName: entry.productName || existing?.productName || existing?.name || entry.productCode,
-              name: entry.productName || existing?.name || existing?.productName || entry.productCode,
-              productGroup: entry.productGroup || existing?.productGroup,
-              unit: entry.unit || existing?.unit || 'kg',
-              status: FORMULA_STATUS_ACTIVE,
-              currentVersion: appliedVersion,
-              effectiveDate: entry.effectiveDate || existing?.effectiveDate,
-              note: entry.note || existing?.note || '',
-              formulaItems: entry.items,
-              formulaVersions: uniqueProductFormulaVersions([versionRecord, ...keptVersions]),
-            }, current.formulas || [], current.formulaVersions || [])
-            if (nextProduct) byCode.set(entry.productCode, nextProduct)
-            if (existing) updated += 1
-            else created += 1
-          })
+          const existing = byCode.get(productCode)
+          const existingVersions = existing?.formulaVersions || []
+          const appliedVersion = existing ? nextProductFormulaVersion(existing.currentVersion || 'V1.0', existingVersions) : 'V1.0'
+          const versionRecord = {
+            id: `${productCode}-${appliedVersion}-${Date.now()}`,
+            productCode,
+            formulaVersion: appliedVersion,
+            version: appliedVersion,
+            status: applyImportedVersion ? FORMULA_STATUS_ACTIVE : FORMULA_STATUS_DRAFT,
+            effectiveDate: todayText(),
+            createdBy: 'Excel',
+            note: applyImportedVersion ? 'Import Excel - version hiện hành' : 'Import Excel - lưu version chưa áp dụng',
+            items,
+          }
+          const nextProduct = normalizeProductMaster({
+            ...(existing || {}),
+            id: existing?.id || `PRD-${productCode}`,
+            productCode,
+            code: productCode,
+            productName: existing?.productName || existing?.name || productCode,
+            name: existing?.name || existing?.productName || productCode,
+            productGroup,
+            group: displayProductGroup(productGroup),
+            unit: existing?.unit || 'kg',
+            status: FORMULA_STATUS_ACTIVE,
+            currentVersion: applyImportedVersion ? appliedVersion : (existing?.currentVersion || appliedVersion),
+            effectiveDate: applyImportedVersion ? todayText() : (existing?.effectiveDate || todayText()),
+            note: existing?.note || '',
+            formulaItems: applyImportedVersion ? items : (existing?.formulaItems || items),
+            formulaVersions: [versionRecord, ...existingVersions],
+          }, current.formulas || [], current.formulaVersions || [])
+          if (nextProduct) byCode.set(productCode, nextProduct)
+          if (existing) updated += 1
+          else created += 1
           const productCatalog = Array.from(byCode.values()).sort((a, b) => a.productCode.localeCompare(b.productCode, 'vi', { numeric: true }))
+          noticeText = `Đã import ${productCode} | Nhóm sản phẩm: ${displayProductGroup(productGroup)} | Version mới: ${appliedVersion} | Nguyên liệu: ${items.length} | Trạng thái: ${applyImportedVersion ? 'Đã áp dụng' : 'Chưa áp dụng'}`
           return addLogToData({ ...current, productCatalog }, `Nhập công thức Excel: tạo ${created} sản phẩm, cập nhật ${updated} sản phẩm.`)
         })
-        setNotice(`Đã nhập ${grouped.size} công thức/version từ Excel.`)
+        setNotice(noticeText)
       } catch (error) {
         setNotice(`Không đọc được file Excel: ${error.message || error}`)
       } finally {
