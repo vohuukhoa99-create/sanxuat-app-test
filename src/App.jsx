@@ -1642,6 +1642,11 @@ const formatAssignmentEmployees = (assignment = {}) => {
   const codes = assignmentEmployeeCodes(assignment)
   return names[0] ? names[0] : (assignment.teamName || assignment.productionTeamName || assignment.productionTeam || assignment.teamCode || '-')
 }
+const formatAssignmentOwner = (assignment = {}) => (
+  assignment.assignmentTargetType === 'team'
+    ? (assignment.teamName || teamNameByCode(assignment.teamCode) || '-')
+    : formatAssignmentEmployees(assignment)
+)
 const assignmentMachineNames = (assignment = {}) => (
   Array.isArray(assignment.machineNames) && assignment.machineNames.length
     ? assignment.machineNames
@@ -10215,15 +10220,15 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     { id: 'chemical-paste', teamCode: 'TH', role: 'Cân Paste', stage: 'Cân hóa', processStages: ['Cân hóa'], inputType: 'employee' },
     { id: 'chemical-tint', teamCode: 'TH', role: 'Cân Màu', stage: 'Cân hóa', processStages: ['Cân hóa'], inputType: 'employee' },
     { id: 'solid', teamCode: 'TC', role: 'Cân Rắn', stage: 'Cân rắn', processStages: ['Cân rắn'], inputType: 'employee' },
-    { id: 'mixing-1', teamCode: 'TP1', role: 'Tổ phối trộn 1', stage: 'Phối trộn', processStages: ['Phối trộn'], inputType: 'team' },
-    { id: 'mixing-2', teamCode: 'TP2', role: 'Tổ phối trộn 2', stage: 'Phối trộn', processStages: ['Phối trộn'], inputType: 'team' },
+    { id: 'mixing-1', teamCode: 'MIXING', role: 'Tổ trên', stage: 'Phối trộn', processStages: ['Phối trộn'], inputType: 'team', defaultTeamCode: 'TP1', displayTeamName: 'Tổ Phối trộn' },
+    { id: 'mixing-2', teamCode: 'MIXING', role: 'Tổ dưới', stage: 'Phối trộn', processStages: ['Phối trộn'], inputType: 'team', defaultTeamCode: 'TP2', displayTeamName: 'Tổ Phối trộn' },
   ]
   const buildDraftRows = () => Object.fromEntries(assignmentRows.map((row) => [row.id, {
     role: row.role,
     stage: row.stage,
     processStages: row.processStages,
     employeeCodes: [],
-    selectedTeamCode: row.teamCode,
+    selectedTeamCode: row.defaultTeamCode || row.teamCode,
     note: '',
     status: 'Chưa bắt đầu',
   }]))
@@ -10245,7 +10250,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     const employeeCodes = employees.map((employee) => employee.employeeCode || employee.code)
     const employeeNames = employees.map((employee) => employee.employeeName || employee.name)
     const employeeRoles = employees.map((employee) => employee.operationRole || employee.role || employee.title || '').filter(Boolean)
-    const teamCode = row.inputType === 'team' ? (draft.selectedTeamCode || row.teamCode) : row.teamCode
+    const teamCode = row.inputType === 'team' ? (draft.selectedTeamCode || row.defaultTeamCode || 'TP1') : row.teamCode
     const team = teamByCode[teamCode] || { code: teamCode, name: teamNameByCode(teamCode) }
     const assignedAt = nowText()
     const teamOnly = row.inputType === 'team'
@@ -10262,8 +10267,8 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       shiftName: shift.name,
       teamCode: team.code,
       teamName: team.name,
-      productionTeam: team.code,
-      productionTeamName: team.name,
+      productionTeam: row.inputType === 'team' ? 'MIXING' : team.code,
+      productionTeamName: row.inputType === 'team' ? 'Tổ Phối trộn' : team.name,
       weeklyRole: draft.role,
       weeklyRoleLabel: draft.role,
       operationRoleKey: draft.role,
@@ -10331,7 +10336,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
         stage: source.stage || source.processName || row.stage,
         processStages: assignmentStages(source).length ? assignmentStages(source) : row.processStages,
         employeeCodes: row.inputType === 'employee' ? assignmentEmployeeCodes(source).slice(0, 1) : [],
-        selectedTeamCode: row.inputType === 'team' ? (source.teamCode || row.teamCode) : row.teamCode,
+        selectedTeamCode: row.inputType === 'team' ? (source.teamCode || row.defaultTeamCode || 'TP1') : row.teamCode,
         note: source.note || source.assignmentNote || '',
         status: source.status || 'Chưa bắt đầu',
       }
@@ -10389,10 +10394,9 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
               {assignmentRows.map((row) => {
                 const draft = draftRows[row.id]
                 const employees = getEmployeesByTeam(row.teamCode)
-                const selectedTeam = teamByCode[draft.selectedTeamCode] || { code: draft.selectedTeamCode, name: teamNameByCode(draft.selectedTeamCode) }
                 return (
                   <tr key={row.id}>
-                    <td>{row.inputType === 'team' ? selectedTeam.name : (teamByCode[row.teamCode]?.name || teamNameByCode(row.teamCode))}</td>
+                    <td>{row.displayTeamName || teamByCode[row.teamCode]?.name || teamNameByCode(row.teamCode)}</td>
                     <td>{draft.role}</td>
                     <td>
                       {row.inputType === 'team' ? (
@@ -10430,9 +10434,9 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
           <tr key={item.id || item.assignmentId}>
             <td>{item.workDate || item.date}</td>
             <td>{item.shiftCode} / {item.shiftName}</td>
-            <td>{item.teamName || item.productionTeamName || item.productionTeam || '-'}</td>
+            <td>{item.assignmentTargetType === 'team' ? 'Tổ Phối trộn' : (item.productionTeamName || item.teamName || item.productionTeam || '-')}</td>
             <td>{normalizeAssignmentRoleLabel(item.operationPositionLabel || item.operationPosition || item.weeklyRole)}</td>
-            <td>{formatAssignmentEmployees(item)}</td>
+            <td>{formatAssignmentOwner(item)}</td>
             <td>{item.note || item.assignmentNote || '-'}</td>
             <td>
               <select value={item.status} disabled={!canEdit} onChange={(event) => updateAssignmentStatus(item.id || item.assignmentId, event.target.value)}>
