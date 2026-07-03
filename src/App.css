@@ -1500,7 +1500,7 @@ tbody tr:hover {
 
 .weighing-order-card.active {
   border-color: #e7a634;
-  background: #fff6df;
+  background: #fff;
 }
 
 .weighing-order-main {
@@ -1543,20 +1543,24 @@ tbody tr:hover {
 
 .weighing-status-pill {
   grid-column: 2;
+  grid-row: 1 / span 2;
   align-self: center;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
-  padding: 7px 12px;
-  border-radius: 999px;
+  min-height: 42px;
+  padding: 8px 12px;
+  border-radius: 8px;
   font-weight: 900;
   white-space: nowrap;
+  min-width: 104px;
+  box-shadow: none;
 }
 
 .weighing-status-pill.in-progress {
   background: #f5a623;
   color: #2f2105;
+  border: 1px solid #d98a00;
 }
 
 .weighing-order-summary {
@@ -14323,4 +14327,41 @@ body,
 .weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table .weighing-qr-scan,
 .chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table .weighing-qr-scan {
   max-width: 125px !important;
+}
+
+.weighing-order-group .weighing-order-card,
+.chemical-order-queue-panel .weighing-order-card,
+.chemical-lower-section .chemical-order-queue-panel .weighing-order-card,
+.scale-left-panel .weighing-order-card {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 8px !important;
+  background: #fff !important;
+}
+
+.weighing-order-group .weighing-order-card.active,
+.chemical-order-queue-panel .weighing-order-card.active,
+.scale-left-panel .weighing-order-card.active {
+  border-color: #e7a634 !important;
+  background: #fff !important;
+}
+
+.weighing-order-card .weighing-order-main {
+  grid-column: 1 !important;
+  display: grid !important;
+  gap: 4px !important;
+  min-width: 0 !important;
+}
+
+.weighing-order-card .weighing-start-button,
+.chemical-order-queue-panel .weighing-start-button,
+.weighing-order-card .weighing-status-pill {
+  grid-column: 2 !important;
+  grid-row: 1 / span 2 !important;
+  align-self: center !important;
+  min-width: 104px !important;
+  min-height: 40px !important;
+  border-radius: 8px !important;
+  padding: 8px 12px !important;
 }

@@ -6697,7 +6697,7 @@ function WeighingOrderGroup({ title, orders, activeId, onStart, showStart = fals
           <article key={order.id} className={`weighing-order-card ${isActive ? 'active weighing-in-progress-card' : ''}`}>
             <div className="weighing-order-main">
               <strong>{getOrderLotCode(order)}</strong>
-              <span>{order.productName || order.product || order.formulaCode || '-'}</span>
+              <span>{order.productCode || order.formulaCode || order.originalFormulaId || '-'}</span>
             </div>
             {showStart && (
               isActive
