@@ -2867,9 +2867,9 @@ tbody tr:hover {
 }
 
 .packaging-spec-catalog-table {
-  width: 970px !important;
-  min-width: 970px !important;
-  max-width: 970px !important;
+  width: 1120px !important;
+  min-width: 1120px !important;
+  max-width: 1120px !important;
   table-layout: fixed !important;
 }
 
@@ -2891,32 +2891,35 @@ tbody tr:hover {
 .packaging-spec-catalog-table td:nth-child(1) { width: 130px !important; }
 
 .packaging-spec-catalog-table th:nth-child(2),
-.packaging-spec-catalog-table td:nth-child(2) { width: 100px !important; }
+.packaging-spec-catalog-table td:nth-child(2) { width: 120px !important; }
 
 .packaging-spec-catalog-table th:nth-child(3),
-.packaging-spec-catalog-table td:nth-child(3) { width: 110px !important; }
+.packaging-spec-catalog-table td:nth-child(3) { width: 130px !important; }
 
 .packaging-spec-catalog-table th:nth-child(4),
-.packaging-spec-catalog-table td:nth-child(4) { width: 140px !important; }
+.packaging-spec-catalog-table td:nth-child(4) { width: 110px !important; }
 
 .packaging-spec-catalog-table th:nth-child(5),
-.packaging-spec-catalog-table td:nth-child(5) { width: 100px !important; }
+.packaging-spec-catalog-table td:nth-child(5) { width: 140px !important; }
 
 .packaging-spec-catalog-table th:nth-child(6),
-.packaging-spec-catalog-table td:nth-child(6) { width: 120px !important; }
+.packaging-spec-catalog-table td:nth-child(6) { width: 100px !important; }
 
 .packaging-spec-catalog-table th:nth-child(7),
-.packaging-spec-catalog-table td:nth-child(7) { width: 180px !important; }
+.packaging-spec-catalog-table td:nth-child(7) { width: 120px !important; }
 
 .packaging-spec-catalog-table th:nth-child(8),
-.packaging-spec-catalog-table td:nth-child(8) { width: 90px !important; }
+.packaging-spec-catalog-table td:nth-child(8) { width: 180px !important; }
 
-.packaging-spec-catalog-table td:nth-child(4) input,
-.packaging-spec-catalog-table td:nth-child(5) input {
+.packaging-spec-catalog-table th:nth-child(9),
+.packaging-spec-catalog-table td:nth-child(9) { width: 90px !important; }
+
+.packaging-spec-catalog-table td:nth-child(5) input,
+.packaging-spec-catalog-table td:nth-child(6) input {
   text-align: right !important;
 }
 
-.packaging-spec-catalog-table td:nth-child(7) input {
+.packaging-spec-catalog-table td:nth-child(8) input {
   text-align: left !important;
 }
 

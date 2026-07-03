@@ -454,6 +454,33 @@ const normalizeProductGroup = (value = '') => {
 const displayProductGroup = (value = '') => productGroupLabels[normalizeProductGroup(value)] || ''
 const normalizeProductCatalogGroup = (value = '') => normalizeProductGroup(value) || PRODUCT_GROUP_SON_DA
 const normalizeOrderProductGroup = (value = '', source = {}) => normalizeProductGroup(value) || inferProductGroup(source) || PRODUCT_GROUP_SON_DA
+const normalizeProductSubgroup = (value = '') => {
+  const text = normalizeText(value)
+  if (!text || text === 'null' || text === '-') return ''
+  if (text.includes('keo lot')) return 'Keo lót'
+  if (text.includes('keo phu')) return 'Keo phủ'
+  if (text.includes('eros')) return 'Eros'
+  if (text.includes('helios')) return 'Helios'
+  if (text.includes('zelos')) return 'Zelos'
+  return String(value || '').trim()
+}
+const inferProductSubgroup = (source = {}, productGroup = '') => {
+  const group = normalizeProductGroup(productGroup || source.productGroup || source.group)
+  if (group === PRODUCT_GROUP_SON_DA) return ''
+  return normalizeProductSubgroup([
+    source.productSubgroup,
+    source.productSubGroup,
+    source.subgroup,
+    source.subGroup,
+    source.phanNhom,
+    source.subclassification,
+    source.category,
+    source.product,
+    source.productName,
+    source.name,
+    source.code,
+  ].filter(Boolean).join(' '))
+}
 const inferProductGroup = (source = {}) => normalizeProductGroup([
   source.productGroup,
   source.equipmentGroup,
@@ -586,6 +613,8 @@ const normalizeProductMaster = (product = {}, formulas = [], formulaVersions = [
   const activeFormula = matchingFormulas.find((formula) => normalizeFormulaStatus(formula) === FORMULA_STATUS_ACTIVE) || matchingFormulas[0] || null
   const formulaItems = (product.formulaItems?.length ? product.formulaItems : activeFormula?.items || []).map(normalizeProductFormulaItem)
   const currentVersion = product.currentVersion || activeFormula?.version || 'V1.0'
+  const productGroup = normalizeProductCatalogGroup(product.productGroup || activeFormula?.productGroup || product.group || inferProductGroup({ ...product, product: activeFormula?.product }))
+  const productSubgroup = inferProductSubgroup(product, productGroup)
   const migratedVersions = matchingFormulas.map(formulaToProductVersion)
   const explicitVersions = (product.formulaVersions || []).map((version) => ({
     ...version,
@@ -610,7 +639,9 @@ const normalizeProductMaster = (product = {}, formulas = [], formulaVersions = [
     code: productCode,
     productName: product.productName || product.name || activeFormula?.product || productCode,
     name: product.name || product.productName || activeFormula?.product || productCode,
-    productGroup: normalizeProductCatalogGroup(product.productGroup || activeFormula?.productGroup || product.group || inferProductGroup({ ...product, product: activeFormula?.product })),
+    productGroup,
+    productSubgroup,
+    productSubGroup: productSubgroup,
     unit: product.unit || 'kg',
     status: normalizeProductStatus(product.status || activeFormula?.status || activeFormula?.formulaStatus),
     currentVersion,
@@ -656,6 +687,8 @@ const productMasterToFormulaOption = (product = {}) => ({
   product: product.productName || product.name,
   productName: product.productName || product.name,
   productGroup: normalizeProductCatalogGroup(product.productGroup),
+  productSubgroup: normalizeProductSubgroup(product.productSubgroup || product.productSubGroup || product.subgroup),
+  productSubGroup: normalizeProductSubgroup(product.productSubgroup || product.productSubGroup || product.subgroup),
   version: product.currentVersion || 'V1.0',
   currentVersion: product.currentVersion || 'V1.0',
   formulaStatus: normalizeProductStatus(product.status),
@@ -2257,7 +2290,8 @@ function normalizeProductionOrders(orders = [], formulas = []) {
     const assignedMachineCode = normalizeMixingMachineCode(order.assignedMachineCode || order.mixerMachine || order.assignedMixingMachine || order.mixingMachine || order.mixing?.machineCode || '')
     const assignedMachine = machineCatalog.find((machine) => machine.machineCode === assignedMachineCode)
     const productGroup = normalizeOrderProductGroup(order.productGroup || formula?.productGroup, { ...order, product: order.product || formula?.product, code: formula?.code || order.formulaCode })
-    const packagingPlan = normalizePackagingPlan(order.packagingPlan || order.packaging?.plan || order.packaging?.details || [], activePackagingSpecsForGroup(defaultPackagingSpecCatalog, productGroup), requestedWeight)
+    const productSubgroup = inferProductSubgroup({ ...order, productSubgroup: order.productSubgroup || order.productSubGroup || formula?.productSubgroup }, productGroup)
+    const packagingPlan = normalizePackagingPlan(order.packagingPlan || order.packaging?.plan || order.packaging?.details || [], activePackagingSpecsForGroup(defaultPackagingSpecCatalog, productGroup, productSubgroup), requestedWeight)
     const customerFields = resolveOrderCustomer(order)
     return {
       ...order,
@@ -2270,6 +2304,8 @@ function normalizeProductionOrders(orders = [], formulas = []) {
       productName: order.productName || order.product || formula?.product || '',
       product: order.product || order.productName || formula?.product || '',
       productGroup,
+      productSubgroup,
+      productSubGroup: productSubgroup,
       packagingPlan,
       ...customerFields,
       lot: fallbackLotCode || `LOT-${fallbackCode}`,
@@ -2500,16 +2536,22 @@ function displayQcTrialText(text = '') {
 }
 
 const defaultPackagingSpecCatalog = [
-  { id: 'PKG-SON-25KG', productGroup: PRODUCT_GROUP_SON_DA, spec: '25kg', declaredUnit: 'kg', convertedWeightKg: 25, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-SON-10KG', productGroup: PRODUCT_GROUP_SON_DA, spec: '10kg', declaredUnit: 'kg', convertedWeightKg: 10, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-SON-5KG', productGroup: PRODUCT_GROUP_SON_DA, spec: '5kg', declaredUnit: 'kg', convertedWeightKg: 5, toleranceKg: 0.05, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-SON-18L', productGroup: PRODUCT_GROUP_SON_NUOC, spec: '18L', declaredUnit: 'L', convertedWeightKg: 25, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-SON-15L', productGroup: PRODUCT_GROUP_SON_NUOC, spec: '15L', declaredUnit: 'L', convertedWeightKg: 21, toleranceKg: 0.18, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-SON-5L', productGroup: PRODUCT_GROUP_SON_NUOC, spec: '5L', declaredUnit: 'L', convertedWeightKg: 7, toleranceKg: 0.08, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-SON-1L', productGroup: PRODUCT_GROUP_SON_NUOC, spec: '1L', declaredUnit: 'L', convertedWeightKg: 1.4, toleranceKg: 0.03, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-KEO-25KG', productGroup: PRODUCT_GROUP_KEO_BTP, spec: '25kg', declaredUnit: 'kg', convertedWeightKg: 25, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-KEO-10KG', productGroup: PRODUCT_GROUP_KEO_BTP, spec: '10kg', declaredUnit: 'kg', convertedWeightKg: 10, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-KEO-5KG', productGroup: PRODUCT_GROUP_KEO_BTP, spec: '5kg', declaredUnit: 'kg', convertedWeightKg: 5, toleranceKg: 0.05, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-SON-DA-25KG', productGroup: PRODUCT_GROUP_SON_DA, productSubgroup: '', spec: 'Thùng 25kg', declaredUnit: 'kg', convertedWeightKg: 25, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-SON-DA-10KG', productGroup: PRODUCT_GROUP_SON_DA, productSubgroup: '', spec: 'Thùng 10kg', declaredUnit: 'kg', convertedWeightKg: 10, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-SON-DA-5KG', productGroup: PRODUCT_GROUP_SON_DA, productSubgroup: '', spec: 'Thùng 5kg', declaredUnit: 'kg', convertedWeightKg: 5, toleranceKg: 0.05, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-KEO-LOT-18L', productGroup: PRODUCT_GROUP_KEO_BTP, productSubgroup: 'Keo lót', spec: 'Thùng 18L', declaredUnit: 'L', convertedWeightKg: 18.05, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-KEO-LOT-05L', productGroup: PRODUCT_GROUP_KEO_BTP, productSubgroup: 'Keo lót', spec: 'Thùng 05L', declaredUnit: 'L', convertedWeightKg: 5.05, toleranceKg: 0.05, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-KEO-PHU-18L', productGroup: PRODUCT_GROUP_KEO_BTP, productSubgroup: 'Keo phủ', spec: 'Thùng 18L', declaredUnit: 'L', convertedWeightKg: 18.2, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-KEO-PHU-05L', productGroup: PRODUCT_GROUP_KEO_BTP, productSubgroup: 'Keo phủ', spec: 'Thùng 05L', declaredUnit: 'L', convertedWeightKg: 5.1, toleranceKg: 0.05, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-EROS-15L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Eros', spec: 'Thùng 15L', declaredUnit: 'L', convertedWeightKg: 15.1, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-EROS-5L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Eros', spec: 'Thùng 5L', declaredUnit: 'L', convertedWeightKg: 5.05, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-EROS-1L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Eros', spec: 'Thùng 1L', declaredUnit: 'L', convertedWeightKg: 1.02, toleranceKg: 0.01, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-HELIOS-15L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Helios', spec: 'Thùng 15L', declaredUnit: 'L', convertedWeightKg: 15.15, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-HELIOS-5L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Helios', spec: 'Thùng 5L', declaredUnit: 'L', convertedWeightKg: 5.07, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-HELIOS-1L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Helios', spec: 'Thùng 1L', declaredUnit: 'L', convertedWeightKg: 1.03, toleranceKg: 0.01, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-ZELOS-15L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Zelos', spec: 'Thùng 15L', declaredUnit: 'L', convertedWeightKg: 15.12, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-ZELOS-5L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Zelos', spec: 'Thùng 5L', declaredUnit: 'L', convertedWeightKg: 5.06, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-ZELOS-1L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Zelos', spec: 'Thùng 1L', declaredUnit: 'L', convertedWeightKg: 1.02, toleranceKg: 0.01, status: ACTIVE_STATUS, note: '' },
 ]
 
 function normalizePackagingSpecCatalog(items = defaultPackagingSpecCatalog) {
@@ -2520,6 +2562,7 @@ function normalizePackagingSpecCatalog(items = defaultPackagingSpecCatalog) {
     return {
       id: item.id || item.specId || `PKG-SPEC-${index + 1}`,
       productGroup: normalizeProductGroup(item.productGroup || item.group) || PRODUCT_GROUP_SON_DA,
+      productSubgroup: normalizeProductSubgroup(item.productSubgroup || item.productSubGroup || item.subgroup || item.subGroup || item.phanNhom || item.subclassification),
       spec,
       label: item.label || spec,
       declaredUnit: item.declaredUnit || item.unit || (spec.toUpperCase().includes('L') ? 'L' : 'kg'),
@@ -2532,10 +2575,12 @@ function normalizePackagingSpecCatalog(items = defaultPackagingSpecCatalog) {
   })
 }
 
-function activePackagingSpecsForGroup(specs = [], productGroup = '') {
+function activePackagingSpecsForGroup(specs = [], productGroup = '', productSubgroup = '') {
   const group = normalizeProductGroup(productGroup) || PRODUCT_GROUP_SON_DA
+  const subgroup = normalizeProductSubgroup(productSubgroup)
   return normalizePackagingSpecCatalog(specs).filter((spec) => (
     normalizeProductGroup(spec.productGroup) === group
+    && (group === PRODUCT_GROUP_SON_DA || normalizeProductSubgroup(spec.productSubgroup) === subgroup)
     && String(spec.status || ACTIVE_STATUS) !== LOCKED_STATUS
     && num(spec.convertedWeightKg) > 0
   ))
@@ -2562,6 +2607,7 @@ function normalizePackagingPlan(plan = [], specs = [], quantityKg = 0) {
       return {
         id: item.id || `PLAN-${spec.id || spec.spec}`,
         specId: spec.id || item.specId,
+        productSubgroup: normalizeProductSubgroup(spec.productSubgroup || item.productSubgroup || item.productSubGroup),
         spec: spec.spec || item.spec || item.label || `${spec.convertedWeightKg || item.sizeKg}kg`,
         label: spec.label || spec.spec || item.label || item.spec,
         declaredUnit: spec.declaredUnit || item.declaredUnit || item.unit || 'kg',
@@ -2582,6 +2628,16 @@ function packagingPlanTotals(plan = []) {
   const convertedWeight = Number(details.reduce((sum, item) => sum + num(item.convertedWeightKg) * num(item.boxes), 0).toFixed(3))
   const totalTolerance = Number(details.reduce((sum, item) => sum + num(item.toleranceKg) * num(item.boxes), 0).toFixed(3))
   return { convertedWeight, totalTolerance, boxes: totalPackingBoxes(details) }
+}
+
+function normalizeStoredPackagingSpecCatalog(items = []) {
+  const source = Array.isArray(items) ? items : []
+  const hasNewStructure = source.some((item) => (
+    Object.prototype.hasOwnProperty.call(item, 'productSubgroup')
+    || Object.prototype.hasOwnProperty.call(item, 'productSubGroup')
+    || Object.prototype.hasOwnProperty.call(item, 'subgroup')
+  ))
+  return normalizePackagingSpecCatalog(hasNewStructure ? source : defaultPackagingSpecCatalog)
 }
 
 function qc2FinalWeight(order = {}) {
@@ -2941,7 +2997,7 @@ function applyDemoQrData(data = {}) {
 }
 
 function defaultPackingDetails(order = {}, specs = defaultPackagingSpecCatalog) {
-  const plan = normalizePackagingPlan(order.packagingPlan || order.packaging?.plan || [], activePackagingSpecsForGroup(specs, order.productGroup), order.requestedWeight ?? order.quantityKg)
+  const plan = normalizePackagingPlan(order.packagingPlan || order.packaging?.plan || [], activePackagingSpecsForGroup(specs, order.productGroup, order.productSubgroup || order.productSubGroup), order.requestedWeight ?? order.quantityKg)
   return plan.map((spec) => ({
     ...spec,
     plannedBoxes: num(spec.boxes),
@@ -4274,7 +4330,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const productOptions = productMasterCatalog.map(productMasterToFormulaOption)
   const activeFormulaOptions = productOptions.filter((product) => normalizeProductStatus(product.status) === FORMULA_STATUS_ACTIVE)
   const initialFormula = activeFormulaOptions[0] || null
-  const [form, setForm] = useState({ formulaId: initialFormula?.id || '', selectedFormulaCode: getFormulaOptionCode(initialFormula), formulaObject: initialFormula, formulaSearch: formatFormulaInput(initialFormula), productGroup: normalizeProductGroup(initialFormula?.productGroup), quantityKg: 1000, lotPrefix: DEFAULT_PRODUCTION_LOT_PREFIX, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '', packagingPlan: [] })
+  const [form, setForm] = useState({ formulaId: initialFormula?.id || '', selectedFormulaCode: getFormulaOptionCode(initialFormula), formulaObject: initialFormula, formulaSearch: formatFormulaInput(initialFormula), productGroup: normalizeProductGroup(initialFormula?.productGroup), productSubgroup: normalizeProductSubgroup(initialFormula?.productSubgroup || initialFormula?.productSubGroup), quantityKg: 1000, lotPrefix: DEFAULT_PRODUCTION_LOT_PREFIX, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '', packagingPlan: [] })
   const [message, setMessage] = useState('')
   const [warning, setWarning] = useState('')
   const [detailOrderId, setDetailOrderId] = useState('')
@@ -4301,11 +4357,12 @@ function OrdersPage({ data, setData, permissions = [] }) {
   ))
   const autoProductGroup = normalizeProductGroup(matchingProduct?.productGroup || formula?.productGroup || matchingProduct?.group)
   const selectedProductGroup = normalizeProductGroup(form.productGroup || autoProductGroup)
+  const selectedProductSubgroup = inferProductSubgroup({ ...matchingProduct, ...formula, productSubgroup: form.productSubgroup || matchingProduct?.productSubgroup || formula?.productSubgroup }, selectedProductGroup)
   const productGroupMissingInCatalog = Boolean(formula && !autoProductGroup)
   const filteredMachines = selectedProductGroup
     ? machines.filter((machine) => normalizeProductGroup(machine.equipmentGroup) === selectedProductGroup)
     : []
-  const availablePackagingSpecs = activePackagingSpecsForGroup(data.packagingSpecCatalog || defaultPackagingSpecCatalog, selectedProductGroup)
+  const availablePackagingSpecs = activePackagingSpecsForGroup(data.packagingSpecCatalog || defaultPackagingSpecCatalog, selectedProductGroup, selectedProductSubgroup)
   const effectivePackagingPlan = normalizePackagingPlan(form.packagingPlan, availablePackagingSpecs, form.quantityKg)
   const packagingTotals = packagingPlanTotals(effectivePackagingPlan)
   const packagingDifference = Number((packagingTotals.convertedWeight - num(form.quantityKg)).toFixed(3))
@@ -4322,7 +4379,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
     ? buildFormulaItems(libraryItems, num(form.quantityKg)).map((item) => enrichItemFromMaterialCatalog(item, materialCatalogByCode, item.materialGroup || item.group || ''))
     : []
   const productionLot = buildProductionLotCode(data.orders, form.lotPrefix)
-  const rebuildPackagingPlan = (productGroup, quantityKg) => autoBuildPackagingPlan(quantityKg, activePackagingSpecsForGroup(data.packagingSpecCatalog || defaultPackagingSpecCatalog, productGroup))
+  const rebuildPackagingPlan = (productGroup, quantityKg, productSubgroup = selectedProductSubgroup) => autoBuildPackagingPlan(quantityKg, activePackagingSpecsForGroup(data.packagingSpecCatalog || defaultPackagingSpecCatalog, productGroup, productSubgroup))
   const updatePackagingPlanBoxes = (specId, boxes) => {
     const nextPlan = availablePackagingSpecs.map((spec) => {
       const existing = effectivePackagingPlan.find((item) => item.specId === spec.id)
@@ -4412,6 +4469,8 @@ function OrdersPage({ data, setData, permissions = [] }) {
       productName: formula.product,
       product: formula.product,
       productGroup: selectedProductGroup,
+      productSubgroup: selectedProductSubgroup,
+      productSubGroup: selectedProductSubgroup,
       lot: lotCode,
       customer: selectedCustomer.customerName,
       customerName: selectedCustomer.customerName,
@@ -4489,6 +4548,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
     { 'Nhóm': 'Thông tin định danh', 'Trường': 'Mã lô', 'Giá trị': getOrderLotCode(order) },
     { 'Nhóm': 'Thông tin định danh', 'Trường': 'Mã SP', 'Giá trị': order.productCode || order.formulaCode || order.originalFormulaId || '' },
     { 'Nhóm': 'Thông tin định danh', 'Trường': 'Nhóm SP', 'Giá trị': displayProductGroup(order.productGroup) || '' },
+    { 'Nhóm': 'Thông tin định danh', 'Trường': 'Phân nhóm', 'Giá trị': order.productSubgroup || order.productSubGroup || '' },
     { 'Nhóm': 'Thông tin định danh', 'Trường': 'Khối lượng', 'Giá trị': kg(order.requestedWeight ?? order.quantityKg) },
     { 'Nhóm': 'Thông tin vận hành', 'Trường': 'Máy phối trộn', 'Giá trị': getOrderAssignedMachineLabel(order, machines) },
     { 'Nhóm': 'Thông tin vận hành', 'Trường': 'Khách hàng', 'Giá trị': order.customerName || order.customer || '' },
@@ -4590,7 +4650,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
             <FormulaSearchCombobox
               formulas={activeFormulaOptions}
               inputValue={form.formulaSearch}
-              onInputChange={(value) => setForm({ ...form, formulaSearch: value, formulaId: '', selectedFormulaCode: '', formulaObject: null, productGroup: '', mixerMachine: '', packagingPlan: [] })}
+              onInputChange={(value) => setForm({ ...form, formulaSearch: value, formulaId: '', selectedFormulaCode: '', formulaObject: null, productGroup: '', productSubgroup: '', mixerMachine: '', packagingPlan: [] })}
               onSelect={(selectedFormula) => {
                 const selectedCode = getFormulaOptionCode(selectedFormula)
                 const selectedProduct = productCatalog.find((product) => (
@@ -4599,18 +4659,34 @@ function OrdersPage({ data, setData, permissions = [] }) {
                   || normalizeFormulaCode(product.productCode || product.code) === normalizeFormulaCode(selectedFormula.product || selectedFormula.productName || '')
                 ))
                 const nextProductGroup = normalizeProductCatalogGroup(selectedProduct?.productGroup || selectedFormula.productGroup || selectedProduct?.group)
-                setForm({ ...form, formulaSearch: selectedCode, formulaId: selectedFormula.id, selectedFormulaCode: selectedCode, formulaObject: selectedFormula, productGroup: nextProductGroup, mixerMachine: '', packagingPlan: rebuildPackagingPlan(nextProductGroup, form.quantityKg) })
+                const nextProductSubgroup = inferProductSubgroup({ ...selectedProduct, ...selectedFormula }, nextProductGroup)
+                setForm({ ...form, formulaSearch: selectedCode, formulaId: selectedFormula.id, selectedFormulaCode: selectedCode, formulaObject: selectedFormula, productGroup: nextProductGroup, productSubgroup: nextProductSubgroup, mixerMachine: '', packagingPlan: rebuildPackagingPlan(nextProductGroup, form.quantityKg, nextProductSubgroup) })
               }}
-              onInvalid={() => setForm({ ...form, formulaSearch: '', formulaId: '', selectedFormulaCode: '', formulaObject: null, productGroup: '', mixerMachine: '', packagingPlan: [] })}
+              onInvalid={() => setForm({ ...form, formulaSearch: '', formulaId: '', selectedFormulaCode: '', formulaObject: null, productGroup: '', productSubgroup: '', mixerMachine: '', packagingPlan: [] })}
             />
           </label>
           <label className="product-group-field">Nhóm sản phẩm *
-            <select value={selectedProductGroup} onChange={(event) => setForm({ ...form, productGroup: event.target.value, mixerMachine: '', packagingPlan: rebuildPackagingPlan(event.target.value, form.quantityKg) })}>
+            <select value={selectedProductGroup} onChange={(event) => {
+              const nextGroup = event.target.value
+              const nextSubgroup = nextGroup === PRODUCT_GROUP_SON_DA ? '' : form.productSubgroup
+              setForm({ ...form, productGroup: nextGroup, productSubgroup: nextSubgroup, mixerMachine: '', packagingPlan: rebuildPackagingPlan(nextGroup, form.quantityKg, nextSubgroup) })
+            }}>
               <option value="">Chọn nhóm</option>
               {productGroupOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
-          <label>Khối lượng kg<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value, packagingPlan: rebuildPackagingPlan(selectedProductGroup, event.target.value) })} /></label>
+          <label>Phân nhóm
+            <input
+              value={selectedProductGroup === PRODUCT_GROUP_SON_DA ? '' : selectedProductSubgroup}
+              placeholder={selectedProductGroup === PRODUCT_GROUP_SON_DA ? 'Không áp dụng' : 'Keo lót / Eros...'}
+              disabled={selectedProductGroup === PRODUCT_GROUP_SON_DA}
+              onChange={(event) => {
+                const nextSubgroup = normalizeProductSubgroup(event.target.value)
+                setForm({ ...form, productSubgroup: nextSubgroup, packagingPlan: rebuildPackagingPlan(selectedProductGroup, form.quantityKg, nextSubgroup) })
+              }}
+            />
+          </label>
+          <label>Khối lượng kg<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value, packagingPlan: rebuildPackagingPlan(selectedProductGroup, event.target.value, selectedProductSubgroup) })} /></label>
           <label>Mã lô
             <div className="production-lot-field">
               <select value={form.lotPrefix} onChange={(event) => setForm({ ...form, lotPrefix: event.target.value })}>
@@ -4643,7 +4719,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
             </div>
           </div>
           <SimpleTable
-            headers={['Quy cách', 'Đơn vị công bố', 'Kg quy đổi/thùng', 'Dung sai/thùng', 'Số lượng thùng', 'Tổng quy đổi']}
+            headers={['Quy cách', 'Đơn vị công bố', 'Khối lượng quy đổi (kg)', 'Dung sai', 'Số lượng thùng', 'Tổng quy đổi']}
             rows={availablePackagingSpecs.map((spec) => {
               const row = effectivePackagingPlan.find((item) => item.specId === spec.id) || {}
               const boxes = num(row.boxes)
@@ -5041,6 +5117,7 @@ function OrderDetailTabs({ order, tab, productionLogs, qc2Logs, permissions = []
             <div className="field-readonly field-lot"><span>Mã lô</span><strong>{getOrderLotCode(order)}</strong></div>
             <div className="field-readonly field-product-code"><span>Mã SP</span><strong>{order.productCode || order.formulaCode || order.originalFormulaId}</strong></div>
             <div className="field-readonly field-product-group"><span>Nhóm SP</span><strong>{displayProductGroup(order.productGroup) || '-'}</strong></div>
+            <div className="field-readonly field-product-group"><span>Phân nhóm</span><strong>{order.productSubgroup || order.productSubGroup || (normalizeProductGroup(order.productGroup) === PRODUCT_GROUP_SON_DA ? 'Không áp dụng' : '-')}</strong></div>
             <div className="field-readonly field-weight"><span>Khối lượng</span><strong>{kg(order.requestedWeight ?? order.quantityKg)}</strong></div>
           </div>
         </section>
@@ -5096,7 +5173,7 @@ function OrderDetailTabs({ order, tab, productionLogs, qc2Logs, permissions = []
           <div><span>Số thùng</span><strong>{totals.boxes}</strong></div>
           <div><span>Dung sai</span><strong>±{kg(totals.totalTolerance)}</strong></div>
         </div>
-        <SimpleTable headers={['Quy cách', 'Đơn vị', 'Kg quy đổi/thùng', 'Số thùng kế hoạch', 'Tổng kg']} rows={plan.map((item) => (
+        <SimpleTable headers={['Quy cách', 'Đơn vị', 'Khối lượng quy đổi (kg)', 'Số thùng kế hoạch', 'Tổng kg']} rows={plan.map((item) => (
           <tr key={item.specId || item.id}>
             <td>{item.spec || item.label}</td>
             <td>{item.declaredUnit}</td>
@@ -8178,6 +8255,7 @@ function PackagingPage({ data, setData, user }) {
       qc2FinalWeight: nextTotals.qcWeight,
       packingDetails: detailsWithQr.map((item) => ({
         specId: item.specId,
+        productSubgroup: item.productSubgroup || '',
         spec: item.spec || item.label,
         label: item.label,
         declaredUnit: item.declaredUnit,
@@ -11150,6 +11228,7 @@ function ProductMasterPage({ data, setData, permissions = [] }) {
                 <label>Mã sản phẩm<input readOnly value={selectedProduct.productCode} /></label>
                 <label>Tên sản phẩm<input value={selectedProduct.productName || selectedProduct.name || ''} onChange={(event) => upsertProduct(selectedProduct, { productName: event.target.value, name: event.target.value })} /></label>
                 <label>Nhóm sản phẩm<select value={normalizeProductGroup(selectedProduct.productGroup)} onChange={(event) => upsertProduct(selectedProduct, { productGroup: event.target.value, group: displayProductGroup(event.target.value) })}>{productGroupOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                <label>Phân nhóm<input value={normalizeProductGroup(selectedProduct.productGroup) === PRODUCT_GROUP_SON_DA ? '' : normalizeProductSubgroup(selectedProduct.productSubgroup || selectedProduct.productSubGroup || selectedProduct.subgroup)} disabled={normalizeProductGroup(selectedProduct.productGroup) === PRODUCT_GROUP_SON_DA} placeholder={normalizeProductGroup(selectedProduct.productGroup) === PRODUCT_GROUP_SON_DA ? 'Không áp dụng' : 'Keo lót / Eros...'} onChange={(event) => upsertProduct(selectedProduct, { productSubgroup: event.target.value, productSubGroup: event.target.value, subgroup: event.target.value })} /></label>
                 <label>Đơn vị<input value={selectedProduct.unit || 'kg'} onChange={(event) => upsertProduct(selectedProduct, { unit: event.target.value })} /></label>
                 <label>Version hiện hành<input readOnly value={selectedProduct.currentVersion || 'V1.0'} /></label>
                 <label>Ngày hiệu lực<input type="date" value={selectedProduct.effectiveDate || ''} onChange={(event) => upsertProduct(selectedProduct, { effectiveDate: event.target.value })} /></label>
@@ -11373,7 +11452,19 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
         }
         if ((isProductCatalog || isPackagingSpecCatalog) && field === 'productGroup') {
           const productGroup = normalizeProductCatalogGroup(value)
+          if (isPackagingSpecCatalog) {
+            return {
+              ...row,
+              productGroup,
+              productSubgroup: productGroup === PRODUCT_GROUP_SON_DA ? '' : row.productSubgroup,
+              declaredUnit: productGroup === PRODUCT_GROUP_SON_DA ? 'kg' : 'L',
+              group: displayProductGroup(productGroup) || row.group,
+            }
+          }
           return { ...row, productGroup, group: displayProductGroup(productGroup) || row.group }
+        }
+        if (isPackagingSpecCatalog && field === 'productSubgroup') {
+          return { ...row, productSubgroup: normalizeProductSubgroup(value) }
         }
         return { ...row, [field]: value }
       })
@@ -11402,6 +11493,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
     }
     if (isPackagingSpecCatalog) {
       next.productGroup = normalizeProductCatalogGroup()
+      next.productSubgroup = ''
       next.spec = ''
       next.declaredUnit = 'kg'
       next.convertedWeightKg = 0
@@ -11960,7 +12052,7 @@ function App() {
       finishedGoods,
       rawMaterials,
       materialCatalog,
-      packagingSpecCatalog: normalizePackagingSpecCatalog(savedWithoutScaleTools.packagingSpecCatalog || seed.packagingSpecCatalog || defaultPackagingSpecCatalog),
+      packagingSpecCatalog: normalizeStoredPackagingSpecCatalog(savedWithoutScaleTools.packagingSpecCatalog || seed.packagingSpecCatalog || defaultPackagingSpecCatalog),
       customerCatalog: normalizeCustomerCatalog(),
       employeeCatalog: normalizeEmployeeCatalogData(savedWithoutScaleTools.employeeCatalog || productionEmployeeCatalog),
       teamCatalog: normalizeTeamCatalogData([...(savedWithoutScaleTools.teamCatalog || []), ...seed.teamCatalog]),
@@ -12090,7 +12182,7 @@ function App() {
     'admin-system-logs': <SystemLogsPage data={data} />,
     'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'mainGroup', 'subclassification', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Phân nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} user={user} />,
     'master-products': <ProductMasterPage data={data} setData={setData} permissions={userPermissions} />,
-    'master-packaging-specs': <MasterCatalogPage title="Quy cách đóng gói" storageKey="packagingSpecCatalog" permissionKey="packagingSpec" fields={['productGroup', 'spec', 'declaredUnit', 'convertedWeightKg', 'toleranceKg', 'status', 'note']} labels={['Nhóm sản phẩm', 'Quy cách', 'Đơn vị công bố', 'Khối lượng quy đổi kg', 'Dung sai', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-packaging-specs': <MasterCatalogPage title="Quy cách đóng gói" storageKey="packagingSpecCatalog" permissionKey="packagingSpec" fields={['productGroup', 'productSubgroup', 'spec', 'declaredUnit', 'convertedWeightKg', 'toleranceKg', 'status', 'note']} labels={['Nhóm sản phẩm', 'Phân nhóm', 'Quy cách đóng gói', 'Đơn vị công bố', 'Khối lượng quy đổi kg', 'Dung sai kg', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['customerCode', 'customerName', 'channelCode', 'province', 'status', 'note']} labels={['Mã khách hàng', 'Tên khách hàng', 'Nhóm khách hàng', 'Khu vực/Tỉnh thành', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-employees': <MasterCatalogPage title="Danh sách nhân viên" storageKey="employeeCatalog" permissionKey="employee" fields={['employeeCode', 'employeeName', 'department', 'role', 'phone', 'status', 'note']} labels={['Mã nhân viên', 'Họ tên', 'Bộ phận/Tổ', 'Vai trò', 'Điện thoại', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
