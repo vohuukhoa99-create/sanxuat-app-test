@@ -916,8 +916,8 @@ tbody tr:hover {
 
 .assignment-day-controls {
   display: grid;
-  grid-template-columns: 180px 150px auto 150px;
-  gap: 12px;
+  grid-template-columns: 180px 150px max-content 150px;
+  gap: 10px;
   align-items: end;
   margin-bottom: 16px;
 }
@@ -947,13 +947,23 @@ tbody tr:hover {
   grid-template-columns: none !important;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 6px;
   min-height: 38px;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
 .assignment-specific-day input {
   width: 18px;
   min-height: 18px;
+  flex: 0 0 18px;
+  margin: 0;
+  padding: 0;
+}
+
+.assignment-specific-date {
+  width: 150px;
 }
 
 .production-assignment-page .table-wrap {
@@ -980,7 +990,13 @@ tbody tr:hover {
 
 .assignment-planning-table th:nth-child(3),
 .assignment-planning-table td:nth-child(3) {
-  width: 320px;
+  width: auto;
+  min-width: 360px;
+}
+
+.assignment-planning-table th:nth-child(4),
+.assignment-planning-table td:nth-child(4) {
+  width: 250px;
 }
 
 .assignment-planning-table th:nth-child(5),
@@ -1483,8 +1499,14 @@ tbody tr:hover {
 }
 
 .weighing-order-card.active {
-  border-color: #0f6c44;
-  background: #dff6e7;
+  border-color: #e7a634;
+  background: #fff6df;
+}
+
+.weighing-order-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
 }
 
 .weighing-order-card strong {
@@ -1514,6 +1536,27 @@ tbody tr:hover {
   padding: 8px 12px;
   border-radius: 8px;
   white-space: nowrap;
+  border-color: #0f7c4a;
+  background: #0f7c4a;
+  color: #fff;
+}
+
+.weighing-status-pill {
+  grid-column: 2;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.weighing-status-pill.in-progress {
+  background: #f5a623;
+  color: #2f2105;
 }
 
 .weighing-order-summary {

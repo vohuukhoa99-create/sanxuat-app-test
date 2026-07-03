@@ -5857,7 +5857,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
   const scaleToleranceKgRef = useRef(scaleToleranceKg)
   const activeOrder = relevantOrders.find((order) => order.id === activeOrderId)
   const activeOrderLoadError = Boolean(activeOrderId && !activeOrder)
-  const waitingOrders = pendingOrders.filter((order) => order.id !== activeOrder?.id)
+  const waitingOrders = pendingOrders
   const activeItems = activeOrder ? getItems(activeOrder) : []
   const activeChemicalMissingCatalogWarnings = group === CHEMICAL && activeOrder
     ? activeItems.filter((item) => item.catalogMaterialMissing).map((item) => item.materialCode || item.materialName || item.id || 'Vật tư chưa rõ mã')
@@ -6401,7 +6401,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
             <article><span>Hoàn thành:</span><strong>{String(completedOrders.length).padStart(2, '0')}</strong></article>
           </section>
           <h2>Danh sách lệnh sản xuất</h2>
-          <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders.map((order) => ({ ...order, weighingFlow: groupFlow(order) }))} activeId={activeOrder?.id} onStart={startOrder} showStart />
+          <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders.map((order) => ({ ...order, weighingFlow: order.id === activeOrder?.id ? { ...groupFlow(order), status: 'weighing', label: 'Đang cân' } : groupFlow(order) }))} activeId={activeOrder?.id} onStart={startOrder} showStart />
         </aside>}
         <main className="weighing-active-board scale-main-panel">
           <div className="section-heading-row">
@@ -6516,7 +6516,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
                     <article><span>Hoàn thành:</span><strong>{String(completedOrders.length).padStart(2, '0')}</strong></article>
                   </section>
                   <ChemicalMixSummary order={activeOrder} lineState={activeChemicalLineState} canPrint={canPrintChemicalMixQr} onPrint={printChemicalMixQr} />
-                  <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders.map((order) => ({ ...order, weighingFlow: groupFlow(order) }))} activeId={activeOrder?.id} onStart={startOrder} showStart />
+                  <WeighingOrderGroup title="Danh sách lệnh chờ cân" orders={waitingOrders.map((order) => ({ ...order, weighingFlow: order.id === activeOrder?.id ? { ...groupFlow(order), status: 'weighing', label: 'Đang cân' } : groupFlow(order) }))} activeId={activeOrder?.id} onStart={startOrder} showStart />
                 </section>
                 <div className="chemical-color-scale">
                   {renderChemicalBoard(colorBoard)}
@@ -6691,16 +6691,22 @@ function WeighingOrderGroup({ title, orders, activeId, onStart, showStart = fals
   return (
     <div className="weighing-order-group">
       <h3>{title}</h3>
-      {orders.map((order) => (
-        <article key={order.id} className={`weighing-order-card ${order.id === activeId ? 'active' : ''}`}>
-          <strong>{getOrderLotCode(order)}</strong>
-          <span>{order.productName || order.product}</span>
-          <span>{order.lotCode || order.lot}</span>
-          <span>{kg(order.requestedWeight ?? order.quantityKg)}</span>
-          {order.weighingFlow?.label && <span className={`dispatch-badge ${getWeighingStatusTone(order.weighingFlow)}`}>{order.weighingFlow.label}</span>}
-          {showStart && <button className="secondary-button weighing-start-button" disabled={order.weighingFlow?.status === 'not_required'} onClick={() => onStart(order)}>Bắt đầu cân</button>}
-        </article>
-      ))}
+      {orders.map((order) => {
+        const isActive = order.id === activeId || order.weighingFlow?.status === 'weighing'
+        return (
+          <article key={order.id} className={`weighing-order-card ${isActive ? 'active weighing-in-progress-card' : ''}`}>
+            <div className="weighing-order-main">
+              <strong>{getOrderLotCode(order)}</strong>
+              <span>{order.productName || order.product || order.formulaCode || '-'}</span>
+            </div>
+            {showStart && (
+              isActive
+                ? <span className="weighing-status-pill in-progress">Đang cân</span>
+                : <button className="secondary-button weighing-start-button" disabled={order.weighingFlow?.status === 'not_required'} onClick={() => onStart(order)}>Bắt đầu cân</button>
+            )}
+          </article>
+        )
+      })}
       {orders.length === 0 && <p className="muted-text">Không có lệnh.</p>}
     </div>
   )
@@ -10376,8 +10382,8 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
             setHeader((current) => ({ ...current, weekStart, date: weekStart }))
           }} /></label>
           <label>Ca làm việc<select value={header.shiftCode} onChange={(event) => setHeader((current) => ({ ...current, shiftCode: event.target.value }))}>{shifts.map((shift) => <option key={shift.code} value={shift.code}>{shift.code} / {shift.name}</option>)}</select></label>
-          <label className="assignment-specific-day"><span>Chỉnh sửa ngày cụ thể</span><input type="checkbox" checked={header.editSingleDay} onChange={(event) => setHeader((current) => ({ ...current, editSingleDay: event.target.checked }))} /></label>
-          {header.editSingleDay && <label>Ngày<input type="date" min={header.weekStart} max={getWeekEndText(header.weekStart)} value={header.date} onChange={(event) => setHeader((current) => ({ ...current, date: event.target.value }))} /></label>}
+          <label className="assignment-specific-day"><input type="checkbox" checked={header.editSingleDay} onChange={(event) => setHeader((current) => ({ ...current, editSingleDay: event.target.checked }))} /><span>Chỉnh sửa ngày cụ thể</span></label>
+          {header.editSingleDay && <label className="assignment-specific-date">Ngày<input type="date" min={header.weekStart} max={getWeekEndText(header.weekStart)} value={header.date} onChange={(event) => setHeader((current) => ({ ...current, date: event.target.value }))} /></label>}
         </div>
         <div className="table-wrap">
           <table className="production-table assignment-planning-table">
