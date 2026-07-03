@@ -14468,3 +14468,114 @@ body,
     max-width: none !important;
   }
 }
+
+/* Compact packaging plan block in production order form. */
+.packaging-plan-card {
+  width: fit-content !important;
+  max-width: 1000px !important;
+  margin-left: 0 !important;
+  margin-right: auto !important;
+  padding: 14px !important;
+  gap: 12px !important;
+}
+
+.packaging-plan-card .section-heading-row {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  max-width: 960px !important;
+}
+
+.packaging-plan-card .section-heading-row > div:first-child {
+  min-width: 0 !important;
+}
+
+.packaging-plan-card .panel-text {
+  max-width: 520px !important;
+  margin: 4px 0 0 !important;
+}
+
+.packaging-plan-card .formula-ratio-ok,
+.packaging-plan-card .formula-ratio-alert {
+  flex: 0 0 auto !important;
+  max-width: 420px !important;
+  margin: 0 !important;
+  padding: 8px 10px !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  text-align: right !important;
+  white-space: normal !important;
+}
+
+.packaging-plan-card > .table-wrapper {
+  width: fit-content !important;
+  max-width: 960px !important;
+  margin-left: 0 !important;
+  margin-right: auto !important;
+  overflow-x: auto !important;
+}
+
+.packaging-plan-card > .table-wrapper table {
+  width: 740px !important;
+  min-width: 740px !important;
+  max-width: 740px !important;
+  table-layout: fixed !important;
+}
+
+.packaging-plan-card > .table-wrapper th,
+.packaging-plan-card > .table-wrapper td {
+  padding: 7px 8px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  white-space: normal !important;
+}
+
+.packaging-plan-card > .table-wrapper th:nth-child(1),
+.packaging-plan-card > .table-wrapper td:nth-child(1) { width: 100px !important; }
+
+.packaging-plan-card > .table-wrapper th:nth-child(2),
+.packaging-plan-card > .table-wrapper td:nth-child(2) { width: 110px !important; }
+
+.packaging-plan-card > .table-wrapper th:nth-child(3),
+.packaging-plan-card > .table-wrapper td:nth-child(3) { width: 130px !important; }
+
+.packaging-plan-card > .table-wrapper th:nth-child(4),
+.packaging-plan-card > .table-wrapper td:nth-child(4) { width: 120px !important; }
+
+.packaging-plan-card > .table-wrapper th:nth-child(5),
+.packaging-plan-card > .table-wrapper td:nth-child(5) { width: 160px !important; }
+
+.packaging-plan-card > .table-wrapper th:nth-child(6),
+.packaging-plan-card > .table-wrapper td:nth-child(6) { width: 120px !important; }
+
+.packaging-plan-card > .table-wrapper input[type='number'] {
+  width: 130px !important;
+  min-width: 120px !important;
+  max-width: 140px !important;
+  margin: 0 auto !important;
+  text-align: center !important;
+}
+
+@media (max-width: 900px) {
+  .packaging-plan-card {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .packaging-plan-card .section-heading-row {
+    display: grid !important;
+    max-width: 100% !important;
+  }
+
+  .packaging-plan-card .formula-ratio-ok,
+  .packaging-plan-card .formula-ratio-alert {
+    max-width: 100% !important;
+    text-align: left !important;
+  }
+
+  .packaging-plan-card > .table-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
