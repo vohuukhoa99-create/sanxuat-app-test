@@ -916,7 +916,7 @@ tbody tr:hover {
 
 .assignment-day-controls {
   display: grid;
-  grid-template-columns: 130px 150px;
+  grid-template-columns: 180px 150px auto 150px;
   gap: 12px;
   align-items: end;
   margin-bottom: 16px;
@@ -942,15 +942,56 @@ tbody tr:hover {
   padding: 8px 10px;
 }
 
+.assignment-specific-day {
+  display: flex !important;
+  grid-template-columns: none !important;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+}
+
+.assignment-specific-day input {
+  width: 18px;
+  min-height: 18px;
+}
+
+.production-assignment-page .table-wrap {
+  overflow: visible;
+}
+
+.production-assignment-page .panel {
+  overflow: visible;
+}
+
+.assignment-planning-table {
+  table-layout: fixed;
+}
+
 .assignment-planning-table th:nth-child(1),
 .assignment-planning-table td:nth-child(1) {
-  width: 56px;
-  text-align: center;
+  width: 170px;
+}
+
+.assignment-planning-table th:nth-child(2),
+.assignment-planning-table td:nth-child(2) {
+  width: 150px;
+}
+
+.assignment-planning-table th:nth-child(3),
+.assignment-planning-table td:nth-child(3) {
+  width: 320px;
 }
 
 .assignment-planning-table th:nth-child(5),
 .assignment-planning-table td:nth-child(5) {
-  min-width: 300px;
+  width: 150px;
+}
+
+.assignment-single-select .assignment-owner-dropdown,
+.assignment-single-select .assignment-owner-dropdown .customer-combobox-menu {
+  width: 100%;
+  max-width: none;
 }
 
 .assignment-multiselect {
@@ -981,7 +1022,7 @@ tbody tr:hover {
 
 .assignment-multiselect-menu {
   position: absolute;
-  z-index: 30;
+  z-index: 10050;
   top: calc(100% + 4px);
   left: 0;
   width: 360px;

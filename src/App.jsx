@@ -210,6 +210,52 @@ function stripDeprecatedScaleToolData(source = {}) {
 }
 const nowText = () => new Date().toISOString().slice(0, 16).replace('T', ' ')
 const todayText = () => new Date().toISOString().slice(0, 10)
+const dateToInputText = (date = new Date()) => {
+  const value = date instanceof Date ? date : new Date(date)
+  if (Number.isNaN(value.getTime())) return todayText()
+  const yyyy = value.getFullYear()
+  const mm = String(value.getMonth() + 1).padStart(2, '0')
+  const dd = String(value.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+const parseInputDate = (value = todayText()) => {
+  const [year, month, day] = String(value || todayText()).split('-').map(Number)
+  return new Date(year || new Date().getFullYear(), (month || 1) - 1, day || 1)
+}
+const addDaysText = (value = todayText(), days = 0) => {
+  const date = parseInputDate(value)
+  date.setDate(date.getDate() + days)
+  return dateToInputText(date)
+}
+const getWeekStartText = (value = todayText()) => {
+  const date = parseInputDate(value)
+  const day = date.getDay() || 7
+  date.setDate(date.getDate() - day + 1)
+  return dateToInputText(date)
+}
+const getWeekDates = (weekStart = getWeekStartText()) => Array.from({ length: 7 }, (_, index) => addDaysText(weekStart, index))
+const getWeekEndText = (weekStart = getWeekStartText()) => addDaysText(weekStart, 6)
+const getIsoWeekInputValue = (value = todayText()) => {
+  const date = parseInputDate(value)
+  const target = new Date(date.valueOf())
+  const day = (date.getDay() + 6) % 7
+  target.setDate(target.getDate() - day + 3)
+  const firstThursday = new Date(target.getFullYear(), 0, 4)
+  const firstDay = (firstThursday.getDay() + 6) % 7
+  firstThursday.setDate(firstThursday.getDate() - firstDay + 3)
+  const week = 1 + Math.round((target - firstThursday) / 604800000)
+  return `${target.getFullYear()}-W${String(week).padStart(2, '0')}`
+}
+const getWeekStartFromIsoWeek = (weekValue = '') => {
+  const match = String(weekValue || '').match(/^(\d{4})-W(\d{2})$/)
+  if (!match) return getWeekStartText()
+  const year = Number(match[1])
+  const week = Number(match[2])
+  const jan4 = new Date(year, 0, 4)
+  const jan4Day = jan4.getDay() || 7
+  jan4.setDate(jan4.getDate() - jan4Day + 1 + (week - 1) * 7)
+  return dateToInputText(jan4)
+}
 const productionLotDateCode = (date = new Date()) => {
   const yy = String(date.getFullYear()).slice(-2)
   const mm = String(date.getMonth() + 1).padStart(2, '0')
@@ -1594,7 +1640,7 @@ const formatAssignmentEmployees = (assignment = {}) => {
   const names = assignmentEmployeeNames(assignment)
   if (names.length > 1) return `${names.length} người: ${names.join(', ')}`
   const codes = assignmentEmployeeCodes(assignment)
-  return names[0] ? `${codes[0] ? `${codes[0]} - ` : ''}${names[0]}` : '-'
+  return names[0] ? names[0] : (assignment.teamName || assignment.productionTeamName || assignment.productionTeam || assignment.teamCode || '-')
 }
 const assignmentMachineNames = (assignment = {}) => (
   Array.isArray(assignment.machineNames) && assignment.machineNames.length
@@ -4722,7 +4768,7 @@ function EmployeeSearchCombobox({ employees = [], inputValue = '', onInputChange
         <div className="customer-combobox-menu">
           {filteredEmployees.length ? filteredEmployees.map((employee) => (
             <button type="button" key={employee.employeeCode || employee.code} onMouseDown={(event) => event.preventDefault()} onClick={() => { onSelect(employee); setOpen(false) }}>
-              <span>{employee.employeeCode || employee.code} - {employee.employeeName || employee.name}</span>
+              <span>{employee.employeeName || employee.name}</span>
             </button>
           )) : <div className="customer-combobox-empty">Không có nhân viên phù hợp</div>}
         </div>
@@ -4789,13 +4835,37 @@ function AssignmentEmployeeMultiSelect({ employees = [], selectedCodes = [], onC
                     checked={selectedSet.has(code)}
                     onChange={() => toggleEmployee(employee)}
                   />
-                  <span>{code} - {name}</span>
+                  <span>{name}</span>
                 </label>
               )
             }) : <div className="customer-combobox-empty">Không có nhân viên phù hợp</div>}
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function AssignmentEmployeeSingleSelect({ employees = [], selectedCode = '', onChange }) {
+  const selectedEmployee = employees.find((employee) => (employee.employeeCode || employee.code) === selectedCode)
+  const [inputValue, setInputValue] = useState(selectedEmployee ? selectedEmployee.employeeName || selectedEmployee.name : '')
+  useEffect(() => {
+    setInputValue(selectedEmployee ? selectedEmployee.employeeName || selectedEmployee.name : '')
+  }, [selectedCode, selectedEmployee?.employeeName, selectedEmployee?.name])
+  return (
+    <div className="assignment-single-select">
+      <EmployeeSearchCombobox
+        employees={employees}
+        inputValue={inputValue}
+        onInputChange={(value) => {
+          setInputValue(value)
+          if (!value) onChange('')
+        }}
+        onSelect={(employee) => {
+          onChange(employee.employeeCode || employee.code || '')
+          setInputValue(employee.employeeName || employee.name || '')
+        }}
+      />
     </div>
   )
 }
@@ -10129,6 +10199,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
   const teamByCode = Object.fromEntries(teams.map((team) => [team.code, team]))
   const employeesByCode = Object.fromEntries(activeEmployees.map((employee) => [employee.employeeCode || employee.code, employee]))
   const shiftByCode = Object.fromEntries(shifts.map((shift) => [shift.code, shift]))
+  const mixingTeams = teams.filter((team) => ['TP1', 'TP2'].includes(team.code))
   const getEmployeesByTeam = (teamNameOrCode) => {
     const selectedTeam = teamByCode[teamNameOrCode]
     const selectedTeamKey = normalizeTeamName(selectedTeam?.name || teamNameByCode(normalizeProductionTeamCode(teamNameOrCode)) || teamNameOrCode)
@@ -10140,23 +10211,24 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     })
   }
   const assignmentRows = [
-    { id: 'chemical-glue', teamCode: 'TH', role: 'Cân keo', stage: 'Cân hóa', processStages: ['Cân hóa'] },
-    { id: 'chemical-paste', teamCode: 'TH', role: 'Cân Paste', stage: 'Cân hóa', processStages: ['Cân hóa'] },
-    { id: 'chemical-tint', teamCode: 'TH', role: 'Cân Màu', stage: 'Cân hóa', processStages: ['Cân hóa'] },
-    { id: 'solid', teamCode: 'TC', role: 'Cân rắn', stage: 'Cân rắn', processStages: ['Cân rắn'] },
-    { id: 'mixing-1', teamCode: 'TP1', role: 'Tổ trên', stage: 'Phối trộn', processStages: ['Phối trộn'], roleEditable: true },
-    { id: 'mixing-2', teamCode: 'TP2', role: 'Tổ dưới', stage: 'Đóng gói + Kho thành phẩm', processStages: ['Đóng gói', 'Kho thành phẩm'], roleEditable: true },
+    { id: 'chemical-glue', teamCode: 'TH', role: 'Cân Keo', stage: 'Cân hóa', processStages: ['Cân hóa'], inputType: 'employee' },
+    { id: 'chemical-paste', teamCode: 'TH', role: 'Cân Paste', stage: 'Cân hóa', processStages: ['Cân hóa'], inputType: 'employee' },
+    { id: 'chemical-tint', teamCode: 'TH', role: 'Cân Màu', stage: 'Cân hóa', processStages: ['Cân hóa'], inputType: 'employee' },
+    { id: 'solid', teamCode: 'TC', role: 'Cân Rắn', stage: 'Cân rắn', processStages: ['Cân rắn'], inputType: 'employee' },
+    { id: 'mixing-1', teamCode: 'TP1', role: 'Tổ phối trộn 1', stage: 'Phối trộn', processStages: ['Phối trộn'], inputType: 'team' },
+    { id: 'mixing-2', teamCode: 'TP2', role: 'Tổ phối trộn 2', stage: 'Phối trộn', processStages: ['Phối trộn'], inputType: 'team' },
   ]
   const buildDraftRows = () => Object.fromEntries(assignmentRows.map((row) => [row.id, {
     role: row.role,
     stage: row.stage,
     processStages: row.processStages,
     employeeCodes: [],
+    selectedTeamCode: row.teamCode,
     note: '',
     status: 'Chưa bắt đầu',
   }]))
   const [notice, setNotice] = useState('')
-  const [header, setHeader] = useState({ date: todayText(), shiftCode: shifts[0]?.code || '' })
+  const [header, setHeader] = useState({ weekStart: getWeekStartText(todayText()), date: todayText(), shiftCode: shifts[0]?.code || '', editSingleDay: false })
   const [draftRows, setDraftRows] = useState(buildDraftRows)
 
   useEffect(() => {
@@ -10166,27 +10238,26 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
   const updateDraftRow = (rowId, patch) => {
     setDraftRows((current) => ({ ...current, [rowId]: { ...current[rowId], ...patch } }))
   }
-  const updateMixingRole = (rowId, role) => {
-    const isUpper = role === 'Tổ trên'
-    updateDraftRow(rowId, {
-      role,
-      stage: isUpper ? 'Phối trộn' : 'Đóng gói + Kho thành phẩm',
-      processStages: isUpper ? ['Phối trộn'] : ['Đóng gói', 'Kho thành phẩm'],
-    })
-  }
-  const buildAssignment = (row, draft, shift) => {
+  const weekDates = getWeekDates(header.weekStart)
+  const targetDates = header.editSingleDay ? [header.date] : weekDates
+  const buildAssignment = (row, draft, shift, workDate) => {
     const employees = (draft.employeeCodes || []).map((code) => employeesByCode[code]).filter(Boolean)
     const employeeCodes = employees.map((employee) => employee.employeeCode || employee.code)
     const employeeNames = employees.map((employee) => employee.employeeName || employee.name)
     const employeeRoles = employees.map((employee) => employee.operationRole || employee.role || employee.title || '').filter(Boolean)
-    const team = teamByCode[row.teamCode] || { code: row.teamCode, name: teamNameByCode(row.teamCode) }
+    const teamCode = row.inputType === 'team' ? (draft.selectedTeamCode || row.teamCode) : row.teamCode
+    const team = teamByCode[teamCode] || { code: teamCode, name: teamNameByCode(teamCode) }
     const assignedAt = nowText()
+    const teamOnly = row.inputType === 'team'
     return {
       id: uid('ASSIGN'),
       assignmentId: uid('ASSIGN'),
       assignmentRowId: row.id,
-      date: header.date,
-      workDate: header.date,
+      date: workDate,
+      workDate,
+      weekStart: header.weekStart,
+      weekEnd: getWeekEndText(header.weekStart),
+      assignmentScope: header.editSingleDay ? 'day' : 'week',
       shiftCode: shift.code,
       shiftName: shift.name,
       teamCode: team.code,
@@ -10208,6 +10279,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       employeeName: employeeNames.join(', '),
       employeeRole: employeeRoles.join(', '),
       role: employeeRoles.join(', '),
+      assignmentTargetType: teamOnly ? 'team' : 'employee',
       workStage: draft.stage,
       assignedBy: user?.fullName || user?.username || 'Hệ thống',
       assignedAt,
@@ -10217,28 +10289,58 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
     }
   }
   const saveAssignments = () => {
-    if (!canCreate || !header.date || !header.shiftCode) return
+    if (!canCreate || !header.weekStart || !header.shiftCode) return
     const shift = shiftByCode[header.shiftCode]
     if (!shift) {
       setNotice('Vui lòng chọn ca làm việc.')
       return
     }
-    const assignments = assignmentRows.map((row) => buildAssignment(row, draftRows[row.id], shift))
+    const assignments = targetDates.flatMap((workDate) => assignmentRows.map((row) => buildAssignment(row, draftRows[row.id], shift, workDate)))
     setData((current) => {
       const remainingAssignments = (current.productionAssignments || []).filter((item) => (
-        (item.workDate || item.date) !== header.date
+        !targetDates.includes(item.workDate || item.date)
         || item.shiftCode !== header.shiftCode
         || !assignmentRows.some((row) => row.id === item.assignmentRowId)
       ))
       return addLogToData({
         ...current,
         productionAssignments: [...assignments, ...remainingAssignments],
-      }, `Lưu bảng phân công nhân sự ca ${shift.code} ngày ${header.date}.`, operationLogMeta(user, { assignments, employee: assignments.flatMap(assignmentEmployeeNames).join(', '), stage: 'Phân công nhân sự', result: 'Lưu bảng phân công' }))
+      }, `Lưu bảng phân công nhân sự ca ${shift.code} tuần ${header.weekStart} - ${getWeekEndText(header.weekStart)}.`, operationLogMeta(user, { assignments, employee: assignments.flatMap(assignmentEmployeeNames).join(', '), stage: 'Phân công nhân sự', result: 'Lưu bảng phân công' }))
     })
-    setNotice('Đã lưu bảng phân công nhân sự theo ngày/ca.')
+    setNotice(header.editSingleDay ? `Đã lưu phân công ngày ${header.date}.` : `Đã lưu phân công cho tuần ${header.weekStart} - ${getWeekEndText(header.weekStart)}.`)
+  }
+  const copyPreviousWeek = () => {
+    const previousWeekStart = addDaysText(header.weekStart, -7)
+    const previousDates = getWeekDates(previousWeekStart)
+    const previousAssignments = (data.productionAssignments || []).filter((item) => (
+      previousDates.includes(item.workDate || item.date)
+      && item.shiftCode === header.shiftCode
+      && assignmentRows.some((row) => row.id === item.assignmentRowId)
+    ))
+    if (!previousAssignments.length) {
+      setNotice('Tuần trước chưa có phân công để sao chép')
+      return
+    }
+    const nextDraft = buildDraftRows()
+    assignmentRows.forEach((row) => {
+      const source = previousAssignments.find((item) => item.assignmentRowId === row.id)
+      if (!source) return
+      nextDraft[row.id] = {
+        ...nextDraft[row.id],
+        role: source.operationPosition || source.operationPositionLabel || row.role,
+        stage: source.stage || source.processName || row.stage,
+        processStages: assignmentStages(source).length ? assignmentStages(source) : row.processStages,
+        employeeCodes: row.inputType === 'employee' ? assignmentEmployeeCodes(source).slice(0, 1) : [],
+        selectedTeamCode: row.inputType === 'team' ? (source.teamCode || row.teamCode) : row.teamCode,
+        note: source.note || source.assignmentNote || '',
+        status: source.status || 'Chưa bắt đầu',
+      }
+    })
+    setDraftRows(nextDraft)
+    setNotice('Đã sao chép phân công tuần trước. Vui lòng kiểm tra và bấm Lưu phân công.')
   }
   const visibleAssignments = (data.productionAssignments || [])
-    .filter((item) => (item.workDate || item.date) === header.date && item.shiftCode === header.shiftCode)
+    .filter((item) => targetDates.includes(item.workDate || item.date) && item.shiftCode === header.shiftCode)
     .slice()
     .sort((a, b) => `${a.assignedAt || ''}`.localeCompare(`${b.assignedAt || ''}`, 'vi', { numeric: true }))
   const updateAssignmentStatus = (assignmentId, status) => {
@@ -10255,49 +10357,55 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
         <div className="section-heading-row">
           <div>
             <span className="section-kicker">Sản xuất</span>
-            <h2>Bảng phân công nhân sự theo ngày</h2>
-            <p className="panel-text">Chọn ngày, ca và phân công đồng thời cho toàn bộ tổ trong một bảng.</p>
+            <h2>Bảng phân công nhân sự theo tuần</h2>
+            <p className="panel-text">Chọn tuần, ca và phân công một lần cho cả tuần. Có thể bật chỉnh sửa riêng từng ngày khi cần.</p>
           </div>
-          <button className="primary-button" type="button" disabled={!canCreate} onClick={saveAssignments}>Lưu phân công</button>
+          <div className="action-row">
+            <button className="secondary-button" type="button" disabled={!canCreate} onClick={copyPreviousWeek}>Sao chép tuần trước</button>
+            <button className="primary-button" type="button" disabled={!canCreate} onClick={saveAssignments}>Lưu phân công</button>
+          </div>
         </div>
         <div className="assignment-day-controls">
-          <label>Ngày<input type="date" value={header.date} onChange={(event) => setHeader((current) => ({ ...current, date: event.target.value }))} /></label>
+          <label>Tuần<input type="week" value={getIsoWeekInputValue(header.weekStart)} onChange={(event) => {
+            const weekStart = getWeekStartFromIsoWeek(event.target.value)
+            setHeader((current) => ({ ...current, weekStart, date: weekStart }))
+          }} /></label>
           <label>Ca làm việc<select value={header.shiftCode} onChange={(event) => setHeader((current) => ({ ...current, shiftCode: event.target.value }))}>{shifts.map((shift) => <option key={shift.code} value={shift.code}>{shift.code} / {shift.name}</option>)}</select></label>
+          <label className="assignment-specific-day"><span>Chỉnh sửa ngày cụ thể</span><input type="checkbox" checked={header.editSingleDay} onChange={(event) => setHeader((current) => ({ ...current, editSingleDay: event.target.checked }))} /></label>
+          {header.editSingleDay && <label>Ngày<input type="date" min={header.weekStart} max={getWeekEndText(header.weekStart)} value={header.date} onChange={(event) => setHeader((current) => ({ ...current, date: event.target.value }))} /></label>}
         </div>
         <div className="table-wrap">
           <table className="production-table assignment-planning-table">
             <thead>
               <tr>
-                <th>STT</th>
                 <th>Tổ sản xuất</th>
                 <th>Vai trò</th>
-                <th>Công đoạn</th>
-                <th>Nhân viên</th>
+                <th>Người phụ trách / Team</th>
                 <th>Ghi chú</th>
-                <th>Hành động</th>
+                <th>Trạng thái</th>
               </tr>
             </thead>
             <tbody>
-              {assignmentRows.map((row, index) => {
+              {assignmentRows.map((row) => {
                 const draft = draftRows[row.id]
                 const employees = getEmployeesByTeam(row.teamCode)
+                const selectedTeam = teamByCode[draft.selectedTeamCode] || { code: draft.selectedTeamCode, name: teamNameByCode(draft.selectedTeamCode) }
                 return (
                   <tr key={row.id}>
-                    <td>{index + 1}</td>
-                    <td>{teamByCode[row.teamCode]?.name || teamNameByCode(row.teamCode)}</td>
-                    <td>{row.roleEditable ? (
-                      <select value={draft.role} onChange={(event) => updateMixingRole(row.id, event.target.value)}>
-                        <option>Tổ trên</option>
-                        <option>Tổ dưới</option>
-                      </select>
-                    ) : draft.role}</td>
-                    <td>{draft.stage}</td>
+                    <td>{row.inputType === 'team' ? selectedTeam.name : (teamByCode[row.teamCode]?.name || teamNameByCode(row.teamCode))}</td>
+                    <td>{draft.role}</td>
                     <td>
-                      <AssignmentEmployeeMultiSelect
-                        employees={employees}
-                        selectedCodes={draft.employeeCodes}
-                        onChange={(employeeCodes) => updateDraftRow(row.id, { employeeCodes })}
-                      />
+                      {row.inputType === 'team' ? (
+                        <select value={draft.selectedTeamCode} onChange={(event) => updateDraftRow(row.id, { selectedTeamCode: event.target.value })}>
+                          {(mixingTeams.length ? mixingTeams : [{ code: 'TP1', name: teamNameByCode('TP1') }, { code: 'TP2', name: teamNameByCode('TP2') }]).map((team) => <option key={team.code} value={team.code}>{team.name}</option>)}
+                        </select>
+                      ) : (
+                        <AssignmentEmployeeSingleSelect
+                          employees={employees}
+                          selectedCode={draft.employeeCodes[0] || ''}
+                          onChange={(employeeCode) => updateDraftRow(row.id, { employeeCodes: employeeCode ? [employeeCode] : [] })}
+                        />
+                      )}
                     </td>
                     <td><input value={draft.note} onChange={(event) => updateDraftRow(row.id, { note: event.target.value })} placeholder="Ghi chú" /></td>
                     <td>
@@ -10318,16 +10426,14 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       </section>
       <section className="panel">
         <h3>Bảng phân công đã lưu</h3>
-        <SimpleTable tableClassName="production-assignment-table" headers={['Ngày', 'Ca', 'Tổ sản xuất', 'Vai trò', 'Công đoạn', 'Nhân viên đã phân công', 'Người phân công', 'Thời gian phân công', 'Trạng thái']} rows={visibleAssignments.map((item) => (
+        <SimpleTable tableClassName="production-assignment-table" headers={['Ngày', 'Ca', 'Tổ sản xuất', 'Vai trò', 'Người phụ trách / Team', 'Ghi chú', 'Trạng thái']} rows={visibleAssignments.map((item) => (
           <tr key={item.id || item.assignmentId}>
             <td>{item.workDate || item.date}</td>
             <td>{item.shiftCode} / {item.shiftName}</td>
             <td>{item.teamName || item.productionTeamName || item.productionTeam || '-'}</td>
             <td>{normalizeAssignmentRoleLabel(item.operationPositionLabel || item.operationPosition || item.weeklyRole)}</td>
-            <td>{assignmentStages(item).join(', ')}</td>
             <td>{formatAssignmentEmployees(item)}</td>
-            <td>{item.assignedBy}</td>
-            <td>{item.assignedAt}</td>
+            <td>{item.note || item.assignmentNote || '-'}</td>
             <td>
               <select value={item.status} disabled={!canEdit} onChange={(event) => updateAssignmentStatus(item.id || item.assignmentId, event.target.value)}>
                 <option>Chưa bắt đầu</option>
@@ -10337,7 +10443,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
               </select>
             </td>
           </tr>
-        ))} empty="Chưa có phân công cho ngày/ca đang chọn." />
+        ))} empty="Chưa có phân công cho tuần/ca đang chọn." />
       </section>
     </div>
   )
