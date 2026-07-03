@@ -1758,8 +1758,11 @@ tbody tr:hover {
 .qr-print-ticket {
   display: grid;
   justify-items: center;
-  gap: 14px;
-  padding: 24px;
+  gap: 8px;
+  width: min(80mm, 100%);
+  min-height: 120mm;
+  margin: 0 auto;
+  padding: 8mm 7mm;
   border: 1px solid rgba(7, 34, 26, 0.18);
   border-radius: 8px;
   background: #ffffff;
@@ -1769,40 +1772,44 @@ tbody tr:hover {
 .qr-print-ticket h1 {
   margin: 0;
   color: #0b2d23;
-  font-size: 18px;
+  font-size: 15px;
   text-align: center;
   letter-spacing: 0;
+  line-height: 1.2;
 }
 
 .qr-print-code {
   display: grid;
   place-items: center;
-  width: 244px;
-  height: 244px;
+  width: 55mm;
+  height: 55mm;
   border: 1px solid rgba(7, 34, 26, 0.16);
   border-radius: 8px;
   background: #ffffff;
 }
 
 .qr-print-text {
-  font-size: 1.2rem;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.25;
   overflow-wrap: anywhere;
   text-align: center;
 }
 
 .qr-print-info {
-  width: min(620px, 100%);
+  width: 100%;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 14px;
+  grid-template-columns: 1fr;
+  gap: 0;
+  font-size: 11px;
 }
 
 .qr-print-info div {
   display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: 10px;
+  grid-template-columns: 19mm 1fr;
+  gap: 6px;
   align-items: baseline;
-  padding: 8px 0;
+  padding: 4px 0;
   border-bottom: 1px solid rgba(7, 34, 26, 0.12);
 }
 
@@ -1827,17 +1834,17 @@ tbody tr:hover {
 
   .qr-print-ticket {
     position: fixed;
-    inset: 0;
-    width: 100%;
-    min-height: 100%;
+    inset: 0 auto auto 0;
+    width: 80mm;
+    min-height: 120mm;
     border: 0;
     border-radius: 0;
     box-shadow: none;
-    padding: 24px;
+    padding: 8mm 7mm;
   }
 
   .qr-print-info {
-    width: 620px;
+    width: 100%;
   }
 }
 

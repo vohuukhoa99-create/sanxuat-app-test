@@ -2454,17 +2454,64 @@ function qc2FinalWeight(order = {}) {
   return num(order.qc2FinalWeight ?? order.mixing?.finalWeightKg ?? order.mixingFinalWeightKg ?? order.quantityKg)
 }
 
+function materialGroupCode(group) {
+  return group === CHEMICAL ? 'HOA' : 'RAN'
+}
+
+function materialGroupDisplayCode(group) {
+  return group === CHEMICAL ? 'MIX-HÓA' : 'MIX-RẮN'
+}
+
+function parseMixQrPayload(value = '') {
+  let rawValue = String(value || '').trim()
+  try {
+    const parsed = JSON.parse(rawValue)
+    rawValue = parsed?.qrCode || rawValue
+  } catch {
+    // QR may be plain text.
+  }
+  const text = rawValue.trim()
+  const upperText = text.toUpperCase()
+  const modernMatch = upperText.match(/^(MIX-(?:HOA|RAN))\|(.+)$/)
+  if (modernMatch) return { raw: text, normalized: `${modernMatch[1]}|${modernMatch[2].trim().toUpperCase()}`, prefix: modernMatch[1], lot: modernMatch[2].trim() }
+  const legacyMatch = upperText.match(/^(MIX-(?:HOA|RAN))-LSX-/)
+  if (legacyMatch) return { raw: text, normalized: upperText, prefix: legacyMatch[1], lot: '' }
+  return { raw: text, normalized: upperText, prefix: '', lot: '' }
+}
+
+function getMixContainerLot(container = {}) {
+  const parsed = parseMixQrPayload(container.qrCode || container.containerQr || '')
+  return parsed.lot || container.lotCode || container.lot || ''
+}
+
+function createContainerQrCode(group, order = {}, containers = []) {
+  const lotCode = typeof order === 'string' ? order : getOrderLotCode(order)
+  if (lotCode) return `MIX-${materialGroupCode(group)}|${lotCode}`
+  const nextNo = normalizeWeighedContainers(containers).filter((item) => parseMixQrPayload(item.qrCode).prefix === `MIX-${materialGroupCode(group)}`).length + 1
+  return `MIX-${materialGroupCode(group)}|TEMP-${todayText().replaceAll('-', '')}-${String(nextNo).padStart(3, '0')}`
+}
+
+function getContainerQrDisplay(container = {}) {
+  const group = container.materialGroup === CHEMICAL ? CHEMICAL : SOLID
+  const lotCode = getMixContainerLot(container)
+  return `${materialGroupDisplayCode(group)} - ${lotCode || '-'}`
+}
+
 function normalizeWeighedContainers(containers = []) {
   return (containers || []).filter(Boolean).map((item, index) => {
-    const qrCode = item.qrCode || item.containerQr || `MIX-${index + 1}`
+    const group = item.materialGroup || ''
+    const sourceQrCode = item.qrCode || item.containerQr || `MIX-${index + 1}`
+    const lot = getMixContainerLot({ ...item, qrCode: sourceQrCode })
+    const parsedQr = parseMixQrPayload(sourceQrCode)
+    const qrCode = parsedQr.prefix && lot ? `${parsedQr.prefix}|${lot}` : sourceQrCode
     return {
       containerId: item.containerId || item.id || `CNT-${qrCode}`,
       qrCode,
       orderId: item.orderId || '',
       orderCode: item.orderCode || item.orderId || '',
       productName: item.productName || item.product || '',
-      lot: item.lot || '',
-      materialGroup: item.materialGroup || '',
+      lot,
+      materialGroup: group,
       materials: item.materials || [],
       totalWeight: num(item.totalWeight ?? item.weight),
       weighedBy: item.weighedBy || item.operator || '',
@@ -2475,28 +2522,15 @@ function normalizeWeighedContainers(containers = []) {
   })
 }
 
-function materialGroupCode(group) {
-  return group === CHEMICAL ? 'HOA' : 'RAN'
-}
-
-function createContainerQrCode(group, containers = []) {
-  const date = todayText().replaceAll('-', '')
-  const prefix = `MIX-${materialGroupCode(group)}-LSX-${date}`
-  const nextNo = normalizeWeighedContainers(containers).filter((item) => String(item.qrCode || '').startsWith(prefix)).length + 1
-  return `${prefix}-${String(nextNo).padStart(3, '0')}`
-}
-
 function getContainerByQr(containers = [], qr = '') {
-  let rawValue = String(qr || '').trim()
-  try {
-    const parsed = JSON.parse(rawValue)
-    rawValue = parsed?.qrCode || rawValue
-  } catch {
-    // QR may be the plain mixed-container code.
-  }
-  const value = rawValue.toUpperCase()
-  if (!value) return null
-  return normalizeWeighedContainers(containers).find((item) => String(item.qrCode || '').trim().toUpperCase() === value)
+  const scanned = parseMixQrPayload(qr)
+  if (!scanned.normalized) return null
+  return normalizeWeighedContainers(containers).find((item) => {
+    const stored = parseMixQrPayload(item.qrCode || item.containerQr || '')
+    const lot = getMixContainerLot(item)
+    const modernStored = stored.prefix && lot ? `${stored.prefix}|${String(lot).trim().toUpperCase()}` : stored.normalized
+    return modernStored === scanned.normalized || stored.normalized === scanned.normalized
+  })
 }
 
 function getOrderGroupContainers(containers = [], order = {}, weighingType = 'Cân chính') {
@@ -2508,7 +2542,8 @@ function getOrderGroupContainers(containers = [], order = {}, weighingType = 'C�
 }
 
 function buildWeighedContainer(order, group, items, containers = [], weighingType = 'Cân chính', qrCodeOverride = '') {
-  const qrCode = qrCodeOverride || createContainerQrCode(group, containers)
+  const qrCode = qrCodeOverride || createContainerQrCode(group, order, containers)
+  const lotCode = getOrderLotCode(order)
   const completedAt = nowText()
   const materials = items.map((item) => ({
     id: item.id,
@@ -2530,7 +2565,7 @@ function buildWeighedContainer(order, group, items, containers = [], weighingTyp
     orderId: order.id,
     orderCode: order.orderCode || order.id,
     productName: order.productName || order.product,
-    lot: order.lot,
+    lot: lotCode,
     materialGroup: group,
     materials,
     totalWeight: Number(materials.reduce((sum, item) => sum + num(item.actualWeight), 0).toFixed(3)),
@@ -2552,7 +2587,8 @@ function findChemicalMixContainer(containers = [], order = {}) {
 
 function buildChemicalMixContainer(order, containers = []) {
   const chemicalItems = getEffectiveFormula(order).filter((item) => normalizeMainGroup(item.mainGroup || item.materialGroup || item.group || CHEMICAL) === MAIN_GROUP_CHEMICAL)
-  const qrCode = order.chemicalMixQrCode || createContainerQrCode(CHEMICAL, containers)
+  const storedQr = parseMixQrPayload(order.chemicalMixQrCode || '')
+  const qrCode = storedQr.lot ? storedQr.normalized : createContainerQrCode(CHEMICAL, order, containers)
   return {
     ...buildWeighedContainer(order, CHEMICAL, chemicalItems, containers, 'Cân chính', qrCode),
     qrCode,
@@ -2562,8 +2598,8 @@ function buildChemicalMixContainer(order, containers = []) {
 }
 
 function updateContainerStatuses(containers = [], qrCodes = [], status) {
-  const qrSet = new Set(qrCodes.filter(Boolean).map((item) => String(item).trim().toUpperCase()))
-  return normalizeWeighedContainers(containers).map((item) => qrSet.has(String(item.qrCode || '').trim().toUpperCase()) ? { ...item, status } : item)
+  const qrSet = new Set(qrCodes.filter(Boolean).map((item) => parseMixQrPayload(item).normalized).filter(Boolean))
+  return normalizeWeighedContainers(containers).map((item) => qrSet.has(parseMixQrPayload(item.qrCode || '').normalized) ? { ...item, status } : item)
 }
 
 function updateMixingMachineStatus(machines = [], machineCode = '', status = 'READY') {
@@ -2575,16 +2611,7 @@ function updateMixingMachineStatus(machines = [], machineCode = '', status = 'RE
 }
 
 function getContainerQrValue(container = {}) {
-  return JSON.stringify({
-    qrCode: container.qrCode || '',
-    orderCode: container.orderCode || '',
-    productName: container.productName || '',
-    lot: container.lot || '',
-    materialGroup: container.materialGroup || '',
-    totalWeight: num(container.totalWeight),
-    weighingType: container.weighingType || '',
-    status: container.status || '',
-  })
+  return parseMixQrPayload(container.qrCode || '').normalized || container.qrCode || ''
 }
 
 function demoQrMaterials(group, entries, time) {
@@ -5671,7 +5698,7 @@ function ChemicalMixSummary({ order, lineState, canPrint, onPrint }) {
       )}
       {order.chemicalMixQrCode && (
         <div className="chemical-mix-qr-meta">
-          <span>QR: <strong>{order.chemicalMixQrCode}</strong></span>
+          <span>QR: <strong>{getContainerQrDisplay({ qrCode: order.chemicalMixQrCode, lot: getOrderLotCode(order), materialGroup: CHEMICAL })}</strong></span>
           <span>Lần in: <strong>{num(order.chemicalMixQrPrintCount)}</strong></span>
           <span>In gần nhất: <strong>{order.chemicalMixQrPrintedAt || '-'}</strong></span>
         </div>
@@ -5976,11 +6003,11 @@ function WeighingPage({ data = {}, setData, group, user }) {
 
   const handleViewWeighingDetail = (container) => {
     setWeighingDetailModal(container)
-    setData((current) => addLogToData(current, `Xem chi tiết cân ${container.materialGroup} ${container.qrCode} cho lệnh ${container.orderCode}.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: assignmentStage, order: container.orderCode, result: 'Xem chi tiết cân' })))
+    setData((current) => addLogToData(current, `Xem chi tiết cân ${container.materialGroup} ${getContainerQrDisplay(container)} cho mã lô ${getMixContainerLot(container) || '-'}.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: assignmentStage, order: getMixContainerLot(container) || container.orderCode, result: 'Xem chi tiết cân' })))
   }
   const handlePrintQr = (container) => {
     setPrintQrModal(container)
-    setData((current) => addLogToData(current, `In QR hỗn hợp ${container.materialGroup} ${container.qrCode} cho lệnh ${container.orderCode}.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: assignmentStage, order: container.orderCode, result: 'In QR hỗn hợp' })))
+    setData((current) => addLogToData(current, `In QR hỗn hợp ${container.materialGroup} ${getContainerQrDisplay(container)} cho mã lô ${getMixContainerLot(container) || '-'}.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: assignmentStage, order: getMixContainerLot(container) || container.orderCode, result: 'In QR hỗn hợp' })))
     if (container.materialGroup === CHEMICAL) {
       const printedAt = nowText()
       setData((current) => ({
@@ -6001,7 +6028,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
     setTimeout(() => window.print(), 80)
   }
   const printSelectedContainer = (container) => {
-    setData((current) => addLogToData(current, `In QR hỗn hợp ${container.materialGroup} ${container.qrCode} cho lệnh ${container.orderCode}.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: assignmentStage, order: container.orderCode, result: 'In QR hỗn hợp' })))
+    setData((current) => addLogToData(current, `In QR hỗn hợp ${container.materialGroup} ${getContainerQrDisplay(container)} cho mã lô ${getMixContainerLot(container) || '-'}.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: assignmentStage, order: getMixContainerLot(container) || container.orderCode, result: 'In QR hỗn hợp' })))
     setTimeout(() => window.print(), 50)
   }
 
@@ -6014,7 +6041,9 @@ function WeighingPage({ data = {}, setData, group, user }) {
       const sourceOrder = current.orders.find((item) => item.id === activeOrder.id) || activeOrder
       const normalizedContainers = normalizeWeighedContainers(current.weighedContainers || [])
       const existingContainer = findChemicalMixContainer(normalizedContainers, sourceOrder)
-      const qrCode = sourceOrder.chemicalMixQrCode || existingContainer?.qrCode || createContainerQrCode(CHEMICAL, normalizedContainers)
+      const preferredQrCode = createContainerQrCode(CHEMICAL, sourceOrder, normalizedContainers)
+      const storedQrCode = sourceOrder.chemicalMixQrCode || existingContainer?.qrCode || ''
+      const qrCode = parseMixQrPayload(storedQrCode).lot ? parseMixQrPayload(storedQrCode).normalized : preferredQrCode
       printableContainer = existingContainer
         ? { ...existingContainer, qrCode, chemicalMixQrCode: qrCode, status: 'Đã in QR' }
         : { ...buildChemicalMixContainer({ ...sourceOrder, chemicalMixQrCode: qrCode }, normalizedContainers), status: 'Đã in QR' }
@@ -6459,8 +6488,8 @@ function WeighingPage({ data = {}, setData, group, user }) {
               headers={['Mã QR hỗn hợp', 'Mã lô', 'Sản phẩm', 'Nhóm hỗn hợp', 'Tổng kg', 'Thời gian cân', 'Trạng thái', 'Hành động']}
               rows={completedWeighingContainers.map((container) => (
                 <tr key={container.containerId || container.qrCode}>
-                  <td>{container.qrCode}</td>
-                  <td>{container.lot || container.orderCode}</td>
+                  <td>{getContainerQrDisplay(container)}</td>
+                  <td>{getMixContainerLot(container) || '-'}</td>
                   <td>{container.productName}</td>
                   <td>{container.materialGroup}</td>
                   <td>{kg(container.totalWeight)}</td>
@@ -6498,11 +6527,11 @@ function WeighingPage({ data = {}, setData, group, user }) {
         <div className="modal-backdrop" role="presentation">
           <div className="mixing-modal weighed-container-modal" role="dialog" aria-modal="true">
             <div className="modal-header">
-              <div><span className="section-kicker">Chi tiết cân</span><h2>{weighingDetailModal.orderCode}</h2></div>
+              <div><span className="section-kicker">Chi tiết cân</span><h2>{getMixContainerLot(weighingDetailModal) || weighingDetailModal.orderCode}</h2></div>
               <button type="button" className="icon-button" onClick={() => setWeighingDetailModal(null)} aria-label="Đóng">×</button>
             </div>
             <div className="weighed-container-detail-grid">
-              <div><span>Mã lô</span><strong>{weighingDetailModal.lot || weighingDetailModal.orderCode}</strong></div>
+              <div><span>Mã lô</span><strong>{getMixContainerLot(weighingDetailModal) || '-'}</strong></div>
               <div><span>Sản phẩm</span><strong>{weighingDetailModal.productName}</strong></div>
               <div><span>Nhóm hỗn hợp</span><strong>{weighingDetailModal.materialGroup}</strong></div>
               <div><span>Tổng kg</span><strong>{kg(weighingDetailModal.totalWeight)}</strong></div>
@@ -6543,12 +6572,12 @@ function WeighedContainerCard({ container, onPrint, onDetail, title = 'QR hỗn 
       <div className="section-heading-row">
         <div>
           <span className="section-kicker">{title}</span>
-          <h3>{container.qrCode}</h3>
+          <h3>{getContainerQrDisplay(container)}</h3>
         </div>
         <span className="dispatch-badge ready">{container.status}</span>
       </div>
       <div className="weighed-container-grid">
-        <div><span>Mã lô</span><strong>{container.lot || container.orderCode}</strong></div>
+        <div><span>Mã lô</span><strong>{getMixContainerLot(container) || '-'}</strong></div>
         <div><span>Sản phẩm</span><strong>{container.productName}</strong></div>
         <div><span>Nhóm hỗn hợp</span><strong>{container.materialGroup}</strong></div>
         <div><span>Tổng kg</span><strong>{kg(container.totalWeight)}</strong></div>
@@ -6563,20 +6592,20 @@ function WeighedContainerCard({ container, onPrint, onDetail, title = 'QR hỗn 
 }
 
 function QrPrintTicket({ container }) {
+  const qrDisplay = getContainerQrDisplay(container)
+  const lotCode = getMixContainerLot(container) || '-'
   return (
     <section className="qr-print-ticket">
       <h1>QR HỖN HỢP ĐÃ CÂN</h1>
       <div className="qr-print-code">
-        <QRCodeCanvas value={getContainerQrValue(container)} size={220} includeMargin />
+        <QRCodeCanvas value={getContainerQrValue(container)} size={180} includeMargin />
       </div>
-      <strong className="qr-print-text">{container.qrCode}</strong>
+      <strong className="qr-print-text">{qrDisplay}</strong>
       <div className="qr-print-info">
-        <div><span>Mã QR</span><strong>{container.qrCode}</strong></div>
-        <div><span>Mã lô</span><strong>{container.lot || container.orderCode}</strong></div>
+        <div><span>Mã lô</span><strong>{lotCode}</strong></div>
         <div><span>Sản phẩm</span><strong>{container.productName}</strong></div>
         <div><span>Nhóm</span><strong>{container.materialGroup}</strong></div>
         <div><span>Tổng kg</span><strong>{kg(container.totalWeight)}</strong></div>
-        <div><span>Loại cân</span><strong>{container.weighingType}</strong></div>
         <div><span>Thời gian</span><strong>{container.completedAt}</strong></div>
       </div>
     </section>
@@ -7239,11 +7268,12 @@ function MixingPage({ data, setData, user }) {
     const normalizedQr = String(container?.qrCode || qrText || '').trim().toUpperCase()
     const expectedPrefix = group === CHEMICAL ? 'MIX-HOA' : 'MIX-RAN'
     const expectedMainGroup = group === CHEMICAL ? MAIN_GROUP_CHEMICAL : MAIN_GROUP_SOLID
-    const orderLot = String(order.lot || order.lotCode || '').trim().toUpperCase()
+    const orderLot = String(getOrderLotCode(order) || '').trim().toUpperCase()
     const orderIdentifiers = new Set([order.id, order.orderCode, order.productionOrderCode, order.lot, order.lotCode].map(normalizeCode).filter(Boolean))
-    const containerIdentifiers = [container?.orderId, container?.orderCode, container?.lot].map(normalizeCode).filter(Boolean)
+    const containerIdentifiers = [container?.orderId, container?.orderCode, getMixContainerLot(container)].map(normalizeCode).filter(Boolean)
     const sameOrder = Boolean(container && containerIdentifiers.some((value) => orderIdentifiers.has(value)))
-    const sameLot = Boolean(container && (!orderLot || !container.lot || String(container.lot || '').trim().toUpperCase() === orderLot))
+    const containerLot = String(getMixContainerLot(container) || '').trim().toUpperCase()
+    const sameLot = Boolean(container && (!orderLot || !containerLot || containerLot === orderLot))
     const groupMatched = Boolean(container && normalizeMainGroup(container.materialGroup) === expectedMainGroup)
     const containerStatus = String(container?.status || '').trim().toUpperCase()
     const readyStatus = ['ĐÃ CÂN XONG', 'ĐÃ IN QR'].includes(containerStatus)
@@ -7365,7 +7395,7 @@ function MixingPage({ data, setData, user }) {
         return { ...item, mixingQrConfirmation: nextConfirmation, updatedAt: scannedAt }
       })
       const meta = operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: 'Phối trộn', order, result: `${group} QR PASS` })
-      return addLogToData({ ...current, orders: nextOrders }, `Quét QR hỗn hợp ${group} PASS cho lệnh ${order.orderCode || order.id}: ${result.container.qrCode || qrText}.`, meta)
+      return addLogToData({ ...current, orders: nextOrders }, `Quét QR hỗn hợp ${group} PASS cho mã lô ${getOrderLotCode(order)}: ${getContainerQrDisplay(result.container)}.`, meta)
     })
     setWarning('')
   }
@@ -7541,7 +7571,9 @@ function MixingPage({ data, setData, user }) {
     setWarning('')
     const startedAt = nowText()
     const qrCodes = [order.mixingQrConfirmation?.chemicalQr, order.mixingQrConfirmation?.solidQr]
-    const startLog = `${supplement ? 'Bắt đầu phối trộn bổ sung' : 'Bắt đầu phối trộn'} lệnh ${order.orderCode || order.id}. QR Hóa: ${order.mixingQrConfirmation?.chemicalQr || '-'}, QR Rắn: ${order.mixingQrConfirmation?.solidQr || '-'}, máy trộn: ${machineLabelByCode(machineCode)}, người thao tác: ${assignmentEmployeeText || 'Tổ phối trộn'}, thời gian bắt đầu: ${startedAt}.`
+    const chemicalQrText = order.mixingQrConfirmation?.chemicalQr ? getContainerQrDisplay({ qrCode: order.mixingQrConfirmation.chemicalQr, lot: getOrderLotCode(order), materialGroup: CHEMICAL }) : '-'
+    const solidQrText = order.mixingQrConfirmation?.solidQr ? getContainerQrDisplay({ qrCode: order.mixingQrConfirmation.solidQr, lot: getOrderLotCode(order), materialGroup: SOLID }) : '-'
+    const startLog = `${supplement ? 'Bắt đầu phối trộn bổ sung' : 'Bắt đầu phối trộn'} mã lô ${getOrderLotCode(order)}. QR Hóa: ${chemicalQrText}, QR Rắn: ${solidQrText}, máy trộn: ${machineLabelByCode(machineCode)}, người thao tác: ${assignmentEmployeeText || 'Tổ phối trộn'}, thời gian bắt đầu: ${startedAt}.`
     setData((current) => addLogToData({
       ...current,
       weighedContainers: updateContainerStatuses(current.weighedContainers || [], qrCodes, 'Đã chuyển phối trộn'),
@@ -9301,7 +9333,7 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
     return (
       <>
         {renderKpis(reportKpis.qr)}
-        <section className="panel report-table-panel"><h2>QR hỗn hợp đã tạo</h2><SimpleTable tableClassName="report-wide-table" headers={['QR', 'Mã lô', 'Nhóm', 'Khối lượng', 'Trạng thái', 'Thời gian']} rows={weighedContainers.map((item) => <tr key={item.id || item.qrCode}><td>{item.qrCode || item.id}</td><td>{item.lot || item.orderCode || item.orderId || '-'}</td><td>{item.materialGroup || '-'}</td><td>{kg(item.totalWeight || item.weight)}</td><td>{item.status || '-'}</td><td>{item.createdAt || item.confirmedAt || '-'}</td></tr>)} /></section>
+        <section className="panel report-table-panel"><h2>QR hỗn hợp đã tạo</h2><SimpleTable tableClassName="report-wide-table" headers={['QR', 'Mã lô', 'Nhóm', 'Khối lượng', 'Trạng thái', 'Thời gian']} rows={weighedContainers.map((item) => <tr key={item.id || item.qrCode}><td>{getContainerQrDisplay(item)}</td><td>{getMixContainerLot(item) || '-'}</td><td>{item.materialGroup || '-'}</td><td>{kg(item.totalWeight || item.weight)}</td><td>{item.status || '-'}</td><td>{item.createdAt || item.confirmedAt || '-'}</td></tr>)} /></section>
         <section className="panel report-table-panel"><h2>Lỗi xác nhận QR</h2><SimpleTable headers={['Thời gian', 'Nội dung']} rows={qrFailLogs.map((log) => <tr key={log.id}><td>{log.time || '-'}</td><td>{log.entry}</td></tr>)} /></section>
       </>
     )
