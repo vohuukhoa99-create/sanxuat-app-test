@@ -7240,9 +7240,7 @@ function getMixingDispatchState(order) {
   if (order.stage === 'mixing-supplement') return { label: 'Chờ phối trộn bổ sung', className: 'ready', canStart: true, supplement: true }
   if (chemicalDone && solidDone) return { label: hasAssignedMachine ? 'Sẵn sàng phối trộn' : 'Chưa chỉ định máy', className: hasAssignedMachine ? 'ready' : 'waiting', canStart: hasAssignedMachine }
   if (chemicalFlow.status === 'weighing' || solidFlow.status === 'weighing' || order.stage === 'supplement-weighing') return { label: 'Đang cân', className: 'weighing', canStart: false }
-  if (!chemicalDone && !solidDone) return { label: 'Chờ cân hóa/rắn', className: 'waiting', canStart: false }
-  if (!chemicalDone) return { label: chemicalFlow.label, className: 'waiting', canStart: false }
-  if (!solidDone) return { label: solidFlow.label, className: 'waiting', canStart: false }
+  if (!chemicalDone || !solidDone) return { label: 'Chờ cân', className: 'waiting', canStart: false }
   return { label: 'Chờ cân', className: 'waiting', canStart: false }
 }
 
@@ -7342,7 +7340,6 @@ function MixingPage({ data, setData, user }) {
   const mixingQrReady = (order) => (
     (!requiresMixingQr(order, CHEMICAL) || getMixingQrScan(order, CHEMICAL).pass)
     && (!requiresMixingQr(order, SOLID) || getMixingQrScan(order, SOLID).pass)
-    && getMachineQrScan(order).pass
   )
   const validateSingleMixingQr = (order, qrText, group) => {
     const container = getContainerByQr(data.weighedContainers || [], qrText)
@@ -7415,18 +7412,15 @@ function MixingPage({ data, setData, user }) {
   const getMixingStartValidation = (order) => {
     const chemicalScan = getMixingQrScan(order, CHEMICAL)
     const solidScan = getMixingQrScan(order, SOLID)
-    const machineScan = getMachineQrScan(order)
     const requiresChemical = requiresMixingQr(order, CHEMICAL)
     const requiresSolid = requiresMixingQr(order, SOLID)
     const chemicalOk = !requiresChemical || chemicalScan.pass
     const solidOk = !requiresSolid || solidScan.pass
-    const machineOk = machineScan.pass
     const messages = [
       !chemicalOk ? (chemicalScan.message || 'Chờ quét MIX Hóa.') : '',
       !solidOk ? (solidScan.message || 'Chờ quét MIX Rắn.') : '',
-      !machineOk ? (machineScan.message || 'Chờ quét Máy.') : '',
     ].filter(Boolean)
-    return { ok: chemicalOk && solidOk && machineOk, chemicalScan, solidScan, machineScan, requiresChemicalQr: requiresChemical, requiresSolidQr: requiresSolid, messages }
+    return { ok: chemicalOk && solidOk, chemicalScan, solidScan, requiresChemicalQr: requiresChemical, requiresSolidQr: requiresSolid, messages }
   }
   const scanMixingQr = (order, group, value) => {
     const qrText = String(value || '').trim()
@@ -7540,6 +7534,29 @@ function MixingPage({ data, setData, user }) {
   const handleMixingMachineQrInputBlur = (event, order) => {
     if (event.currentTarget.value.trim()) scanMixingMachineQr(order, event.currentTarget.value)
   }
+  const renderMixQrCell = ({ order, group, flow, scan, requiresQr, fail, isMixingActive }) => {
+    const isChemical = group === CHEMICAL
+    const field = qrFieldByGroup(group)
+    const okText = isChemical ? '✓ OK Hóa' : '✓ OK Rắn'
+    const waitingText = isChemical ? 'Chờ quét MIX Hóa' : 'Chờ quét MIX Rắn'
+    const failText = isChemical ? '✕ Sai QR Hóa' : '✕ Sai QR Rắn'
+    const handleKeyDown = (event) => handleMixingQrInputKeyDown(event, order, group)
+    const handleBlur = (event) => handleMixingQrInputBlur(event, order, group)
+    if (isMixingActive) return <span className="weighing-check">{okText}</span>
+    if (flow.status === 'not_required') return <span className="dispatch-badge locked">Không yêu cầu</span>
+    if (flow.status === 'pending') return <span className="dispatch-badge waiting">Chưa cân</span>
+    if (flow.status === 'weighing') return <span className="dispatch-badge mixing">Đang cân</span>
+    if (requiresQr && scan.pass) return <span className="weighing-check">{okText}</span>
+    if (requiresQr) {
+      return (
+        <>
+          {fail && <><span className="dispatch-badge fail">{failText}</span><small>{scan.state?.message || scan.message || 'Không đúng lệnh này'}</small></>}
+          <input className="mixing-qr-input qr-input" value={qrForms[order.id]?.[field] || ''} onChange={(event) => updateQrForm(order.id, field, event.target.value)} onKeyDown={handleKeyDown} onBlur={handleBlur} placeholder={waitingText} />
+        </>
+      )
+    }
+    return <span className="dispatch-badge waiting">Chưa cân</span>
+  }
   const createDemoQrData = () => {
     setData((current) => applyDemoQrData(current))
     setWarning('Đã tạo dữ liệu demo QR hỗn hợp. Có sẵn 1 mã lô PASS, 1 mã lô sai và 1 mã nhóm sai.')
@@ -7622,7 +7639,7 @@ function MixingPage({ data, setData, user }) {
     const supplement = order.stage === 'mixing-supplement'
     const machineCode = getAssignedMachineCode(order)
     if (!machineCode) {
-      setWarning('Chưa được Phòng SX chỉ định máy.')
+      setWarning('Lệnh chưa chỉ định máy trộn')
       return
     }
     if (!activeMachines.some((machine) => machine.machineCode === machineCode)) {
@@ -7763,11 +7780,8 @@ function MixingPage({ data, setData, user }) {
                   <th>Mã lô</th>
                   <th>Sản phẩm</th>
                   <th>Máy trộn</th>
-                  <th>Cân hóa</th>
-                  <th>Cân rắn</th>
-                  <th>QR Hóa</th>
-                  <th>QR Rắn</th>
-                  <th>QR Máy</th>
+                  <th>Mix Hóa</th>
+                  <th>Mix Rắn</th>
                   <th>Trạng thái</th>
                   <th>Hành động</th>
               </tr>
@@ -7776,7 +7790,6 @@ function MixingPage({ data, setData, user }) {
                 {readyOrders.map((order) => {
                   const chemicalScan = getMixingQrScan(order, CHEMICAL)
                   const solidScan = getMixingQrScan(order, SOLID)
-                  const machineScan = getMachineQrScan(order)
                   const startValidation = getMixingStartValidation(order)
                   const requiresChemicalQr = requiresMixingQr(order, CHEMICAL)
                   const requiresSolidQr = requiresMixingQr(order, SOLID)
@@ -7784,8 +7797,7 @@ function MixingPage({ data, setData, user }) {
                   const solidFlow = getWeighingGroupFlow(order, SOLID)
                   const chemicalFail = chemicalScan.state?.status === 'fail'
                   const solidFail = solidScan.state?.status === 'fail'
-                  const machineFail = machineScan.state?.status === 'fail'
-                  const qrFailed = chemicalFail || solidFail || machineFail
+                  const qrFailed = chemicalFail || solidFail
                   const qrReady = startValidation.ok
                   const assignedMachineCode = getAssignedMachineCode(order)
                   const assignedMachine = machines.find((machine) => machine.machineCode === assignedMachineCode)
@@ -7803,64 +7815,22 @@ function MixingPage({ data, setData, user }) {
                           <span className="dispatch-badge fail">Lệnh chưa chỉ định máy trộn</span>
                         )}
                       </td>
-                      <td><span className={`dispatch-badge ${getWeighingStatusTone(chemicalFlow)}`}>{chemicalFlow.label}</span></td>
-                      <td><span className={`dispatch-badge ${getWeighingStatusTone(solidFlow)}`}>{solidFlow.label}</span></td>
                       <td>
                         <div className="mixing-scan-cell">
-                          {isMixingActive ? (
-                            <span className="weighing-check">✓ OK Hóa</span>
-                          ) : !requiresChemicalQr ? (
-                            <span className={`dispatch-badge ${getWeighingStatusTone(chemicalFlow)}`}>{chemicalFlow.status === 'not_required' ? 'Không yêu cầu' : chemicalFlow.label}</span>
-                          ) : chemicalScan.pass ? (
-                            <>
-                              <span className="weighing-check">✓ OK Hóa</span>
-                            </>
-                          ) : (
-                            <>
-                              {chemicalFail && <><span className="dispatch-badge fail">✕ Sai QR Hóa</span><small>{chemicalScan.state?.message || chemicalScan.message || 'Không đúng lệnh này'}</small></>}
-                              <input className="mixing-qr-input qr-input" value={qrForms[order.id]?.chemicalQr || ''} onChange={(event) => updateQrForm(order.id, 'chemicalQr', event.target.value)} onKeyDown={(event) => handleMixingQrInputKeyDown(event, order, CHEMICAL)} onBlur={(event) => handleMixingQrInputBlur(event, order, CHEMICAL)} placeholder="Chờ quét MIX Hóa" />
-                            </>
-                          )}
+                          {renderMixQrCell({ order, group: CHEMICAL, flow: chemicalFlow, scan: chemicalScan, requiresQr: requiresChemicalQr, fail: chemicalFail, isMixingActive })}
                         </div>
                       </td>
                       <td>
                         <div className="mixing-scan-cell">
-                          {isMixingActive ? (
-                            <span className="weighing-check">✓ OK Rắn</span>
-                          ) : !requiresSolidQr ? (
-                            <span className={`dispatch-badge ${getWeighingStatusTone(solidFlow)}`}>{solidFlow.status === 'not_required' ? 'Không yêu cầu' : solidFlow.label}</span>
-                          ) : solidScan.pass ? (
-                            <>
-                              <span className="weighing-check">✓ OK Rắn</span>
-                            </>
-                          ) : (
-                            <>
-                              {solidFail && <><span className="dispatch-badge fail">✕ Sai QR Rắn</span><small>{solidScan.state?.message || solidScan.message || 'Không đúng lệnh này'}</small></>}
-                              <input className="mixing-qr-input qr-input" value={qrForms[order.id]?.solidQr || ''} onChange={(event) => updateQrForm(order.id, 'solidQr', event.target.value)} onKeyDown={(event) => handleMixingQrInputKeyDown(event, order, SOLID)} onBlur={(event) => handleMixingQrInputBlur(event, order, SOLID)} placeholder="Chờ quét MIX Rắn" />
-                            </>
-                          )}
+                          {renderMixQrCell({ order, group: SOLID, flow: solidFlow, scan: solidScan, requiresQr: requiresSolidQr, fail: solidFail, isMixingActive })}
                         </div>
                       </td>
-                      <td>
-                        <div className="mixing-scan-cell">
-                          {isMixingActive ? (
-                            <span className="weighing-check">✓ OK Máy</span>
-                          ) : machineScan.pass ? (
-                            <span className="weighing-check">✓ OK Máy</span>
-                          ) : (
-                            <>
-                              {machineFail && <><span className="dispatch-badge fail">✕ Sai QR Máy</span><small>{machineScan.state?.message || machineScan.message || 'Không đúng máy trộn'}</small></>}
-                              <input className="mixing-qr-input qr-input" value={qrForms[order.id]?.machineQr || ''} onChange={(event) => updateQrForm(order.id, 'machineQr', event.target.value)} onKeyDown={(event) => handleMixingMachineQrInputKeyDown(event, order)} onBlur={(event) => handleMixingMachineQrInputBlur(event, order)} placeholder="Chờ quét Máy" />
-                            </>
-                          )}
-                        </div>
-                      </td>
-                      <td><span className={`dispatch-badge ${isMixingActive ? 'mixing' : state.className}`}>{isMixingActive ? 'Đang phối trộn' : state.canStart ? (qrFailed ? (startValidation.messages[0] || 'Sai QR') : qrReady ? 'Sẵn sàng phối trộn' : requiresChemicalQr && !chemicalScan.pass ? 'Chờ QR Hóa' : requiresSolidQr && !solidScan.pass ? 'Chờ QR Rắn' : !machineScan.pass ? 'Chờ QR Máy' : 'Chờ quét') : state.label}</span></td>
+                      <td><span className={`dispatch-badge ${isMixingActive ? 'mixing' : state.canStart && qrReady ? 'ready' : qrFailed ? 'fail' : state.className}`}>{isMixingActive ? 'Đang phối trộn' : state.canStart ? (qrFailed ? (startValidation.messages[0] || 'Sai QR') : qrReady ? 'Sẵn sàng phối trộn' : 'Chờ quét QR') : state.label}</span></td>
                       <td><div className="mixing-row-actions">{isMixingActive ? <button className="secondary-button" onClick={() => completeMixing(order, supplement)}>{supplement ? 'Hoàn thành bổ sung' : 'Hoàn thành phối trộn'}</button> : <button className="primary-button start-mixing-button" disabled={!state.canStart || !qrReady || !assignedMachineCode} onClick={() => startMixing(order)}>Bắt đầu phối trộn</button>}</div></td>
                     </tr>
                   )
                 })}
-              {readyOrders.length === 0 && <tr><td className="empty-row" colSpan={10}>Chưa có lệnh phối trộn.</td></tr>}
+              {readyOrders.length === 0 && <tr><td className="empty-row" colSpan={7}>Chưa có lệnh phối trộn.</td></tr>}
               </tbody>
             </table>
           </div>
