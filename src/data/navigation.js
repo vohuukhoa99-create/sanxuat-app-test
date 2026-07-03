@@ -20,6 +20,7 @@ export const defaultNavItems = [
   { id: 'master-data', label: 'Dữ liệu gốc', type: 'group' },
   { id: 'master-materials', label: 'Danh mục vật tư', parentId: 'master-data', permission: 'master.material.view' },
   { id: 'master-products', label: 'Danh mục sản phẩm', parentId: 'master-data', permission: 'master.product.view' },
+  { id: 'master-packaging-specs', label: 'Danh mục quy cách đóng gói', parentId: 'master-data', permission: 'master.packagingSpec.view' },
   { id: 'master-suppliers', label: 'Danh mục nhà cung cấp', parentId: 'master-data', permission: 'master.supplier.view' },
   { id: 'master-customers', label: 'Danh mục khách hàng', parentId: 'master-data', permission: 'master.customer.view' },
   { id: 'master-employees', label: 'Danh sách nhân viên', parentId: 'master-data', permission: 'master.employee.view' },

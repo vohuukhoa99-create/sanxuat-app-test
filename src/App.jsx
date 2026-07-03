@@ -1814,6 +1814,7 @@ const initialData = {
     { id: 'PRD-HNS-252-G1', code: 'HNS 252.G1', name: 'HNS 252.G1', group: 'Sơn', unit: 'kg', status: 'Hoạt động', note: 'Sản phẩm demo' },
     { id: 'PRD-HNS-252-R2', code: 'HNS 252.R2', name: 'HNS 252.R2', group: 'Sơn', unit: 'kg', status: 'Hoạt động', note: 'Sản phẩm demo' },
   ],
+  packagingSpecCatalog: defaultPackagingSpecCatalog,
   supplierCatalog: [
     { id: 'SUP-HB-CHEM', code: 'HB-CHEM', name: 'HB Chemical', phone: '', address: '', status: 'Hoạt động', note: '' },
     { id: 'SUP-SILICA-VIET', code: 'SILICA-VIET', name: 'Silica Việt', phone: '', address: '', status: 'Hoạt động', note: '' },
@@ -1923,6 +1924,7 @@ const CRUD_ACTIONS = ['view', 'create', 'edit', 'delete']
 const masterPermissionGroups = [
   ['material', 'Dữ liệu gốc / Danh mục vật tư'],
   ['product', 'Dữ liệu gốc / Danh mục sản phẩm'],
+  ['packagingSpec', 'Dữ liệu gốc / Danh mục quy cách đóng gói'],
   ['supplier', 'Dữ liệu gốc / Danh mục nhà cung cấp'],
   ['customer', 'Dữ liệu gốc / Danh mục khách hàng'],
   ['employee', 'Dữ liệu gốc / Danh sách nhân viên'],
@@ -1952,15 +1954,15 @@ const defaultRoles = {
   Admin: allSystemPermissionIds,
   'Kho NL': ['dashboard', 'raw-materials', 'production.log.view', ...masterView('material'), ...masterView('supplier')],
   'Kỹ thuật': ['dashboard', 'production.log.view', ...masterFull('material'), ...masterFull('product'), ...masterFull('formula'), ...masterView('machine'), ...masterView('supplier'), 'formula.secure.view'],
-  'Sản xuất': ['dashboard', 'orders', 'logs', 'production.log.view', ...productionFull('assignment'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('product'), ...masterView('machine'), ...masterView('customer')],
+  'Sản xuất': ['dashboard', 'orders', 'logs', 'production.log.view', ...productionFull('assignment'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('product'), ...masterView('packagingSpec'), ...masterView('machine'), ...masterView('customer')],
   QC: ['dashboard', 'qc', 'finished-qc', 'production.log.view', 'reports', ...masterView('product'), ...masterView('formula')],
   'Cân hóa': ['dashboard', 'chemical', 'logs', 'production.log.view', ...productionView('assignment')],
   'Cân rắn': ['dashboard', 'solid', 'logs', 'production.log.view', ...productionView('assignment')],
   'Phối trộn': ['dashboard', 'mixing', 'logs', 'production.log.view', ...productionView('assignment'), ...masterView('machine')],
   'Đóng gói': ['dashboard', 'packaging', 'production.log.view'],
   'Kho TP': ['dashboard', 'finished-goods', 'production.log.view', 'reports'],
-  'Quản đốc': ['dashboard', 'orders', 'qc', 'chemical', 'solid', 'mixing', 'finished-qc', 'packaging', 'finished-goods', 'logs', 'reports', 'production.trace.view', 'production.log.view', 'production.assignment.view', 'production.assignment.create', 'production.assignment.edit', ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('product'), ...masterView('customer')],
-  'Ban giám đốc': ['dashboard', 'logs', 'reports', 'production.trace.view', 'production.log.view', ...productionView('assignment'), ...masterView('material'), ...masterView('product'), ...masterView('supplier'), ...masterView('customer'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('formula')],
+  'Quản đốc': ['dashboard', 'orders', 'qc', 'chemical', 'solid', 'mixing', 'finished-qc', 'packaging', 'finished-goods', 'logs', 'reports', 'production.trace.view', 'production.log.view', 'production.assignment.view', 'production.assignment.create', 'production.assignment.edit', ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('product'), ...masterView('packagingSpec'), ...masterView('customer')],
+  'Ban giám đốc': ['dashboard', 'logs', 'reports', 'production.trace.view', 'production.log.view', ...productionView('assignment'), ...masterView('material'), ...masterView('product'), ...masterView('packagingSpec'), ...masterView('supplier'), ...masterView('customer'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('formula')],
 }
 const officialRoleNames = Object.keys(defaultRoles)
 
@@ -2255,6 +2257,7 @@ function normalizeProductionOrders(orders = [], formulas = []) {
     const assignedMachineCode = normalizeMixingMachineCode(order.assignedMachineCode || order.mixerMachine || order.assignedMixingMachine || order.mixingMachine || order.mixing?.machineCode || '')
     const assignedMachine = machineCatalog.find((machine) => machine.machineCode === assignedMachineCode)
     const productGroup = normalizeOrderProductGroup(order.productGroup || formula?.productGroup, { ...order, product: order.product || formula?.product, code: formula?.code || order.formulaCode })
+    const packagingPlan = normalizePackagingPlan(order.packagingPlan || order.packaging?.plan || order.packaging?.details || [], activePackagingSpecsForGroup(defaultPackagingSpecCatalog, productGroup), requestedWeight)
     const customerFields = resolveOrderCustomer(order)
     return {
       ...order,
@@ -2267,6 +2270,7 @@ function normalizeProductionOrders(orders = [], formulas = []) {
       productName: order.productName || order.product || formula?.product || '',
       product: order.product || order.productName || formula?.product || '',
       productGroup,
+      packagingPlan,
       ...customerFields,
       lot: fallbackLotCode || `LOT-${fallbackCode}`,
       lotCode: fallbackLotCode || `LOT-${fallbackCode}`,
@@ -2495,11 +2499,90 @@ function displayQcTrialText(text = '') {
   return labels[text] || text || '-'
 }
 
-const packagingSpecs = [
-  { id: 'box25', label: 'Thùng 25 kg', sizeKg: 25, toleranceKg: 0.2 },
-  { id: 'box10', label: 'Thùng 10 kg', sizeKg: 10, toleranceKg: 0.1 },
-  { id: 'box5', label: 'Thùng 5 kg', sizeKg: 5, toleranceKg: 0.05 },
+const defaultPackagingSpecCatalog = [
+  { id: 'PKG-SON-25KG', productGroup: PRODUCT_GROUP_SON_DA, spec: '25kg', declaredUnit: 'kg', convertedWeightKg: 25, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-SON-10KG', productGroup: PRODUCT_GROUP_SON_DA, spec: '10kg', declaredUnit: 'kg', convertedWeightKg: 10, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-SON-5KG', productGroup: PRODUCT_GROUP_SON_DA, spec: '5kg', declaredUnit: 'kg', convertedWeightKg: 5, toleranceKg: 0.05, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-SON-18L', productGroup: PRODUCT_GROUP_SON_NUOC, spec: '18L', declaredUnit: 'L', convertedWeightKg: 25, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-SON-15L', productGroup: PRODUCT_GROUP_SON_NUOC, spec: '15L', declaredUnit: 'L', convertedWeightKg: 21, toleranceKg: 0.18, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-SON-5L', productGroup: PRODUCT_GROUP_SON_NUOC, spec: '5L', declaredUnit: 'L', convertedWeightKg: 7, toleranceKg: 0.08, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-SON-1L', productGroup: PRODUCT_GROUP_SON_NUOC, spec: '1L', declaredUnit: 'L', convertedWeightKg: 1.4, toleranceKg: 0.03, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-KEO-25KG', productGroup: PRODUCT_GROUP_KEO_BTP, spec: '25kg', declaredUnit: 'kg', convertedWeightKg: 25, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-KEO-10KG', productGroup: PRODUCT_GROUP_KEO_BTP, spec: '10kg', declaredUnit: 'kg', convertedWeightKg: 10, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-KEO-5KG', productGroup: PRODUCT_GROUP_KEO_BTP, spec: '5kg', declaredUnit: 'kg', convertedWeightKg: 5, toleranceKg: 0.05, status: ACTIVE_STATUS, note: '' },
 ]
+
+function normalizePackagingSpecCatalog(items = defaultPackagingSpecCatalog) {
+  const source = Array.isArray(items) && items.length ? items : defaultPackagingSpecCatalog
+  return source.map((item, index) => {
+    const convertedWeightKg = num(item.convertedWeightKg ?? item.sizeKg ?? item.weightKg)
+    const spec = String(item.spec || item.label || (convertedWeightKg ? `${convertedWeightKg}kg` : `Quy cách ${index + 1}`)).trim()
+    return {
+      id: item.id || item.specId || `PKG-SPEC-${index + 1}`,
+      productGroup: normalizeProductGroup(item.productGroup || item.group) || PRODUCT_GROUP_SON_DA,
+      spec,
+      label: item.label || spec,
+      declaredUnit: item.declaredUnit || item.unit || (spec.toUpperCase().includes('L') ? 'L' : 'kg'),
+      convertedWeightKg,
+      sizeKg: convertedWeightKg,
+      toleranceKg: num(item.toleranceKg ?? item.tolerance ?? item.allowedTolerance),
+      status: item.status || ACTIVE_STATUS,
+      note: item.note || item.notes || '',
+    }
+  })
+}
+
+function activePackagingSpecsForGroup(specs = [], productGroup = '') {
+  const group = normalizeProductGroup(productGroup) || PRODUCT_GROUP_SON_DA
+  return normalizePackagingSpecCatalog(specs).filter((spec) => (
+    normalizeProductGroup(spec.productGroup) === group
+    && String(spec.status || ACTIVE_STATUS) !== LOCKED_STATUS
+    && num(spec.convertedWeightKg) > 0
+  ))
+}
+
+function autoBuildPackagingPlan(quantityKg = 0, specs = []) {
+  const sortedSpecs = [...specs].sort((a, b) => num(b.convertedWeightKg) - num(a.convertedWeightKg))
+  let remaining = num(quantityKg)
+  return sortedSpecs.map((spec) => {
+    const weight = num(spec.convertedWeightKg)
+    const boxes = weight > 0 ? Math.floor((remaining + 0.0001) / weight) : 0
+    remaining = Number((remaining - boxes * weight).toFixed(3))
+    return { specId: spec.id, boxes }
+  })
+}
+
+function normalizePackagingPlan(plan = [], specs = [], quantityKg = 0) {
+  const specRows = normalizePackagingSpecCatalog(specs)
+  const source = Array.isArray(plan) && plan.length ? plan : autoBuildPackagingPlan(quantityKg, specRows)
+  return source
+    .map((item) => {
+      const spec = specRows.find((row) => row.id === item.specId || row.id === item.id || row.spec === item.spec || row.convertedWeightKg === item.sizeKg) || item
+      const boxes = num(item.boxes ?? item.plannedBoxes ?? item.quantity)
+      return {
+        id: item.id || `PLAN-${spec.id || spec.spec}`,
+        specId: spec.id || item.specId,
+        spec: spec.spec || item.spec || item.label || `${spec.convertedWeightKg || item.sizeKg}kg`,
+        label: spec.label || spec.spec || item.label || item.spec,
+        declaredUnit: spec.declaredUnit || item.declaredUnit || item.unit || 'kg',
+        convertedWeightKg: num(spec.convertedWeightKg ?? item.convertedWeightKg ?? item.sizeKg),
+        sizeKg: num(spec.convertedWeightKg ?? item.convertedWeightKg ?? item.sizeKg),
+        toleranceKg: num(spec.toleranceKg ?? item.toleranceKg),
+        boxes,
+        plannedBoxes: boxes,
+        convertedWeight: Number((num(spec.convertedWeightKg ?? item.convertedWeightKg ?? item.sizeKg) * boxes).toFixed(3)),
+        note: item.note || '',
+      }
+    })
+    .filter((item) => item.boxes > 0 || Array.isArray(plan))
+}
+
+function packagingPlanTotals(plan = []) {
+  const details = normalizePackagingPlan(plan, [])
+  const convertedWeight = Number(details.reduce((sum, item) => sum + num(item.convertedWeightKg) * num(item.boxes), 0).toFixed(3))
+  const totalTolerance = Number(details.reduce((sum, item) => sum + num(item.toleranceKg) * num(item.boxes), 0).toFixed(3))
+  return { convertedWeight, totalTolerance, boxes: totalPackingBoxes(details) }
+}
 
 function qc2FinalWeight(order = {}) {
   return num(order.qc2FinalWeight ?? order.mixing?.finalWeightKg ?? order.mixingFinalWeightKg ?? order.quantityKg)
@@ -2857,28 +2940,34 @@ function applyDemoQrData(data = {}) {
   }
 }
 
-function defaultPackingDetails() {
-  return packagingSpecs.map((spec) => ({
+function defaultPackingDetails(order = {}, specs = defaultPackagingSpecCatalog) {
+  const plan = normalizePackagingPlan(order.packagingPlan || order.packaging?.plan || [], activePackagingSpecsForGroup(specs, order.productGroup), order.requestedWeight ?? order.quantityKg)
+  return plan.map((spec) => ({
     ...spec,
+    plannedBoxes: num(spec.boxes),
     boxes: 0,
     actualWeight: 0,
+    finishedQrItems: [],
     note: '',
   }))
 }
 
-function getPackingForm(forms, order) {
+function getPackingForm(forms, order, specs = defaultPackagingSpecCatalog) {
   const saved = forms[order.id] || order.packaging || {}
+  const plan = defaultPackingDetails(order, specs)
   return {
     packer: saved.packer || saved.operator || '',
     startedAt: saved.startedAt || '',
     completedAt: saved.completedAt || '',
     notes: saved.notes || saved.note || '',
-    details: packagingSpecs.map((spec) => {
-      const row = (saved.details || saved.packingDetails || []).find((item) => item.id === spec.id || item.sizeKg === spec.sizeKg) || {}
+    details: plan.map((spec) => {
+      const row = (saved.details || saved.packingDetails || []).find((item) => item.specId === spec.specId || item.id === spec.id || item.sizeKg === spec.sizeKg || item.spec === spec.spec) || {}
       return {
         ...spec,
-        boxes: row.boxes || 0,
-        actualWeight: row.actualWeight || 0,
+        boxes: row.boxes ?? row.packedBoxes ?? 0,
+        plannedBoxes: spec.plannedBoxes,
+        actualWeight: row.actualWeight ?? Number((num(row.boxes ?? row.packedBoxes) * num(spec.convertedWeightKg)).toFixed(3)),
+        finishedQrItems: row.finishedQrItems || [],
         note: row.note || '',
       }
     }),
@@ -2886,14 +2975,15 @@ function getPackingForm(forms, order) {
 }
 
 function packingTotals(order, form) {
-  const details = form.details || defaultPackingDetails()
+  const details = form.details || defaultPackingDetails(order)
   const qcWeight = qc2FinalWeight(order)
-  const totalPackedWeight = Number(details.reduce((sum, item) => sum + num(item.actualWeight), 0).toFixed(3))
-  const convertedWeight = Number(details.reduce((sum, item) => sum + num(item.sizeKg) * num(item.boxes), 0).toFixed(3))
-  const totalTolerance = Number(details.reduce((sum, item) => sum + num(item.toleranceKg) * num(item.boxes), 0).toFixed(3))
+  const totalPackedWeight = Number(details.reduce((sum, item) => sum + (num(item.actualWeight) || num(item.convertedWeightKg ?? item.sizeKg) * num(item.boxes)), 0).toFixed(3))
+  const convertedWeight = Number(details.reduce((sum, item) => sum + num(item.convertedWeightKg ?? item.sizeKg) * num(item.boxes), 0).toFixed(3))
+  const plannedWeight = Number(details.reduce((sum, item) => sum + num(item.convertedWeightKg ?? item.sizeKg) * num(item.plannedBoxes ?? item.boxes), 0).toFixed(3))
+  const totalTolerance = Number(details.reduce((sum, item) => sum + num(item.toleranceKg) * num(item.plannedBoxes ?? item.boxes), 0).toFixed(3))
   const remainingWeight = Number((qcWeight - totalPackedWeight).toFixed(3))
   const differenceWeight = Number((totalPackedWeight - qcWeight).toFixed(3))
-  return { qcWeight, totalPackedWeight, convertedWeight, totalTolerance, remainingWeight, differenceWeight }
+  return { qcWeight, totalPackedWeight, convertedWeight, plannedWeight, totalTolerance, remainingWeight, differenceWeight }
 }
 
 function getLatestPackingLog(order = {}, packingLogs = []) {
@@ -4184,7 +4274,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const productOptions = productMasterCatalog.map(productMasterToFormulaOption)
   const activeFormulaOptions = productOptions.filter((product) => normalizeProductStatus(product.status) === FORMULA_STATUS_ACTIVE)
   const initialFormula = activeFormulaOptions[0] || null
-  const [form, setForm] = useState({ formulaId: initialFormula?.id || '', selectedFormulaCode: getFormulaOptionCode(initialFormula), formulaObject: initialFormula, formulaSearch: formatFormulaInput(initialFormula), productGroup: normalizeProductGroup(initialFormula?.productGroup), quantityKg: 1000, lotPrefix: DEFAULT_PRODUCTION_LOT_PREFIX, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' })
+  const [form, setForm] = useState({ formulaId: initialFormula?.id || '', selectedFormulaCode: getFormulaOptionCode(initialFormula), formulaObject: initialFormula, formulaSearch: formatFormulaInput(initialFormula), productGroup: normalizeProductGroup(initialFormula?.productGroup), quantityKg: 1000, lotPrefix: DEFAULT_PRODUCTION_LOT_PREFIX, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '', packagingPlan: [] })
   const [message, setMessage] = useState('')
   const [warning, setWarning] = useState('')
   const [detailOrderId, setDetailOrderId] = useState('')
@@ -4215,6 +4305,12 @@ function OrdersPage({ data, setData, permissions = [] }) {
   const filteredMachines = selectedProductGroup
     ? machines.filter((machine) => normalizeProductGroup(machine.equipmentGroup) === selectedProductGroup)
     : []
+  const availablePackagingSpecs = activePackagingSpecsForGroup(data.packagingSpecCatalog || defaultPackagingSpecCatalog, selectedProductGroup)
+  const effectivePackagingPlan = normalizePackagingPlan(form.packagingPlan, availablePackagingSpecs, form.quantityKg)
+  const packagingTotals = packagingPlanTotals(effectivePackagingPlan)
+  const packagingDifference = Number((packagingTotals.convertedWeight - num(form.quantityKg)).toFixed(3))
+  const packagingWithinTolerance = effectivePackagingPlan.some((item) => num(item.boxes) > 0)
+    && Math.abs(packagingDifference) <= packagingTotals.totalTolerance
   const libraryItems = formula ? formula.items.map((item) => ({
     code: item.materialCode,
     name: item.materialCode,
@@ -4226,6 +4322,14 @@ function OrdersPage({ data, setData, permissions = [] }) {
     ? buildFormulaItems(libraryItems, num(form.quantityKg)).map((item) => enrichItemFromMaterialCatalog(item, materialCatalogByCode, item.materialGroup || item.group || ''))
     : []
   const productionLot = buildProductionLotCode(data.orders, form.lotPrefix)
+  const rebuildPackagingPlan = (productGroup, quantityKg) => autoBuildPackagingPlan(quantityKg, activePackagingSpecsForGroup(data.packagingSpecCatalog || defaultPackagingSpecCatalog, productGroup))
+  const updatePackagingPlanBoxes = (specId, boxes) => {
+    const nextPlan = availablePackagingSpecs.map((spec) => {
+      const existing = effectivePackagingPlan.find((item) => item.specId === spec.id)
+      return { specId: spec.id, boxes: spec.id === specId ? Number(boxes) || 0 : num(existing?.boxes) }
+    })
+    setForm((current) => ({ ...current, packagingPlan: nextPlan }))
+  }
   const orderHasStartedProduction = (order = {}) => {
     const relatedContainers = (data.weighedContainers || []).some((container) => container.orderId === order.id || container.orderCode === order.orderCode || container.lot === getOrderLotCode(order))
     return relatedContainers
@@ -4274,6 +4378,17 @@ function OrdersPage({ data, setData, permissions = [] }) {
     const assignedMachine = filteredMachines.find((machine) => machine.machineCode === form.mixerMachine)
     if (!assignedMachine) {
       setWarning('Vui lòng chọn máy phối trộn.')
+      return
+    }
+    const finalPackagingPlan = normalizePackagingPlan(effectivePackagingPlan, availablePackagingSpecs, form.quantityKg).filter((item) => num(item.boxes) > 0)
+    const finalPackagingTotals = packagingPlanTotals(finalPackagingPlan)
+    const finalPackagingDifference = Number((finalPackagingTotals.convertedWeight - num(form.quantityKg)).toFixed(3))
+    if (!finalPackagingPlan.length) {
+      setWarning('Vui lòng khai báo kế hoạch đóng gói cho lệnh sản xuất.')
+      return
+    }
+    if (Math.abs(finalPackagingDifference) > finalPackagingTotals.totalTolerance) {
+      setWarning(`Tổng khối lượng quy đổi đóng gói ${kg(finalPackagingTotals.convertedWeight)} chưa khớp khối lượng lệnh ${kg(form.quantityKg)}. Chênh lệch ${kg(finalPackagingDifference)} vượt dung sai ${kg(finalPackagingTotals.totalTolerance)}.`)
       return
     }
     const sourceLabel = `công thức ${formula.currentVersion || formula.version}`
@@ -4327,6 +4442,8 @@ function OrdersPage({ data, setData, permissions = [] }) {
       }],
       productionRequestNo: form.productionRequestNo,
       note: form.note,
+      packagingPlan: finalPackagingPlan,
+      packagingPlanTotals: finalPackagingTotals,
       requestedWeight: num(form.quantityKg),
       quantityKg: num(form.quantityKg),
       stage: 'qc1',
@@ -4361,7 +4478,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
     }
     setData((current) => addLogToData({ ...current, orders: [order, ...current.orders] }, `Sử dụng ${sourceLabel} của ${formula.code} để tạo mã lô ${lotCode}, chỉ định máy ${formatMixingMachineLabel(assignedMachine)}.`))
     setMessage('Tạo lệnh sản xuất thành công')
-    setForm((current) => ({ ...current, productGroup: '', lotPrefix: DEFAULT_PRODUCTION_LOT_PREFIX, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '' }))
+    setForm((current) => ({ ...current, productGroup: '', lotPrefix: DEFAULT_PRODUCTION_LOT_PREFIX, customer: '', customerName: '', customerCode: '', province: '', channelCode: '', customerObject: null, customerSearch: '', mixerMachine: '', productionRequestNo: '', note: '', packagingPlan: [] }))
   }
   const detailOrder = data.orders.find((order) => order.id === detailOrderId)
   const editOrder = data.orders.find((order) => order.id === editOrderId)
@@ -4473,7 +4590,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
             <FormulaSearchCombobox
               formulas={activeFormulaOptions}
               inputValue={form.formulaSearch}
-              onInputChange={(value) => setForm({ ...form, formulaSearch: value, formulaId: '', selectedFormulaCode: '', formulaObject: null, productGroup: '', mixerMachine: '' })}
+              onInputChange={(value) => setForm({ ...form, formulaSearch: value, formulaId: '', selectedFormulaCode: '', formulaObject: null, productGroup: '', mixerMachine: '', packagingPlan: [] })}
               onSelect={(selectedFormula) => {
                 const selectedCode = getFormulaOptionCode(selectedFormula)
                 const selectedProduct = productCatalog.find((product) => (
@@ -4482,18 +4599,18 @@ function OrdersPage({ data, setData, permissions = [] }) {
                   || normalizeFormulaCode(product.productCode || product.code) === normalizeFormulaCode(selectedFormula.product || selectedFormula.productName || '')
                 ))
                 const nextProductGroup = normalizeProductCatalogGroup(selectedProduct?.productGroup || selectedFormula.productGroup || selectedProduct?.group)
-                setForm({ ...form, formulaSearch: selectedCode, formulaId: selectedFormula.id, selectedFormulaCode: selectedCode, formulaObject: selectedFormula, productGroup: nextProductGroup, mixerMachine: '' })
+                setForm({ ...form, formulaSearch: selectedCode, formulaId: selectedFormula.id, selectedFormulaCode: selectedCode, formulaObject: selectedFormula, productGroup: nextProductGroup, mixerMachine: '', packagingPlan: rebuildPackagingPlan(nextProductGroup, form.quantityKg) })
               }}
-              onInvalid={() => setForm({ ...form, formulaSearch: '', formulaId: '', selectedFormulaCode: '', formulaObject: null, productGroup: '', mixerMachine: '' })}
+              onInvalid={() => setForm({ ...form, formulaSearch: '', formulaId: '', selectedFormulaCode: '', formulaObject: null, productGroup: '', mixerMachine: '', packagingPlan: [] })}
             />
           </label>
           <label className="product-group-field">Nhóm sản phẩm *
-            <select value={selectedProductGroup} onChange={(event) => setForm({ ...form, productGroup: event.target.value, mixerMachine: '' })}>
+            <select value={selectedProductGroup} onChange={(event) => setForm({ ...form, productGroup: event.target.value, mixerMachine: '', packagingPlan: rebuildPackagingPlan(event.target.value, form.quantityKg) })}>
               <option value="">Chọn nhóm</option>
               {productGroupOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
-          <label>Khối lượng kg<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value })} /></label>
+          <label>Khối lượng kg<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value, packagingPlan: rebuildPackagingPlan(selectedProductGroup, event.target.value) })} /></label>
           <label>Mã lô
             <div className="production-lot-field">
               <select value={form.lotPrefix} onChange={(event) => setForm({ ...form, lotPrefix: event.target.value })}>
@@ -4515,6 +4632,35 @@ function OrdersPage({ data, setData, permissions = [] }) {
           <label>Phiếu yêu cầu SX<input value={form.productionRequestNo} placeholder="Nhập số phiếu yêu cầu sản xuất" onChange={(event) => setForm({ ...form, productionRequestNo: event.target.value })} /></label>
           <label>Ghi chú<textarea value={form.note} placeholder="Ví dụ: Giống mẫu đã duyệt ngày .../..." onChange={(event) => setForm({ ...form, note: event.target.value })} /></label>
         </div>
+        <section className="v3-card packaging-plan-card">
+          <div className="section-heading-row">
+            <div>
+              <h3>Kế hoạch đóng gói</h3>
+              <p className="panel-text">Kế hoạch được khai báo ngay khi tạo lệnh và công đoạn Đóng gói sẽ chỉ thực hiện theo kế hoạch này.</p>
+            </div>
+            <div className={packagingWithinTolerance ? 'formula-ratio-ok' : 'formula-ratio-alert'}>
+              Tổng quy đổi: {kg(packagingTotals.convertedWeight)} / {kg(form.quantityKg)} | Chênh lệch: {kg(packagingDifference)} | Dung sai: ±{kg(packagingTotals.totalTolerance)}
+            </div>
+          </div>
+          <SimpleTable
+            headers={['Quy cách', 'Đơn vị công bố', 'Kg quy đổi/thùng', 'Dung sai/thùng', 'Số lượng thùng', 'Tổng quy đổi']}
+            rows={availablePackagingSpecs.map((spec) => {
+              const row = effectivePackagingPlan.find((item) => item.specId === spec.id) || {}
+              const boxes = num(row.boxes)
+              return (
+                <tr key={spec.id}>
+                  <td>{spec.spec}</td>
+                  <td>{spec.declaredUnit}</td>
+                  <td>{kg(spec.convertedWeightKg)}</td>
+                  <td>±{kg(spec.toleranceKg)}</td>
+                  <td><input type="number" min="0" value={boxes} onChange={(event) => updatePackagingPlanBoxes(spec.id, event.target.value)} /></td>
+                  <td>{kg(num(spec.convertedWeightKg) * boxes)}</td>
+                </tr>
+              )
+            })}
+            empty="Chưa có quy cách đóng gói phù hợp nhóm sản phẩm."
+          />
+        </section>
         <button className="primary-button" onClick={create}>Tạo lệnh sản xuất</button>
       </section>
       <section className="panel">
@@ -4549,6 +4695,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
                 ['solid', 'Nhật ký cân rắn'],
                 ['mixing', 'Nhật ký phối trộn'],
                 ['finishedQc', 'Nhật ký QC thành phẩm'],
+                ['packagingPlan', 'Kế hoạch đóng gói'],
               ].map(([id, label]) => <button key={id} className={detailTab === id ? 'active' : ''} onClick={() => setDetailTab(id)}>{label}</button>)}
             </div>
             <OrderDetailTabs order={detailOrder} tab={detailTab} productionLogs={data.productionLogs || []} qc2Logs={data.qc2Logs || []} permissions={permissions} />
@@ -4938,6 +5085,28 @@ function OrderDetailTabs({ order, tab, productionLogs, qc2Logs, permissions = []
   if (tab === 'finishedQc') {
     const rows = qc2Logs.filter((log) => log.orderId === order.id)
     return rows.length ? <SimpleTable headers={['Thời gian', 'Hành động', 'Kết quả']} rows={rows.map((log) => <tr key={log.id}><td>{log.time}</td><td>{log.action}</td><td>{log.result || '-'}</td></tr>)} /> : <p className="empty-alert">Chưa có nhật ký QC thành phẩm.</p>
+  }
+  if (tab === 'packagingPlan') {
+    const plan = normalizePackagingPlan(order.packagingPlan || order.packaging?.plan || [], defaultPackagingSpecCatalog, order.requestedWeight ?? order.quantityKg)
+    const totals = packagingPlanTotals(plan)
+    return (
+      <section className="v3-card">
+        <div className="qc-order-summary">
+          <div><span>Tổng quy đổi</span><strong>{kg(totals.convertedWeight)}</strong></div>
+          <div><span>Số thùng</span><strong>{totals.boxes}</strong></div>
+          <div><span>Dung sai</span><strong>±{kg(totals.totalTolerance)}</strong></div>
+        </div>
+        <SimpleTable headers={['Quy cách', 'Đơn vị', 'Kg quy đổi/thùng', 'Số thùng kế hoạch', 'Tổng kg']} rows={plan.map((item) => (
+          <tr key={item.specId || item.id}>
+            <td>{item.spec || item.label}</td>
+            <td>{item.declaredUnit}</td>
+            <td>{kg(item.convertedWeightKg)}</td>
+            <td>{num(item.boxes)}</td>
+            <td>{kg(num(item.convertedWeightKg) * num(item.boxes))}</td>
+          </tr>
+        ))} empty="Lệnh chưa có kế hoạch đóng gói." />
+      </section>
+    )
   }
   return <SimpleTable headers={['Thời gian', 'Nội dung']} rows={relatedLogs.map((log) => <tr key={log.id}><td>{log.time}</td><td>{log.entry}</td></tr>)} />
 }
@@ -7928,6 +8097,7 @@ function MixingPage({ data, setData, user }) {
 }
 
 function PackagingPage({ data, setData, user }) {
+  const packagingSpecCatalog = data.packagingSpecCatalog || defaultPackagingSpecCatalog
   const orders = data.orders
     .filter((order) => (
       order.stage === 'packaging'
@@ -7940,7 +8110,7 @@ function PackagingPage({ data, setData, user }) {
   const [forms, setForms] = useState({})
   const [warning, setWarning] = useState('')
   const activeOrder = orders.find((order) => order.id === activeOrderId) || orders[0]
-  const form = activeOrder ? getPackingForm(forms, activeOrder) : { details: defaultPackingDetails() }
+  const form = activeOrder ? getPackingForm(forms, activeOrder, packagingSpecCatalog) : { details: defaultPackingDetails({}, packagingSpecCatalog) }
   const totals = activeOrder ? packingTotals(activeOrder, form) : { qcWeight: 0, totalPackedWeight: 0, remainingWeight: 0, differenceWeight: 0, totalTolerance: 0 }
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'Đóng gói')
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
@@ -7952,18 +8122,53 @@ function PackagingPage({ data, setData, user }) {
   const updateDetail = (id, field, value) => {
     if (!activeOrder) return
     setForms((current) => {
-      const nextForm = getPackingForm(current, activeOrder)
+      const nextForm = getPackingForm(current, activeOrder, packagingSpecCatalog)
       return {
         ...current,
         [activeOrder.id]: {
           ...nextForm,
-          details: nextForm.details.map((item) => item.id === id ? { ...item, [field]: field === 'note' ? value : Number(value) || 0 } : item),
+          details: nextForm.details.map((item) => {
+            if (item.id !== id) return item
+            const nextValue = field === 'note' ? value : Math.min(Number(value) || 0, num(item.plannedBoxes))
+            const patch = field === 'boxes'
+              ? { boxes: nextValue, actualWeight: Number((nextValue * num(item.convertedWeightKg ?? item.sizeKg)).toFixed(3)) }
+              : { [field]: nextValue }
+            return { ...item, ...patch }
+          }),
         },
       }
     })
   }
+  const buildFinishedQrItems = (order, details = []) => {
+    const lot = getOrderLotCode(order)
+    const totalBoxes = totalPackingBoxes(details)
+    let sequence = 0
+    return details.flatMap((item) => {
+      const boxes = num(item.boxes)
+      return Array.from({ length: boxes }, () => {
+        sequence += 1
+        const serial = String(sequence).padStart(3, '0')
+        return {
+          id: `${lot}-${serial}`,
+          qrCode: `TP|${lot}|${serial}/${String(totalBoxes).padStart(3, '0')}`,
+          lot,
+          productCode: order.productCode || order.formulaCode || '',
+          spec: item.spec || item.label,
+          sequence,
+          totalBoxes,
+          weightKg: num(item.convertedWeightKg ?? item.sizeKg),
+        }
+      })
+    })
+  }
+  const attachFinishedQrItemsToDetails = (details = [], finishedQrItems = []) => details.map((item) => ({
+    ...item,
+    finishedQrItems: finishedQrItems.filter((qr) => qr.spec === (item.spec || item.label)),
+  }))
   const buildPackingLog = (order, nextForm, status) => {
     const nextTotals = packingTotals(order, nextForm)
+    const finishedQrItems = buildFinishedQrItems(order, nextForm.details)
+    const detailsWithQr = attachFinishedQrItemsToDetails(nextForm.details, finishedQrItems)
     return {
       packingId: uid('PKG'),
       orderId: order.id,
@@ -7971,15 +8176,22 @@ function PackagingPage({ data, setData, user }) {
       productName: order.productName || order.product,
       lot: order.lot,
       qc2FinalWeight: nextTotals.qcWeight,
-      packingDetails: nextForm.details.map((item) => ({
-        spec: item.label,
-        sizeKg: item.sizeKg,
+      packingDetails: detailsWithQr.map((item) => ({
+        specId: item.specId,
+        spec: item.spec || item.label,
+        label: item.label,
+        declaredUnit: item.declaredUnit,
+        sizeKg: item.convertedWeightKg ?? item.sizeKg,
         boxes: num(item.boxes),
-        convertedWeight: Number((num(item.sizeKg) * num(item.boxes)).toFixed(3)),
+        plannedBoxes: num(item.plannedBoxes),
+        remainingBoxes: Math.max(0, num(item.plannedBoxes) - num(item.boxes)),
+        convertedWeight: Number((num(item.convertedWeightKg ?? item.sizeKg) * num(item.boxes)).toFixed(3)),
         toleranceKg: item.toleranceKg,
         actualWeight: num(item.actualWeight),
+        finishedQrItems: item.finishedQrItems || [],
         note: item.note || '',
       })),
+      finishedQrItems,
       totalPackedWeight: nextTotals.totalPackedWeight,
       remainingWeight: nextTotals.remainingWeight,
       differenceWeight: nextTotals.differenceWeight,
@@ -8011,7 +8223,9 @@ function PackagingPage({ data, setData, user }) {
   }
   const saveDraft = () => {
     if (!activeOrder) return
-    const nextForm = getPackingForm(forms, activeOrder)
+    const nextForm = getPackingForm(forms, activeOrder, packagingSpecCatalog)
+    const finishedQrItems = buildFinishedQrItems(activeOrder, nextForm.details)
+    const detailsWithQr = attachFinishedQrItemsToDetails(nextForm.details, finishedQrItems)
     setData((current) => addLogToData({
       ...current,
       orders: current.orders.map((order) => order.id === activeOrder.id ? {
@@ -8020,7 +8234,7 @@ function PackagingPage({ data, setData, user }) {
         status: order.status === 'Chờ đóng gói' ? 'Đang đóng gói' : order.status,
         packingStatus: order.packingStatus === 'completed' ? 'completed' : 'active',
         packagingStatus: order.packagingStatus === 'Completed' ? 'Completed' : 'Active',
-        packaging: nextForm,
+        packaging: { ...nextForm, details: detailsWithQr, finishedQrItems },
         updatedAt: nowText(),
       } : order),
     }, `Lưu tạm đóng gói lệnh ${activeOrder.id}.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: 'Đóng gói', order: activeOrder, result: 'Lưu tạm đóng gói' })))
@@ -8031,6 +8245,11 @@ function PackagingPage({ data, setData, user }) {
     const completedAt = form.completedAt || nowText()
     const nextForm = { ...form, completedAt }
     const nextTotals = packingTotals(activeOrder, nextForm)
+    const hasIncompleteBoxes = nextForm.details.some((item) => num(item.boxes) !== num(item.plannedBoxes))
+    if (hasIncompleteBoxes) {
+      setWarning('Số thùng đã đóng phải đúng theo kế hoạch trước khi hoàn tất đóng gói.')
+      return
+    }
     if (Math.abs(nextTotals.differenceWeight) > nextTotals.totalTolerance) {
       setWarning(`Sai lệch ${kg(nextTotals.differenceWeight)} vượt sai số tổng cho phép ${kg(nextTotals.totalTolerance)}.`)
       return
@@ -8046,7 +8265,7 @@ function PackagingPage({ data, setData, user }) {
         orderStatus: 'Chờ nhập kho thành phẩm',
         packingStatus: 'completed',
         packagingStatus: 'Completed',
-        packaging: { ...nextForm, ...nextTotals, packingLogId: packingLog.packingId },
+        packaging: { ...nextForm, details: packingLog.packingDetails, ...nextTotals, packingLogId: packingLog.packingId, finishedQrItems: packingLog.finishedQrItems },
         updatedAt: completedAt,
       } : order),
       packingLogs: [...(current.packingLogs || []), packingLog],
@@ -8096,17 +8315,23 @@ function PackagingPage({ data, setData, user }) {
                 <div><span>Sai số tổng cho phép</span><strong>{kg(totals.totalTolerance)}</strong></div>
               </div>
               <section className="v3-card">
-                <h3>Bảng quy cách đóng gói</h3>
-                <SimpleTable headers={['Quy cách', 'Số thùng', 'Khối lượng quy đổi', 'Sai số cho phép', 'Khối lượng thực tế', 'Ghi chú']} rows={form.details.map((item) => (
+                <h3>Kế hoạch đóng gói theo lệnh</h3>
+                <SimpleTable headers={['Quy cách', 'Kế hoạch', 'Đã đóng', 'Còn lại', 'Khối lượng quy đổi', 'QR thành phẩm', 'Ghi chú']} rows={form.details.map((item) => {
+                  const packedBoxes = num(item.boxes)
+                  const plannedBoxes = num(item.plannedBoxes)
+                  const remainingBoxes = Math.max(0, plannedBoxes - packedBoxes)
+                  return (
                   <tr key={item.id}>
-                    <td>{item.label}</td>
-                    <td><input type="number" value={item.boxes} onChange={(event) => updateDetail(item.id, 'boxes', event.target.value)} /></td>
-                    <td>{kg(num(item.sizeKg) * num(item.boxes))}</td>
-                    <td>±{kg(num(item.toleranceKg) * num(item.boxes))}</td>
-                    <td><input type="number" step="0.001" value={item.actualWeight} onChange={(event) => updateDetail(item.id, 'actualWeight', event.target.value)} /></td>
+                    <td>{item.spec || item.label}</td>
+                    <td>{plannedBoxes} thùng</td>
+                    <td><input type="number" min="0" max={plannedBoxes} value={packedBoxes} onChange={(event) => updateDetail(item.id, 'boxes', event.target.value)} /></td>
+                    <td>{remainingBoxes} thùng</td>
+                    <td>{kg(num(item.convertedWeightKg ?? item.sizeKg) * packedBoxes)}</td>
+                    <td>{item.finishedQrItems?.length ? `${item.finishedQrItems.length} QR đã sinh` : packedBoxes > 0 ? `${packedBoxes} QR sẽ sinh` : '-'}</td>
                     <td><input value={item.note} onChange={(event) => updateDetail(item.id, 'note', event.target.value)} /></td>
                   </tr>
-                ))} />
+                  )
+                })} />
               </section>
               <section className="v3-card">
                 <h3>Thông tin đóng gói</h3>
@@ -10994,6 +11219,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   const isMaterialCatalog = storageKey === 'materialCatalog'
   const isCustomerCatalog = storageKey === 'customerCatalog'
   const isProductCatalog = storageKey === 'productCatalog'
+  const isPackagingSpecCatalog = storageKey === 'packagingSpecCatalog'
   const catalogClassName = storageKey.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
   const tableWrapperClassName = [
     'table-wrapper',
@@ -11007,8 +11233,9 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   ].filter(Boolean).join(' ')
   const canImportMaterialCatalog = isMaterialCatalog && (canCreate || canEdit)
   const draftRowFromSource = (row) => {
+    if (isPackagingSpecCatalog) return normalizePackagingSpecCatalog([row])[0]
     if (!isProductCatalog) return { ...row }
-    const productGroup = normalizeProductCatalogGroup()
+    const productGroup = normalizeProductCatalogGroup(row.productGroup || row.group)
     return { ...row, productGroup, group: displayProductGroup(productGroup) || row.group || '' }
   }
   useEffect(() => {
@@ -11144,8 +11371,8 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
           const materialGroup = displayMaterialGroupFromMainGroup(mainGroup)
           return { ...row, mainGroup, materialGroup, subclassification: normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, mainGroup), chemicalSubGroup: normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, mainGroup) }
         }
-        if (isProductCatalog && field === 'productGroup') {
-          const productGroup = normalizeProductCatalogGroup()
+        if ((isProductCatalog || isPackagingSpecCatalog) && field === 'productGroup') {
+          const productGroup = normalizeProductCatalogGroup(value)
           return { ...row, productGroup, group: displayProductGroup(productGroup) || row.group }
         }
         return { ...row, [field]: value }
@@ -11173,6 +11400,14 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
       next.chemicalSubGroup = ''
       next.unit = next.unit || 'kg'
     }
+    if (isPackagingSpecCatalog) {
+      next.productGroup = normalizeProductCatalogGroup()
+      next.spec = ''
+      next.declaredUnit = 'kg'
+      next.convertedWeightKg = 0
+      next.toleranceKg = 0
+      next.status = ACTIVE_STATUS
+    }
     if (isProductCatalog) {
       next.productGroup = normalizeProductCatalogGroup()
       next.group = displayProductGroup(next.productGroup)
@@ -11198,8 +11433,9 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   }
   const normalizeDraftRowsForSave = () => {
     if (isMaterialCatalog) return normalizeMaterialCatalog(draftRows || [])
+    if (isPackagingSpecCatalog) return normalizePackagingSpecCatalog(draftRows || [])
     if (isProductCatalog) return (draftRows || []).map((row) => {
-      const productGroup = normalizeProductCatalogGroup()
+      const productGroup = normalizeProductCatalogGroup(row.productGroup || row.group)
       return { ...row, productGroup, group: displayProductGroup(productGroup) || row.group || '' }
     })
     return (draftRows || []).map((row) => ({ ...row }))
@@ -11254,7 +11490,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
                         <span className={`dispatch-badge ${normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, row.mainGroup || row.materialGroup) ? 'ready' : 'waiting'}`}>
                           {displayChemicalSubGroup(normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, row.mainGroup || row.materialGroup))}
                         </span>
-                      ) : isProductCatalog && field === 'productGroup' ? (
+                      ) : (isProductCatalog || isPackagingSpecCatalog) && field === 'productGroup' ? (
                         <select value={normalizeProductGroup(row.productGroup || row.group)} disabled={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)}>
                           <option value="">Chọn nhóm</option>
                           {productGroupOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -11672,6 +11908,7 @@ const pageMeta = {
   'admin-system-logs': ['Nhật ký hệ thống', 'Truy xuất nhật ký thao tác theo người dùng, nhân viên và công đoạn'],
   'master-materials': ['Danh mục vật tư', 'Dữ liệu gốc vật tư dùng trong sản xuất'],
   'master-products': ['Danh mục sản phẩm', 'Dữ liệu gốc sản phẩm và công thức'],
+  'master-packaging-specs': ['Danh mục quy cách đóng gói', 'Khai báo quy cách, đơn vị công bố, kg quy đổi và dung sai'],
   'master-suppliers': ['Danh mục nhà cung cấp', 'Dữ liệu gốc nhà cung cấp'],
   'master-customers': ['Danh mục khách hàng', 'Dữ liệu gốc khách hàng'],
   'master-employees': ['Danh sách nhân viên', 'Nhân sự vận hành trong phạm vi sản xuất'],
@@ -11723,6 +11960,7 @@ function App() {
       finishedGoods,
       rawMaterials,
       materialCatalog,
+      packagingSpecCatalog: normalizePackagingSpecCatalog(savedWithoutScaleTools.packagingSpecCatalog || seed.packagingSpecCatalog || defaultPackagingSpecCatalog),
       customerCatalog: normalizeCustomerCatalog(),
       employeeCatalog: normalizeEmployeeCatalogData(savedWithoutScaleTools.employeeCatalog || productionEmployeeCatalog),
       teamCatalog: normalizeTeamCatalogData([...(savedWithoutScaleTools.teamCatalog || []), ...seed.teamCatalog]),
@@ -11852,6 +12090,7 @@ function App() {
     'admin-system-logs': <SystemLogsPage data={data} />,
     'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'mainGroup', 'subclassification', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Phân nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} user={user} />,
     'master-products': <ProductMasterPage data={data} setData={setData} permissions={userPermissions} />,
+    'master-packaging-specs': <MasterCatalogPage title="Danh mục quy cách đóng gói" storageKey="packagingSpecCatalog" permissionKey="packagingSpec" fields={['productGroup', 'spec', 'declaredUnit', 'convertedWeightKg', 'toleranceKg', 'status', 'note']} labels={['Nhóm sản phẩm', 'Quy cách', 'Đơn vị công bố', 'Khối lượng quy đổi (kg)', 'Dung sai', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['customerCode', 'customerName', 'channelCode', 'province', 'status', 'note']} labels={['Mã khách hàng', 'Tên khách hàng', 'Nhóm khách hàng', 'Khu vực/Tỉnh thành', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-employees': <MasterCatalogPage title="Danh sách nhân viên" storageKey="employeeCatalog" permissionKey="employee" fields={['employeeCode', 'employeeName', 'department', 'role', 'phone', 'status', 'note']} labels={['Mã nhân viên', 'Họ tên', 'Bộ phận/Tổ', 'Vai trò', 'Điện thoại', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
