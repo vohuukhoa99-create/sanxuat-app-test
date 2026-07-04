@@ -14991,9 +14991,57 @@ body,
 }
 
 .scale-action-button.scale-action-confirm {
+  width: auto !important;
+  min-width: 96px !important;
+  max-width: none !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 16px !important;
+  border-radius: 6px !important;
   background: var(--process-action-start) !important;
   border: 0 !important;
   color: #ffffff !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  box-shadow: none !important;
+}
+
+.scale-action-button.scale-action-confirm:hover {
+  background: var(--process-action-start-hover) !important;
+  filter: none !important;
+}
+
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table th:nth-child(10),
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table td:nth-child(10),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table th:nth-child(10),
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table td:nth-child(10),
+.solid-weighing-table th:nth-child(10),
+.solid-weighing-table td:nth-child(10),
+.chemical-weighing-table th:nth-child(10),
+.chemical-weighing-table td:nth-child(10) {
+  width: 110px !important;
+  min-width: 110px !important;
+  text-align: center !important;
+}
+
+.solid-weighing-table td:nth-child(10) .scale-action-button.scale-action-confirm,
+.chemical-weighing-table td:nth-child(10) .scale-action-button.scale-action-confirm,
+.weighing-active-board > .table-wrapper table.solid-weighing-table.material-weighing-table td:nth-child(10) .scale-action-button.scale-action-confirm,
+.chemical-weighing-group .table-wrapper table.chemical-weighing-table.material-weighing-table td:nth-child(10) .scale-action-button.scale-action-confirm {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 96px !important;
+  width: 104px !important;
+  max-width: 110px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 16px !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
 }
 
 .secondary-button {
