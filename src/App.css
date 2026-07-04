@@ -2525,6 +2525,22 @@ tbody tr:hover {
   border: 1px solid #b8e8ca;
 }
 
+.formula-ratio-warning {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #facc15;
+}
+
+.packaging-residual-row,
+.packaging-residual-row td {
+  background: #fffbeb !important;
+}
+
+.packaging-residual-row td:first-child {
+  font-weight: 900;
+  color: #92400e;
+}
+
 .diff-up,
 .diff-down,
 .diff-same {

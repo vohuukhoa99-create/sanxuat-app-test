@@ -2552,6 +2552,70 @@ function displayQcTrialText(text = '') {
   return labels[text] || text || '-'
 }
 
+const PACKAGING_SPEC_TYPE_STANDARD = 'Tiêu chuẩn'
+const PACKAGING_SPEC_TYPE_SPECIAL = 'Đặc biệt'
+const RESIDUAL_PRODUCTION_SPEC = 'Dư sản xuất'
+const RESIDUAL_PRODUCTION_TYPE = 'Dư sản xuất'
+const RESIDUAL_PACKAGING_ID_PREFIX = 'PKG-DU-SX'
+
+function residualPackagingId(productGroup = '', productSubgroup = '') {
+  const group = normalizeProductGroup(productGroup) || PRODUCT_GROUP_SON_DA
+  const subgroup = normalizeProductSubgroup(productSubgroup)
+  return `${RESIDUAL_PACKAGING_ID_PREFIX}-${group || 'GROUP'}-${subgroup || 'ALL'}`.replace(/[^a-zA-Z0-9_-]/g, '-')
+}
+
+function isResidualPackagingItem(item = {}) {
+  return String(item.id || item.specId || '').startsWith(RESIDUAL_PACKAGING_ID_PREFIX)
+    || item.specType === PACKAGING_SPEC_TYPE_SPECIAL
+    || item.packagingType === RESIDUAL_PRODUCTION_TYPE
+    || String(item.spec || item.label || '').trim() === RESIDUAL_PRODUCTION_SPEC
+}
+
+function isStandardPackagingItem(item = {}) {
+  return !isResidualPackagingItem(item)
+}
+
+function buildResidualPackagingSpec(productGroup = PRODUCT_GROUP_SON_DA, productSubgroup = '') {
+  const group = normalizeProductGroup(productGroup) || PRODUCT_GROUP_SON_DA
+  const subgroup = group === PRODUCT_GROUP_SON_DA ? '' : normalizeProductSubgroup(productSubgroup)
+  return {
+    id: residualPackagingId(group, subgroup),
+    productGroup: group,
+    productSubgroup: subgroup,
+    specType: PACKAGING_SPEC_TYPE_SPECIAL,
+    packagingType: RESIDUAL_PRODUCTION_TYPE,
+    systemManaged: true,
+    spec: RESIDUAL_PRODUCTION_SPEC,
+    label: RESIDUAL_PRODUCTION_SPEC,
+    declaredUnit: 'kg',
+    convertedWeightKg: 0,
+    sizeKg: 0,
+    toleranceKg: 0,
+    status: ACTIVE_STATUS,
+    note: 'Hệ thống tự tính',
+  }
+}
+
+function ensureResidualPackagingSpecs(rows = []) {
+  const normalized = [...rows]
+  const keys = new Map()
+  normalized.filter(isStandardPackagingItem).forEach((item) => {
+    const group = normalizeProductGroup(item.productGroup) || PRODUCT_GROUP_SON_DA
+    const subgroup = group === PRODUCT_GROUP_SON_DA ? '' : normalizeProductSubgroup(item.productSubgroup)
+    keys.set(`${group}::${subgroup}`, { group, subgroup })
+  })
+  if (!keys.size) keys.set(`${PRODUCT_GROUP_SON_DA}::`, { group: PRODUCT_GROUP_SON_DA, subgroup: '' })
+  keys.forEach(({ group, subgroup }) => {
+    const exists = normalized.some((item) => (
+      isResidualPackagingItem(item)
+      && normalizeProductGroup(item.productGroup) === group
+      && normalizeProductSubgroup(item.productSubgroup) === subgroup
+    ))
+    if (!exists) normalized.push(buildResidualPackagingSpec(group, subgroup))
+  })
+  return normalized
+}
+
 const defaultPackagingSpecCatalog = [
   { id: 'PKG-SON-DA-25KG', productGroup: PRODUCT_GROUP_SON_DA, productSubgroup: '', spec: 'Thùng 25kg', declaredUnit: 'kg', convertedWeightKg: 25, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
   { id: 'PKG-SON-DA-10KG', productGroup: PRODUCT_GROUP_SON_DA, productSubgroup: '', spec: 'Thùng 10kg', declaredUnit: 'kg', convertedWeightKg: 10, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
@@ -2571,7 +2635,7 @@ const defaultPackagingSpecCatalog = [
   { id: 'PKG-ZELOS-1L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Zelos', spec: 'Thùng 1L', declaredUnit: 'L', convertedWeightKg: 1.02, toleranceKg: 0.01, status: ACTIVE_STATUS, note: '' },
 ]
 
-function normalizePackagingSpecCatalog(items = defaultPackagingSpecCatalog) {
+function legacyNormalizePackagingSpecCatalog(items = defaultPackagingSpecCatalog) {
   const source = Array.isArray(items) && items.length ? items : defaultPackagingSpecCatalog
   return source.map((item, index) => {
     const convertedWeightKg = num(item.convertedWeightKg ?? item.sizeKg ?? item.weightKg)
@@ -2592,7 +2656,7 @@ function normalizePackagingSpecCatalog(items = defaultPackagingSpecCatalog) {
   })
 }
 
-function activePackagingSpecsForGroup(specs = [], productGroup = '', productSubgroup = '') {
+function legacyActivePackagingSpecsForGroup(specs = [], productGroup = '', productSubgroup = '') {
   const group = normalizeProductGroup(productGroup) || PRODUCT_GROUP_SON_DA
   const subgroup = normalizeProductSubgroup(productSubgroup)
   return normalizePackagingSpecCatalog(specs).filter((spec) => (
@@ -2603,7 +2667,7 @@ function activePackagingSpecsForGroup(specs = [], productGroup = '', productSubg
   ))
 }
 
-function autoBuildPackagingPlan(quantityKg = 0, specs = []) {
+function legacyAutoBuildPackagingPlan(quantityKg = 0, specs = []) {
   const sortedSpecs = [...specs].sort((a, b) => num(b.convertedWeightKg) - num(a.convertedWeightKg))
   let remaining = num(quantityKg)
   return sortedSpecs.map((spec) => {
@@ -2614,7 +2678,7 @@ function autoBuildPackagingPlan(quantityKg = 0, specs = []) {
   })
 }
 
-function normalizePackagingPlan(plan = [], specs = [], quantityKg = 0) {
+function legacyNormalizePackagingPlan(plan = [], specs = [], quantityKg = 0) {
   const specRows = normalizePackagingSpecCatalog(specs)
   const source = Array.isArray(plan) && plan.length ? plan : autoBuildPackagingPlan(quantityKg, specRows)
   return source
@@ -2640,11 +2704,129 @@ function normalizePackagingPlan(plan = [], specs = [], quantityKg = 0) {
     .filter((item) => item.boxes > 0 || Array.isArray(plan))
 }
 
-function packagingPlanTotals(plan = []) {
+function legacyPackagingPlanTotals(plan = []) {
   const details = normalizePackagingPlan(plan, [])
   const convertedWeight = Number(details.reduce((sum, item) => sum + num(item.convertedWeightKg) * num(item.boxes), 0).toFixed(3))
   const totalTolerance = Number(details.reduce((sum, item) => sum + num(item.toleranceKg) * num(item.boxes), 0).toFixed(3))
   return { convertedWeight, totalTolerance, boxes: totalPackingBoxes(details) }
+}
+
+function normalizePackagingSpecCatalog(items = defaultPackagingSpecCatalog) {
+  const source = Array.isArray(items) && items.length ? items : defaultPackagingSpecCatalog
+  const normalized = source.map((item, index) => {
+    const isResidual = isResidualPackagingItem(item)
+    const convertedWeightKg = num(item.convertedWeightKg ?? item.sizeKg ?? item.weightKg)
+    const spec = String(item.spec || item.label || (isResidual ? RESIDUAL_PRODUCTION_SPEC : convertedWeightKg ? `${convertedWeightKg}kg` : `Quy cách ${index + 1}`)).trim()
+    const productGroup = normalizeProductGroup(item.productGroup || item.group) || PRODUCT_GROUP_SON_DA
+    const productSubgroup = productGroup === PRODUCT_GROUP_SON_DA ? '' : normalizeProductSubgroup(item.productSubgroup || item.productSubGroup || item.subgroup || item.subGroup || item.phanNhom || item.subclassification)
+    return {
+      id: isResidual ? residualPackagingId(productGroup, productSubgroup) : (item.id || item.specId || `PKG-SPEC-${index + 1}`),
+      productGroup,
+      productSubgroup,
+      specType: isResidual ? PACKAGING_SPEC_TYPE_SPECIAL : (item.specType || item.type || PACKAGING_SPEC_TYPE_STANDARD),
+      packagingType: isResidual ? RESIDUAL_PRODUCTION_TYPE : (item.packagingType || ''),
+      systemManaged: isResidual || Boolean(item.systemManaged),
+      spec,
+      label: item.label || spec,
+      declaredUnit: isResidual ? 'kg' : (item.declaredUnit || item.unit || (spec.toUpperCase().includes('L') ? 'L' : 'kg')),
+      convertedWeightKg: isResidual ? 0 : convertedWeightKg,
+      sizeKg: isResidual ? 0 : convertedWeightKg,
+      toleranceKg: isResidual ? 0 : num(item.toleranceKg ?? item.tolerance ?? item.allowedTolerance),
+      status: item.status || ACTIVE_STATUS,
+      note: isResidual ? (item.note || item.notes || 'Hệ thống tự tính') : (item.note || item.notes || ''),
+    }
+  })
+  return ensureResidualPackagingSpecs(normalized)
+}
+
+function activePackagingSpecsForGroup(specs = [], productGroup = '', productSubgroup = '') {
+  const group = normalizeProductGroup(productGroup) || PRODUCT_GROUP_SON_DA
+  const subgroup = normalizeProductSubgroup(productSubgroup)
+  return normalizePackagingSpecCatalog(specs).filter((spec) => (
+    normalizeProductGroup(spec.productGroup) === group
+    && (group === PRODUCT_GROUP_SON_DA || normalizeProductSubgroup(spec.productSubgroup) === subgroup)
+    && String(spec.status || ACTIVE_STATUS) !== LOCKED_STATUS
+    && (isResidualPackagingItem(spec) || num(spec.convertedWeightKg) > 0)
+  )).sort((a, b) => {
+    if (isResidualPackagingItem(a)) return 1
+    if (isResidualPackagingItem(b)) return -1
+    return num(b.convertedWeightKg) - num(a.convertedWeightKg)
+  })
+}
+
+function autoBuildPackagingPlan(quantityKg = 0, specs = []) {
+  const sortedSpecs = [...specs].filter(isStandardPackagingItem).sort((a, b) => num(b.convertedWeightKg) - num(a.convertedWeightKg))
+  let remaining = num(quantityKg)
+  return sortedSpecs.map((spec) => {
+    const weight = num(spec.convertedWeightKg)
+    const boxes = weight > 0 ? Math.floor((remaining + 0.0001) / weight) : 0
+    remaining = Number((remaining - boxes * weight).toFixed(3))
+    return { specId: spec.id, boxes }
+  })
+}
+
+function normalizePackagingPlan(plan = [], specs = [], quantityKg = 0) {
+  const specRows = normalizePackagingSpecCatalog(specs)
+  const source = Array.isArray(plan) && plan.length ? plan.filter(isStandardPackagingItem) : autoBuildPackagingPlan(quantityKg, specRows)
+  const normalizedPlan = source
+    .map((item) => {
+      const spec = specRows.find((row) => row.id === item.specId || row.id === item.id || row.spec === item.spec || row.convertedWeightKg === item.sizeKg) || item
+      const boxes = num(item.boxes ?? item.plannedBoxes ?? item.quantity)
+      return {
+        id: item.id || `PLAN-${spec.id || spec.spec}`,
+        specId: spec.id || item.specId,
+        productSubgroup: normalizeProductSubgroup(spec.productSubgroup || item.productSubgroup || item.productSubGroup),
+        specType: spec.specType || item.specType || PACKAGING_SPEC_TYPE_STANDARD,
+        packagingType: spec.packagingType || item.packagingType || '',
+        systemManaged: Boolean(spec.systemManaged || item.systemManaged),
+        spec: spec.spec || item.spec || item.label || `${spec.convertedWeightKg || item.sizeKg}kg`,
+        label: spec.label || spec.spec || item.label || item.spec,
+        declaredUnit: spec.declaredUnit || item.declaredUnit || item.unit || 'kg',
+        convertedWeightKg: num(spec.convertedWeightKg ?? item.convertedWeightKg ?? item.sizeKg),
+        sizeKg: num(spec.convertedWeightKg ?? item.convertedWeightKg ?? item.sizeKg),
+        toleranceKg: num(spec.toleranceKg ?? item.toleranceKg),
+        boxes,
+        plannedBoxes: boxes,
+        convertedWeight: Number((num(spec.convertedWeightKg ?? item.convertedWeightKg ?? item.sizeKg) * boxes).toFixed(3)),
+        note: item.note || '',
+      }
+    })
+    .filter((item) => isStandardPackagingItem(item) && (item.boxes > 0 || Array.isArray(plan)))
+  const standardWeight = Number(normalizedPlan.reduce((sum, item) => sum + num(item.convertedWeightKg) * num(item.boxes), 0).toFixed(3))
+  const residualWeightKg = Number((num(quantityKg) - standardWeight).toFixed(3))
+  const residualSpec = specRows.find(isResidualPackagingItem) || buildResidualPackagingSpec()
+  return [
+    ...normalizedPlan,
+    {
+      id: `PLAN-${residualSpec.id}`,
+      specId: residualSpec.id,
+      productSubgroup: residualSpec.productSubgroup || '',
+      specType: PACKAGING_SPEC_TYPE_SPECIAL,
+      packagingType: RESIDUAL_PRODUCTION_TYPE,
+      systemManaged: true,
+      spec: RESIDUAL_PRODUCTION_SPEC,
+      label: RESIDUAL_PRODUCTION_SPEC,
+      declaredUnit: 'kg',
+      convertedWeightKg: 0,
+      sizeKg: 0,
+      toleranceKg: 0,
+      boxes: 0,
+      plannedBoxes: 0,
+      convertedWeight: residualWeightKg,
+      residualWeightKg,
+      actualWeight: residualWeightKg > 0 ? residualWeightKg : 0,
+      note: 'Hệ thống tự tính',
+    },
+  ]
+}
+
+function packagingPlanTotals(plan = [], quantityKg = 0) {
+  const details = normalizePackagingPlan(plan, [], quantityKg)
+  const standardDetails = details.filter(isStandardPackagingItem)
+  const convertedWeight = Number(standardDetails.reduce((sum, item) => sum + num(item.convertedWeightKg) * num(item.boxes), 0).toFixed(3))
+  const totalTolerance = Number(standardDetails.reduce((sum, item) => sum + num(item.toleranceKg) * num(item.boxes), 0).toFixed(3))
+  const residualWeight = Number((num(quantityKg) - convertedWeight).toFixed(3))
+  return { convertedWeight, totalTolerance, boxes: totalPackingBoxes(standardDetails), residualWeight }
 }
 
 function normalizeStoredPackagingSpecCatalog(items = []) {
@@ -2653,6 +2835,7 @@ function normalizeStoredPackagingSpecCatalog(items = []) {
     Object.prototype.hasOwnProperty.call(item, 'productSubgroup')
     || Object.prototype.hasOwnProperty.call(item, 'productSubGroup')
     || Object.prototype.hasOwnProperty.call(item, 'subgroup')
+    || Object.prototype.hasOwnProperty.call(item, 'specType')
   ))
   return normalizePackagingSpecCatalog(hasNewStructure ? source : defaultPackagingSpecCatalog)
 }
@@ -3050,10 +3233,11 @@ function getPackingForm(forms, order, specs = defaultPackagingSpecCatalog) {
 function packingTotals(order, form) {
   const details = form.details || defaultPackingDetails(order)
   const qcWeight = qc2FinalWeight(order)
-  const totalPackedWeight = Number(details.reduce((sum, item) => sum + (num(item.actualWeight) || num(item.convertedWeightKg ?? item.sizeKg) * num(item.boxes)), 0).toFixed(3))
-  const convertedWeight = Number(details.reduce((sum, item) => sum + num(item.convertedWeightKg ?? item.sizeKg) * num(item.boxes), 0).toFixed(3))
-  const plannedWeight = Number(details.reduce((sum, item) => sum + num(item.convertedWeightKg ?? item.sizeKg) * num(item.plannedBoxes ?? item.boxes), 0).toFixed(3))
-  const totalTolerance = Number(details.reduce((sum, item) => sum + num(item.toleranceKg) * num(item.plannedBoxes ?? item.boxes), 0).toFixed(3))
+  const standardDetails = details.filter(isStandardPackagingItem)
+  const totalPackedWeight = Number(standardDetails.reduce((sum, item) => sum + (num(item.actualWeight) || num(item.convertedWeightKg ?? item.sizeKg) * num(item.boxes)), 0).toFixed(3))
+  const convertedWeight = Number(standardDetails.reduce((sum, item) => sum + num(item.convertedWeightKg ?? item.sizeKg) * num(item.boxes), 0).toFixed(3))
+  const plannedWeight = Number(standardDetails.reduce((sum, item) => sum + num(item.convertedWeightKg ?? item.sizeKg) * num(item.plannedBoxes ?? item.boxes), 0).toFixed(3))
+  const totalTolerance = Number(standardDetails.reduce((sum, item) => sum + num(item.toleranceKg) * num(item.plannedBoxes ?? item.boxes), 0).toFixed(3))
   const remainingWeight = Number((qcWeight - totalPackedWeight).toFixed(3))
   const differenceWeight = Number((totalPackedWeight - qcWeight).toFixed(3))
   return { qcWeight, totalPackedWeight, convertedWeight, plannedWeight, totalTolerance, remainingWeight, differenceWeight }
@@ -3067,13 +3251,13 @@ function getLatestPackingLog(order = {}, packingLogs = []) {
 
 function packingSpecSummary(details = []) {
   return details
-    .filter((item) => num(item.boxes) > 0)
+    .filter((item) => isStandardPackagingItem(item) && num(item.boxes) > 0)
     .map((item) => `${item.spec || item.label || `${item.sizeKg} kg`}: ${num(item.boxes)} thùng`)
     .join(', ') || '-'
 }
 
 function totalPackingBoxes(details = []) {
-  return details.reduce((sum, item) => sum + num(item.boxes), 0)
+  return details.filter(isStandardPackagingItem).reduce((sum, item) => sum + num(item.boxes), 0)
 }
 
 function nextFinishedCode(finishedGoods = []) {
@@ -3099,6 +3283,8 @@ function normalizeFinishedGoodsData(items = []) {
     spec: item.spec || item.packagingSpec || '-',
     boxes: num(item.boxes ?? item.quantity),
     weight: num(item.weight ?? item.importWeight ?? item.totalPackedWeight),
+    inventoryType: item.inventoryType || item.packagingType || PACKAGING_SPEC_TYPE_STANDARD,
+    packagingType: item.packagingType || item.inventoryType || PACKAGING_SPEC_TYPE_STANDARD,
     importDate: item.importDate || item.date || todayText(),
     location: item.location || item.warehouseLocation || '',
     receiver: item.receiver || item.importer || item.createdBy || '',
@@ -4381,10 +4567,11 @@ function OrdersPage({ data, setData, permissions = [] }) {
     : []
   const availablePackagingSpecs = activePackagingSpecsForGroup(data.packagingSpecCatalog || defaultPackagingSpecCatalog, selectedProductGroup, selectedProductSubgroup)
   const effectivePackagingPlan = normalizePackagingPlan(form.packagingPlan, availablePackagingSpecs, form.quantityKg)
-  const packagingTotals = packagingPlanTotals(effectivePackagingPlan)
-  const packagingDifference = Number((packagingTotals.convertedWeight - num(form.quantityKg)).toFixed(3))
-  const packagingWithinTolerance = effectivePackagingPlan.some((item) => num(item.boxes) > 0)
-    && Math.abs(packagingDifference) <= packagingTotals.totalTolerance
+  const packagingTotals = packagingPlanTotals(effectivePackagingPlan, form.quantityKg)
+  const packagingDifference = Number((num(form.quantityKg) - packagingTotals.convertedWeight).toFixed(3))
+  const packagingResidualTone = packagingDifference > 0 ? 'formula-ratio-warning' : packagingDifference === 0 ? 'formula-ratio-ok' : 'formula-ratio-alert'
+  const packagingWithinTolerance = effectivePackagingPlan.some((item) => isStandardPackagingItem(item) && num(item.boxes) > 0)
+    && packagingDifference >= 0
   const libraryItems = formula ? formula.items.map((item) => ({
     code: item.materialCode,
     name: item.materialCode,
@@ -4454,14 +4641,18 @@ function OrdersPage({ data, setData, permissions = [] }) {
       setWarning('Vui lòng chọn máy phối trộn.')
       return
     }
-    const finalPackagingPlan = normalizePackagingPlan(effectivePackagingPlan, availablePackagingSpecs, form.quantityKg).filter((item) => num(item.boxes) > 0)
-    const finalPackagingTotals = packagingPlanTotals(finalPackagingPlan)
-    const finalPackagingDifference = Number((finalPackagingTotals.convertedWeight - num(form.quantityKg)).toFixed(3))
-    if (!finalPackagingPlan.length) {
+    const finalPackagingPlan = normalizePackagingPlan(effectivePackagingPlan, availablePackagingSpecs, form.quantityKg).filter((item) => isResidualPackagingItem(item) || num(item.boxes) > 0)
+    const finalPackagingTotals = packagingPlanTotals(finalPackagingPlan, form.quantityKg)
+    const finalPackagingDifference = Number((num(form.quantityKg) - finalPackagingTotals.convertedWeight).toFixed(3))
+    if (!finalPackagingPlan.some(isStandardPackagingItem)) {
       setWarning('Vui lòng khai báo kế hoạch đóng gói cho lệnh sản xuất.')
       return
     }
-    if (Math.abs(finalPackagingDifference) > finalPackagingTotals.totalTolerance) {
+    if (finalPackagingDifference < 0) {
+      setWarning(`Tong khoi luong dong goi tieu chuan ${kg(finalPackagingTotals.convertedWeight)} vuot khoi luong SX ${kg(form.quantityKg)}. Khong the tao lenh.`)
+      return
+    }
+    if (false && Math.abs(finalPackagingDifference) > finalPackagingTotals.totalTolerance) {
       setWarning(`Tổng khối lượng quy đổi đóng gói ${kg(finalPackagingTotals.convertedWeight)} chưa khớp khối lượng lệnh ${kg(form.quantityKg)}. Chênh lệch ${kg(finalPackagingDifference)} vượt dung sai ${kg(finalPackagingTotals.totalTolerance)}.`)
       return
     }
@@ -4731,7 +4922,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
               <h3>Kế hoạch đóng gói</h3>
               <p className="panel-text">Kế hoạch được khai báo ngay khi tạo lệnh và công đoạn Đóng gói sẽ chỉ thực hiện theo kế hoạch này.</p>
             </div>
-            <div className={packagingWithinTolerance ? 'formula-ratio-ok' : 'formula-ratio-alert'}>
+            <div className={packagingWithinTolerance ? packagingResidualTone : 'formula-ratio-alert'}>
               Tổng quy đổi: {kg(packagingTotals.convertedWeight)} / {kg(form.quantityKg)} | Chênh lệch: {kg(packagingDifference)} | Dung sai: ±{kg(packagingTotals.totalTolerance)}
             </div>
           </div>
@@ -4741,13 +4932,13 @@ function OrdersPage({ data, setData, permissions = [] }) {
               const row = effectivePackagingPlan.find((item) => item.specId === spec.id) || {}
               const boxes = num(row.boxes)
               return (
-                <tr key={spec.id}>
+                <tr key={spec.id} className={isResidualPackagingItem(spec) ? 'packaging-residual-row' : ''}>
                   <td>{spec.spec}</td>
                   <td>{spec.declaredUnit}</td>
                   <td>{kg(spec.convertedWeightKg)}</td>
                   <td>±{kg(spec.toleranceKg)}</td>
-                  <td><input type="number" min="0" value={boxes} onChange={(event) => updatePackagingPlanBoxes(spec.id, event.target.value)} /></td>
-                  <td>{kg(num(spec.convertedWeightKg) * boxes)}</td>
+                  <td>{isResidualPackagingItem(spec) ? '-' : <input type="number" min="0" value={boxes} onChange={(event) => updatePackagingPlanBoxes(spec.id, event.target.value)} />}</td>
+                  <td>{isResidualPackagingItem(spec) ? kg(packagingDifference) : kg(num(spec.convertedWeightKg) * boxes)}</td>
                 </tr>
               )
             })}
@@ -8237,7 +8428,7 @@ function PackagingPage({ data, setData, user }) {
     const lot = getOrderLotCode(order)
     const totalBoxes = totalPackingBoxes(details)
     let sequence = 0
-    return details.flatMap((item) => {
+    return details.filter(isStandardPackagingItem).flatMap((item) => {
       const boxes = num(item.boxes)
       return Array.from({ length: boxes }, () => {
         sequence += 1
@@ -8263,6 +8454,7 @@ function PackagingPage({ data, setData, user }) {
     const nextTotals = packingTotals(order, nextForm)
     const finishedQrItems = buildFinishedQrItems(order, nextForm.details)
     const detailsWithQr = attachFinishedQrItemsToDetails(nextForm.details, finishedQrItems)
+    const residualWeight = Math.max(0, nextTotals.remainingWeight)
     return {
       packingId: uid('PKG'),
       orderId: order.id,
@@ -8277,12 +8469,16 @@ function PackagingPage({ data, setData, user }) {
         label: item.label,
         declaredUnit: item.declaredUnit,
         sizeKg: item.convertedWeightKg ?? item.sizeKg,
-        boxes: num(item.boxes),
+        specType: isResidualPackagingItem(item) ? PACKAGING_SPEC_TYPE_SPECIAL : (item.specType || PACKAGING_SPEC_TYPE_STANDARD),
+        packagingType: isResidualPackagingItem(item) ? RESIDUAL_PRODUCTION_TYPE : (item.packagingType || ''),
+        systemManaged: isResidualPackagingItem(item),
+        boxes: isResidualPackagingItem(item) ? 0 : num(item.boxes),
         plannedBoxes: num(item.plannedBoxes),
-        remainingBoxes: Math.max(0, num(item.plannedBoxes) - num(item.boxes)),
-        convertedWeight: Number((num(item.convertedWeightKg ?? item.sizeKg) * num(item.boxes)).toFixed(3)),
+        remainingBoxes: isResidualPackagingItem(item) ? 0 : Math.max(0, num(item.plannedBoxes) - num(item.boxes)),
+        convertedWeight: isResidualPackagingItem(item) ? residualWeight : Number((num(item.convertedWeightKg ?? item.sizeKg) * num(item.boxes)).toFixed(3)),
+        residualWeightKg: isResidualPackagingItem(item) ? residualWeight : 0,
         toleranceKg: item.toleranceKg,
-        actualWeight: num(item.actualWeight),
+        actualWeight: isResidualPackagingItem(item) ? residualWeight : num(item.actualWeight),
         finishedQrItems: item.finishedQrItems || [],
         note: item.note || '',
       })),
@@ -8340,12 +8536,12 @@ function PackagingPage({ data, setData, user }) {
     const completedAt = form.completedAt || nowText()
     const nextForm = { ...form, completedAt }
     const nextTotals = packingTotals(activeOrder, nextForm)
-    const hasIncompleteBoxes = nextForm.details.some((item) => num(item.boxes) !== num(item.plannedBoxes))
+    const hasIncompleteBoxes = nextForm.details.some((item) => isStandardPackagingItem(item) && num(item.boxes) !== num(item.plannedBoxes))
     if (hasIncompleteBoxes) {
       setWarning('Số thùng đã đóng phải đúng theo kế hoạch trước khi hoàn tất đóng gói.')
       return
     }
-    if (Math.abs(nextTotals.differenceWeight) > nextTotals.totalTolerance) {
+    if (nextTotals.differenceWeight > nextTotals.totalTolerance) {
       setWarning(`Sai lệch ${kg(nextTotals.differenceWeight)} vượt sai số tổng cho phép ${kg(nextTotals.totalTolerance)}.`)
       return
     }
@@ -8415,15 +8611,16 @@ function PackagingPage({ data, setData, user }) {
                   const packedBoxes = num(item.boxes)
                   const plannedBoxes = num(item.plannedBoxes)
                   const remainingBoxes = Math.max(0, plannedBoxes - packedBoxes)
+                  const isResidual = isResidualPackagingItem(item)
                   return (
-                  <tr key={item.id}>
+                  <tr key={item.id} className={isResidual ? 'packaging-residual-row' : ''}>
                     <td>{item.spec || item.label}</td>
                     <td>{plannedBoxes} thùng</td>
-                    <td><input type="number" min="0" max={plannedBoxes} value={packedBoxes} onChange={(event) => updateDetail(item.id, 'boxes', event.target.value)} /></td>
+                    <td>{isResidual ? '-' : <input type="number" min="0" max={plannedBoxes} value={packedBoxes} onChange={(event) => updateDetail(item.id, 'boxes', event.target.value)} />}</td>
                     <td>{remainingBoxes} thùng</td>
-                    <td>{kg(num(item.convertedWeightKg ?? item.sizeKg) * packedBoxes)}</td>
+                    <td>{isResidual ? kg(Math.max(0, totals.remainingWeight)) : kg(num(item.convertedWeightKg ?? item.sizeKg) * packedBoxes)}</td>
                     <td>{item.finishedQrItems?.length ? `${item.finishedQrItems.length} QR đã sinh` : packedBoxes > 0 ? `${packedBoxes} QR sẽ sinh` : '-'}</td>
-                    <td><input value={item.note} onChange={(event) => updateDetail(item.id, 'note', event.target.value)} /></td>
+                    <td>{isResidual ? 'Hệ thống tự tính' : <input value={item.note} onChange={(event) => updateDetail(item.id, 'note', event.target.value)} />}</td>
                   </tr>
                   )
                 })} />
@@ -8518,16 +8715,38 @@ function FinishedGoodsPage({ data, setData, user }) {
       note: form.note,
       status: 'Hoàn thành',
     }
+    const packingLog = getLatestPackingLog(activeOrder, packingLogs)
+    const sourceDetails = packingLog?.packingDetails?.length ? packingLog.packingDetails : (activeOrder.packaging?.details || [])
+    const importDetails = sourceDetails.length
+      ? sourceDetails.filter((item) => isResidualPackagingItem(item) ? num(item.actualWeight ?? item.residualWeightKg ?? item.convertedWeight) > 0 : num(item.boxes) > 0)
+      : [finishedItem]
+    const baseFinishedNo = Number(String(form.finishedCode || '').match(/(\d+)$/)?.[1] || 1)
+    const finishedPrefix = String(form.finishedCode || nextFinishedCode(finishedGoods)).replace(/\d+$/, '')
+    const finishedItems = importDetails.map((item, index) => {
+      const isResidual = isResidualPackagingItem(item)
+      const weight = isResidual ? num(item.actualWeight ?? item.residualWeightKg ?? item.convertedWeight) : num(item.actualWeight ?? item.convertedWeight ?? item.weight)
+      return {
+        ...finishedItem,
+        id: uid('FG'),
+        finishedCode: `${finishedPrefix}${String(baseFinishedNo + index).padStart(3, '0')}`,
+        spec: isResidual ? RESIDUAL_PRODUCTION_SPEC : (item.spec || item.label || form.spec),
+        boxes: isResidual ? 0 : num(item.boxes),
+        weight,
+        inventoryType: isResidual ? RESIDUAL_PRODUCTION_TYPE : PACKAGING_SPEC_TYPE_STANDARD,
+        packagingType: isResidual ? RESIDUAL_PRODUCTION_TYPE : PACKAGING_SPEC_TYPE_STANDARD,
+        note: isResidual ? [form.note, RESIDUAL_PRODUCTION_TYPE].filter(Boolean).join(' - ') : form.note,
+      }
+    })
     setData((current) => addLogToData({
       ...current,
-      finishedGoods: [finishedItem, ...normalizeFinishedGoodsData(current.finishedGoods || [])],
+      finishedGoods: [...finishedItems, ...normalizeFinishedGoodsData(current.finishedGoods || [])],
       orders: current.orders.map((order) => order.id === activeOrder.id ? {
         ...order,
         stage: 'completed',
         status: 'Hoàn thành',
         orderStatus: 'Hoàn thành',
         finishedGoodsStatus: 'completed',
-        finishedGoodsCode: form.finishedCode,
+        finishedGoodsCode: finishedItems[0]?.finishedCode || form.finishedCode,
         completedAt,
         updatedAt: completedAt,
       } : order),
@@ -11473,6 +11692,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
     setDraftRows((currentRows) => (
       (currentRows || []).map((row) => {
         if (row.id !== rowId) return row
+        if (isPackagingSpecCatalog && isResidualPackagingItem(row)) return row
         if (isMaterialCatalog && field === 'mainGroup') {
           const mainGroup = normalizeMainGroup(value)
           const materialGroup = displayMaterialGroupFromMainGroup(mainGroup)
@@ -11522,6 +11742,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
     if (isPackagingSpecCatalog) {
       next.productGroup = normalizeProductCatalogGroup()
       next.productSubgroup = ''
+      next.specType = PACKAGING_SPEC_TYPE_STANDARD
       next.spec = ''
       next.declaredUnit = 'kg'
       next.convertedWeightKg = 0
@@ -11538,6 +11759,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   }
   const deleteRow = (rowId) => {
     if (!canDelete) return
+    if (isPackagingSpecCatalog && (draftRows || []).some((row) => row.id === rowId && isResidualPackagingItem(row))) return
     setDraftRows((currentRows) => (currentRows || []).filter((row) => row.id !== rowId))
     markRowDirty(`delete-${rowId}`)
   }
@@ -11615,12 +11837,16 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
                           <option value="">Chọn nhóm</option>
                           {productGroupOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                         </select>
+                      ) : isPackagingSpecCatalog && field === 'specType' ? (
+                        <select value={row.specType || PACKAGING_SPEC_TYPE_STANDARD} disabled={!canEdit || isResidualPackagingItem(row)} onChange={(event) => updateRow(row.id, field, event.target.value)}>
+                          {[PACKAGING_SPEC_TYPE_STANDARD, PACKAGING_SPEC_TYPE_SPECIAL].map((type) => <option key={type}>{type}</option>)}
+                        </select>
                       ) : isMaterialCatalog && field === 'status' ? (
                         <select value={normalizeMaterialCatalogItem(row)?.status || MATERIAL_STATUS_ACTIVE} disabled={!canEdit} onChange={(event) => updateMaterialStatus(row.id, event.target.value)}>
                           {materialStatuses.map((status) => <option key={status}>{status}</option>)}
                         </select>
                       ) : (
-                        <input value={row[field] || ''} readOnly={!canEdit} onChange={(event) => updateRow(row.id, field, event.target.value)} />
+                        <input value={row[field] || ''} readOnly={!canEdit || (isPackagingSpecCatalog && isResidualPackagingItem(row))} onChange={(event) => updateRow(row.id, field, event.target.value)} />
                       )}
                     </td>
                   ))}
@@ -11639,7 +11865,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
                         </button>
                       </div>
                     ) : (
-                      <button className="danger-button" type="button" disabled={!canDelete} onClick={() => deleteRow(row.id)}>Xóa</button>
+                      <button className="danger-button" type="button" disabled={!canDelete || (isPackagingSpecCatalog && isResidualPackagingItem(row))} onClick={() => deleteRow(row.id)}>Xóa</button>
                     )}
                   </td>
                 </tr>
@@ -12210,7 +12436,7 @@ function App() {
     'admin-system-logs': <SystemLogsPage data={data} />,
     'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'mainGroup', 'subclassification', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Phân nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} user={user} />,
     'master-products': <ProductMasterPage data={data} setData={setData} permissions={userPermissions} />,
-    'master-packaging-specs': <MasterCatalogPage title="Quy cách đóng gói" storageKey="packagingSpecCatalog" permissionKey="packagingSpec" fields={['productGroup', 'productSubgroup', 'spec', 'declaredUnit', 'convertedWeightKg', 'toleranceKg', 'status', 'note']} labels={['Nhóm sản phẩm', 'Phân nhóm', 'Quy cách đóng gói', 'Đơn vị công bố', 'Khối lượng quy đổi kg', 'Dung sai kg', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
+    'master-packaging-specs': <MasterCatalogPage title="Quy cách đóng gói" storageKey="packagingSpecCatalog" permissionKey="packagingSpec" fields={['productGroup', 'productSubgroup', 'specType', 'spec', 'declaredUnit', 'convertedWeightKg', 'toleranceKg', 'status', 'note']} labels={['Nhóm sản phẩm', 'Phân nhóm', 'Loại quy cách', 'Quy cách đóng gói', 'Đơn vị công bố', 'Khối lượng quy đổi kg', 'Dung sai kg', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['customerCode', 'customerName', 'channelCode', 'province', 'status', 'note']} labels={['Mã khách hàng', 'Tên khách hàng', 'Nhóm khách hàng', 'Khu vực/Tỉnh thành', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-employees': <MasterCatalogPage title="Danh sách nhân viên" storageKey="employeeCatalog" permissionKey="employee" fields={['employeeCode', 'employeeName', 'department', 'role', 'phone', 'status', 'note']} labels={['Mã nhân viên', 'Họ tên', 'Bộ phận/Tổ', 'Vai trò', 'Điện thoại', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
