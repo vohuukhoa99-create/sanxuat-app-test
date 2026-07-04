@@ -15368,17 +15368,18 @@ body,
 
 .packaging-print-body {
   display: grid;
-  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 14px;
   align-items: start;
 }
 
 .packaging-reprint-options {
   display: grid;
-  gap: 14px;
-  width: 340px;
+  justify-items: start;
+  gap: 11px;
+  width: 300px;
   max-width: 100%;
-  padding: 16px;
+  padding: 12px 14px;
   border: 1px solid rgba(7, 34, 26, 0.1);
   border-radius: 8px;
   background: #f6fbf8;
@@ -15387,15 +15388,18 @@ body,
 .packaging-reprint-choice {
   display: inline-flex !important;
   align-items: center;
-  gap: 7px;
-  width: 100%;
-  min-height: 30px;
+  flex-wrap: nowrap;
+  gap: 6px;
+  width: auto;
+  min-height: 26px;
   margin: 0 !important;
   padding: 0 !important;
   background: transparent !important;
   border: 0 !important;
   font-size: 13px;
   font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .packaging-reprint-choice input[type='radio'] {
@@ -15405,6 +15409,10 @@ body,
   margin: 0;
 }
 
+.packaging-reprint-choice span {
+  white-space: nowrap;
+}
+
 .packaging-reprint-inputs {
   display: inline-flex;
   align-items: center;
@@ -15412,11 +15420,12 @@ body,
 }
 
 .packaging-reprint-options input[type='number'] {
-  width: 58px !important;
-  min-width: 58px !important;
+  box-sizing: border-box;
+  width: 54px !important;
+  min-width: 54px !important;
   max-width: 60px !important;
-  height: 30px;
-  padding: 4px 6px;
+  height: 26px;
+  padding: 3px 5px;
   text-align: center;
 }
 
