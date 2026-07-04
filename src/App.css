@@ -15345,40 +15345,92 @@ body,
 .packaging-print-modal {
   display: grid;
   gap: 16px;
+  width: min(820px, calc(100vw - 48px)) !important;
+  max-width: 820px !important;
   padding: 22px;
+}
+
+.packaging-print-modal .modal-header {
+  padding: 0;
+  border: 0;
+}
+
+.packaging-print-modal .modal-header h2 {
+  margin: 0;
+}
+
+.packaging-print-subtitle {
+  margin: 4px 0 0;
+  color: #587064;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .packaging-reprint-options {
   display: grid;
-  gap: 10px;
-  padding: 12px;
+  gap: 8px;
+  padding: 14px;
   border: 1px solid rgba(7, 34, 26, 0.1);
   border-radius: 8px;
   background: #f6fbf8;
 }
 
-.packaging-reprint-options h3 {
+.packaging-reprint-choice {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 32px;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.packaging-reprint-choice input[type='radio'] {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.packaging-reprint-inputs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.packaging-reprint-options input[type='number'] {
+  width: 58px;
+  min-width: 58px;
+  height: 30px;
+  padding: 4px 6px;
+  text-align: center;
+}
+
+.packaging-reprint-options input:disabled {
+  opacity: 0.48;
+}
+
+.packaging-print-preview {
+  display: grid;
+  gap: 10px;
+}
+
+.packaging-print-preview h3 {
   margin: 0;
   font-size: 15px;
 }
 
-.packaging-reprint-options label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  font-size: 13px;
-}
-
-.packaging-reprint-options input[type='number'] {
-  width: 78px;
-}
-
 .packaging-label-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(60mm, 1fr));
+  grid-template-columns: repeat(2, 1fr);
+  justify-items: center;
   gap: 12px;
-  max-height: 58vh;
+  max-height: 45vh;
   overflow: auto;
 }
 
@@ -15425,6 +15477,12 @@ body,
   width: 23mm !important;
   height: 23mm !important;
   justify-self: center;
+}
+
+.packaging-print-actions {
+  justify-content: flex-end !important;
+  padding: 0 !important;
+  border: 0 !important;
 }
 
 .packaging-history-card {
