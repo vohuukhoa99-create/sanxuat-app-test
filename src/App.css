@@ -14786,3 +14786,216 @@ body,
     max-width: 100% !important;
   }
 }
+
+/* Shared process action system: one visual language for production actions and statuses. */
+:root {
+  --process-action-start: #16a34a;
+  --process-action-start-hover: #15803d;
+  --process-action-progress: #f59e0b;
+  --process-action-continue: #2563eb;
+  --process-action-continue-hover: #1d4ed8;
+  --process-status-wait-bg: #eef2ff;
+  --process-status-wait-text: #475569;
+  --process-status-ok-bg: #dcfce7;
+  --process-status-ok-text: #166534;
+  --process-status-locked-bg: #f1f5f9;
+  --process-status-locked-text: #475569;
+  --process-status-error-bg: #fee2e2;
+  --process-status-error-text: #b91c1c;
+}
+
+.process-action-button,
+.process-status-button,
+.primary-button,
+.weighing-start-button,
+.scale-action-button,
+.weighing-finish-button,
+.mixing-row-actions button,
+.qc-active-panel .primary-button,
+.qc-active-panel .secondary-button,
+.qc-trial-action-bar button,
+.packaging-detail .primary-button,
+.packaging-detail .secondary-button,
+.finished-goods-page .primary-button,
+.finished-goods-page .secondary-button,
+.orders-table .primary-button,
+.orders-table .secondary-button,
+.production-assignment-table button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 88px !important;
+  min-height: 34px !important;
+  height: 34px !important;
+  padding: 0 16px !important;
+  border-radius: 6px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+}
+
+.process-action-button,
+.primary-button,
+.weighing-start-button,
+.qc-active-panel .primary-button,
+.qc-trial-action-bar .primary-button,
+.packaging-detail .primary-button,
+.finished-goods-page .primary-button,
+.orders-table .primary-button {
+  background: var(--process-action-start) !important;
+  border: 0 !important;
+  color: #ffffff !important;
+}
+
+.process-action-button.process-action-continue {
+  background: var(--process-action-continue) !important;
+  color: #ffffff !important;
+}
+
+.process-action-button.process-action-continue:hover {
+  background: var(--process-action-continue-hover) !important;
+}
+
+.process-action-button:hover,
+.primary-button:hover,
+.weighing-start-button:hover,
+.qc-active-panel .primary-button:hover,
+.qc-trial-action-bar .primary-button:hover,
+.packaging-detail .primary-button:hover,
+.finished-goods-page .primary-button:hover,
+.orders-table .primary-button:hover {
+  background: var(--process-action-start-hover) !important;
+  filter: none !important;
+}
+
+.process-action-button:disabled,
+.primary-button:disabled,
+.secondary-button:disabled,
+.danger-button:disabled,
+.scale-action-button:disabled,
+.weighing-start-button:disabled {
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+}
+
+.process-badge,
+.status-pill,
+.dispatch-badge,
+.flow-pill,
+.weighing-status-pill,
+.scale-action-status,
+.weighing-check,
+.weighing-fail,
+.qc-diff-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 28px !important;
+  padding: 5px 10px !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+}
+
+.dispatch-badge.waiting,
+.flow-pill.waiting,
+.scale-action-status,
+.status-pill.waiting,
+.process-badge.waiting {
+  background: var(--process-status-wait-bg) !important;
+  color: var(--process-status-wait-text) !important;
+}
+
+.dispatch-badge.weighing,
+.dispatch-badge.mixing,
+.dispatch-badge.packing,
+.flow-pill.active,
+.weighing-status-pill.in-progress,
+.process-status-button.in-progress {
+  background: var(--process-action-progress) !important;
+  border-color: var(--process-action-progress) !important;
+  color: #ffffff !important;
+}
+
+.dispatch-badge.ready,
+.dispatch-badge.done,
+.flow-pill.pass,
+.status-pill.pass,
+.weighing-check,
+.qc-diff-badge.diff-same,
+.process-badge.ok {
+  background: var(--process-status-ok-bg) !important;
+  color: var(--process-status-ok-text) !important;
+}
+
+.dispatch-badge.fail,
+.flow-pill.fail,
+.weighing-fail,
+.qc-diff-badge.diff-up,
+.qc-diff-badge.diff-down,
+.process-badge.error {
+  background: var(--process-status-error-bg) !important;
+  color: var(--process-status-error-text) !important;
+}
+
+.flow-pill.locked,
+.status-pill.locked,
+.dispatch-badge.locked,
+.process-badge.locked,
+.process-status-button.locked {
+  background: var(--process-status-locked-bg) !important;
+  color: var(--process-status-locked-text) !important;
+}
+
+.solid-weighing-table td:nth-child(10),
+.chemical-weighing-table td:nth-child(10) {
+  text-align: center !important;
+}
+
+.solid-weighing-table td:nth-child(10) .weighing-action-buttons,
+.chemical-weighing-table td:nth-child(10) .weighing-action-buttons {
+  width: 100% !important;
+  justify-content: center !important;
+}
+
+.solid-weighing-table td:nth-child(10) .scale-action-button.scale-action-continue,
+.chemical-weighing-table td:nth-child(10) .scale-action-button.scale-action-continue,
+.scale-action-button.scale-action-continue {
+  width: 94px !important;
+  min-width: 88px !important;
+  max-width: 100px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 16px !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: var(--process-action-continue) !important;
+  color: #ffffff !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+}
+
+.solid-weighing-table td:nth-child(10) .scale-action-button.scale-action-continue:hover,
+.chemical-weighing-table td:nth-child(10) .scale-action-button.scale-action-continue:hover,
+.scale-action-button.scale-action-continue:hover {
+  background: var(--process-action-continue-hover) !important;
+  filter: none !important;
+}
+
+.scale-action-button.scale-action-confirm {
+  background: var(--process-action-start) !important;
+  border: 0 !important;
+  color: #ffffff !important;
+}
+
+.secondary-button {
+  border-radius: 6px !important;
+}

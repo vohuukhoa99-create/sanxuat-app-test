@@ -2425,6 +2425,18 @@ function SimpleTable({ headers, rows, empty = 'Không có dữ liệu.', tableCl
   )
 }
 
+function ActionButton({ children, className = '', tone = 'start', ...props }) {
+  return <button className={['process-action-button', `process-action-${tone}`, className].filter(Boolean).join(' ')} type="button" {...props}>{children}</button>
+}
+
+function StatusButton({ children, className = '', tone = 'in-progress', ...props }) {
+  return <span className={['process-status-button', tone, className].filter(Boolean).join(' ')} {...props}>{children}</span>
+}
+
+function ProcessBadge({ children, className = '', tone = 'waiting', ...props }) {
+  return <span className={['process-badge', tone, className].filter(Boolean).join(' ')} {...props}>{children}</span>
+}
+
 function getQc2Adjustments(order = {}) {
   return order.qc2Adjustments || []
 }
