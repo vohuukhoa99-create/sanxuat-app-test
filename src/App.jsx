@@ -6025,12 +6025,11 @@ function FinishedProductQcPage({ data, setData, user }) {
                 </div>
                 <div className="qc-order-summary finished-qc-info-grid qc-finished-info-grid">
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Mã lô</span><strong className="value">{getOrderLotCode(activeOrder)}</strong></div>
-                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Khách hàng</span><strong className="value">{activeOrder.customerName || activeOrder.customer || '-'}</strong></div>
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Sản phẩm</span><strong className="value">{activeOrder.productName || activeOrder.product}</strong></div>
-                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Công thức gốc</span><strong className="value">{activeOrder.formulaCode || activeOrder.originalFormulaId}</strong></div>
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">KL yêu cầu</span><strong className="value">{kg(activeOrder.requestedWeight ?? activeOrder.quantityKg)}</strong></div>
-                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">KL sau phối trộn</span><strong className="value">{kg(activeOrder.mixing?.finalWeightKg || activeOrder.quantityKg)}</strong></div>
-                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Máy phối trộn</span><strong className="value">{getOrderAssignedMachineLabel(activeOrder, data.mixingMachines)}</strong></div>
+                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">KL TP</span><strong className="value">{kg(activeOrder.mixing?.finalWeightKg || activeOrder.quantityKg)}</strong></div>
+                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Máy trộn</span><strong className="value">{getOrderAssignedMachineLabel(activeOrder, data.mixingMachines)}</strong></div>
+                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Khách hàng</span><strong className="value">{activeOrder.customerName || activeOrder.customer || '-'}</strong></div>
                 </div>
               </div>
 
