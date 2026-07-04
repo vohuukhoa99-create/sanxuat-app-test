@@ -14612,6 +14612,61 @@ body,
   color: #2f2105 !important;
 }
 
+.solid-weighing-table td:nth-child(10),
+.chemical-weighing-table td:nth-child(10) {
+  text-align: center !important;
+}
+
+.solid-weighing-table td:nth-child(10) .weighing-action-buttons,
+.chemical-weighing-table td:nth-child(10) .weighing-action-buttons {
+  width: 100% !important;
+  justify-content: center !important;
+}
+
+.solid-weighing-table td:nth-child(10) .scale-action-button.scale-action-continue,
+.chemical-weighing-table td:nth-child(10) .scale-action-button.scale-action-continue {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 94px !important;
+  min-width: 88px !important;
+  max-width: 100px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 16px !important;
+  box-sizing: border-box !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: #2563eb !important;
+  color: #ffffff !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  box-shadow: none !important;
+}
+
+.solid-weighing-table td:nth-child(10) .scale-action-button.scale-action-continue:hover,
+.chemical-weighing-table td:nth-child(10) .scale-action-button.scale-action-continue:hover {
+  background: #1d4ed8 !important;
+  filter: none !important;
+}
+
+.weighing-order-card .weighing-start-button,
+.chemical-order-queue-panel .weighing-start-button {
+  background: #16a34a !important;
+  color: #ffffff !important;
+  border-color: #16a34a !important;
+}
+
+.weighing-order-card .weighing-status-pill.in-progress,
+.chemical-order-queue-panel .weighing-status-pill.in-progress {
+  background: #f59e0b !important;
+  border-color: #f59e0b !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
 @media (max-width: 900px) {
   .scale-left-panel,
   .chemical-order-queue-panel {
