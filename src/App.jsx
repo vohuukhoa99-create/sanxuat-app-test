@@ -3260,6 +3260,87 @@ function totalPackingBoxes(details = []) {
   return details.filter(isStandardPackagingItem).reduce((sum, item) => sum + num(item.boxes), 0)
 }
 
+function packagingQrSpecCode(item = {}) {
+  const weight = num(item.convertedWeightKg ?? item.sizeKg ?? item.weightKg)
+  if (weight > 0) return `${String(weight).replace(',', '.').replace('.', 'P')}KG`.toUpperCase()
+  return String(item.spec || item.label || 'QC')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toUpperCase() || 'QC'
+}
+
+function buildFinishedProductQrItem(order = {}, item = {}, index = 1, totalBoxes = 0, existing = {}) {
+  const lot = getOrderLotCode(order)
+  const sequence = index
+  const serial = String(sequence).padStart(3, '0')
+  const specCode = packagingQrSpecCode(item)
+  const qrCode = existing.qrCode && existing.printedAt ? existing.qrCode : `${lot}-${specCode}-${serial}`
+  const payload = {
+    type: 'Thành phẩm',
+    qrCode,
+    lot,
+    orderId: order.id || '',
+    orderCode: order.orderCode || order.id || '',
+    productCode: order.productCode || order.formulaCode || order.originalFormulaId || '',
+    productName: order.productName || order.product || '',
+    productGroup: displayProductGroup(order.productGroup) || order.productGroup || '',
+    packagingSpec: item.spec || item.label || '',
+    boxNo: sequence,
+    totalBoxes,
+    productionDate: String(order.createdAt || '').slice(0, 10),
+    packingDate: existing.packingDate || '',
+    packer: existing.packer || '',
+  }
+  return {
+    ...existing,
+    id: existing.id || qrCode,
+    qrCode,
+    qrValue: existing.qrValue || qrCode,
+    tracePayload: { ...(existing.tracePayload || {}), ...payload },
+    lot,
+    orderId: order.id || '',
+    orderCode: order.orderCode || order.id || '',
+    productCode: payload.productCode,
+    productName: payload.productName,
+    productGroup: payload.productGroup,
+    specId: item.specId || item.id || '',
+    spec: item.spec || item.label,
+    specCode,
+    sequence,
+    totalBoxes,
+    weightKg: num(item.convertedWeightKg ?? item.sizeKg),
+    productionDate: payload.productionDate,
+    packingDate: existing.packingDate || '',
+    packer: existing.packer || '',
+    printedAt: existing.printedAt || '',
+    printedBy: existing.printedBy || '',
+    printCount: num(existing.printCount),
+  }
+}
+
+function buildFinishedProductQrItemsForDetail(order = {}, item = {}, totalBoxes = 0) {
+  const existingItems = item.finishedQrItems || []
+  return Array.from({ length: Math.max(0, totalBoxes) }, (_, index) => {
+    const sequence = index + 1
+    const existing = existingItems.find((qr) => num(qr.sequence) === sequence)
+      || existingItems[index]
+      || {}
+    return buildFinishedProductQrItem(order, item, sequence, totalBoxes, existing)
+  })
+}
+
+function finishedPrintStatusText(item = {}) {
+  if (isResidualPackagingItem(item)) return 'Không áp dụng'
+  const boxes = num(item.boxes)
+  if (boxes <= 0) return '-'
+  const printed = (item.finishedQrItems || []).filter((qr) => qr.printedAt).length
+  if (printed <= 0) return 'Chưa in'
+  if (printed >= boxes) return '✓ Đã in'
+  return `Đã in ${printed}/${boxes}`
+}
+
 function nextFinishedCode(finishedGoods = []) {
   const date = todayText().replaceAll('-', '')
   const prefix = `TP-${date}-`
@@ -8426,6 +8507,8 @@ function PackagingPage({ data, setData, user }) {
   const [activeOrderId, setActiveOrderId] = useState(orders[0]?.id || '')
   const [forms, setForms] = useState({})
   const [warning, setWarning] = useState('')
+  const [printModal, setPrintModal] = useState(null)
+  const [reprintChoice, setReprintChoice] = useState({ mode: 'all', from: 1, to: 1, single: 1 })
   const activeOrder = orders.find((order) => order.id === activeOrderId) || orders[0]
   const form = activeOrder ? getPackingForm(forms, activeOrder, packagingSpecCatalog) : { details: defaultPackingDetails({}, packagingSpecCatalog) }
   const totals = activeOrder ? packingTotals(activeOrder, form) : { qcWeight: 0, totalPackedWeight: 0, remainingWeight: 0, differenceWeight: 0, totalTolerance: 0 }
@@ -8462,31 +8545,103 @@ function PackagingPage({ data, setData, user }) {
     })
   }
   const buildFinishedQrItems = (order, details = []) => {
-    const lot = getOrderLotCode(order)
-    const totalBoxes = totalPackingBoxes(details)
-    let sequence = 0
-    return details.filter(isStandardPackagingItem).flatMap((item) => {
-      const boxes = num(item.boxes)
-      return Array.from({ length: boxes }, () => {
-        sequence += 1
-        const serial = String(sequence).padStart(3, '0')
-        return {
-          id: `${lot}-${serial}`,
-          qrCode: `TP|${lot}|${serial}/${String(totalBoxes).padStart(3, '0')}`,
-          lot,
-          productCode: order.productCode || order.formulaCode || '',
-          spec: item.spec || item.label,
-          sequence,
-          totalBoxes,
-          weightKg: num(item.convertedWeightKg ?? item.sizeKg),
-        }
-      })
-    })
+    return details
+      .filter(isStandardPackagingItem)
+      .flatMap((item) => buildFinishedProductQrItemsForDetail(order, item, num(item.boxes)))
   }
   const attachFinishedQrItemsToDetails = (details = [], finishedQrItems = []) => details.map((item) => ({
     ...item,
-    finishedQrItems: finishedQrItems.filter((qr) => qr.spec === (item.spec || item.label)),
+    finishedQrItems: finishedQrItems.filter((qr) => (
+      qr.specId ? qr.specId === (item.specId || item.id) : qr.spec === (item.spec || item.label)
+    )),
   }))
+  const applyQrItemsToActiveOrder = (detailId, qrItems, printedItems = []) => {
+    if (!activeOrder) return
+    const printedCodes = new Set(printedItems.map((qr) => qr.qrCode))
+    const printedAt = nowText()
+    const printedBy = form.packer || user?.name || user?.username || ''
+    const nextQrItems = qrItems.map((qr) => {
+      if (!printedCodes.has(qr.qrCode)) return qr
+      return {
+        ...qr,
+        printedAt: qr.printedAt || printedAt,
+        lastPrintedAt: printedAt,
+        printedBy: qr.printedBy || printedBy,
+        packer: printedBy,
+        packingDate: String(printedAt).slice(0, 10),
+        printCount: num(qr.printCount) + 1,
+        tracePayload: {
+          ...(qr.tracePayload || {}),
+          packingDate: String(printedAt).slice(0, 10),
+          packer: printedBy,
+        },
+      }
+    })
+    const updateDetails = (details = []) => details.map((item) => item.id === detailId ? { ...item, finishedQrItems: nextQrItems } : item)
+    setForms((current) => {
+      const nextForm = getPackingForm(current, activeOrder, packagingSpecCatalog)
+      return {
+        ...current,
+        [activeOrder.id]: { ...nextForm, details: updateDetails(nextForm.details) },
+      }
+    })
+    setData((current) => addLogToData({
+      ...current,
+      orders: current.orders.map((order) => {
+        if (order.id !== activeOrder.id) return order
+        const savedPackaging = order.packaging || {}
+        return {
+          ...order,
+          packaging: {
+            ...savedPackaging,
+            details: updateDetails(savedPackaging.details || savedPackaging.packingDetails || form.details),
+            finishedQrItems: updateDetails(savedPackaging.details || form.details).flatMap((item) => item.finishedQrItems || []),
+          },
+          updatedAt: printedAt,
+        }
+      }),
+    }, `In tem thành phẩm ${printedItems.length} tem cho lệnh ${activeOrder.id}.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: 'Đóng gói', order: activeOrder, result: 'In tem thành phẩm' })))
+  }
+  const openPrintLabels = (item) => {
+    if (!activeOrder || isResidualPackagingItem(item)) return
+    const boxes = num(item.boxes)
+    if (boxes <= 0) {
+      setWarning('Chưa có thùng đã đóng để in tem.')
+      return
+    }
+    const qrItems = buildFinishedProductQrItemsForDetail(activeOrder, item, boxes)
+    const printedCount = qrItems.filter((qr) => qr.printedAt).length
+    setReprintChoice({ mode: 'all', from: 1, to: boxes, single: 1 })
+    setPrintModal({
+      detailId: item.id,
+      spec: item.spec || item.label,
+      boxes,
+      qrItems,
+      reprint: printedCount > 0,
+    })
+    setWarning('')
+  }
+  const selectedPrintItems = () => {
+    if (!printModal) return []
+    if (!printModal.reprint) return printModal.qrItems
+    if (reprintChoice.mode === 'single') {
+      const single = Math.min(Math.max(1, num(reprintChoice.single)), printModal.boxes)
+      return printModal.qrItems.filter((qr) => num(qr.sequence) === single)
+    }
+    if (reprintChoice.mode === 'range') {
+      const from = Math.min(Math.max(1, num(reprintChoice.from)), printModal.boxes)
+      const to = Math.min(Math.max(from, num(reprintChoice.to)), printModal.boxes)
+      return printModal.qrItems.filter((qr) => num(qr.sequence) >= from && num(qr.sequence) <= to)
+    }
+    return printModal.qrItems
+  }
+  const printSelectedLabels = () => {
+    if (!printModal) return
+    const items = selectedPrintItems()
+    applyQrItemsToActiveOrder(printModal.detailId, printModal.qrItems, items)
+    setPrintModal({ ...printModal, qrItems: printModal.qrItems.map((qr) => items.some((item) => item.qrCode === qr.qrCode) ? { ...qr, printedAt: qr.printedAt || nowText(), printCount: num(qr.printCount) + 1 } : qr) })
+    window.print()
+  }
   const buildPackingLog = (order, nextForm, status) => {
     const nextTotals = packingTotals(order, nextForm)
     const finishedQrItems = buildFinishedQrItems(order, nextForm.details)
@@ -8645,11 +8800,12 @@ function PackagingPage({ data, setData, user }) {
               </div>
               <section className="v3-card">
                 <h3>Kế hoạch đóng gói theo lệnh</h3>
-                <SimpleTable tableClassName="packaging-plan-detail-table" headers={['Quy cách', 'Kế hoạch', 'Đã đóng', 'Còn lại', 'KL quy đổi', 'QR TP', 'Ghi chú']} rows={form.details.map((item) => {
+                <SimpleTable tableClassName="packaging-plan-detail-table" headers={['Quy cách', 'Kế hoạch', 'Đã đóng', 'Còn lại', 'KL quy đổi', 'Đã in', 'In tem', 'Ghi chú']} rows={form.details.map((item) => {
                   const packedBoxes = num(item.boxes)
                   const plannedBoxes = num(item.plannedBoxes)
                   const remainingBoxes = Math.max(0, plannedBoxes - packedBoxes)
                   const isResidual = isResidualPackagingItem(item)
+                  const printStatus = finishedPrintStatusText(item)
                   return (
                   <tr key={item.id} className={isResidual ? 'packaging-residual-row' : ''}>
                     <td>{item.spec || item.label}</td>
@@ -8657,7 +8813,8 @@ function PackagingPage({ data, setData, user }) {
                     <td>{isResidual ? '-' : <input type="number" min="0" max={plannedBoxes} value={packedBoxes} onChange={(event) => updateDetail(item.id, 'boxes', event.target.value)} />}</td>
                     <td>{remainingBoxes} thùng</td>
                     <td>{isResidual ? kg(Math.max(0, totals.remainingWeight)) : kg(num(item.convertedWeightKg ?? item.sizeKg) * packedBoxes)}</td>
-                    <td>{item.finishedQrItems?.length ? `${item.finishedQrItems.length} QR đã sinh` : packedBoxes > 0 ? `${packedBoxes} QR sẽ sinh` : '-'}</td>
+                    <td className={printStatus === '✓ Đã in' ? 'packaging-print-done' : ''}>{printStatus}</td>
+                    <td>{isResidual ? '-' : <button type="button" className="secondary-button compact-action-button" disabled={packedBoxes <= 0} onClick={() => openPrintLabels(item)}>In tem</button>}</td>
                     <td>{isResidual ? 'Hệ thống tự tính' : <input value={item.note} onChange={(event) => updateDetail(item.id, 'note', event.target.value)} />}</td>
                   </tr>
                   )
@@ -8691,6 +8848,56 @@ function PackagingPage({ data, setData, user }) {
                   )
                 })} empty="Chưa có lịch sử đóng gói." />
               </section>
+              {printModal && (
+                <div className="modal-backdrop" role="presentation">
+                  <div className="production-modal packaging-print-modal" role="dialog" aria-modal="true">
+                    <div className="modal-header">
+                      <div>
+                        <span className="section-kicker">In tem thành phẩm</span>
+                        <h2>{printModal.spec}</h2>
+                      </div>
+                      <button type="button" className="secondary-button" onClick={() => setPrintModal(null)}>Đóng</button>
+                    </div>
+                    {printModal.reprint && (
+                      <section className="packaging-reprint-options">
+                        <h3>Bạn muốn:</h3>
+                        <label><input type="radio" checked={reprintChoice.mode === 'all'} onChange={() => setReprintChoice({ ...reprintChoice, mode: 'all' })} /> In lại toàn bộ tem</label>
+                        <label>
+                          <input type="radio" checked={reprintChoice.mode === 'range'} onChange={() => setReprintChoice({ ...reprintChoice, mode: 'range' })} />
+                          In lại từ tem số
+                          <input type="number" min="1" max={printModal.boxes} value={reprintChoice.from} onChange={(event) => setReprintChoice({ ...reprintChoice, mode: 'range', from: event.target.value })} />
+                          đến
+                          <input type="number" min="1" max={printModal.boxes} value={reprintChoice.to} onChange={(event) => setReprintChoice({ ...reprintChoice, mode: 'range', to: event.target.value })} />
+                        </label>
+                        <label>
+                          <input type="radio" checked={reprintChoice.mode === 'single'} onChange={() => setReprintChoice({ ...reprintChoice, mode: 'single' })} />
+                          In lại tem số
+                          <input type="number" min="1" max={printModal.boxes} value={reprintChoice.single} onChange={(event) => setReprintChoice({ ...reprintChoice, mode: 'single', single: event.target.value })} />
+                        </label>
+                      </section>
+                    )}
+                    <div className="packaging-label-list">
+                      {selectedPrintItems().map((qr) => (
+                        <section className="finished-label-ticket" key={qr.qrCode}>
+                          <div className="finished-label-info">
+                            <strong>{qr.lot}</strong>
+                            <span>{qr.productCode || '-'}</span>
+                            <span>{qr.productName || '-'}</span>
+                            <span>{qr.spec}</span>
+                            <b>{String(qr.sequence).padStart(3, '0')} / {String(qr.totalBoxes).padStart(3, '0')}</b>
+                            <code>{qr.qrCode}</code>
+                          </div>
+                          <QRCodeCanvas value={JSON.stringify(qr.tracePayload || { qrCode: qr.qrCode })} size={112} includeMargin />
+                        </section>
+                      ))}
+                    </div>
+                    <div className="modal-actions">
+                      <button type="button" className="primary-button" onClick={printSelectedLabels}>In tất cả</button>
+                      <button type="button" className="secondary-button" onClick={() => setPrintModal(null)}>Đóng</button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </main>

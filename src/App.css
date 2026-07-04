@@ -1916,7 +1916,11 @@ tbody tr:hover {
   }
 
   .qr-print-ticket,
-  .qr-print-ticket * {
+  .qr-print-ticket *,
+  .packaging-label-list,
+  .packaging-label-list *,
+  .finished-label-ticket,
+  .finished-label-ticket * {
     visibility: visible !important;
   }
 
@@ -1933,6 +1937,23 @@ tbody tr:hover {
 
   .qr-print-info {
     width: 100%;
+  }
+
+  .packaging-label-list {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4mm;
+    max-height: none;
+    overflow: visible;
+    padding: 6mm;
+    background: #fff;
+  }
+
+  .finished-label-ticket {
+    break-inside: avoid;
+    box-shadow: none;
   }
 }
 
@@ -15189,8 +15210,8 @@ body,
 }
 
 .packaging-page .packaging-plan-detail-table {
-  width: 920px !important;
-  min-width: 920px !important;
+  width: 1040px !important;
+  min-width: 1040px !important;
   table-layout: fixed !important;
 }
 
@@ -15206,11 +15227,100 @@ body,
 .packaging-page .packaging-plan-detail-table td:nth-child(3) { width: 110px !important; }
 .packaging-page .packaging-plan-detail-table th:nth-child(4),
 .packaging-page .packaging-plan-detail-table td:nth-child(4) { width: 90px !important; }
+.packaging-page .packaging-plan-detail-table th:nth-child(6),
+.packaging-page .packaging-plan-detail-table td:nth-child(6) { width: 110px !important; text-align: center !important; }
 .packaging-page .packaging-plan-detail-table th:nth-child(7),
-.packaging-page .packaging-plan-detail-table td:nth-child(7) { width: 200px !important; }
+.packaging-page .packaging-plan-detail-table td:nth-child(7) { width: 100px !important; text-align: center !important; }
+.packaging-page .packaging-plan-detail-table th:nth-child(8),
+.packaging-page .packaging-plan-detail-table td:nth-child(8) { width: 190px !important; }
 
 .packaging-page .packaging-plan-detail-table input {
   max-width: 100% !important;
+}
+
+.packaging-print-done {
+  color: #0f766e !important;
+  font-weight: 800 !important;
+}
+
+.packaging-print-modal {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+}
+
+.packaging-reprint-options {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(7, 34, 26, 0.1);
+  border-radius: 8px;
+  background: #f6fbf8;
+}
+
+.packaging-reprint-options h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.packaging-reprint-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.packaging-reprint-options input[type='number'] {
+  width: 78px;
+}
+
+.packaging-label-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  max-height: 58vh;
+  overflow: auto;
+}
+
+.finished-label-ticket {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 128px;
+  gap: 12px;
+  align-items: center;
+  min-height: 142px;
+  padding: 12px;
+  border: 1px solid #cddbd4;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.finished-label-info {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.finished-label-info strong,
+.finished-label-info span,
+.finished-label-info b,
+.finished-label-info code {
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
+.finished-label-info strong {
+  font-size: 16px;
+}
+
+.finished-label-info span,
+.finished-label-info b {
+  font-size: 13px;
+}
+
+.finished-label-info code {
+  font-size: 11px;
+  color: #355348;
 }
 
 .packaging-history-card {
