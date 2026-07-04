@@ -1974,6 +1974,8 @@ tbody tr:hover {
   .printing-finished-labels .section-heading-row,
   .printing-finished-labels .packaging-print-modal > .modal-header,
   .printing-finished-labels .packaging-print-modal > .packaging-reprint-options,
+  .printing-finished-labels .packaging-print-modal .packaging-reprint-options,
+  .printing-finished-labels .packaging-print-preview > h3,
   .printing-finished-labels .packaging-print-modal > .modal-actions {
     display: none !important;
   }
@@ -15345,9 +15347,11 @@ body,
 .packaging-print-modal {
   display: grid;
   gap: 16px;
-  width: min(820px, calc(100vw - 48px)) !important;
-  max-width: 820px !important;
-  padding: 22px;
+  width: min(960px, calc(100vw - 48px)) !important;
+  max-width: 960px !important;
+  padding: 24px;
+  border-radius: 8px !important;
+  background: #fff !important;
 }
 
 .packaging-print-modal .modal-header {
@@ -15357,6 +15361,8 @@ body,
 
 .packaging-print-modal .modal-header h2 {
   margin: 0;
+  color: #064e3b;
+  font-weight: 900;
 }
 
 .packaging-print-subtitle {
@@ -15368,8 +15374,8 @@ body,
 
 .packaging-print-body {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
-  gap: 14px;
+  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+  gap: 18px;
   align-items: start;
 }
 
@@ -15377,9 +15383,9 @@ body,
   display: grid;
   justify-items: start;
   gap: 10px;
-  width: 300px;
+  width: 340px;
   max-width: 100%;
-  padding: 12px 14px 12px 10px;
+  padding: 12px 14px 12px 12px;
   border: 1px solid rgba(7, 34, 26, 0.1);
   border-radius: 8px;
   background: #f6fbf8;
@@ -15404,8 +15410,8 @@ body,
 
 .packaging-reprint-choice input[type='radio'] {
   flex: 0 0 auto;
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   margin: 0;
 }
 
@@ -15445,12 +15451,15 @@ body,
 }
 
 .packaging-label-list {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  justify-items: center;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
   gap: 12px;
+  width: min(100%, calc(120mm + 12px));
   max-height: 45vh;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
 }
 
 @media (max-width: 820px) {
@@ -15459,6 +15468,10 @@ body,
   }
 
   .packaging-reprint-options {
+    width: 100%;
+  }
+
+  .packaging-label-list {
     width: 100%;
   }
 }
