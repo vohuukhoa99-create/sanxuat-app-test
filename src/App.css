@@ -15366,10 +15366,19 @@ body,
   font-weight: 700;
 }
 
+.packaging-print-body {
+  display: grid;
+  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
 .packaging-reprint-options {
   display: grid;
-  gap: 8px;
-  padding: 14px;
+  gap: 14px;
+  width: 340px;
+  max-width: 100%;
+  padding: 16px;
   border: 1px solid rgba(7, 34, 26, 0.1);
   border-radius: 8px;
   background: #f6fbf8;
@@ -15378,10 +15387,9 @@ body,
 .packaging-reprint-choice {
   display: inline-flex !important;
   align-items: center;
-  gap: 8px;
-  width: fit-content;
-  max-width: 100%;
-  min-height: 32px;
+  gap: 7px;
+  width: 100%;
+  min-height: 30px;
   margin: 0 !important;
   padding: 0 !important;
   background: transparent !important;
@@ -15404,8 +15412,9 @@ body,
 }
 
 .packaging-reprint-options input[type='number'] {
-  width: 58px;
-  min-width: 58px;
+  width: 58px !important;
+  min-width: 58px !important;
+  max-width: 60px !important;
   height: 30px;
   padding: 4px 6px;
   text-align: center;
@@ -15418,6 +15427,7 @@ body,
 .packaging-print-preview {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .packaging-print-preview h3 {
@@ -15432,6 +15442,16 @@ body,
   gap: 12px;
   max-height: 45vh;
   overflow: auto;
+}
+
+@media (max-width: 820px) {
+  .packaging-print-body {
+    grid-template-columns: 1fr;
+  }
+
+  .packaging-reprint-options {
+    width: 100%;
+  }
 }
 
 .finished-label-ticket {

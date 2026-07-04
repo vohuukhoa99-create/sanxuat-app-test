@@ -8889,43 +8889,44 @@ function PackagingPage({ data, setData, user }) {
                       </div>
                       <button type="button" className="secondary-button" onClick={() => setPrintModal(null)}>Đóng</button>
                     </div>
-                    {printModal.reprint && (
-                      <section className="packaging-reprint-options">
-                        <label className="packaging-reprint-choice">
-                          <input type="radio" checked={reprintChoice.mode === 'all'} onChange={() => setReprintChoice({ ...reprintChoice, mode: 'all' })} />
-                          <span>In lại toàn bộ tem</span>
-                        </label>
-                        <label className="packaging-reprint-choice">
-                          <input type="radio" checked={reprintChoice.mode === 'range'} onChange={() => setReprintChoice({ ...reprintChoice, mode: 'range' })} />
-                          <span>In lại theo khoảng:</span>
-                          <span className="packaging-reprint-inputs">
-                            từ <input type="number" min="1" max={printModal.boxes} value={reprintChoice.from} disabled={reprintChoice.mode !== 'range'} onChange={(event) => setReprintChoice({ ...reprintChoice, mode: 'range', from: event.target.value })} />
-                            đến <input type="number" min="1" max={printModal.boxes} value={reprintChoice.to} disabled={reprintChoice.mode !== 'range'} onChange={(event) => setReprintChoice({ ...reprintChoice, mode: 'range', to: event.target.value })} />
-                          </span>
-                        </label>
-                        <label className="packaging-reprint-choice">
-                          <input type="radio" checked={reprintChoice.mode === 'single'} onChange={() => setReprintChoice({ ...reprintChoice, mode: 'single' })} />
-                          <span>In lại tem số:</span>
-                          <input type="number" min="1" max={printModal.boxes} value={reprintChoice.single} disabled={reprintChoice.mode !== 'single'} onChange={(event) => setReprintChoice({ ...reprintChoice, mode: 'single', single: event.target.value })} />
-                        </label>
+                    <div className="packaging-print-body">
+                      {printModal.reprint && (
+                        <section className="packaging-reprint-options" aria-label="Chọn chế độ in">
+                          <label className="packaging-reprint-choice">
+                            <input type="radio" checked={reprintChoice.mode === 'all'} onChange={() => setReprintChoice({ ...reprintChoice, mode: 'all' })} />
+                            <span>In tất cả tem</span>
+                          </label>
+                          <label className="packaging-reprint-choice">
+                            <input type="radio" checked={reprintChoice.mode === 'single'} onChange={() => setReprintChoice({ ...reprintChoice, mode: 'single' })} />
+                            <span>In tem số:</span>
+                            <input type="number" min="1" max={printModal.boxes} value={reprintChoice.single} disabled={reprintChoice.mode !== 'single'} onChange={(event) => setReprintChoice({ ...reprintChoice, mode: 'single', single: event.target.value })} />
+                          </label>
+                          <label className="packaging-reprint-choice">
+                            <input type="radio" checked={reprintChoice.mode === 'range'} onChange={() => setReprintChoice({ ...reprintChoice, mode: 'range' })} />
+                            <span>In từ:</span>
+                            <input type="number" min="1" max={printModal.boxes} value={reprintChoice.from} disabled={reprintChoice.mode !== 'range'} onChange={(event) => setReprintChoice({ ...reprintChoice, mode: 'range', from: event.target.value })} />
+                            <span>đến:</span>
+                            <input type="number" min="1" max={printModal.boxes} value={reprintChoice.to} disabled={reprintChoice.mode !== 'range'} onChange={(event) => setReprintChoice({ ...reprintChoice, mode: 'range', to: event.target.value })} />
+                          </label>
+                        </section>
+                      )}
+                      <section className="packaging-print-preview">
+                        <h3>Xem trước tem</h3>
+                        <div className="packaging-label-list">
+                          {selectedPrintItems().map((qr) => (
+                            <section className="finished-label-ticket" key={qr.qrCode}>
+                              <div className="finished-label-info">
+                                <strong>{qr.productCode || '-'}</strong>
+                                <span>{shortFinishedLot(qr.lot)}</span>
+                                <span>TL tịnh: {compactWeightKg(qr.weightKg)}-{String(qr.sequence).padStart(2, '0')}/{String(qr.totalBoxes).padStart(2, '0')}</span>
+                                <span>{formatShortLabelDate(qr.productionDate)} - {formatShortLabelDate(qr.expiryDate)}</span>
+                              </div>
+                              <QRCodeCanvas value={JSON.stringify(qr.tracePayload || { qrCode: qr.qrCode })} size={92} includeMargin />
+                            </section>
+                          ))}
+                        </div>
                       </section>
-                    )}
-                    <section className="packaging-print-preview">
-                      <h3>Xem trước</h3>
-                      <div className="packaging-label-list">
-                        {selectedPrintItems().map((qr) => (
-                          <section className="finished-label-ticket" key={qr.qrCode}>
-                            <div className="finished-label-info">
-                              <strong>{qr.productCode || '-'}</strong>
-                              <span>{shortFinishedLot(qr.lot)}</span>
-                              <span>TL tịnh: {compactWeightKg(qr.weightKg)}-{String(qr.sequence).padStart(2, '0')}/{String(qr.totalBoxes).padStart(2, '0')}</span>
-                              <span>{formatShortLabelDate(qr.productionDate)} - {formatShortLabelDate(qr.expiryDate)}</span>
-                            </div>
-                            <QRCodeCanvas value={JSON.stringify(qr.tracePayload || { qrCode: qr.qrCode })} size={92} includeMargin />
-                          </section>
-                        ))}
-                      </div>
-                    </section>
+                    </div>
                     <div className="modal-actions packaging-print-actions">
                       <button type="button" className="primary-button" onClick={printSelectedLabels}>In tem</button>
                       <button type="button" className="secondary-button" onClick={() => setPrintModal(null)}>Đóng</button>
