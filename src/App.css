@@ -15376,10 +15376,10 @@ body,
 .packaging-reprint-options {
   display: grid;
   justify-items: start;
-  gap: 11px;
+  gap: 10px;
   width: 300px;
   max-width: 100%;
-  padding: 12px 14px;
+  padding: 12px 14px 12px 10px;
   border: 1px solid rgba(7, 34, 26, 0.1);
   border-radius: 8px;
   background: #f6fbf8;
@@ -15389,9 +15389,9 @@ body,
   display: inline-flex !important;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 6px;
-  width: auto;
-  min-height: 26px;
+  gap: 8px;
+  width: 100%;
+  min-height: 28px;
   margin: 0 !important;
   padding: 0 !important;
   background: transparent !important;
@@ -15404,8 +15404,8 @@ body,
 
 .packaging-reprint-choice input[type='radio'] {
   flex: 0 0 auto;
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   margin: 0;
 }
 
@@ -15421,9 +15421,9 @@ body,
 
 .packaging-reprint-options input[type='number'] {
   box-sizing: border-box;
-  width: 54px !important;
-  min-width: 54px !important;
-  max-width: 60px !important;
+  width: 52px !important;
+  min-width: 52px !important;
+  max-width: 56px !important;
   height: 26px;
   padding: 3px 5px;
   text-align: center;
