@@ -15346,10 +15346,10 @@ body,
 
 .packaging-print-modal {
   display: grid;
-  gap: 16px;
-  width: min(960px, calc(100vw - 48px)) !important;
-  max-width: 960px !important;
-  padding: 24px;
+  gap: 24px;
+  width: min(1120px, calc(100vw - 48px)) !important;
+  max-width: 1150px !important;
+  padding: 30px;
   border-radius: 8px !important;
   background: #fff !important;
 }
@@ -15362,33 +15362,36 @@ body,
 .packaging-print-modal .modal-header h2 {
   margin: 0;
   color: #064e3b;
+  font-size: 28px;
   font-weight: 900;
 }
 
 .packaging-print-subtitle {
-  margin: 4px 0 0;
-  color: #587064;
-  font-size: 13px;
+  margin: 6px 0 0;
+  color: #6b7280;
+  font-size: 15px;
   font-weight: 700;
 }
 
 .packaging-print-body {
   display: grid;
-  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: 380px minmax(0, 1fr);
+  gap: 42px;
   align-items: start;
 }
 
 .packaging-reprint-options {
   display: grid;
   justify-items: start;
-  gap: 10px;
-  width: 340px;
+  align-content: start;
+  gap: 30px;
+  width: 380px;
+  min-height: 230px;
   max-width: 100%;
-  padding: 12px 14px 12px 12px;
-  border: 1px solid rgba(7, 34, 26, 0.1);
-  border-radius: 8px;
-  background: #f6fbf8;
+  padding: 30px;
+  border: 1px solid #d7e0db;
+  border-radius: 10px;
+  background: #fff;
 }
 
 .packaging-reprint-choice {
@@ -15397,12 +15400,12 @@ body,
   flex-wrap: nowrap;
   gap: 8px;
   width: 100%;
-  min-height: 28px;
+  min-height: 40px;
   margin: 0 !important;
   padding: 0 !important;
   background: transparent !important;
   border: 0 !important;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -15410,8 +15413,8 @@ body,
 
 .packaging-reprint-choice input[type='radio'] {
   flex: 0 0 auto;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   margin: 0;
 }
 
@@ -15427,12 +15430,14 @@ body,
 
 .packaging-reprint-options input[type='number'] {
   box-sizing: border-box;
-  width: 52px !important;
-  min-width: 52px !important;
-  max-width: 56px !important;
-  height: 26px;
-  padding: 3px 5px;
+  width: 66px !important;
+  min-width: 66px !important;
+  max-width: 70px !important;
+  height: 42px;
+  padding: 6px 8px;
   text-align: center;
+  font-size: 15px;
+  font-weight: 700;
 }
 
 .packaging-reprint-options input:disabled {
@@ -15441,25 +15446,27 @@ body,
 
 .packaging-print-preview {
   display: grid;
-  gap: 10px;
+  gap: 14px;
   min-width: 0;
 }
 
 .packaging-print-preview h3 {
   margin: 0;
-  font-size: 15px;
+  color: #064e3b;
+  font-size: 20px;
+  font-weight: 900;
 }
 
 .packaging-label-list {
   display: flex;
   flex-wrap: nowrap;
   align-items: flex-start;
-  gap: 12px;
-  width: min(100%, calc(120mm + 12px));
-  max-height: 45vh;
+  gap: 22px;
+  width: 100%;
+  max-height: 230px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding-bottom: 4px;
+  padding-bottom: 10px;
 }
 
 @media (max-width: 820px) {
@@ -15478,21 +15485,22 @@ body,
 
 .finished-label-ticket {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 23mm;
-  gap: 2.5mm;
+  grid-template-columns: minmax(0, 1fr) 118px;
+  gap: 16px;
   align-items: center;
-  width: 60mm;
-  height: 30mm;
-  min-height: 30mm;
-  padding: 3mm;
+  flex: 0 0 312px;
+  width: 312px;
+  height: 156px;
+  min-height: 156px;
+  padding: 16px;
   border: 1px solid #cddbd4;
-  border-radius: 5px;
+  border-radius: 8px;
   background: #fff;
 }
 
 .finished-label-info {
   display: grid;
-  gap: 1.15mm;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -15505,26 +15513,33 @@ body,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 20px;
   font-weight: 900;
 }
 
 .finished-label-info span {
   overflow-wrap: anywhere;
-  font-size: 9px;
+  font-size: 14px;
   font-weight: 700;
 }
 
 .finished-label-ticket canvas {
-  width: 23mm !important;
-  height: 23mm !important;
+  width: 112px !important;
+  height: 112px !important;
   justify-self: center;
 }
 
 .packaging-print-actions {
   justify-content: flex-end !important;
+  gap: 16px !important;
   padding: 0 !important;
   border: 0 !important;
+}
+
+.packaging-print-actions button {
+  min-width: 104px;
+  min-height: 42px;
+  font-size: 15px;
 }
 
 .packaging-history-card {
