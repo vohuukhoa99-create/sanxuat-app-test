@@ -15400,10 +15400,10 @@ body,
 }
 
 .qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-summary-grid {
-  display: grid !important;
-  grid-template-columns: minmax(180px, 200px) minmax(160px, 180px) minmax(130px, 150px) minmax(280px, 360px) !important;
-  gap: 10px 12px !important;
-  width: fit-content !important;
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 12px !important;
+  width: 100% !important;
   max-width: 100% !important;
   justify-content: start !important;
   align-items: stretch !important;
@@ -15415,6 +15415,27 @@ body,
   min-height: 58px !important;
   padding: 10px 12px !important;
   align-content: center !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-summary-grid > div:nth-child(1) {
+  flex: 0 0 160px !important;
+  max-width: 160px !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-summary-grid > div:nth-child(2) {
+  flex: 0 0 150px !important;
+  max-width: 150px !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-summary-grid > div:nth-child(3) {
+  flex: 0 0 120px !important;
+  max-width: 120px !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-summary-grid > div:nth-child(4) {
+  flex: 1 1 420px !important;
+  min-width: 420px !important;
+  max-width: 520px !important;
 }
 
 .qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-summary-grid span {
@@ -15430,10 +15451,20 @@ body,
   white-space: nowrap !important;
 }
 
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-summary-grid > div:nth-child(4) strong {
+  line-height: 1.35 !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+}
+
 @media (max-width: 980px) {
   .qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-summary-grid {
-    grid-template-columns: repeat(2, minmax(150px, 1fr)) !important;
-    width: 100% !important;
+    flex-wrap: wrap !important;
   }
 }
 
