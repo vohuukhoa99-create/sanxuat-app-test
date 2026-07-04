@@ -1912,8 +1912,8 @@ tbody tr:hover {
 
 @media print {
   @page {
-    size: A4;
-    margin: 8mm;
+    size: auto;
+    margin: 0;
   }
 
   html,
@@ -2000,9 +2000,9 @@ tbody tr:hover {
   .printing-finished-labels .packaging-label-list {
     position: static !important;
     display: grid;
-    grid-template-columns: repeat(auto-fill, 80mm);
-    grid-auto-rows: 40mm;
-    gap: 4mm !important;
+    grid-template-columns: repeat(auto-fill, 60mm);
+    grid-auto-rows: 30mm;
+    gap: 0 !important;
     align-content: start !important;
     justify-content: start !important;
     max-height: none !important;
@@ -2013,41 +2013,45 @@ tbody tr:hover {
 
   .printing-finished-labels .finished-label-ticket {
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) 30mm !important;
-    gap: 4mm !important;
+    grid-template-columns: minmax(0, 1fr) 23mm !important;
+    gap: 2.5mm !important;
     align-items: center !important;
-    width: 80mm !important;
+    width: 60mm !important;
     min-height: 0 !important;
-    height: 40mm !important;
-    padding: 3.5mm !important;
+    height: 30mm !important;
+    padding: 3mm !important;
     border: 1px solid #111 !important;
-    border-radius: 2mm !important;
+    border-radius: 1.5mm !important;
     box-shadow: none !important;
     background: #fff !important;
     break-inside: avoid !important;
   }
 
   .printing-finished-labels .finished-label-ticket canvas {
-    width: 30mm !important;
-    height: 30mm !important;
+    width: 23mm !important;
+    height: 23mm !important;
+    justify-self: center !important;
   }
 
   .printing-finished-labels .finished-label-info {
     display: grid !important;
-    gap: 2mm !important;
+    gap: 1.15mm !important;
     min-width: 0 !important;
   }
 
   .printing-finished-labels .finished-label-info strong {
-    font-size: 14pt !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 11px !important;
     font-weight: 900 !important;
-    line-height: 1.05 !important;
+    line-height: 1.08 !important;
   }
 
   .printing-finished-labels .finished-label-info span {
-    font-size: 8.5pt !important;
+    font-size: 8px !important;
     font-weight: 700 !important;
-    line-height: 1.2 !important;
+    line-height: 1.12 !important;
     overflow-wrap: anywhere !important;
   }
 }
@@ -15372,7 +15376,7 @@ body,
 
 .packaging-label-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(80mm, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(60mm, 1fr));
   gap: 12px;
   max-height: 58vh;
   overflow: auto;
@@ -15380,37 +15384,47 @@ body,
 
 .finished-label-ticket {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 32mm;
-  gap: 4mm;
+  grid-template-columns: minmax(0, 1fr) 23mm;
+  gap: 2.5mm;
   align-items: center;
-  width: 80mm;
-  min-height: 40mm;
-  padding: 4mm;
+  width: 60mm;
+  height: 30mm;
+  min-height: 30mm;
+  padding: 3mm;
   border: 1px solid #cddbd4;
-  border-radius: 8px;
+  border-radius: 5px;
   background: #fff;
 }
 
 .finished-label-info {
   display: grid;
-  gap: 2mm;
+  gap: 1.15mm;
   min-width: 0;
 }
 
 .finished-label-info strong,
 .finished-label-info span {
-  overflow-wrap: anywhere;
-  line-height: 1.2;
+  line-height: 1.15;
 }
 
 .finished-label-info strong {
-  font-size: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
   font-weight: 900;
 }
 
 .finished-label-info span {
-  font-size: 12px;
+  overflow-wrap: anywhere;
+  font-size: 9px;
   font-weight: 700;
+}
+
+.finished-label-ticket canvas {
+  width: 23mm !important;
+  height: 23mm !important;
+  justify-self: center;
 }
 
 .packaging-history-card {

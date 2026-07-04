@@ -3278,6 +3278,21 @@ function formatLabelDate(value = '') {
   return `${day}/${month}/${year}`
 }
 
+function formatShortLabelDate(value = '') {
+  const dateText = String(value || '').slice(0, 10)
+  const [year, month, day] = dateText.split('-')
+  if (!year || !month || !day) return dateText || '-'
+  return `${day}/${month}/${String(year).slice(-2)}`
+}
+
+function shortFinishedLot(lot = '') {
+  return String(lot || '-').replace(/^LOT[-.\s]*/i, '') || '-'
+}
+
+function compactWeightKg(value = 0) {
+  return `${num(value).toLocaleString('vi-VN', { maximumFractionDigits: 2 })}kg`
+}
+
 function buildFinishedProductQrItem(order = {}, item = {}, index = 1, totalBoxes = 0, existing = {}) {
   const lot = getOrderLotCode(order)
   const sequence = index
@@ -8897,10 +8912,11 @@ function PackagingPage({ data, setData, user }) {
                         <section className="finished-label-ticket" key={qr.qrCode}>
                           <div className="finished-label-info">
                             <strong>{qr.productCode || '-'}</strong>
-                            <span>{kg(qr.weightKg)} - {String(qr.sequence).padStart(3, '0')}/{String(qr.totalBoxes).padStart(3, '0')} - {qr.lot}</span>
-                            <span>NSX: {formatLabelDate(qr.productionDate)} - HSD: {formatLabelDate(qr.expiryDate)}</span>
+                            <span>{shortFinishedLot(qr.lot)}</span>
+                            <span>TL tịnh: {compactWeightKg(qr.weightKg)}-{String(qr.sequence).padStart(2, '0')}/{String(qr.totalBoxes).padStart(2, '0')}</span>
+                            <span>{formatShortLabelDate(qr.productionDate)} - {formatShortLabelDate(qr.expiryDate)}</span>
                           </div>
-                          <QRCodeCanvas value={JSON.stringify(qr.tracePayload || { qrCode: qr.qrCode })} size={112} includeMargin />
+                          <QRCodeCanvas value={JSON.stringify(qr.tracePayload || { qrCode: qr.qrCode })} size={92} includeMargin />
                         </section>
                       ))}
                     </div>
