@@ -8435,6 +8435,11 @@ function PackagingPage({ data, setData, user }) {
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'Đóng gói')
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
 
+  const packingHistory = (data.packingLogs || [])
+    .filter((log) => log.status === 'completed')
+    .slice()
+    .reverse()
+
   const updateForm = (patch) => {
     if (!activeOrder) return
     setForms((current) => ({ ...current, [activeOrder.id]: { ...getPackingForm(current, activeOrder), ...patch } }))
@@ -8603,16 +8608,17 @@ function PackagingPage({ data, setData, user }) {
     <div className="page-content packaging-page">
       <section className="panel packaging-layout">
         <aside className="packaging-list">
-          <h2>Danh sách lệnh chờ đóng gói</h2>
-          <SimpleTable headers={['Mã lô', 'Sản phẩm', 'Khối lượng sau QC thành phẩm', 'Trạng thái', 'Hành động']} rows={orders.map((order) => (
-            <tr key={order.id} className={order.id === activeOrder?.id ? 'current-row' : ''}>
-              <td>{getOrderLotCode(order)}</td>
-              <td>{order.productName || order.product}</td>
-              <td>{kg(qc2FinalWeight(order))}</td>
-              <td><span className={`dispatch-badge ${order.packingStatus === 'completed' || order.packagingStatus === 'Completed' ? 'done' : order.status === 'Đang đóng gói' ? 'mixing' : 'waiting'}`}>{order.status}</span></td>
-              <td><button className="secondary-button" onClick={() => { setActiveOrderId(order.id); setWarning('') }}>Chọn</button></td>
-            </tr>
-          ))} empty="Không có lệnh chờ đóng gói." />
+          <h2>Lệnh chờ đóng gói</h2>
+          <div className="packaging-order-cards">
+            {orders.map((order) => (
+              <button key={order.id} type="button" className={["packaging-order-card", order.id === activeOrder?.id ? "active" : ""].filter(Boolean).join(" ")} onClick={() => { setActiveOrderId(order.id); setWarning("") }}>
+                <strong>{getOrderLotCode(order)}</strong>
+                <span>{order.productCode || order.formulaCode || order.originalFormulaId || "-"} | {kg(qc2FinalWeight(order))} QC-TP</span>
+                <i className={["dispatch-badge", order.packingStatus === "completed" || order.packagingStatus === "Completed" ? "done" : order.status === "Đang đóng gói" ? "mixing" : "waiting"].join(" ")}>{order.status}</i>
+              </button>
+            ))}
+            {orders.length === 0 && <p className="empty-alert">Không có lệnh chờ đóng gói.</p>}
+          </div>
         </aside>
 
         <main className="packaging-detail">
@@ -8634,15 +8640,15 @@ function PackagingPage({ data, setData, user }) {
               <div className="qc-order-summary">
                 <div><span>Mã lô</span><strong>{getOrderLotCode(activeOrder)}</strong></div>
                 <div><span>Sản phẩm</span><strong>{activeOrder.productName || activeOrder.product}</strong></div>
-                <div><span>Khối lượng sau QC thành phẩm</span><strong>{kg(totals.qcWeight)}</strong></div>
-                <div><span>Khối lượng đã đóng gói</span><strong>{kg(totals.totalPackedWeight)}</strong></div>
-                <div><span>Khối lượng còn lại</span><strong>{kg(totals.remainingWeight)}</strong></div>
+                <div><span>KL QC-TP</span><strong>{kg(totals.qcWeight)}</strong></div>
+                <div><span>KL đã ĐG</span><strong>{kg(totals.totalPackedWeight)}</strong></div>
+                <div><span>KL còn lại</span><strong>{kg(totals.remainingWeight)}</strong></div>
                 <div><span>Sai lệch</span><strong>{kg(totals.differenceWeight)}</strong></div>
-                <div><span>Sai số tổng cho phép</span><strong>{kg(totals.totalTolerance)}</strong></div>
+                <div><span>Sai số CP</span><strong>{kg(totals.totalTolerance)}</strong></div>
               </div>
               <section className="v3-card">
                 <h3>Kế hoạch đóng gói theo lệnh</h3>
-                <SimpleTable headers={['Quy cách', 'Kế hoạch', 'Đã đóng', 'Còn lại', 'Khối lượng quy đổi', 'QR thành phẩm', 'Ghi chú']} rows={form.details.map((item) => {
+                <SimpleTable tableClassName="packaging-plan-detail-table" headers={['Quy cách', 'Kế hoạch', 'Đã đóng', 'Còn lại', 'KL quy đổi', 'QR TP', 'Ghi chú']} rows={form.details.map((item) => {
                   const packedBoxes = num(item.boxes)
                   const plannedBoxes = num(item.plannedBoxes)
                   const remainingBoxes = Math.max(0, plannedBoxes - packedBoxes)
@@ -8668,6 +8674,25 @@ function PackagingPage({ data, setData, user }) {
                   <label>Thời gian hoàn thành đóng gói<input value={form.completedAt} onChange={(event) => updateForm({ completedAt: event.target.value })} /></label>
                   <label className="wide-field">Ghi chú đóng gói<input value={form.notes} onChange={(event) => updateForm({ notes: event.target.value })} /></label>
                 </div>
+              </section>
+              <section className="v3-card packaging-history-card">
+                <h3>Lịch sử đóng gói</h3>
+                <SimpleTable tableClassName="packaging-history-table" headers={['Mã lô', 'Mã SP', 'KL QC-TP', 'KL đã ĐG', 'Dư SX', 'Người ĐG', 'Thời gian hoàn tất', 'Hành động']} rows={packingHistory.map((log) => {
+                  const historyOrder = data.orders.find((order) => order.id === log.orderId || order.orderCode === log.orderCode)
+                  const hasQr = (log.finishedQrItems || []).length > 0 || (log.packingDetails || []).some((item) => (item.finishedQrItems || []).length > 0)
+                  return (
+                    <tr key={log.packingId || `${log.orderId}-${log.completedAt}`}>
+                      <td>{log.lot || getOrderLotCode(historyOrder || {}) || log.orderCode || log.orderId}</td>
+                      <td>{historyOrder?.productCode || historyOrder?.formulaCode || log.productCode || '-'}</td>
+                      <td>{kg(log.qc2FinalWeight)}</td>
+                      <td>{kg(log.totalPackedWeight)}</td>
+                      <td>{kg(Math.max(0, num(log.remainingWeight)))}</td>
+                      <td>{log.packer || '-'}</td>
+                      <td>{log.completedAt || '-'}</td>
+                      <td><div className="action-row compact-actions"><button className="secondary-button" type="button" onClick={() => { if (log.orderId) setActiveOrderId(log.orderId); setWarning('') }}>Chi tiết</button><button className="secondary-button" type="button" disabled={!hasQr} onClick={() => window.print()}>In QR</button></div></td>
+                    </tr>
+                  )
+                })} empty="Chưa có lịch sử đóng gói." />
               </section>
             </>
           )}
