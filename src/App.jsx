@@ -5543,7 +5543,7 @@ function QC1({ data, setData, user }) {
                     <div><span>Mã lô</span><strong>{getOrderLotCode(activeOrder)}</strong></div>
                     <div><span>Sản phẩm</span><strong>{activeOrder.productName || activeOrder.product}</strong></div>
                     <div><span>Công thức gốc</span><strong>{activeOrder.formulaCode || activeOrder.originalFormulaId} / {activeOrder.formulaVersion || activeOrder.originalFormulaVersion}</strong></div>
-                    <div><span>Khối lượng</span><strong>{kg(activeOrder.requestedWeight ?? activeOrder.quantityKg)}</strong></div>
+                    <div><span>KL</span><strong>{kg(activeOrder.requestedWeight ?? activeOrder.quantityKg)}</strong></div>
                     <div><span>Khách hàng</span><strong>{activeOrder.customerName || activeOrder.customer || '-'}</strong></div>
                   </div>
                 </div>
@@ -5557,13 +5557,13 @@ function QC1({ data, setData, user }) {
               <div className="qc-trial-table-wrapper">
                 <table className="qc-trial-table compact-qc-table">
                   <colgroup>
-                    <col style={{ width: '80px' }} />
-                    <col style={{ width: '60px' }} />
-                    <col style={{ width: '80px' }} />
-                    <col style={{ width: '90px' }} />
-                    <col style={{ width: '90px' }} />
-                    <col style={{ width: '150px' }} />
-                    <col style={{ width: '150px' }} />
+                    <col style={{ width: '96px' }} />
+                    <col style={{ width: '76px' }} />
+                    <col style={{ width: '96px' }} />
+                    <col style={{ width: '96px' }} />
+                    <col style={{ width: '96px' }} />
+                    <col style={{ width: '170px' }} />
+                    <col style={{ width: '170px' }} />
                   </colgroup>
                   <thead>
                     <tr>
@@ -5631,7 +5631,7 @@ function QC1({ data, setData, user }) {
               }} /></label>
               <datalist id="qc1-active-materials">{selectableMaterials.map((item) => <option key={item.materialCode} value={item.materialCode} />)}</datalist>
               <label>Nhóm vật tư<select value={newMaterial.materialGroup} onChange={(event) => setNewMaterial({ ...newMaterial, materialGroup: event.target.value })}><option>{CHEMICAL}</option><option>{SOLID}</option></select></label>
-              <label>Khối lượng bổ sung (kg)<input type="number" value={newMaterial.requiredKg} onChange={(event) => setNewMaterial({ ...newMaterial, requiredKg: event.target.value })} /></label>
+              <label>KL bổ sung (kg)<input type="number" value={newMaterial.requiredKg} onChange={(event) => setNewMaterial({ ...newMaterial, requiredKg: event.target.value })} /></label>
               <label className="wide-field">Lý do bổ sung<input value={newMaterial.reason} onChange={(event) => setNewMaterial({ ...newMaterial, reason: event.target.value })} /></label>
               <label className="wide-field">Ghi chú<input value={newMaterial.note} onChange={(event) => setNewMaterial({ ...newMaterial, note: event.target.value })} /></label>
             </div>
@@ -5684,7 +5684,7 @@ function QC2({ data, setData }) {
   return <section className="panel"><h2>QC-TP - Test màu thành phẩm</h2>{orders.map((order) => {
     const form = getForm(order.id)
     return <article className="v3-card" key={order.id}>
-      <div className="section-heading-row"><div><h3>{getOrderLotCode(order)} - {order.product}</h3><p className="panel-text">Mã lô {getOrderLotCode(order)}, khối lượng sau phối trộn {kg(order.mixing?.finalWeightKg || order.quantityKg)}</p></div><button className="primary-button" onClick={() => save(order)}>Lưu kết quả QC-TP</button></div>
+      <div className="section-heading-row"><div><h3>{getOrderLotCode(order)} - {order.product}</h3><p className="panel-text">Mã lô {getOrderLotCode(order)}, KL sau phối trộn {kg(order.mixing?.finalWeightKg || order.quantityKg)}</p></div><button className="primary-button" onClick={() => save(order)}>Lưu kết quả QC-TP</button></div>
       <div className="production-form-grid">
         <label>Kết quả<select value={form.result} onChange={(event) => setForm(order.id, { result: event.target.value })}><option>OK</option><option>Cần chỉnh màu</option><option>Không đạt</option></select></label>
         {['color', 'ph', 'viscosity', 'density', 'coverage', 'note'].map((field) => <label key={field}>{({ color: 'Màu sắc', ph: 'pH', viscosity: 'Độ nhớt', density: 'Tỷ trọng', coverage: 'Độ phủ', note: 'Ghi chú' })[field]}<input value={form[field]} onChange={(event) => setForm(order.id, { [field]: event.target.value })} /></label>)}
@@ -5692,7 +5692,7 @@ function QC2({ data, setData }) {
       {form.result === 'Cần chỉnh màu' && <div className="production-form-grid"><datalist id="legacy-qc2-active-materials">{selectableMaterials.map((material) => <option key={material.materialCode} value={material.materialCode} />)}</datalist><label>Mã vật tư<input list="legacy-qc2-active-materials" value={form.materialCode} onChange={(event) => {
         const material = selectableMaterials.find((item) => item.materialCode === event.target.value)
         setForm(order.id, { materialCode: event.target.value, materialGroup: material?.materialGroup || form.materialGroup, chemicalSubGroup: material?.chemicalSubGroup || '' })
-      }} /></label><label>Nhóm<select value={form.materialGroup} onChange={(event) => setForm(order.id, { materialGroup: event.target.value })}><option>{CHEMICAL}</option><option>{SOLID}</option></select></label><label>Khối lượng bổ sung<input type="number" value={form.addKg} onChange={(event) => setForm(order.id, { addKg: event.target.value })} /></label><label>Lý do điều chỉnh<input value={form.reason} onChange={(event) => setForm(order.id, { reason: event.target.value })} /></label></div>}
+      }} /></label><label>Nhóm<select value={form.materialGroup} onChange={(event) => setForm(order.id, { materialGroup: event.target.value })}><option>{CHEMICAL}</option><option>{SOLID}</option></select></label><label>KL bổ sung<input type="number" value={form.addKg} onChange={(event) => setForm(order.id, { addKg: event.target.value })} /></label><label>Lý do điều chỉnh<input value={form.reason} onChange={(event) => setForm(order.id, { reason: event.target.value })} /></label></div>}
     </article>
   })}{orders.length === 0 && <p className="empty-alert">Không có lệnh chờ QC-TP.</p>}</section>
 }
@@ -6029,10 +6029,9 @@ function FinishedProductQcPage({ data, setData, user }) {
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Khách hàng</span><strong className="value">{activeOrder.customerName || activeOrder.customer || '-'}</strong></div>
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Sản phẩm</span><strong className="value">{activeOrder.productName || activeOrder.product}</strong></div>
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Công thức gốc</span><strong className="value">{activeOrder.formulaCode || activeOrder.originalFormulaId}</strong></div>
-                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Khối lượng yêu cầu</span><strong className="value">{kg(activeOrder.requestedWeight ?? activeOrder.quantityKg)}</strong></div>
-                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Khối lượng sau phối trộn</span><strong className="value">{kg(activeOrder.mixing?.finalWeightKg || activeOrder.quantityKg)}</strong></div>
+                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">KL yêu cầu</span><strong className="value">{kg(activeOrder.requestedWeight ?? activeOrder.quantityKg)}</strong></div>
+                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">KL sau phối trộn</span><strong className="value">{kg(activeOrder.mixing?.finalWeightKg || activeOrder.quantityKg)}</strong></div>
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Máy phối trộn</span><strong className="value">{getOrderAssignedMachineLabel(activeOrder, data.mixingMachines)}</strong></div>
-                  <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Hoàn thành phối trộn</span><strong className="value">{activeOrder.mixingCompletedAt || activeOrder.mixing?.completedAt || '-'}</strong></div>
                 </div>
               </div>
 
@@ -6049,10 +6048,10 @@ function FinishedProductQcPage({ data, setData, user }) {
                           <tr>
                             <th>Mã VT</th>
                             <th>Nhóm</th>
-                            <th><span>Khối lượng</span><span>gốc</span></th>
-                            <th><span>Khối lượng</span><span>sau QC1</span></th>
+                            <th><span>KL gốc</span></th>
+                            <th><span>KL sau QC1</span></th>
                             <th>QC-TP bổ sung</th>
-                            <th><span>Khối lượng</span><span>sau QC-TP</span></th>
+                            <th><span>KL sau QC-TP</span></th>
                             <th><span>Lý do</span><span>điều chỉnh</span></th>
                             <th>Hành động</th>
               </tr>
@@ -6080,7 +6079,7 @@ function FinishedProductQcPage({ data, setData, user }) {
                     <section className="v3-card">
                       <h3>NVL bổ sung mới</h3>
                       <datalist id="qc2-active-materials">{selectableMaterials.map((material) => <option key={material.materialCode} value={material.materialCode} />)}</datalist>
-                      <SimpleTable headers={['Mã vật tư', 'Nhóm', 'Khối lượng bổ sung', 'Lý do bổ sung', 'Ghi chú']} rows={form.newMaterials.map((item) => (
+                      <SimpleTable headers={['Mã vật tư', 'Nhóm', 'KL bổ sung', 'Lý do bổ sung', 'Ghi chú']} rows={form.newMaterials.map((item) => (
                         <tr key={item.id}>
                           <td><input list="qc2-active-materials" value={item.materialCode} onChange={(event) => updateNewMaterial(item.id, 'materialCode', event.target.value)} /></td>
                           <td><select value={item.materialGroup} onChange={(event) => updateNewMaterial(item.id, 'materialGroup', event.target.value)}><option>{CHEMICAL}</option><option>{SOLID}</option></select></td>

@@ -15248,3 +15248,147 @@ body,
     grid-template-columns: repeat(2, minmax(150px, 1fr)) !important;
   }
 }
+
+/* QC compact layout override. */
+.qc-trial-page .qc-trial-table th,
+.qc-trial-page .qc-change-table th,
+.qc2-page .finished-qc-table th,
+.qc2-page .qc2-material-table th,
+.qc2-page .table-wrapper th {
+  text-align: center !important;
+  vertical-align: middle !important;
+  white-space: normal !important;
+  line-height: 1.25 !important;
+}
+
+.qc-trial-page .qc-trial-table {
+  width: 800px !important;
+  min-width: 800px !important;
+  table-layout: fixed !important;
+}
+
+.qc-trial-page .qc-trial-table th:nth-child(1),
+.qc-trial-page .qc-trial-table td:nth-child(1) {
+  width: 96px !important;
+  text-align: center !important;
+}
+
+.qc-trial-page .qc-trial-table th:nth-child(2),
+.qc-trial-page .qc-trial-table td:nth-child(2) {
+  width: 76px !important;
+  text-align: center !important;
+}
+
+.qc-trial-page .qc-trial-table th:nth-child(3),
+.qc-trial-page .qc-trial-table th:nth-child(4),
+.qc-trial-page .qc-trial-table th:nth-child(5) {
+  width: 96px !important;
+}
+
+.qc-trial-page .qc-trial-table td:nth-child(3),
+.qc-trial-page .qc-trial-table td:nth-child(4),
+.qc-trial-page .qc-trial-table td:nth-child(5) {
+  width: 96px !important;
+  text-align: right !important;
+}
+
+.qc-trial-page .qc-trial-table th:nth-child(6),
+.qc-trial-page .qc-trial-table td:nth-child(6),
+.qc-trial-page .qc-trial-table th:nth-child(7),
+.qc-trial-page .qc-trial-table td:nth-child(7) {
+  width: 170px !important;
+}
+
+.qc-trial-page .qc-value-input,
+.qc-trial-page .qc-trial-table input[type='number'],
+.qc2-page .finished-qc-table input[type='number'],
+.qc2-page .table-wrapper input[type='number'] {
+  text-align: right !important;
+}
+
+.qc-trial-page .qc-change-table table {
+  width: 800px !important;
+  min-width: 800px !important;
+  table-layout: fixed !important;
+}
+
+.qc-trial-page .qc-change-table th:nth-child(1),
+.qc-trial-page .qc-change-table td:nth-child(1) {
+  width: 100px !important;
+  text-align: center !important;
+}
+
+.qc-trial-page .qc-change-table th:nth-child(2),
+.qc-trial-page .qc-change-table td:nth-child(2),
+.qc-trial-page .qc-change-table th:nth-child(3),
+.qc-trial-page .qc-change-table td:nth-child(3),
+.qc-trial-page .qc-change-table th:nth-child(4),
+.qc-trial-page .qc-change-table td:nth-child(4) {
+  width: 100px !important;
+  text-align: right !important;
+}
+
+.qc-trial-page .qc-change-table th:nth-child(5),
+.qc-trial-page .qc-change-table td:nth-child(5),
+.qc-trial-page .qc-change-table th:nth-child(6),
+.qc-trial-page .qc-change-table td:nth-child(6) {
+  width: 170px !important;
+}
+
+.qc2-page .finished-qc-info-grid {
+  grid-template-columns: repeat(4, minmax(150px, 1fr)) !important;
+  gap: 10px 12px !important;
+  max-width: 900px !important;
+}
+
+.qc2-page .finished-qc-info-card {
+  min-height: 58px !important;
+  padding: 10px 12px !important;
+}
+
+.qc2-page .finished-qc-table {
+  width: 940px !important;
+  min-width: 940px !important;
+  table-layout: fixed !important;
+}
+
+.qc2-page .finished-qc-table th:nth-child(1),
+.qc2-page .finished-qc-table td:nth-child(1) {
+  width: 96px !important;
+  text-align: center !important;
+}
+
+.qc2-page .finished-qc-table th:nth-child(2),
+.qc2-page .finished-qc-table td:nth-child(2) {
+  width: 78px !important;
+  text-align: center !important;
+}
+
+.qc2-page .finished-qc-table th:nth-child(3),
+.qc2-page .finished-qc-table th:nth-child(4),
+.qc2-page .finished-qc-table th:nth-child(5),
+.qc2-page .finished-qc-table th:nth-child(6),
+.qc2-page .finished-qc-table td:nth-child(3),
+.qc2-page .finished-qc-table td:nth-child(4),
+.qc2-page .finished-qc-table td:nth-child(5),
+.qc2-page .finished-qc-table td:nth-child(6) {
+  width: 100px !important;
+}
+
+.qc2-page .finished-qc-table td:nth-child(3),
+.qc2-page .finished-qc-table td:nth-child(4),
+.qc2-page .finished-qc-table td:nth-child(5),
+.qc2-page .finished-qc-table td:nth-child(6) {
+  text-align: right !important;
+}
+
+.qc2-page .finished-qc-table th:nth-child(7),
+.qc2-page .finished-qc-table td:nth-child(7),
+.qc2-page .finished-qc-table th:nth-child(8),
+.qc2-page .finished-qc-table td:nth-child(8) {
+  width: 170px !important;
+}
+
+.qc2-page .finished-qc-table input {
+  max-width: 100% !important;
+}
