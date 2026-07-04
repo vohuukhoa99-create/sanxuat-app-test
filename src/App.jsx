@@ -5542,8 +5542,7 @@ function QC1({ data, setData, user }) {
                   <div className="qc-trial-summary-grid">
                     <div><span>Mã lô</span><strong>{getOrderLotCode(activeOrder)}</strong></div>
                     <div><span>Sản phẩm</span><strong>{activeOrder.productName || activeOrder.product}</strong></div>
-                    <div><span>Công thức gốc</span><strong>{activeOrder.formulaCode || activeOrder.originalFormulaId} / {activeOrder.formulaVersion || activeOrder.originalFormulaVersion}</strong></div>
-                    <div><span>KL</span><strong>{kg(activeOrder.requestedWeight ?? activeOrder.quantityKg)}</strong></div>
+                    <div><span>Khối lượng</span><strong>{kg(activeOrder.requestedWeight ?? activeOrder.quantityKg)}</strong></div>
                     <div><span>Khách hàng</span><strong>{activeOrder.customerName || activeOrder.customer || '-'}</strong></div>
                   </div>
                 </div>
