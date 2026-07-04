@@ -3271,12 +3271,21 @@ function packagingQrSpecCode(item = {}) {
     .toUpperCase() || 'QC'
 }
 
+function formatLabelDate(value = '') {
+  const dateText = String(value || '').slice(0, 10)
+  const [year, month, day] = dateText.split('-')
+  if (!year || !month || !day) return dateText || '-'
+  return `${day}/${month}/${year}`
+}
+
 function buildFinishedProductQrItem(order = {}, item = {}, index = 1, totalBoxes = 0, existing = {}) {
   const lot = getOrderLotCode(order)
   const sequence = index
   const serial = String(sequence).padStart(3, '0')
   const specCode = packagingQrSpecCode(item)
   const qrCode = existing.qrCode && existing.printedAt ? existing.qrCode : `${lot}-${specCode}-${serial}`
+  const productionDate = existing.productionDate || String(order.createdAt || todayText()).slice(0, 10)
+  const expiryDate = existing.expiryDate || order.expiryDate || order.expirationDate || order.hsd || addDaysText(productionDate, 365)
   const payload = {
     type: 'Thành phẩm',
     qrCode,
@@ -3289,7 +3298,8 @@ function buildFinishedProductQrItem(order = {}, item = {}, index = 1, totalBoxes
     packagingSpec: item.spec || item.label || '',
     boxNo: sequence,
     totalBoxes,
-    productionDate: String(order.createdAt || '').slice(0, 10),
+    productionDate,
+    expiryDate,
     packingDate: existing.packingDate || '',
     packer: existing.packer || '',
   }
@@ -3311,7 +3321,8 @@ function buildFinishedProductQrItem(order = {}, item = {}, index = 1, totalBoxes
     sequence,
     totalBoxes,
     weightKg: num(item.convertedWeightKg ?? item.sizeKg),
-    productionDate: payload.productionDate,
+    productionDate,
+    expiryDate,
     packingDate: existing.packingDate || '',
     packer: existing.packer || '',
     printedAt: existing.printedAt || '',
@@ -8515,6 +8526,11 @@ function PackagingPage({ data, setData, user }) {
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'Đóng gói')
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
 
+  useEffect(() => {
+    document.body.classList.toggle('printing-finished-labels-active', Boolean(printModal))
+    return () => document.body.classList.remove('printing-finished-labels-active')
+  }, [printModal])
+
   const packingHistory = (data.packingLogs || [])
     .filter((log) => log.status === 'completed')
     .slice()
@@ -8757,7 +8773,7 @@ function PackagingPage({ data, setData, user }) {
   }
 
   return (
-    <div className="page-content packaging-page">
+    <div className={`page-content packaging-page ${printModal ? 'printing-finished-labels' : ''}`}>
       <section className="panel packaging-layout">
         <aside className="packaging-list">
           <h2>Lệnh chờ đóng gói</h2>
@@ -8880,12 +8896,9 @@ function PackagingPage({ data, setData, user }) {
                       {selectedPrintItems().map((qr) => (
                         <section className="finished-label-ticket" key={qr.qrCode}>
                           <div className="finished-label-info">
-                            <strong>{qr.lot}</strong>
-                            <span>{qr.productCode || '-'}</span>
-                            <span>{qr.productName || '-'}</span>
-                            <span>{qr.spec}</span>
-                            <b>{String(qr.sequence).padStart(3, '0')} / {String(qr.totalBoxes).padStart(3, '0')}</b>
-                            <code>{qr.qrCode}</code>
+                            <strong>{qr.productCode || '-'}</strong>
+                            <span>{kg(qr.weightKg)} - {String(qr.sequence).padStart(3, '0')}/{String(qr.totalBoxes).padStart(3, '0')} - {qr.lot}</span>
+                            <span>NSX: {formatLabelDate(qr.productionDate)} - HSD: {formatLabelDate(qr.expiryDate)}</span>
                           </div>
                           <QRCodeCanvas value={JSON.stringify(qr.tracePayload || { qrCode: qr.qrCode })} size={112} includeMargin />
                         </section>
