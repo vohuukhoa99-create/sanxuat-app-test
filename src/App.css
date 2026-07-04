@@ -15440,9 +15440,9 @@ body,
 /* QC-TP header info compact row. */
 .qc2-page .qc-finished-info-grid {
   display: flex !important;
-  flex-wrap: wrap !important;
-  gap: 10px 12px !important;
-  width: fit-content !important;
+  flex-wrap: nowrap !important;
+  gap: 12px !important;
+  width: 100% !important;
   max-width: 100% !important;
   justify-content: start !important;
   align-items: stretch !important;
@@ -15457,29 +15457,30 @@ body,
 }
 
 .qc2-page .qc-finished-info-grid > .qc-finished-info-card:nth-child(1) {
-  flex: 0 0 176px !important;
-  max-width: 176px !important;
+  flex: 0 0 150px !important;
+  max-width: 150px !important;
 }
 
 .qc2-page .qc-finished-info-grid > .qc-finished-info-card:nth-child(2) {
-  flex: 0 0 148px !important;
-  max-width: 148px !important;
+  flex: 0 0 150px !important;
+  max-width: 150px !important;
 }
 
 .qc2-page .qc-finished-info-grid > .qc-finished-info-card:nth-child(3),
 .qc2-page .qc-finished-info-grid > .qc-finished-info-card:nth-child(4) {
-  flex: 0 0 118px !important;
-  max-width: 118px !important;
+  flex: 0 0 100px !important;
+  max-width: 100px !important;
 }
 
 .qc2-page .qc-finished-info-grid > .qc-finished-info-card:nth-child(5) {
-  flex: 0 0 138px !important;
-  max-width: 138px !important;
+  flex: 0 0 120px !important;
+  max-width: 120px !important;
 }
 
 .qc2-page .qc-finished-info-grid > .qc-finished-info-card:nth-child(6) {
-  flex: 0 0 310px !important;
-  max-width: 310px !important;
+  flex: 1 1 420px !important;
+  min-width: 420px !important;
+  max-width: 500px !important;
 }
 
 .qc2-page .qc-finished-info-grid .label {
@@ -15495,14 +15496,19 @@ body,
   white-space: nowrap !important;
 }
 
-@media (max-width: 1180px) {
-  .qc2-page .qc-finished-info-grid {
-    width: 100% !important;
-  }
+.qc2-page .qc-finished-info-grid > .qc-finished-info-card:nth-child(6) .value {
+  line-height: 1.35 !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
 }
 
 @media (max-width: 980px) {
   .qc2-page .qc-finished-info-grid {
-    width: 100% !important;
+    flex-wrap: wrap !important;
   }
 }
