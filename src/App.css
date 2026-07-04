@@ -15063,3 +15063,51 @@ body,
 .secondary-button {
   border-radius: 6px !important;
 }
+
+/* QC table alignment: keep headers centered and numeric columns readable. */
+.qc-trial-page .qc-trial-table th,
+.qc2-page .finished-qc-table th,
+.qc2-page .qc2-material-table th,
+.qc-change-table th,
+.qc2-page .table-wrapper th {
+  text-align: center !important;
+  vertical-align: middle !important;
+  white-space: normal !important;
+}
+
+.qc-trial-page .qc-trial-table td:nth-child(1),
+.qc-trial-page .qc-trial-table td:nth-child(2),
+.qc2-page .finished-qc-table td:nth-child(1),
+.qc2-page .finished-qc-table td:nth-child(2),
+.qc2-page .qc2-material-table td:nth-child(1),
+.qc2-page .qc2-material-table td:nth-child(2) {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.qc-trial-page .qc-trial-table td:nth-child(3),
+.qc-trial-page .qc-trial-table td:nth-child(4),
+.qc-trial-page .qc-trial-table td:nth-child(5),
+.qc-change-table td:nth-child(2),
+.qc-change-table td:nth-child(3),
+.qc-change-table td:nth-child(4),
+.qc2-page .finished-qc-table td:nth-child(3),
+.qc2-page .finished-qc-table td:nth-child(4),
+.qc2-page .finished-qc-table td:nth-child(5),
+.qc2-page .finished-qc-table td:nth-child(6),
+.qc2-page .table-wrapper td:nth-child(3) {
+  text-align: right !important;
+  vertical-align: middle !important;
+}
+
+.qc-trial-page .qc-value-input,
+.qc2-page input[type='number'] {
+  text-align: right !important;
+}
+
+.qc-trial-page .qc-reason-input,
+.qc-trial-page .qc-note-input,
+.qc2-page .finished-qc-table input:not([type='number']),
+.qc2-page .finished-qc-table select {
+  text-align: center !important;
+}

@@ -8,7 +8,7 @@ export const defaultNavItems = [
   { id: 'chemical', label: 'Tổ cân hóa', parentId: 'production', permission: 'chemical' },
   { id: 'solid', label: 'Tổ cân rắn', parentId: 'production', permission: 'solid' },
   { id: 'mixing', label: 'Tổ phối trộn', parentId: 'production', permission: 'mixing' },
-  { id: 'finished-qc', label: 'QC thành phẩm', parentId: 'production', permission: 'finished-qc' },
+  { id: 'finished-qc', label: 'QC-TP', parentId: 'production', permission: 'finished-qc' },
   { id: 'packaging', label: 'Đóng gói', parentId: 'production', permission: 'packaging' },
   { id: 'finished-goods', label: 'Kho thành phẩm', parentId: 'production', permission: 'finished-goods' },
   { id: 'reports', label: 'Báo cáo', type: 'group' },

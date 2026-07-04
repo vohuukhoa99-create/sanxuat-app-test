@@ -1834,10 +1834,10 @@ const initialData = {
   formulaVersions: [],
   orders: [],
   logs: [
-    { id: uid('log'), time: '2026-06-13 08:00', entry: 'Khởi tạo quy trình sản xuất V3: Kho NVL, công thức gốc, QC1, QC2, đóng gói và kho thành phẩm.' },
+    { id: uid('log'), time: '2026-06-13 08:00', entry: 'Khởi tạo quy trình sản xuất V3: Kho NVL, công thức gốc, QC1, QC-TP, đóng gói và kho thành phẩm.' },
   ],
   productionLogs: [
-    { id: uid('log'), time: '2026-06-13 08:00', entry: 'Khởi tạo quy trình sản xuất V3: Kho NVL, công thức gốc, QC1, QC2, đóng gói và kho thành phẩm.' },
+    { id: uid('log'), time: '2026-06-13 08:00', entry: 'Khởi tạo quy trình sản xuất V3: Kho NVL, công thức gốc, QC1, QC-TP, đóng gói và kho thành phẩm.' },
   ],
   qc2Logs: [],
   qc2AdjustmentTickets: [],
@@ -1922,17 +1922,17 @@ function applyRealCustomersToDemoOrders(orders = []) {
     'LSX-20260613-003': 2,
     'LSX-20260613-024': 3,
     'LSX-20260613-025': 4,
-    'LSX-QC2-DEMO-001': 5,
+    'LSX-QC-TP-DEMO-001': 5,
     'LSX-KTP-DEMO-001': 6,
     'LSX-KTP-DEMO-002': 7,
     'LSX-KTP-DEMO-003': 8,
     'LSX-KTP-DEMO-004': 9,
     'LSX-KTP-DEMO-005': 10,
-    'LSX-QC2-DEMO-002': 12,
-    'LSX-QC2-DEMO-003': 13,
-    'LSX-QC2-DEMO-004': 14,
-    'LSX-QC2-DEMO-005': 15,
-    'LSX-QC2-DEMO-006': 16,
+    'LSX-QC-TP-DEMO-002': 12,
+    'LSX-QC-TP-DEMO-003': 13,
+    'LSX-QC-TP-DEMO-004': 14,
+    'LSX-QC-TP-DEMO-005': 15,
+    'LSX-QC-TP-DEMO-006': 16,
   }
   return (orders || []).map((order, index) => {
     const orderCode = order.orderCode || order.id
@@ -2454,7 +2454,7 @@ function getTicketItems(ticket = {}) {
 }
 
 function qc2AdjustmentId(no) {
-  return `QC2-ADJ-${String(no).padStart(3, '0')}`
+  return `QC-TP-ADJ-${String(no).padStart(3, '0')}`
 }
 
 function nextQc2AdjustmentNo(data = {}) {
@@ -2468,7 +2468,7 @@ function nextQc2AdjustmentNo(data = {}) {
 function qc2AttemptCount(order, data = {}) {
   const resultLogs = (data.qc2Logs || []).filter((log) => (
     log.orderId === order.id
-    && (log.result || ['QC2 đạt', 'QC2 cần điều chỉnh', 'QC2 không đạt'].includes(log.action))
+    && (log.result || ['QC-TP đạt', 'QC-TP cần điều chỉnh', 'QC-TP không đạt'].includes(log.action))
   )).length
   return Math.max(resultLogs, getQc2Adjustments(order).length + (order.qc2 ? 1 : 0))
 }
@@ -2530,7 +2530,7 @@ function mostSupplementedMaterial(items = []) {
 
 function displayQc2Status(status = '') {
   const labels = {
-    PendingSupplementWeighing: 'Chờ cân bổ sung QC2',
+    PendingSupplementWeighing: 'Chờ cân bổ sung QC-TP',
     SupplementWeighed: 'Đã cân bổ sung',
     Completed: 'Hoàn thành',
     Pending: 'Chờ xử lý',
@@ -3052,16 +3052,16 @@ function buildDemoQrContainers() {
     {
       containerId: 'CNT-MIX-HOA-LSX-20260614-003',
       qrCode: 'MIX-HOA-LSX-20260614-003',
-      orderId: 'LSX-QC2-DEMO-001',
-      orderCode: 'LSX-QC2-DEMO-001',
+      orderId: 'LSX-QC-TP-DEMO-001',
+      orderCode: 'LSX-QC-TP-DEMO-001',
       productName: 'HNS 252.G1',
-      lot: 'LOT-QC2-G1-001',
+      lot: 'LOT-QC-TP-G1-001',
       materialGroup: CHEMICAL,
       materials: demoQrMaterials(CHEMICAL, [['PASTE02', 1.8], ['IN03', 0.5], ['KT01', 0.5]], '2026-06-14 11:00'),
       totalWeight: 2.8,
       weighedBy: 'Tổ cân hóa',
       completedAt: '2026-06-14 11:02',
-      weighingType: 'Cân bổ sung QC2',
+      weighingType: 'Cân bổ sung QC-TP',
       status: 'Đã cân xong',
     },
     {
@@ -3097,16 +3097,16 @@ function buildDemoQrContainers() {
     {
       containerId: 'CNT-MIX-RAN-LSX-20260614-003',
       qrCode: 'MIX-RAN-LSX-20260614-003',
-      orderId: 'LSX-QC2-DEMO-001',
-      orderCode: 'LSX-QC2-DEMO-001',
+      orderId: 'LSX-QC-TP-DEMO-001',
+      orderCode: 'LSX-QC-TP-DEMO-001',
       productName: 'HNS 252.G1',
-      lot: 'LOT-QC2-G1-001',
+      lot: 'LOT-QC-TP-G1-001',
       materialGroup: SOLID,
       materials: demoQrMaterials(SOLID, [['SW34', 5], ['SW92', 3]], '2026-06-14 11:15'),
       totalWeight: 8,
       weighedBy: 'Tổ cân rắn',
       completedAt: '2026-06-14 11:16',
-      weighingType: 'Cân bổ sung QC2',
+      weighingType: 'Cân bổ sung QC-TP',
       status: 'Đã cân xong',
     },
   ]
@@ -3183,7 +3183,7 @@ function applyDemoQrData(data = {}) {
     buildDemoQrOrder({ id: 'LSX-20260613-003', lot: 'LOT-LSX-20260613-003', chemicalQr: 'MIX-HOA-LSX-20260614-001', solidQr: 'MIX-RAN-LSX-20260614-001', customerIndex: 2, createdAt: '2026-06-13 08:03' }),
     buildDemoQrOrder({ id: 'LSX-20260613-024', lot: 'LOT-LSX-20260613-024', chemicalQr: 'MIX-HOA-LSX-20260614-001', solidQr: 'MIX-RAN-LSX-20260614-002', customerIndex: 3, createdAt: '2026-06-13 08:24' }),
     buildDemoQrOrder({ id: 'LSX-20260613-025', lot: 'LOT-LSX-20260613-003', chemicalQr: 'MIX-HOA-LSX-20260614-001', solidQr: 'MIX-HOA-LSX-20260614-002', customerIndex: 4, createdAt: '2026-06-13 08:25' }),
-    buildDemoQrOrder({ id: 'LSX-QC2-DEMO-001', lot: 'LOT-QC2-G1-001', chemicalQr: 'MIX-HOA-LSX-20260614-003', solidQr: 'MIX-RAN-LSX-20260614-003', customerIndex: 5, quantityKg: 10.8, stage: 'mixing-supplement', createdAt: '2026-06-13 09:00' }),
+    buildDemoQrOrder({ id: 'LSX-QC-TP-DEMO-001', lot: 'LOT-QC-TP-G1-001', chemicalQr: 'MIX-HOA-LSX-20260614-003', solidQr: 'MIX-RAN-LSX-20260614-003', customerIndex: 5, quantityKg: 10.8, stage: 'mixing-supplement', createdAt: '2026-06-13 09:00' }),
   ].filter((order) => !existingOrderCodes.has(order.orderCode || order.id))
   const existingLogIds = new Set((data.productionLogs || data.logs || []).map((log) => log.id))
   const demoLogs = buildDemoQrLogs().filter((log) => !existingLogIds.has(log.id))
@@ -3513,18 +3513,18 @@ function buildQc2DemoOrder(config) {
 }
 
 function createQc2DemoPayload(current = {}) {
-  const adjustmentId = 'QC2-ADJ-001'
+  const adjustmentId = 'QC-TP-ADJ-001'
   const adjustedAt = '2026-06-13 13:10'
   const adjustedItems = [
-    { id: 'DEMO-QC2-ADJ-001-PASTE02', adjustmentId, orderId: 'LSX-QC2-DEMO-003', changeType: 'existing', materialCode: 'PASTE 02', materialName: 'PASTE 02', materialGroup: CHEMICAL, chemicalSubGroup: CHEMICAL_SUBGROUP_PASTE, adjustmentKg: 1.5, requiredKg: 1.5, reason: 'Tăng độ phủ màu', note: 'Bổ sung sau QC2 lần 1' },
-    { id: 'DEMO-QC2-ADJ-001-IN03', adjustmentId, orderId: 'LSX-QC2-DEMO-003', changeType: 'existing', materialCode: 'IN03', materialName: 'IN03', materialGroup: CHEMICAL, chemicalSubGroup: CHEMICAL_SUBGROUP_COLOR, adjustmentKg: 0.2, requiredKg: 0.2, reason: 'Cân chỉnh sắc độ', note: 'Bổ sung sau QC2 lần 1' },
+    { id: 'DEMO-QC-TP-ADJ-001-PASTE02', adjustmentId, orderId: 'LSX-QC-TP-DEMO-003', changeType: 'existing', materialCode: 'PASTE 02', materialName: 'PASTE 02', materialGroup: CHEMICAL, chemicalSubGroup: CHEMICAL_SUBGROUP_PASTE, adjustmentKg: 1.5, requiredKg: 1.5, reason: 'Tăng độ phủ màu', note: 'Bổ sung sau QC-TP lần 1' },
+    { id: 'DEMO-QC-TP-ADJ-001-IN03', adjustmentId, orderId: 'LSX-QC-TP-DEMO-003', changeType: 'existing', materialCode: 'IN03', materialName: 'IN03', materialGroup: CHEMICAL, chemicalSubGroup: CHEMICAL_SUBGROUP_COLOR, adjustmentKg: 0.2, requiredKg: 0.2, reason: 'Cân chỉnh sắc độ', note: 'Bổ sung sau QC-TP lần 1' },
   ]
   const adjustmentTicket = {
     id: adjustmentId,
     adjustmentId,
     AdjustmentID: adjustmentId,
-    orderId: 'LSX-QC2-DEMO-003',
-    OrderID: 'LSX-QC2-DEMO-003',
+    orderId: 'LSX-QC-TP-DEMO-003',
+    OrderID: 'LSX-QC-TP-DEMO-003',
     adjustmentNo: 1,
     AdjustmentNo: 1,
     qc2No: 1,
@@ -3537,40 +3537,40 @@ function createQc2DemoPayload(current = {}) {
     status: 'SupplementWeighed',
     Status: 'SupplementWeighed',
     qc2ResultAfterAdjustment: 'Chờ QC lại',
-    qc2Record: { result: 'Cần điều chỉnh', color: 'Nhạt', ph: '7.2', viscosity: '92 KU', density: '1.31', coverage: 'Chưa đạt', fineness: 'Đạt', note: 'Cần bổ sung màu', checkedAt: adjustedAt, orderId: 'LSX-QC2-DEMO-003' },
+    qc2Record: { result: 'Cần điều chỉnh', color: 'Nhạt', ph: '7.2', viscosity: '92 KU', density: '1.31', coverage: 'Chưa đạt', fineness: 'Đạt', note: 'Cần bổ sung màu', checkedAt: adjustedAt, orderId: 'LSX-QC-TP-DEMO-003' },
     items: adjustedItems,
     totalSupplementKg: 1.7,
   }
   const supplementTicket = {
-    id: 'BS-QC2-DEMO-003-001',
+    id: 'BS-QC-TP-DEMO-003-001',
     adjustmentId,
-    orderId: 'LSX-QC2-DEMO-003',
-    type: 'QC2SupplementWeighing',
-    label: 'Cân bổ sung QC2',
+    orderId: 'LSX-QC-TP-DEMO-003',
+    type: 'QC-TPSupplementWeighing',
+    label: 'Cân bổ sung QC-TP',
     status: 'Completed',
     createdAt: adjustedAt,
     createdBy: 'QC Demo',
     items: adjustedItems.map((item) => ({ ...item, id: `${item.id}-CAN`, toleranceKg: 0.01, qrScanned: item.materialCode, qrStatus: 'PASS', actualWeight: item.requiredKg, weighStatus: 'PASS', confirmedAt: '2026-06-13 13:35' })),
   }
   const demoOrders = [
-    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-001', customerIndex: 11, lot: 'LOT-QC2-G1-001', quantityKg: 1000, finalWeightKg: 998.6, machineCode: 'M01', createdAt: '2026-06-13 07:30', mixingCompletedAt: '2026-06-13 11:35', qc2Status: 'waiting' }),
-    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-002', customerIndex: 12, lot: 'LOT-QC2-G1-002', quantityKg: 750, finalWeightKg: 749.2, machineCode: 'M02', createdAt: '2026-06-13 07:50', mixingCompletedAt: '2026-06-13 11:55', qc1Changes: { 'SW34': 0.5 }, qc2Status: 'pending' }),
-    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-003', customerIndex: 13, lot: 'LOT-QC2-G1-003', quantityKg: 1200, finalWeightKg: 1201.1, machineCode: 'M03', createdAt: '2026-06-13 08:10', mixingCompletedAt: '2026-06-13 12:15', qc1Changes: { 'PASTE 02': 0.8, IN03: 0.05 }, qc2Status: 'waiting', qc2: adjustmentTicket.qc2Record, qc2Adjustments: [adjustmentTicket], qc2SupplementTickets: [supplementTicket] }),
-    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-004', customerIndex: 14, lot: 'LOT-QC2-G1-004', quantityKg: 500, finalWeightKg: 499.7, machineCode: 'M04', createdAt: '2026-06-13 08:35', mixingCompletedAt: '2026-06-13 12:40', qc2Status: 'pending' }),
-    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-005', customerIndex: 15, lot: 'LOT-QC2-G1-005', quantityKg: 900, finalWeightKg: 900.4, machineCode: 'M05', createdAt: '2026-06-13 08:55', mixingCompletedAt: '2026-06-13 13:00', qc1Changes: { KT01: 0.1 }, qc2Status: 'waiting' }),
-    buildQc2DemoOrder({ id: 'LSX-QC2-DEMO-006', customerIndex: 16, lot: 'LOT-QC2-G1-006', quantityKg: 650, finalWeightKg: 649.8, machineCode: 'M06', createdAt: '2026-06-13 09:15', mixingCompletedAt: '2026-06-13 13:20', stage: 'packaging', status: 'Hoàn thành', qc2Status: 'Đạt', qc2: { result: 'Đạt', color: 'Đạt', ph: '7.1', viscosity: '95 KU', density: '1.30', coverage: 'Đạt', fineness: 'Đạt', note: 'Đạt QC2 lần đầu', checkedAt: '2026-06-13 13:45', orderId: 'LSX-QC2-DEMO-006' } }),
+    buildQc2DemoOrder({ id: 'LSX-QC-TP-DEMO-001', customerIndex: 11, lot: 'LOT-QC-TP-G1-001', quantityKg: 1000, finalWeightKg: 998.6, machineCode: 'M01', createdAt: '2026-06-13 07:30', mixingCompletedAt: '2026-06-13 11:35', qc2Status: 'waiting' }),
+    buildQc2DemoOrder({ id: 'LSX-QC-TP-DEMO-002', customerIndex: 12, lot: 'LOT-QC-TP-G1-002', quantityKg: 750, finalWeightKg: 749.2, machineCode: 'M02', createdAt: '2026-06-13 07:50', mixingCompletedAt: '2026-06-13 11:55', qc1Changes: { 'SW34': 0.5 }, qc2Status: 'pending' }),
+    buildQc2DemoOrder({ id: 'LSX-QC-TP-DEMO-003', customerIndex: 13, lot: 'LOT-QC-TP-G1-003', quantityKg: 1200, finalWeightKg: 1201.1, machineCode: 'M03', createdAt: '2026-06-13 08:10', mixingCompletedAt: '2026-06-13 12:15', qc1Changes: { 'PASTE 02': 0.8, IN03: 0.05 }, qc2Status: 'waiting', qc2: adjustmentTicket.qc2Record, qc2Adjustments: [adjustmentTicket], qc2SupplementTickets: [supplementTicket] }),
+    buildQc2DemoOrder({ id: 'LSX-QC-TP-DEMO-004', customerIndex: 14, lot: 'LOT-QC-TP-G1-004', quantityKg: 500, finalWeightKg: 499.7, machineCode: 'M04', createdAt: '2026-06-13 08:35', mixingCompletedAt: '2026-06-13 12:40', qc2Status: 'pending' }),
+    buildQc2DemoOrder({ id: 'LSX-QC-TP-DEMO-005', customerIndex: 15, lot: 'LOT-QC-TP-G1-005', quantityKg: 900, finalWeightKg: 900.4, machineCode: 'M05', createdAt: '2026-06-13 08:55', mixingCompletedAt: '2026-06-13 13:00', qc1Changes: { KT01: 0.1 }, qc2Status: 'waiting' }),
+    buildQc2DemoOrder({ id: 'LSX-QC-TP-DEMO-006', customerIndex: 16, lot: 'LOT-QC-TP-G1-006', quantityKg: 650, finalWeightKg: 649.8, machineCode: 'M06', createdAt: '2026-06-13 09:15', mixingCompletedAt: '2026-06-13 13:20', stage: 'packaging', status: 'Hoàn thành', qc2Status: 'Đạt', qc2: { result: 'Đạt', color: 'Đạt', ph: '7.1', viscosity: '95 KU', density: '1.30', coverage: 'Đạt', fineness: 'Đạt', note: 'Đạt QC-TP lần đầu', checkedAt: '2026-06-13 13:45', orderId: 'LSX-QC-TP-DEMO-006' } }),
   ]
   const existingIds = new Set((current.orders || []).map((order) => order.id))
   const newOrders = demoOrders.filter((order) => !existingIds.has(order.id))
   const hasAdjustment = (current.qc2AdjustmentTickets || current.qc2Adjustments || []).some((ticket) => (ticket.adjustmentId || ticket.id) === adjustmentId)
   const hasSupplement = (current.supplementalWeighing || []).some((ticket) => ticket.id === supplementTicket.id)
   const demoLogs = [
-    { id: 'QC2-DEMO-LOG-003-001', orderId: 'LSX-QC2-DEMO-003', time: adjustedAt, action: 'QC2 cần điều chỉnh', result: 'Cần điều chỉnh', adjustmentId },
-    { id: 'QC2-DEMO-LOG-006-001', orderId: 'LSX-QC2-DEMO-006', time: '2026-06-13 13:45', action: 'QC2 đạt', result: 'Đạt' },
+    { id: 'QC-TP-DEMO-LOG-003-001', orderId: 'LSX-QC-TP-DEMO-003', time: adjustedAt, action: 'QC-TP cần điều chỉnh', result: 'Cần điều chỉnh', adjustmentId },
+    { id: 'QC-TP-DEMO-LOG-006-001', orderId: 'LSX-QC-TP-DEMO-006', time: '2026-06-13 13:45', action: 'QC-TP đạt', result: 'Đạt' },
   ]
   const existingLogIds = new Set((current.qc2Logs || []).map((log) => log.id))
   const productionLogRows = [
-    { id: 'PROD-DEMO-QC2-001', time: nowText(), entry: 'Đã tạo dữ liệu demo QC thành phẩm.' },
+    { id: 'PROD-DEMO-QC-TP-001', time: nowText(), entry: 'Đã tạo dữ liệu demo QC thành phẩm.' },
   ]
   const existingProductionLogIds = new Set((current.productionLogs || current.logs || []).map((log) => log.id))
   return {
@@ -4974,7 +4974,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
                 ['info', 'Thông tin lệnh'],
                 ['materials', 'Định mức nguyên liệu'],
                 ['qc1', 'Điều chỉnh QC sản xuất thử'],
-                ['qc2', 'Điều chỉnh QC2'],
+                ['qc2', 'Điều chỉnh QC-TP'],
                 ['chemical', 'Nhật ký cân hóa'],
                 ['solid', 'Nhật ký cân rắn'],
                 ['mixing', 'Nhật ký phối trộn'],
@@ -5358,7 +5358,7 @@ function OrderDetailTabs({ order, tab, productionLogs, qc2Logs, permissions = []
     return qc1Rows.length ? <SimpleTable headers={['Thời gian', 'Kết quả', 'Số dòng chỉnh']} rows={qc1Rows.map((row) => <tr key={row.id || row.time}><td>{row.time}</td><td>{displayQcTrialText(row.result)}</td><td>{row.changes?.length || 0}</td></tr>)} /> : <p className="empty-alert">Chưa có điều chỉnh QC sản xuất thử.</p>
   }
   if (tab === 'qc2') {
-    return qc2Rows.length ? <SimpleTable headers={['Phiếu', 'Trạng thái', 'Người điều chỉnh', 'Nội dung điều chỉnh']} rows={qc2Rows.map((ticket) => <tr key={ticket.id}><td>{ticket.adjustmentId || ticket.id}</td><td>{ticket.status}</td><td>{ticket.createdBy || '-'}</td><td>{getAdjustmentItems(ticket).map((item) => `${item.materialCode}: ${num(item.adjustmentKg ?? item.requiredKg) > 0 ? '+' : ''}${kg(item.adjustmentKg ?? item.requiredKg)}`).join(', ')}</td></tr>)} /> : <p className="empty-alert">Chưa có điều chỉnh QC2.</p>
+    return qc2Rows.length ? <SimpleTable headers={['Phiếu', 'Trạng thái', 'Người điều chỉnh', 'Nội dung điều chỉnh']} rows={qc2Rows.map((ticket) => <tr key={ticket.id}><td>{ticket.adjustmentId || ticket.id}</td><td>{ticket.status}</td><td>{ticket.createdBy || '-'}</td><td>{getAdjustmentItems(ticket).map((item) => `${item.materialCode}: ${num(item.adjustmentKg ?? item.requiredKg) > 0 ? '+' : ''}${kg(item.adjustmentKg ?? item.requiredKg)}`).join(', ')}</td></tr>)} /> : <p className="empty-alert">Chưa có điều chỉnh QC-TP.</p>
   }
   if (tab === 'chemical' || tab === 'solid') {
     const rows = groupLogs(tab === 'chemical' ? CHEMICAL : SOLID)
@@ -5671,20 +5671,20 @@ function QC2({ data, setData }) {
       const orders = current.orders.map((item) => {
         if (item.id !== order.id) return item
         if (form.result === 'OK') return { ...item, stage: 'packaging', status: 'Hoàn thành', qc2: form, updatedAt: nowText() }
-        if (form.result === 'Không đạt') return { ...item, stage: 'qc2', status: 'QC2 không đạt', qc2: form, updatedAt: nowText() }
+        if (form.result === 'Không đạt') return { ...item, stage: 'qc2', status: 'QC-TP không đạt', qc2: form, updatedAt: nowText() }
         const material = selectableMaterials.find((item) => item.materialCode === form.materialCode)
         if (!material) return item
         const ticket = { id: uid('BS'), status: 'Pending', items: [{ id: uid('add'), materialCode: form.materialCode, materialName: form.materialCode, materialGroup: material.materialGroup || form.materialGroup, chemicalSubGroup: normalizeChemicalSubGroup(material.chemicalSubGroup, material.materialGroup || form.materialGroup), requiredKg: num(form.addKg), toleranceKg: (material.materialGroup || form.materialGroup) === CHEMICAL ? 0.01 : 0.1, qrScanned: '', qrStatus: 'Chờ quét', actualWeight: '', weighStatus: 'Chờ cân', reason: form.reason, note: form.note }] }
         return { ...item, stage: 'supplement-weighing', status: 'Cân bổ sung', qc2: form, qc2AdjustedFormula: [...(item.qc2AdjustedFormula || []), ticket], updatedAt: nowText() }
       })
-      const log = form.result === 'OK' ? `QC2 OK lệnh ${order.id}, chuyển đóng gói.` : form.result === 'Cần chỉnh màu' ? `QC2 điều chỉnh màu ${order.id}, tạo phiếu cân bổ sung.` : `QC2 không đạt lệnh ${order.id}.`
+      const log = form.result === 'OK' ? `QC-TP OK lệnh ${order.id}, chuyển đóng gói.` : form.result === 'Cần chỉnh màu' ? `QC-TP điều chỉnh màu ${order.id}, tạo phiếu cân bổ sung.` : `QC-TP không đạt lệnh ${order.id}.`
       return addLogToData({ ...current, orders }, log)
     })
   }
-  return <section className="panel"><h2>QC2 - Test màu thành phẩm</h2>{orders.map((order) => {
+  return <section className="panel"><h2>QC-TP - Test màu thành phẩm</h2>{orders.map((order) => {
     const form = getForm(order.id)
     return <article className="v3-card" key={order.id}>
-      <div className="section-heading-row"><div><h3>{getOrderLotCode(order)} - {order.product}</h3><p className="panel-text">Mã lô {getOrderLotCode(order)}, khối lượng sau phối trộn {kg(order.mixing?.finalWeightKg || order.quantityKg)}</p></div><button className="primary-button" onClick={() => save(order)}>Lưu kết quả QC2</button></div>
+      <div className="section-heading-row"><div><h3>{getOrderLotCode(order)} - {order.product}</h3><p className="panel-text">Mã lô {getOrderLotCode(order)}, khối lượng sau phối trộn {kg(order.mixing?.finalWeightKg || order.quantityKg)}</p></div><button className="primary-button" onClick={() => save(order)}>Lưu kết quả QC-TP</button></div>
       <div className="production-form-grid">
         <label>Kết quả<select value={form.result} onChange={(event) => setForm(order.id, { result: event.target.value })}><option>OK</option><option>Cần chỉnh màu</option><option>Không đạt</option></select></label>
         {['color', 'ph', 'viscosity', 'density', 'coverage', 'note'].map((field) => <label key={field}>{({ color: 'Màu sắc', ph: 'pH', viscosity: 'Độ nhớt', density: 'Tỷ trọng', coverage: 'Độ phủ', note: 'Ghi chú' })[field]}<input value={form[field]} onChange={(event) => setForm(order.id, { [field]: event.target.value })} /></label>)}
@@ -5694,7 +5694,7 @@ function QC2({ data, setData }) {
         setForm(order.id, { materialCode: event.target.value, materialGroup: material?.materialGroup || form.materialGroup, chemicalSubGroup: material?.chemicalSubGroup || '' })
       }} /></label><label>Nhóm<select value={form.materialGroup} onChange={(event) => setForm(order.id, { materialGroup: event.target.value })}><option>{CHEMICAL}</option><option>{SOLID}</option></select></label><label>Khối lượng bổ sung<input type="number" value={form.addKg} onChange={(event) => setForm(order.id, { addKg: event.target.value })} /></label><label>Lý do điều chỉnh<input value={form.reason} onChange={(event) => setForm(order.id, { reason: event.target.value })} /></label></div>}
     </article>
-  })}{orders.length === 0 && <p className="empty-alert">Không có lệnh chờ QC2.</p>}</section>
+  })}{orders.length === 0 && <p className="empty-alert">Không có lệnh chờ QC-TP.</p>}</section>
 }
 
 function FinishedProductQcPage({ data, setData, user }) {
@@ -5727,6 +5727,11 @@ function FinishedProductQcPage({ data, setData, user }) {
   const qc2Rows = activeOrder ? buildQc2Rows(activeOrder, form.adjustments) : []
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'QC')
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
+  const hasPendingQcTpAdjustment = activeAdjustments.length > 0
+    || form.newMaterials.some((item) => item.materialCode || num(item.adjustmentKg) !== 0 || item.reason || item.note)
+    || form.adjustments.some((item) => item.materialCode && (num(item.adjustmentKg) !== 0 || item.reason || item.note))
+  const hasAbnormalQcTpDiff = qc2Rows.some((row) => num(row.supplementKg) !== 0 || Number((num(row.afterQc2Kg) - num(row.qc1Kg)).toFixed(3)) !== 0)
+  const canConfirmQcTpPass = canEdit && activeOrder?.stage === 'finished-qc' && !hasPendingQcTpAdjustment && !hasAbnormalQcTpDiff
   useEffect(() => {
     logScreenValidation('QC thành phẩm', orders, 'validateFinalQC', validateFinalQC)
   }, [orders])
@@ -5810,6 +5815,34 @@ function FinishedProductQcPage({ data, setData, user }) {
     }))
   }
 
+  const confirmQcTpPass = () => {
+    if (!activeOrder || !canConfirmQcTpPass) return
+    const checkedAt = nowText()
+    const actor = user?.name || user?.username || user?.role || assignmentEmployeeText || 'QC'
+    const qc2Record = {
+      ...(activeOrder.qc2 || {}),
+      result: 'Đạt',
+      checkedAt,
+      confirmedBy: actor,
+      orderId: activeOrder.id,
+      note: form.note || 'Xác nhận QC-TP đạt không điều chỉnh',
+    }
+    setData((current) => addLogToData({
+      ...current,
+      orders: current.orders.map((item) => item.id === activeOrder.id ? {
+        ...item,
+        stage: 'packaging',
+        status: 'QC-TP đạt',
+        orderStatus: 'QC-TP đạt',
+        qc2: qc2Record,
+        qc2Status: 'QC-TP đạt',
+        updatedAt: checkedAt,
+      } : item),
+      qc2Logs: [...(current.qc2Logs || []), { id: uid('qc2'), orderId: activeOrder.id, time: checkedAt, actor, action: 'QC-TP đạt', result: 'QC-TP đạt' }],
+    }, `QC-TP đạt lệnh ${activeOrder.id}. Người xác nhận: ${actor}. Chuyển Đóng gói.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: 'QC', order: activeOrder, result: 'QC-TP đạt' })))
+    setNotice(`Đã xác nhận QC-TP đạt cho lệnh ${activeOrder.id}.`)
+  }
+
   const saveQc2 = () => {
     if (!activeOrder) return
     const checkedAt = nowText()
@@ -5821,13 +5854,14 @@ function FinishedProductQcPage({ data, setData, user }) {
           orders: current.orders.map((item) => item.id === activeOrder.id ? {
             ...item,
             stage: 'packaging',
-            status: 'Hoàn thành',
+            status: 'QC-TP đạt',
+            orderStatus: 'QC-TP đạt',
             qc2: qc2Record,
-            qc2Status: 'Đạt',
+            qc2Status: 'QC-TP đạt',
             updatedAt: checkedAt,
           } : item),
-          qc2Logs: [...(current.qc2Logs || []), { id: uid('qc2'), orderId: activeOrder.id, time: checkedAt, action: 'QC2 đạt', result: 'Đạt' }],
-        }, `QC2 đạt lệnh ${activeOrder.id}. Chuyển đóng gói.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: 'QC', order: activeOrder, result: 'QC2 đạt' }))
+          qc2Logs: [...(current.qc2Logs || []), { id: uid('qc2'), orderId: activeOrder.id, time: checkedAt, action: 'QC-TP đạt', result: 'Đạt' }],
+        }, `QC-TP đạt lệnh ${activeOrder.id}. Chuyển đóng gói.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: 'QC', order: activeOrder, result: 'QC-TP đạt' }))
       }
 
       if (form.result === 'Không đạt') {
@@ -5841,8 +5875,8 @@ function FinishedProductQcPage({ data, setData, user }) {
             qc2Status: 'Không đạt',
             updatedAt: checkedAt,
           } : item),
-          qc2Logs: [...(current.qc2Logs || []), { id: uid('qc2'), orderId: activeOrder.id, time: checkedAt, action: 'QC2 không đạt', result: 'Không đạt' }],
-        }, `QC thành phẩm không đạt lệnh ${activeOrder.id}.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: 'QC', order: activeOrder, result: 'QC2 không đạt' }))
+          qc2Logs: [...(current.qc2Logs || []), { id: uid('qc2'), orderId: activeOrder.id, time: checkedAt, action: 'QC-TP không đạt', result: 'Không đạt' }],
+        }, `QC thành phẩm không đạt lệnh ${activeOrder.id}.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: 'QC', order: activeOrder, result: 'QC-TP không đạt' }))
       }
 
       const adjustmentNo = nextQc2AdjustmentNo(current)
@@ -5896,12 +5930,12 @@ function FinishedProductQcPage({ data, setData, user }) {
         CreatedBy: user?.name || user?.username || user?.role || 'QC',
         createdAt: checkedAt,
         CreatedAt: checkedAt,
-        reason: form.reason || adjustmentItems.map((item) => item.reason).filter(Boolean).join('; ') || 'QC2 cần điều chỉnh',
-        Reason: form.reason || adjustmentItems.map((item) => item.reason).filter(Boolean).join('; ') || 'QC2 cần điều chỉnh',
+        reason: form.reason || adjustmentItems.map((item) => item.reason).filter(Boolean).join('; ') || 'QC-TP cần điều chỉnh',
+        Reason: form.reason || adjustmentItems.map((item) => item.reason).filter(Boolean).join('; ') || 'QC-TP cần điều chỉnh',
         status: weighItems.length ? 'PendingSupplementWeighing' : 'Completed',
         Status: weighItems.length ? 'PendingSupplementWeighing' : 'Completed',
         qc2No: activeAdjustments.length + 1,
-        qc2ResultAfterAdjustment: weighItems.length ? 'Chờ cân bổ sung QC2' : 'Chờ QC lại',
+        qc2ResultAfterAdjustment: weighItems.length ? 'Chờ cân bổ sung QC-TP' : 'Chờ QC lại',
         qc2Record,
         items: adjustmentItems,
         totalSupplementKg: weighItems.reduce((sum, item) => sum + num(item.requiredKg), 0),
@@ -5920,8 +5954,8 @@ function FinishedProductQcPage({ data, setData, user }) {
         id: uid('BS'),
         adjustmentId,
         orderId: activeOrder.id,
-        type: 'QC2SupplementWeighing',
-        label: 'Cân bổ sung QC2',
+        type: 'QC-TPSupplementWeighing',
+        label: 'Cân bổ sung QC-TP',
         status: weighItems.length ? 'Pending' : 'Completed',
         createdAt: checkedAt,
         createdBy: adjustmentTicket.createdBy,
@@ -5932,7 +5966,7 @@ function FinishedProductQcPage({ data, setData, user }) {
         orders: current.orders.map((item) => item.id === activeOrder.id ? {
           ...item,
           stage: weighItems.length ? 'supplement-weighing' : 'finished-qc',
-          status: weighItems.length ? 'Chờ cân bổ sung QC2' : 'Chờ QC thành phẩm',
+          status: weighItems.length ? 'Chờ cân bổ sung QC-TP' : 'Chờ QC thành phẩm',
           qc2: qc2Record,
           qc2Status: 'Cần điều chỉnh',
           qc2Adjustments: [...getQc2Adjustments(item), adjustmentTicket],
@@ -5942,8 +5976,8 @@ function FinishedProductQcPage({ data, setData, user }) {
         } : item),
         qc2AdjustmentTickets: [...(current.qc2AdjustmentTickets || []), adjustmentTicket],
         supplementalWeighing: [...(current.supplementalWeighing || []), { ...ticket, orderId: activeOrder.id }],
-        qc2Logs: [...(current.qc2Logs || []), { id: uid('qc2'), orderId: activeOrder.id, time: checkedAt, action: 'QC2 cần điều chỉnh', result: 'Cần điều chỉnh', adjustmentId }],
-      }, `QC2 cần điều chỉnh lệnh ${activeOrder.id}. Tạo phiếu điều chỉnh ${adjustmentId} và phiếu cân bổ sung ${ticket.id}.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: 'QC', order: activeOrder, result: 'QC2 cần điều chỉnh' }))
+        qc2Logs: [...(current.qc2Logs || []), { id: uid('qc2'), orderId: activeOrder.id, time: checkedAt, action: 'QC-TP cần điều chỉnh', result: 'Cần điều chỉnh', adjustmentId }],
+      }, `QC-TP cần điều chỉnh lệnh ${activeOrder.id}. Tạo phiếu điều chỉnh ${adjustmentId} và phiếu cân bổ sung ${ticket.id}.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: 'QC', order: activeOrder, result: 'QC-TP cần điều chỉnh' }))
     })
   }
 
@@ -5960,7 +5994,7 @@ function FinishedProductQcPage({ data, setData, user }) {
             <span className="section-kicker">Danh sách chờ</span>
             <h2>Danh sách lệnh chờ QC thành phẩm</h2>
           </div>
-          <button className="primary-button touch-button" onClick={createDemoData}>Tạo dữ liệu demo QC2</button>
+          <button className="primary-button touch-button" onClick={createDemoData}>Tạo dữ liệu demo QC-TP</button>
           {notice && <div className="process-alert success-alert">{notice}</div>}
           <div className="qc-queue-group">
             {orders.map((order) => (
@@ -5969,7 +6003,7 @@ function FinishedProductQcPage({ data, setData, user }) {
                 <span>{order.productName || order.product}</span>
                 <span>Mã lô {getOrderLotCode(order)}</span>
                 <span>{kg(order.mixing?.finalWeightKg || order.quantityKg)}</span>
-                <span>Số lần QC2: {qc2AttemptCount(order, data)}</span>
+                <span>Số lần QC-TP: {qc2AttemptCount(order, data)}</span>
               </button>
             ))}
             {orders.length === 0 && <p className="muted-text">Không có lệnh chờ QC thành phẩm.</p>}
@@ -5985,7 +6019,7 @@ function FinishedProductQcPage({ data, setData, user }) {
                 <div className="section-heading-row">
                   <h2>Đang kiểm tra thành phẩm</h2>
                   <div className="log-tabs">
-                    <button className={qc2Tab === 'current' ? 'active' : ''} onClick={() => setQc2Tab('current')}>QC2 hiện tại</button>
+                    <button className={qc2Tab === 'current' ? 'active' : ''} onClick={() => setQc2Tab('current')}>QC-TP hiện tại</button>
                     <button className={qc2Tab === 'history' ? 'active' : ''} onClick={() => setQc2Tab('history')}>Lịch sử điều chỉnh</button>
                     <button className={qc2Tab === 'analysis' ? 'active' : ''} onClick={() => setQc2Tab('analysis')}>Phân tích chất lượng</button>
                   </div>
@@ -6017,8 +6051,8 @@ function FinishedProductQcPage({ data, setData, user }) {
                             <th>Nhóm</th>
                             <th><span>Khối lượng</span><span>gốc</span></th>
                             <th><span>Khối lượng</span><span>sau QC1</span></th>
-                            <th>QC2 bổ sung</th>
-                            <th><span>Khối lượng</span><span>sau QC2</span></th>
+                            <th>QC-TP bổ sung</th>
+                            <th><span>Khối lượng</span><span>sau QC-TP</span></th>
                             <th><span>Lý do</span><span>điều chỉnh</span></th>
                             <th>Hành động</th>
               </tr>
@@ -6068,11 +6102,12 @@ function FinishedProductQcPage({ data, setData, user }) {
                       <label>Độ phủ<input value={form.coverage} onChange={(event) => setForm({ ...form, coverage: event.target.value })} /></label>
                       <label>Độ mịn<input value={form.fineness} onChange={(event) => setForm({ ...form, fineness: event.target.value })} /></label>
                       <label>Ghi chú kiểm tra<input value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} /></label>
-                      <label>Kết quả QC2<select value={form.result} onChange={(event) => setForm({ ...form, result: event.target.value })}><option>Đạt</option><option>Cần điều chỉnh</option><option>Không đạt</option></select></label>
+                      <label>Kết quả QC-TP<select value={form.result} onChange={(event) => setForm({ ...form, result: event.target.value })}><option>Đạt</option><option>Cần điều chỉnh</option><option>Không đạt</option></select></label>
                       <label className="wide-field">Lý do điều chỉnh<input value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} /></label>
                     </div>
                     <div className="modal-actions">
-                      {canEdit ? <button type="button" className="primary-button touch-button" onClick={saveQc2}>Lưu kết quả QC2</button> : <span className="muted-text">Chỉ xem</span>}
+                      {canConfirmQcTpPass && <button type="button" className="primary-button touch-button" onClick={confirmQcTpPass}>Xác nhận đạt</button>}
+                      {canEdit ? <button type="button" className="primary-button touch-button" onClick={saveQc2}>Lưu kết quả QC-TP</button> : <span className="muted-text">Chỉ xem</span>}
                     </div>
                   </section>
                 </>
@@ -6081,7 +6116,7 @@ function FinishedProductQcPage({ data, setData, user }) {
               {qc2Tab === 'history' && (
                 <section className="v3-card">
                   <h3>Lịch sử điều chỉnh</h3>
-                  <SimpleTable headers={['Lần QC2', 'Ngày giờ', 'Người QC', 'Lý do', 'NVL bổ sung', 'Tổng kg bổ sung', 'Kết quả sau điều chỉnh']} rows={activeAdjustments.map((ticket, index) => (
+                  <SimpleTable headers={['Lần QC-TP', 'Ngày giờ', 'Người QC', 'Lý do', 'NVL bổ sung', 'Tổng kg bổ sung', 'Kết quả sau điều chỉnh']} rows={activeAdjustments.map((ticket, index) => (
                     <tr key={ticket.id}>
                       <td>{ticket.qc2No || index + 1}</td>
                       <td>{ticket.createdAt || '-'}</td>
@@ -6091,13 +6126,13 @@ function FinishedProductQcPage({ data, setData, user }) {
                       <td>{kg(ticket.totalSupplementKg || getAdjustmentItems(ticket).reduce((sum, item) => sum + Math.max(0, num(item.adjustmentKg ?? item.requiredKg)), 0))}</td>
                       <td>{ticket.qc2ResultAfterAdjustment || displayQc2Status(ticket.status)}</td>
                     </tr>
-                  ))} empty="Chưa có lịch sử điều chỉnh QC2." />
+                  ))} empty="Chưa có lịch sử điều chỉnh QC-TP." />
                 </section>
               )}
 
               {qc2Tab === 'analysis' && (
                 <div className="qc2-analysis-grid qc2-order-analysis">
-                  <article className="executive-kpi"><span>Số lần QC2</span><strong>{qc2AttemptCount(activeOrder, data)}</strong></article>
+                  <article className="executive-kpi"><span>Số lần QC-TP</span><strong>{qc2AttemptCount(activeOrder, data)}</strong></article>
                   <article className="executive-kpi"><span>Tổng kg bổ sung</span><strong>{kg(totalSupplementKg)}</strong></article>
                   <article className="executive-kpi"><span>NVL bổ sung nhiều nhất</span><strong>{topMaterial}</strong></article>
                   <article className="executive-kpi"><span>Đánh giá</span><strong>{firstPassText}</strong></article>
@@ -6252,7 +6287,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
   const normalizeWeighingItemForGroup = (item = {}) => enrichItemFromMaterialCatalog(item, materialCatalogByCode, group)
   const getItems = (order = {}) => {
     const sourceItems = order.stage === 'supplement-weighing'
-      ? getSupplementTickets(order).flatMap((ticket) => getTicketItems(ticket).map((item) => ({ ...item, ticketId: ticket.id, adjustmentId: ticket.adjustmentId, weighingType: ticket.label || 'Cân bổ sung QC2' })))
+      ? getSupplementTickets(order).flatMap((ticket) => getTicketItems(ticket).map((item) => ({ ...item, ticketId: ticket.id, adjustmentId: ticket.adjustmentId, weighingType: ticket.label || 'Cân bổ sung QC-TP' })))
       : getEffectiveFormula(order)
     return (Array.isArray(sourceItems) ? sourceItems : [])
       .map(normalizeWeighingItemForGroup)
@@ -6860,7 +6895,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
         <main className="weighing-active-board scale-main-panel">
           <div className="section-heading-row">
             <div>
-              <span className="section-kicker">{activeOrder?.stage === 'supplement-weighing' ? 'Cân bổ sung QC2' : 'Cân chính'}</span>
+              <span className="section-kicker">{activeOrder?.stage === 'supplement-weighing' ? 'Cân bổ sung QC-TP' : 'Cân chính'}</span>
               <h2>{activeTitle}</h2>
             </div>
             <div className="action-row">
@@ -9050,9 +9085,9 @@ function normalizeProductionHistory(data = {}) {
     const currentStage = ({
       qc1: 'QC sản xuất thử',
       weighing: 'Cân',
-      'supplement-weighing': 'Cân bổ sung QC2',
+      'supplement-weighing': 'Cân bổ sung QC-TP',
       mixing: 'Phối trộn',
-      'mixing-supplement': 'Phối trộn bổ sung QC2',
+      'mixing-supplement': 'Phối trộn bổ sung QC-TP',
       'finished-qc': 'QC thành phẩm',
       packaging: 'Đóng gói',
       'finished-goods': 'Kho thành phẩm',
@@ -9063,9 +9098,9 @@ function normalizeProductionHistory(data = {}) {
       ...qc1Rows.map((row, index) => ({ time: row.time || row.createdAt, stage: 'QC sản xuất thử', actor: row.createdBy || row.operator || 'QC', content: `QC sản xuất thử lần ${index + 1}: ${displayQcTrialText(row.result)}`, status: displayQcTrialText(row.result) })),
       ...(order.mixingStartAt || order.mixing?.startedAt ? [{ time: order.mixingStartAt || order.mixing?.startedAt, stage: 'Phối trộn', actor: order.mixing?.operator || 'Tổ phối trộn', content: `Bắt đầu phối trộn trên ${mixingMachineLabel}`, status: 'Bắt đầu' }] : []),
       ...(order.mixingCompletedAt || order.mixing?.completedAt ? [{ time: order.mixingCompletedAt || order.mixing?.completedAt, stage: 'Phối trộn', actor: order.mixing?.operator || 'Tổ phối trộn', content: 'Hoàn thành phối trộn', status: 'Hoàn thành' }] : []),
-      ...qc2Rows.map((ticket) => ({ time: ticket.createdAt, stage: 'QC thành phẩm', actor: ticket.createdBy || 'QC', content: `${ticket.adjustmentId || ticket.id}: ${ticket.reason || 'Điều chỉnh QC2'}`, status: displayQc2Status(ticket.status) })),
+      ...qc2Rows.map((ticket) => ({ time: ticket.createdAt, stage: 'QC thành phẩm', actor: ticket.createdBy || 'QC', content: `${ticket.adjustmentId || ticket.id}: ${ticket.reason || 'Điều chỉnh QC-TP'}`, status: displayQc2Status(ticket.status) })),
       ...qc2Logs.filter((log) => log.orderId === order.id).map((log) => ({ time: log.time, stage: 'QC thành phẩm', actor: log.actor || 'QC', content: log.action || '-', status: log.result || '-' })),
-      ...supplementRows.map((ticket) => ({ time: ticket.createdAt, stage: 'Cân bổ sung QC2', actor: ticket.createdBy || '-', content: `Phiếu cân ${ticket.id}`, status: displayQc2Status(ticket.status) })),
+      ...supplementRows.map((ticket) => ({ time: ticket.createdAt, stage: 'Cân bổ sung QC-TP', actor: ticket.createdBy || '-', content: `Phiếu cân ${ticket.id}`, status: displayQc2Status(ticket.status) })),
       ...(packingLog ? [{ time: packingLog.completedAt || packingLog.startedAt, stage: 'Đóng gói', actor: packingLog.packer || '-', content: `Đóng gói ${kg(packingLog.totalPackedWeight)}`, status: packingLog.status === 'completed' ? 'Hoàn thành' : packingLog.status }] : []),
       ...finishedRows.map((item) => ({ time: item.importDate, stage: 'Nhập kho TP', actor: item.receiver || '-', content: `Nhập kho ${item.finishedCode}`, status: item.status })),
       ...relatedLogs.map((log) => ({ time: log.time, stage: log.processName || log.stage || 'Nhật ký hệ thống', actor: log.employeeName || log.employee || log.user || log.actor || '-', employeeCode: log.employeeCode || '', employeeName: log.employeeName || log.employee || '', userAccount: log.userAccount || log.username || '', machine: log.machineCode || log.machineName || '', machineName: log.machineName || '', content: log.entry || log.action || log.actionDescription || '-', status: log.resultStatus || log.result || log.status || '-' })),
@@ -9105,7 +9140,7 @@ function getHistoryWeighingRows(record, group) {
     ? normalizeMainGroup(item.mainGroup || item.materialGroup || item.group || '') === MAIN_GROUP_CHEMICAL
     : normalizeMainGroup(item.mainGroup || item.materialGroup || item.group || '') === MAIN_GROUP_SOLID
   const mainRows = (record.order.activeProductionFormula || record.order.productionFormulaSnapshot || []).filter(matchesHistoryGroup).map((item) => ({ ...item, weighingType: 'Cân chính' }))
-  const supplementRows = record.supplementRows.flatMap((ticket) => getTicketItems(ticket).filter(matchesHistoryGroup).map((item) => ({ ...item, weighingType: 'Cân bổ sung QC2' })))
+  const supplementRows = record.supplementRows.flatMap((ticket) => getTicketItems(ticket).filter(matchesHistoryGroup).map((item) => ({ ...item, weighingType: 'Cân bổ sung QC-TP' })))
   return [...mainRows, ...supplementRows]
 }
 
@@ -9113,7 +9148,7 @@ function getHistoryMixingRows(record) {
   const order = record.order
   return (order.mixing || order.mixingStatus || order.mixingCompletedAt) ? [{
     no: 1,
-    type: order.mixing?.supplement ? 'Bổ sung QC2' : 'Chính',
+    type: order.mixing?.supplement ? 'Bổ sung QC-TP' : 'Chính',
     machine: getMixingMachineLabelByCode(order.mixingMachine || order.mixing?.machineCode || getOrderAssignedMachineCode(order), record.machines || []),
     operator: order.mixing?.operator || 'Tổ phối trộn',
     startedAt: order.mixingStartAt || order.mixing?.startedAt || '-',
@@ -9136,7 +9171,7 @@ function historyInfoRows(record) {
     ['Sản phẩm', order.productName || order.product || '-'],
     ['Khối lượng yêu cầu', kg(order.requestedWeight ?? order.quantityKg)],
     ['Khối lượng sau QC1', kg(formulaRows.reduce((sum, item) => sum + item.qc1Kg, 0))],
-    ['Khối lượng sau QC2', kg(formulaRows.reduce((sum, item) => sum + item.finalKg, 0))],
+    ['Khối lượng sau QC-TP', kg(formulaRows.reduce((sum, item) => sum + item.finalKg, 0))],
     ['Khối lượng sau phối trộn', kg(qc2FinalWeight(order))],
     ['Khối lượng đóng gói', kg(packed)],
     ['Khối lượng nhập kho', kg(imported)],
@@ -9266,7 +9301,7 @@ function LogsPage({ data }) {
       'Trạng thái hiện tại': displayQcTrialText(order.orderStatus || order.status || '-'),
       'Công đoạn hiện tại': record.currentStage,
       'Số lần QC sản xuất thử điều chỉnh': record.qc1Rows.filter((row) => (row.changes || []).length).length,
-      'Số lần QC2 điều chỉnh': record.qc2Rows.length,
+      'Số lần QC-TP điều chỉnh': record.qc2Rows.length,
       'Tổng kg bổ sung': record.totalSupplementKg,
       'Thời gian hoàn thành': order.completedAt || '-',
     }
@@ -9281,7 +9316,7 @@ function LogsPage({ data }) {
       Can_hoa: getHistoryWeighingRows(record, CHEMICAL),
       Can_ran: getHistoryWeighingRows(record, SOLID),
       Phoi_tron: getHistoryMixingRows(record),
-      QC2: record.qc2Rows,
+      'QC-TP': record.qc2Rows,
       Dong_goi: record.packingLog ? [record.packingLog] : [],
       Nhap_kho_TP: record.finishedRows,
       Timeline: record.timeline,
@@ -9298,7 +9333,7 @@ function LogsPage({ data }) {
     if (exportRecord) {
       autoTable(doc, { startY: 20, head: [['Thong tin', 'Gia tri']], body: historyInfoRows(exportRecord) })
       autoTable(doc, { head: [['Thoi gian', 'Cong doan', 'Nguoi thuc hien', 'Noi dung', 'Trang thai']], body: exportRecord.timeline.map((item) => [item.time || '-', item.stage || '-', item.actor || '-', item.content || '-', item.status || '-']) })
-      autoTable(doc, { head: [['Ma VT', 'Nhom', 'Goc', 'Sau QC1', 'Bo sung QC2', 'Cuoi']], body: getHistoryFormulaRows(exportRecord).map((item) => [item.materialCode, item.materialGroup, item.originalKg, item.qc1Kg, item.totalAdd, item.finalKg]) })
+      autoTable(doc, { head: [['Ma VT', 'Nhom', 'Goc', 'Sau QC1', 'Bo sung QC-TP', 'Cuoi']], body: getHistoryFormulaRows(exportRecord).map((item) => [item.materialCode, item.materialGroup, item.originalKg, item.qc1Kg, item.totalAdd, item.finalKg]) })
     }
     doc.save('nhat-ky-san-xuat.pdf')
   }
@@ -9329,7 +9364,7 @@ function LogsPage({ data }) {
       </section>
       <section className="panel">
         <h3>Bảng tổng hợp mã lô</h3>
-        <SimpleTable headers={['STT', 'Mã lô', 'Ngày tạo', 'Khách hàng', 'Sản phẩm', 'Khối lượng yêu cầu', 'Trạng thái hiện tại', 'Công đoạn hiện tại', 'Số lần QC sản xuất thử điều chỉnh', 'Số lần QC2 điều chỉnh', 'Tổng kg bổ sung', 'Thời gian hoàn thành', 'Hành động']} rows={filtered.map((record, index) => {
+        <SimpleTable headers={['STT', 'Mã lô', 'Ngày tạo', 'Khách hàng', 'Sản phẩm', 'Khối lượng yêu cầu', 'Trạng thái hiện tại', 'Công đoạn hiện tại', 'Số lần QC sản xuất thử điều chỉnh', 'Số lần QC-TP điều chỉnh', 'Tổng kg bổ sung', 'Thời gian hoàn thành', 'Hành động']} rows={filtered.map((record, index) => {
           const order = record.order
           return <tr key={order.id}><td>{index + 1}</td><td>{getOrderLotCode(order)}</td><td>{order.createdAt || '-'}</td><td>{order.customerName || order.customer || '-'}</td><td>{order.productName || order.product || '-'}</td><td>{kg(order.requestedWeight ?? order.quantityKg)}</td><td>{displayQcTrialText(order.orderStatus || order.status || '-')}</td><td>{record.currentStage}</td><td>{record.qc1Rows.filter((row) => (row.changes || []).length).length}</td><td>{record.qc2Rows.length}</td><td>{kg(record.totalSupplementKg)}</td><td>{order.completedAt || '-'}</td><td><button className="primary-button" onClick={() => { setSelectedId(order.id); setTab('info') }}>Xem chi tiết</button></td></tr>
         })} />
@@ -9356,7 +9391,7 @@ function ProductionHistoryModal({ record, tab, setTab, onClose }) {
   const formulaRows = getHistoryFormulaRows(record)
   const renderTab = () => {
     if (tab === 'info') return <div className="production-log-grid">{historyInfoRows(record).map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
-    if (tab === 'formula') return <SimpleTable headers={['Mã vật tư', 'Nhóm', 'Khối lượng gốc', 'Sau QC1', 'QC2 bổ sung lần 1', 'QC2 bổ sung lần 2', 'Tổng bổ sung QC2', 'Khối lượng cuối', 'Ghi chú']} rows={formulaRows.map((item) => <tr key={item.materialCode}><td>{item.materialCode}</td><td>{item.materialGroup}</td><td>{kg(item.originalKg)}</td><td>{kg(item.qc1Kg)}</td><td>{kg(item.add1)}</td><td>{kg(item.add2)}</td><td>{kg(item.totalAdd)}</td><td>{kg(item.finalKg)}</td><td>{item.note}</td></tr>)} />
+    if (tab === 'formula') return <SimpleTable headers={['Mã vật tư', 'Nhóm', 'Khối lượng gốc', 'Sau QC1', 'QC-TP bổ sung lần 1', 'QC-TP bổ sung lần 2', 'Tổng bổ sung QC-TP', 'Khối lượng cuối', 'Ghi chú']} rows={formulaRows.map((item) => <tr key={item.materialCode}><td>{item.materialCode}</td><td>{item.materialGroup}</td><td>{kg(item.originalKg)}</td><td>{kg(item.qc1Kg)}</td><td>{kg(item.add1)}</td><td>{kg(item.add2)}</td><td>{kg(item.totalAdd)}</td><td>{kg(item.finalKg)}</td><td>{item.note}</td></tr>)} />
     if (tab === 'qc1') return <SimpleTable headers={['Thời gian QC sản xuất thử', 'Người QC', 'Kết quả', 'Các điều chỉnh nếu có', 'Ghi chú']} rows={record.qc1Rows.map((row, index) => <tr key={row.id || index}><td>{row.time || row.createdAt || '-'}</td><td>{row.createdBy || row.operator || 'QC'}</td><td>{displayQcTrialText(row.result)}</td><td>{(row.changes || []).map((item) => `${item.materialCode}: ${kg(item.diff || item.requiredKg || 0)}`).join(', ') || '-'}</td><td>{row.note || '-'}</td></tr>)} />
     if (tab === 'chemical' || tab === 'solid') {
       const rows = getHistoryWeighingRows(record, tab === 'chemical' ? CHEMICAL : SOLID)
@@ -9367,7 +9402,7 @@ function ProductionHistoryModal({ record, tab, setTab, onClose }) {
       })} />
     }
     if (tab === 'mixing') return <SimpleTable headers={['Lần phối trộn', 'Loại phối trộn', 'Máy phối trộn', 'Người thực hiện', 'Giờ bắt đầu', 'Giờ kết thúc', 'Thời gian phối trộn', 'Ghi chú']} rows={getHistoryMixingRows(record).map((item) => <tr key={item.no}><td>{item.no}</td><td>{item.type}</td><td>{item.machine}</td><td>{item.operator}</td><td>{item.startedAt}</td><td>{item.completedAt}</td><td>{item.duration}</td><td>{item.note}</td></tr>)} />
-    if (tab === 'qc2') return <SimpleTable headers={['Lần QC2', 'Người QC', 'Màu sắc', 'pH', 'Độ nhớt', 'Tỷ trọng', 'Độ phủ', 'Độ mịn', 'Kết quả', 'Lý do điều chỉnh', 'Tổng kg bổ sung', 'Ghi chú']} rows={record.qc2Rows.map((ticket, index) => {
+    if (tab === 'qc2') return <SimpleTable headers={['Lần QC-TP', 'Người QC', 'Màu sắc', 'pH', 'Độ nhớt', 'Tỷ trọng', 'Độ phủ', 'Độ mịn', 'Kết quả', 'Lý do điều chỉnh', 'Tổng kg bổ sung', 'Ghi chú']} rows={record.qc2Rows.map((ticket, index) => {
       const qc = ticket.qc2Record || order.qc2 || {}
       return <tr key={ticket.id || index}><td>{ticket.qc2No || index + 1}</td><td>{ticket.createdBy || 'QC'}</td><td>{qc.color || '-'}</td><td>{qc.ph || '-'}</td><td>{qc.viscosity || '-'}</td><td>{qc.density || '-'}</td><td>{qc.coverage || '-'}</td><td>{qc.fineness || '-'}</td><td>{qc.result || displayQc2Status(ticket.status)}</td><td>{ticket.reason || '-'}</td><td>{kg(ticket.totalSupplementKg || 0)}</td><td>{qc.note || '-'}</td></tr>
     })} />
@@ -9709,7 +9744,7 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
       ['Tổng sản lượng', kg(orders.reduce((sum, order) => sum + num(order.quantityKg), 0))],
     ],
     qc: [
-      ['Lệnh có QC2', orders.filter((order) => order.qc2 || getQc2Adjustments(order).length).length],
+      ['Lệnh có QC-TP', orders.filter((order) => order.qc2 || getQc2Adjustments(order).length).length],
       ['QC thành phẩm OK', orders.filter((order) => order.qc2?.result === 'OK').length],
       ['Lệnh chỉnh màu', orders.filter((order) => getQc2Adjustments(order).length > 0).length],
       ['Lần chỉnh màu', qc2AdjustmentRows.length],
@@ -9815,7 +9850,7 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
           <article className="panel report-table-panel"><h3>Top nguyên liệu bổ sung</h3><SimpleTable headers={['Nguyên liệu', 'Kg bổ sung']} rows={topMaterials.map(([name, value]) => <tr key={name}><td>{name}</td><td>{kg(value)}</td></tr>)} /></article>
           <article className="panel report-table-panel"><h3>Top QC điều chỉnh</h3><SimpleTable headers={['Người điều chỉnh', 'Số phiếu']} rows={topQc.map(([name, value]) => <tr key={name || '-'}><td>{name || '-'}</td><td>{value}</td></tr>)} /></article>
         </section>
-        <section className="panel report-table-panel"><h2>Chi tiết QC</h2><SimpleTable tableClassName="report-wide-table" headers={['Mã lô', 'QC1', 'QC2', 'Số lần chỉnh màu', 'Kg bổ sung', 'Trạng thái']} rows={orders.map((order) => {
+        <section className="panel report-table-panel"><h2>Chi tiết QC</h2><SimpleTable tableClassName="report-wide-table" headers={['Mã lô', 'QC1', 'QC-TP', 'Số lần chỉnh màu', 'Kg bổ sung', 'Trạng thái']} rows={orders.map((order) => {
           const adjustments = getQc2Adjustments(order)
           const totalSupplement = adjustments.reduce((sum, ticket) => sum + getAdjustmentItems(ticket).reduce((lineSum, item) => lineSum + Math.max(0, num(item.adjustmentKg ?? item.requiredKg)), 0), 0)
           return <tr key={order.id}><td>{getOrderLotCode(order)}</td><td>{displayQcTrialText(order.qc1Result) || '-'}</td><td>{order.qc2?.result || '-'}</td><td>{adjustments.length}</td><td>{kg(totalSupplement)}</td><td>{displayQcTrialText(order.status)}</td></tr>
@@ -9825,7 +9860,7 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
     if (tab === 'warehouse') return (
       <>
         {renderKpis(reportKpis.warehouse)}
-        <section className="panel report-table-panel"><h2>Báo cáo đóng gói</h2><SimpleTable tableClassName="report-wide-table" headers={['Phiếu đóng gói', 'Mã lô', 'Sản phẩm', 'Khối lượng QC2', 'Đã đóng gói', 'Còn lại', 'Sai lệch', 'Người đóng gói', 'Trạng thái']} rows={packingLogs.map((log) => <tr key={log.packingId}><td>{log.packingId}</td><td>{log.lot || log.orderCode || log.orderId}</td><td>{log.productName}</td><td>{kg(log.qc2FinalWeight)}</td><td>{kg(log.totalPackedWeight)}</td><td>{kg(log.remainingWeight)}</td><td>{kg(log.differenceWeight)}</td><td>{log.packer || '-'}</td><td>{log.status === 'completed' ? 'Hoàn thành' : log.status}</td></tr>)} /></section>
+        <section className="panel report-table-panel"><h2>Báo cáo đóng gói</h2><SimpleTable tableClassName="report-wide-table" headers={['Phiếu đóng gói', 'Mã lô', 'Sản phẩm', 'Khối lượng QC-TP', 'Đã đóng gói', 'Còn lại', 'Sai lệch', 'Người đóng gói', 'Trạng thái']} rows={packingLogs.map((log) => <tr key={log.packingId}><td>{log.packingId}</td><td>{log.lot || log.orderCode || log.orderId}</td><td>{log.productName}</td><td>{kg(log.qc2FinalWeight)}</td><td>{kg(log.totalPackedWeight)}</td><td>{kg(log.remainingWeight)}</td><td>{kg(log.differenceWeight)}</td><td>{log.packer || '-'}</td><td>{log.status === 'completed' ? 'Hoàn thành' : log.status}</td></tr>)} /></section>
         <section className="panel report-table-panel"><h2>Báo cáo kho thành phẩm</h2><SimpleTable tableClassName="report-wide-table" headers={['Mã TP', 'Mã lô', 'Sản phẩm', 'Quy cách', 'Số thùng', 'Khối lượng', 'Ngày nhập', 'Vị trí', 'Người nhập']} rows={finishedGoods.map((item) => <tr key={item.id}><td>{item.finishedCode}</td><td>{item.lot || item.orderCode || item.orderId}</td><td>{item.productName}</td><td>{item.spec}</td><td>{item.boxes}</td><td>{kg(item.weight)}</td><td>{item.importDate}</td><td>{item.location}</td><td>{item.receiver || '-'}</td></tr>)} /></section>
       </>
     )
@@ -12238,7 +12273,7 @@ const pageMeta = {
   chemical: ['Tổ cân hóa', 'Cân hóa chất chính và bổ sung'],
   solid: ['Tổ cân rắn', 'Cân nguyên liệu rắn chính và bổ sung'],
   mixing: ['Tổ phối trộn', 'Phối trộn chính và phối trộn bổ sung'],
-  'finished-qc': ['QC thành phẩm', 'QC2 sau phối trộn và điều chỉnh màu'],
+  'finished-qc': ['QC-TP', 'QC-TP sau phối trộn và điều chỉnh màu'],
   packaging: ['Đóng gói', 'Nhận lệnh QC thành phẩm OK để đóng gói'],
   'finished-goods': ['Kho thành phẩm', 'Nhập kho TP và hoàn thành lệnh'],
   logs: ['Nhật ký sản xuất', 'Lịch sử thao tác toàn quy trình'],
