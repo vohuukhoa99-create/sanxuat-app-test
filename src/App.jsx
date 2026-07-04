@@ -5547,7 +5547,7 @@ function QC1({ data, setData, user }) {
                   </div>
                 </div>
                 <div className="qc-trial-action-bar">
-                  {!hasChanges && <button className="primary-button touch-button" onClick={() => approve(activeOrder, false)}>Xác nhận sản xuất thử đạt</button>}
+                  {!hasChanges && <button className="primary-button touch-button" onClick={() => approve(activeOrder, false)}>QC đạt</button>}
                   {hasChanges && <button className="primary-button touch-button" onClick={() => approve(activeOrder, true)}>Lưu điều chỉnh và duyệt sản xuất</button>}
                   <button className="secondary-button touch-button" onClick={() => setShowAddMaterial(true)}>Thêm NVL</button>
                 </div>
