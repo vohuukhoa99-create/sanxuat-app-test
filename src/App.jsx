@@ -442,6 +442,11 @@ const productGroupOptions = [
   { value: PRODUCT_GROUP_SON_NUOC, label: 'Sơn nước' },
 ]
 const productGroupLabels = Object.fromEntries(productGroupOptions.map((item) => [item.value, item.label]))
+const productSubgroupOptionsByGroup = {
+  [PRODUCT_GROUP_KEO_BTP]: ['Keo lót', 'Keo phủ'],
+  [PRODUCT_GROUP_SON_NUOC]: ['Eros', 'Helios', 'Zelos'],
+}
+const getProductSubgroupOptions = (productGroup = '') => productSubgroupOptionsByGroup[normalizeProductGroup(productGroup)] || []
 const normalizeProductGroup = (value = '') => {
   const raw = String(value || '').trim().toUpperCase()
   if ([PRODUCT_GROUP_SON_DA, PRODUCT_GROUP_KEO_BTP, PRODUCT_GROUP_SON_NUOC].includes(raw)) return raw
@@ -11046,6 +11051,7 @@ function ProductMasterPage({ data, setData, permissions = [] }) {
       'Mã sản phẩm': product.productCode,
       'Tên sản phẩm': product.productName || product.name,
       'Nhóm sản phẩm': displayProductGroup(product.productGroup),
+      'Phân nhóm': normalizeProductGroup(product.productGroup) === PRODUCT_GROUP_SON_DA ? '' : normalizeProductSubgroup(product.productSubgroup || product.productSubGroup || product.subgroup),
       'Đơn vị': product.unit || 'kg',
       'Version hiện hành': product.currentVersion || '',
       'Ngày hiệu lực': product.effectiveDate || '',
@@ -11188,12 +11194,13 @@ function ProductMasterPage({ data, setData, permissions = [] }) {
         {notice && <div className="process-alert">{notice}</div>}
         <SimpleTable
           tableClassName="admin-wide-table product-master-table"
-          headers={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm sản phẩm', 'Đơn vị', 'Version hiện hành', 'Ngày hiệu lực', 'Trạng thái', 'Ghi chú', 'Hành động']}
+          headers={['Mã sản phẩm', 'Tên sản phẩm', 'Nhóm sản phẩm', 'Phân nhóm', 'Đơn vị', 'Version hiện hành', 'Ngày hiệu lực', 'Trạng thái', 'Ghi chú', 'Hành động']}
           rows={products.map((product) => (
             <tr key={product.productCode}>
               <td><strong>{product.productCode}</strong></td>
               <td>{product.productName || product.name}</td>
               <td>{displayProductGroup(product.productGroup) || '-'}</td>
+              <td>{normalizeProductGroup(product.productGroup) === PRODUCT_GROUP_SON_DA ? '-' : (normalizeProductSubgroup(product.productSubgroup || product.productSubGroup || product.subgroup) || '-')}</td>
               <td>{product.unit || 'kg'}</td>
               <td>{product.currentVersion || '-'}</td>
               <td>{product.effectiveDate || '-'}</td>
@@ -11227,8 +11234,17 @@ function ProductMasterPage({ data, setData, permissions = [] }) {
               <div className="production-form-grid">
                 <label>Mã sản phẩm<input readOnly value={selectedProduct.productCode} /></label>
                 <label>Tên sản phẩm<input value={selectedProduct.productName || selectedProduct.name || ''} onChange={(event) => upsertProduct(selectedProduct, { productName: event.target.value, name: event.target.value })} /></label>
-                <label>Nhóm sản phẩm<select value={normalizeProductGroup(selectedProduct.productGroup)} onChange={(event) => upsertProduct(selectedProduct, { productGroup: event.target.value, group: displayProductGroup(event.target.value) })}>{productGroupOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-                <label>Phân nhóm<input value={normalizeProductGroup(selectedProduct.productGroup) === PRODUCT_GROUP_SON_DA ? '' : normalizeProductSubgroup(selectedProduct.productSubgroup || selectedProduct.productSubGroup || selectedProduct.subgroup)} disabled={normalizeProductGroup(selectedProduct.productGroup) === PRODUCT_GROUP_SON_DA} placeholder={normalizeProductGroup(selectedProduct.productGroup) === PRODUCT_GROUP_SON_DA ? 'Không áp dụng' : 'Keo lót / Eros...'} onChange={(event) => upsertProduct(selectedProduct, { productSubgroup: event.target.value, productSubGroup: event.target.value, subgroup: event.target.value })} /></label>
+                <label>Nhóm sản phẩm<select value={normalizeProductGroup(selectedProduct.productGroup)} onChange={(event) => {
+                  const nextGroup = event.target.value
+                  const currentSubgroup = normalizeProductSubgroup(selectedProduct.productSubgroup || selectedProduct.productSubGroup || selectedProduct.subgroup)
+                  const nextSubgroupOptions = getProductSubgroupOptions(nextGroup)
+                  const nextSubgroup = nextSubgroupOptions.includes(currentSubgroup) ? currentSubgroup : ''
+                  upsertProduct(selectedProduct, { productGroup: nextGroup, group: displayProductGroup(nextGroup), productSubgroup: nextSubgroup, productSubGroup: nextSubgroup, subgroup: nextSubgroup })
+                }}>{productGroupOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                <label>Phân nhóm<select value={normalizeProductGroup(selectedProduct.productGroup) === PRODUCT_GROUP_SON_DA ? '' : normalizeProductSubgroup(selectedProduct.productSubgroup || selectedProduct.productSubGroup || selectedProduct.subgroup)} disabled={normalizeProductGroup(selectedProduct.productGroup) === PRODUCT_GROUP_SON_DA} onChange={(event) => upsertProduct(selectedProduct, { productSubgroup: event.target.value, productSubGroup: event.target.value, subgroup: event.target.value })}>
+                  <option value="">{normalizeProductGroup(selectedProduct.productGroup) === PRODUCT_GROUP_SON_DA ? 'Không áp dụng' : 'Chọn phân nhóm'}</option>
+                  {getProductSubgroupOptions(selectedProduct.productGroup).map((option) => <option key={option} value={option}>{option}</option>)}
+                </select></label>
                 <label>Đơn vị<input value={selectedProduct.unit || 'kg'} onChange={(event) => upsertProduct(selectedProduct, { unit: event.target.value })} /></label>
                 <label>Version hiện hành<input readOnly value={selectedProduct.currentVersion || 'V1.0'} /></label>
                 <label>Ngày hiệu lực<input type="date" value={selectedProduct.effectiveDate || ''} onChange={(event) => upsertProduct(selectedProduct, { effectiveDate: event.target.value })} /></label>
