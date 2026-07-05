@@ -2260,6 +2260,31 @@ function displayChemicalMixStatus(order = {}) {
   return 'Chưa hoàn thành'
 }
 
+function productionOrderSortCode(order = {}) {
+  return String(order.orderCode || order.productionOrderCode || order.id || '')
+}
+
+function productionPriorityValue(order = {}) {
+  const value = Number(order.productionPriority ?? order.productionSequence ?? order.productionOrderNo ?? order.priorityNo)
+  return Number.isFinite(value) && value > 0 ? value : Number.POSITIVE_INFINITY
+}
+
+function compareProductionPriority(a = {}, b = {}) {
+  const priorityDiff = productionPriorityValue(a) - productionPriorityValue(b)
+  if (Number.isFinite(priorityDiff) && priorityDiff !== 0) return priorityDiff
+  if (a.createdAt && b.createdAt && a.createdAt !== b.createdAt) {
+    return String(a.createdAt).localeCompare(String(b.createdAt), 'vi', { numeric: true })
+  }
+  return productionOrderSortCode(a).localeCompare(productionOrderSortCode(b), 'vi', { numeric: true })
+}
+
+function withNormalizedProductionPriority(orders = []) {
+  return orders
+    .slice()
+    .sort(compareProductionPriority)
+    .map((order, index) => ({ ...order, productionPriority: index + 1 }))
+}
+
 function normalizeProductionOrders(orders = [], formulas = []) {
   const machineCatalog = normalizeMixingMachines()
   const formulaItemByCode = new Map()
@@ -2279,7 +2304,7 @@ function normalizeProductionOrders(orders = [], formulas = []) {
       subclassification: normalizeChemicalSubGroup(item.subclassification || item.chemicalSubGroup || item.materialSubGroup || item.subGroup || item.chemicalGroup || item.weighingGroup || catalogItem?.subclassification || catalogItem?.chemicalSubGroup, mainGroup),
     }
   })
-  return orders.map((order, index) => {
+  const normalizedOrders = orders.map((order, index) => {
     const formula = formulas.find((item) => item.id === (order.formulaId || order.originalFormulaId))
       || formulas.find((item) => item.code === order.formulaCode)
       || formulas[0]
@@ -2375,6 +2400,7 @@ function normalizeProductionOrders(orders = [], formulas = []) {
       },
     }
   })
+  return withNormalizedProductionPriority(normalizedOrders)
 }
 
 function statusClass(status = '') {
@@ -2488,6 +2514,8 @@ function orderCodeText(order) {
 const getOrderLotCode = (order = {}) => order.lotCode || order.lot || order.productionLot || order.orderCode || order.id || ''
 
 function sortOldestOrders(a, b) {
+  const priorityDiff = productionPriorityValue(a) - productionPriorityValue(b)
+  if (Number.isFinite(priorityDiff) && priorityDiff !== 0) return priorityDiff
   if (a.createdAt && b.createdAt && a.createdAt !== b.createdAt) {
     return String(a.createdAt).localeCompare(String(b.createdAt), 'vi', { numeric: true })
   }
@@ -4706,6 +4734,44 @@ function OrdersPage({ data, setData, permissions = [] }) {
       || !['Pending', '', undefined, null].includes(order.mixingStatus)
       || Boolean(order.mixingStartAt || order.mixingCompletedAt || order.mixing?.startedAt)
   }
+  const canAdjustProductionPriority = (order = {}) => {
+    const lockedStages = ['mixing', 'mixing-supplement', 'finished-qc', 'packaging', 'finished-goods', 'completed']
+    const statusText = String(order.status || order.orderStatus || '')
+    const lockedStatus = /Đang cân|Đã cân|Đang phối trộn|Chờ QC-TP|Đang QC-TP|Chờ QC thành phẩm|Đang QC thành phẩm|Đang đóng gói|Chờ nhập kho thành phẩm|Hoàn thành/i.test(statusText)
+    const relatedContainers = (data.weighedContainers || []).some((container) => container.orderId === order.id || container.orderCode === order.orderCode || container.lot === getOrderLotCode(order))
+    const weighingStarted = relatedContainers
+      || ['Active', 'Completed', 'completed'].includes(order.chemicalStatus)
+      || ['Active', 'Completed', 'completed'].includes(order.solidStatus)
+      || ['weighing', 'completed'].includes(order.weighChemicalStatus)
+      || ['weighing', 'completed'].includes(order.weighSolidStatus)
+    const mixingStarted = Boolean(order.mixingStartAt || order.mixingCompletedAt || order.mixing?.startedAt)
+      || ['Active', 'Completed', 'completed'].includes(order.mixingStatus)
+      || ['Active', 'Completed', 'completed'].includes(order.mixing?.status)
+    return !lockedStages.includes(order.stage) && !lockedStatus && !weighingStarted && !mixingStarted
+  }
+  const productionOrderRows = withNormalizedProductionPriority(data.orders || [])
+  const movePriorityUp = (targetOrder) => {
+    const currentRows = withNormalizedProductionPriority(data.orders || [])
+    const currentIndex = currentRows.findIndex((order) => order.id === targetOrder.id)
+    const currentOrder = currentRows[currentIndex]
+    const previousOrder = currentRows[currentIndex - 1]
+    if (currentIndex <= 0 || !currentOrder || !previousOrder || !canAdjustProductionPriority(currentOrder)) return
+    setData((current) => {
+      const normalizedRows = withNormalizedProductionPriority(current.orders || [])
+      const target = normalizedRows.find((order) => order.id === targetOrder.id)
+      if (!target || !canAdjustProductionPriority(target)) return current
+      const targetIndex = normalizedRows.findIndex((order) => order.id === target.id)
+      if (targetIndex <= 0) return current
+      const previous = normalizedRows[targetIndex - 1]
+      const nextOrders = (current.orders || []).map((order) => {
+        if (order.id === target.id) return { ...order, productionPriority: previous.productionPriority }
+        if (order.id === previous.id) return { ...order, productionPriority: target.productionPriority }
+        return order
+      })
+      return addLogToData({ ...current, orders: nextOrders }, `Đổi ưu tiên sản xuất ${getOrderLotCode(target)} từ STT ${target.productionPriority} lên STT ${previous.productionPriority}.`)
+    })
+    setMessage(`Đã ưu tiên lệnh ${getOrderLotCode(currentOrder)} lên trước ${getOrderLotCode(previousOrder)}.`)
+  }
   const openEditOrder = (order) => {
     const customer = customerOptions.find((item) => item.customerCode === order.customerCode)
     setEditOrderId(order.id)
@@ -4822,6 +4888,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
       quantityKg: num(form.quantityKg),
       stage: 'qc1',
       status: 'Chờ QC sản xuất thử',
+      productionPriority: productionOrderRows.length + 1,
       createdAt,
       updatedAt: createdAt,
       originalFormulaId: formula.id,
@@ -5056,8 +5123,13 @@ function OrdersPage({ data, setData, permissions = [] }) {
       </section>
       <section className="panel">
         <h3>Danh sách lệnh</h3>
-        <SimpleTable tableClassName="orders-table" headers={['Mã lô', 'Mã SP', 'Nhóm SP', 'Khối lượng kg', 'Máy phối trộn', 'Tên khách hàng', 'Trạng thái', 'Hành động']} rows={data.orders.map((order) => (
+        <SimpleTable tableClassName="orders-table" headers={['STT SX', 'Mã lô', 'Mã SP', 'Nhóm SP', 'Khối lượng kg', 'Máy phối trộn', 'Tên khách hàng', 'Trạng thái', 'Hành động']} rows={productionOrderRows.map((order, index) => {
+          const priorityLocked = !canAdjustProductionPriority(order)
+          const priorityDisabled = index === 0 || priorityLocked
+          const priorityTitle = priorityLocked ? 'Lệnh đã vào sản xuất, không thể đổi ưu tiên' : index === 0 ? 'Lệnh đang có ưu tiên cao nhất' : 'Ưu tiên'
+          return (
           <tr key={order.id}>
+            <td>{order.productionPriority}</td>
             <td><strong>{getOrderLotCode(order)}</strong></td>
             <td>{order.productCode || order.formulaCode || order.originalFormulaId}</td>
             <td>{displayProductGroup(order.productGroup) || '-'}</td>
@@ -5065,9 +5137,10 @@ function OrdersPage({ data, setData, permissions = [] }) {
             <td>{getOrderAssignedMachineLabel(order, machines)}</td>
             <td>{order.customerName || order.customer || '-'}</td>
             <td><span className={`flow-pill ${statusClass(order.status)}`}>{displayQcTrialText(order.status)}</span></td>
-            <td><div className="action-row compact-actions"><button className="secondary-button" onClick={() => { setDetailOrderId(order.id); setDetailTab('info') }}>Chi tiết</button><button className="secondary-button" onClick={() => openEditOrder(order)}>Sửa lệnh</button></div></td>
+            <td><div className="action-row compact-actions"><button className="secondary-button" onClick={() => { setDetailOrderId(order.id); setDetailTab('info') }}>Chi tiết</button><button className="secondary-button" onClick={() => openEditOrder(order)}>Sửa lệnh</button><button className="secondary-button" disabled={priorityDisabled} title={priorityTitle} onClick={() => movePriorityUp(order)}>Ưu tiên ↑</button></div></td>
           </tr>
-        ))} />
+          )
+        })} />
       </section>
       {detailOrder && (
         <div className="modal-backdrop" role="presentation">
@@ -5510,7 +5583,7 @@ function QCPage({ data, setData, user }) {
 }
 
 function QC1({ data, setData, user }) {
-  const waitingOrders = data.orders.filter((order) => order.stage === 'qc1')
+  const waitingOrders = data.orders.filter((order) => order.stage === 'qc1').sort(sortOldestOrders)
   const [activeOrderId, setActiveOrderId] = useState(waitingOrders[0]?.id || '')
   const [showAddMaterial, setShowAddMaterial] = useState(false)
   const [newMaterial, setNewMaterial] = useState({ materialCode: '', materialGroup: CHEMICAL, requiredKg: 0, reason: '', note: '' })
@@ -6418,7 +6491,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
   const pendingOrders = relevantOrders.filter((order) => {
     if (isSupplementOrder(order)) return !groupCompleted(order) && getItems(order).length > 0
     return ['pending', 'weighing', 'not_required'].includes(groupFlow(order).status)
-  })
+  }).sort(sortOldestOrders)
   const completedOrders = relevantOrders.filter((order) => groupCompleted(order))
   const [activeOrderId, setActiveOrderId] = useState('')
   const [warning, setWarning] = useState('')
@@ -7861,8 +7934,8 @@ function MixingPage({ data, setData, user }) {
   const [warning, setWarning] = useState('')
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'Phối trộn')
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
-  const activeMixingOrders = orders.filter((order) => order.mixing?.status === 'Active' || order.mixingStatus === 'Active')
-  const readyOrders = orders.filter((order) => !['packaging', 'finished-goods', 'completed'].includes(order.stage))
+  const activeMixingOrders = orders.filter((order) => order.mixing?.status === 'Active' || order.mixingStatus === 'Active').sort(sortOldestOrders)
+  const readyOrders = orders.filter((order) => !['packaging', 'finished-goods', 'completed'].includes(order.stage)).sort(sortOldestOrders)
   const mixingHistory = orders.filter((order) => order.mixingStatus === 'completed' || order.mixing?.status === 'Completed' || order.mixingCompletedAt)
   const assignedMixingMachineCodes = new Set([...activeMixingOrders, ...readyOrders].map(getOrderAssignedMachineCode).filter(Boolean).map(normalizeMixingMachineCode))
   const getMachineActiveOrder = (machineCode) => activeMixingOrders.find((order) => (order.mixingMachine || order.mixing?.machineCode) === machineCode)
@@ -7882,13 +7955,7 @@ function MixingPage({ data, setData, user }) {
     const minutes = Math.max(0, Math.round((new Date(end.replace(' ', 'T')) - new Date(start.replace(' ', 'T'))) / 60000))
     return `${minutes} phút`
   }
-  const orderCode = (order) => String(order.orderCode || order.id || '')
-  const productionOrders = orders.slice().sort((a, b) => {
-    if (a.createdAt && b.createdAt && a.createdAt !== b.createdAt) {
-      return String(a.createdAt).localeCompare(String(b.createdAt), 'vi', { numeric: true })
-    }
-    return orderCode(a).localeCompare(orderCode(b), 'vi', { numeric: true })
-  })
+  const productionOrders = orders.slice().sort(sortOldestOrders)
   useEffect(() => {
     logScreenValidation('Tổ phối trộn', readyOrders, 'validateMixing', validateMixing)
   }, [readyOrders])

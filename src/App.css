@@ -1172,7 +1172,7 @@ tbody tr:hover {
 
 .orders-table {
   width: 100%;
-  min-width: 1140px;
+  min-width: 1320px;
   table-layout: fixed;
 }
 
@@ -1189,63 +1189,69 @@ tbody tr:hover {
 
 .orders-table th:nth-child(1),
 .orders-table td:nth-child(1) {
-  width: 170px;
+  width: 70px;
   text-align: center;
 }
 
 .orders-table th:nth-child(2),
 .orders-table td:nth-child(2) {
-  width: 120px;
+  width: 170px;
   text-align: center;
 }
 
 .orders-table th:nth-child(3),
 .orders-table td:nth-child(3) {
-  width: 110px;
+  width: 120px;
   text-align: center;
 }
 
 .orders-table th:nth-child(4),
 .orders-table td:nth-child(4) {
-  width: 100px;
+  width: 110px;
   text-align: center;
 }
 
 .orders-table th:nth-child(5),
 .orders-table td:nth-child(5) {
-  width: 150px;
+  width: 100px;
   text-align: center;
 }
 
 .orders-table th:nth-child(6),
 .orders-table td:nth-child(6) {
-  width: 220px;
-  text-align: left;
-}
-
-.orders-table th:nth-child(6) {
+  width: 150px;
   text-align: center;
 }
 
-.orders-table td:nth-child(6) {
+.orders-table th:nth-child(7),
+.orders-table td:nth-child(7) {
+  width: 200px;
+  text-align: left;
+}
+
+.orders-table th:nth-child(7) {
+  text-align: center;
+}
+
+.orders-table td:nth-child(7) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.orders-table th:nth-child(7),
-.orders-table td:nth-child(7) {
+.orders-table th:nth-child(8),
+.orders-table td:nth-child(8) {
   width: 135px;
   text-align: center;
 }
 
-.orders-table th:nth-child(8),
-.orders-table td:nth-child(8) {
-  width: 190px;
+.orders-table th:nth-child(9),
+.orders-table td:nth-child(9) {
+  width: 265px;
   text-align: center;
 }
 
-.orders-table td:nth-child(8) .compact-actions {
+.orders-table td:nth-child(9) .compact-actions {
   display: flex;
   flex-wrap: nowrap;
   justify-content: center;
@@ -1254,9 +1260,13 @@ tbody tr:hover {
   white-space: nowrap;
 }
 
-.orders-table td:nth-child(8) .compact-actions button {
+.orders-table td:nth-child(9) .compact-actions button {
   flex: 0 0 auto;
   min-width: 72px;
+}
+
+.orders-table td:nth-child(9) .compact-actions button:last-child {
+  min-width: 86px;
 }
 
 .compact-actions {
