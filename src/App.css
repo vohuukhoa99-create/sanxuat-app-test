@@ -15693,6 +15693,33 @@ body,
   text-align: right !important;
 }
 
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table th {
+  text-align: center !important;
+  vertical-align: middle !important;
+  white-space: normal !important;
+  line-height: 1.25 !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table td {
+  vertical-align: middle !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table td:nth-child(3),
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table td:nth-child(4),
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table td:nth-child(5) {
+  text-align: center !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table .qc-value-input,
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table input.qc-value-input {
+  text-align: center !important;
+}
+
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table .qc-reason-input,
+.qc-trial-page.qc-sample-page:not(.qc2-page) .qc-trial-table .qc-note-input {
+  text-align: left !important;
+}
+
 .qc-trial-page .qc-change-table table {
   width: 800px !important;
   min-width: 800px !important;
