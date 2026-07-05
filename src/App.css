@@ -12769,35 +12769,39 @@ body,
     white-space: normal;
   }
 
+  .finished-goods-table {
+    width: auto !important;
+    min-width: 980px;
+    max-width: 1180px;
+    table-layout: fixed;
+  }
+
   .finished-goods-table th:nth-child(1),
-  .finished-goods-table td:nth-child(1) { width: 10%; }
+  .finished-goods-table td:nth-child(1) { width: 15%; }
 
   .finished-goods-table th:nth-child(2),
-  .finished-goods-table td:nth-child(2) { width: 12%; }
+  .finished-goods-table td:nth-child(2) { width: 16%; }
 
   .finished-goods-table th:nth-child(3),
-  .finished-goods-table td:nth-child(3) { width: 18%; }
+  .finished-goods-table td:nth-child(3) { width: 12%; }
 
   .finished-goods-table th:nth-child(4),
-  .finished-goods-table td:nth-child(4) { width: 10%; }
+  .finished-goods-table td:nth-child(4) { width: 7%; }
 
   .finished-goods-table th:nth-child(5),
-  .finished-goods-table td:nth-child(5) { width: 7%; }
+  .finished-goods-table td:nth-child(5) { width: 9%; }
 
   .finished-goods-table th:nth-child(6),
-  .finished-goods-table td:nth-child(6) { width: 8%; }
+  .finished-goods-table td:nth-child(6) { width: 11%; }
 
   .finished-goods-table th:nth-child(7),
-  .finished-goods-table td:nth-child(7) { width: 10%; }
+  .finished-goods-table td:nth-child(7) { width: 11%; }
 
   .finished-goods-table th:nth-child(8),
-  .finished-goods-table td:nth-child(8) { width: 11%; }
+  .finished-goods-table td:nth-child(8) { width: 10%; }
 
   .finished-goods-table th:nth-child(9),
-  .finished-goods-table td:nth-child(9) { width: 8%; }
-
-  .finished-goods-table th:nth-child(10),
-  .finished-goods-table td:nth-child(10) { width: 6%; }
+  .finished-goods-table td:nth-child(9) { width: 9%; }
 
   .finished-goods-table td {
     text-align: left !important;
@@ -12805,8 +12809,8 @@ body,
     padding-right: 12px !important;
   }
 
-  .finished-goods-table td:nth-child(5),
-  .finished-goods-table td:nth-child(6) {
+  .finished-goods-table td:nth-child(4),
+  .finished-goods-table td:nth-child(5) {
     text-align: center !important;
     padding-left: 0 !important;
     padding-right: 0 !important;

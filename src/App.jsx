@@ -9223,7 +9223,6 @@ function FinishedGoodsPage({ data, setData, user }) {
           <table className="finished-goods-table warehouse-table">
             <thead>
               <tr>
-                <th>Mã TP</th>
                 <th>Mã lô</th>
                 <th>Sản phẩm</th>
                 <th>Quy cách</th>
@@ -9238,7 +9237,6 @@ function FinishedGoodsPage({ data, setData, user }) {
             <tbody>
               {filteredFinishedGoods.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.finishedCode}</td>
                   <td>{item.lot || item.orderCode || item.orderId}</td>
                   <td>{item.productName || item.product}</td>
                   <td>{item.spec}</td>
@@ -9250,7 +9248,7 @@ function FinishedGoodsPage({ data, setData, user }) {
                   <td>{item.status}</td>
                 </tr>
               ))}
-              {filteredFinishedGoods.length === 0 && <tr><td className="empty-row" colSpan={10}>Chưa có thành phẩm nhập kho phù hợp.</td></tr>}
+              {filteredFinishedGoods.length === 0 && <tr><td className="empty-row" colSpan={9}>Chưa có thành phẩm nhập kho phù hợp.</td></tr>}
             </tbody>
           </table>
         </div>
