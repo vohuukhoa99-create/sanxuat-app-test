@@ -1172,7 +1172,7 @@ tbody tr:hover {
 
 .orders-table {
   width: 100%;
-  min-width: 1320px;
+  min-width: 1340px;
   table-layout: fixed;
 }
 
@@ -1225,7 +1225,7 @@ tbody tr:hover {
 
 .orders-table th:nth-child(7),
 .orders-table td:nth-child(7) {
-  width: 200px;
+  width: 180px;
   text-align: left;
 }
 
@@ -1241,13 +1241,13 @@ tbody tr:hover {
 
 .orders-table th:nth-child(8),
 .orders-table td:nth-child(8) {
-  width: 135px;
+  width: 120px;
   text-align: center;
 }
 
 .orders-table th:nth-child(9),
 .orders-table td:nth-child(9) {
-  width: 265px;
+  width: 300px;
   text-align: center;
 }
 
@@ -1263,10 +1263,12 @@ tbody tr:hover {
 .orders-table td:nth-child(9) .compact-actions button {
   flex: 0 0 auto;
   min-width: 72px;
+  height: 36px;
+  padding: 0 12px;
 }
 
 .orders-table td:nth-child(9) .compact-actions button:last-child {
-  min-width: 86px;
+  min-width: 92px;
 }
 
 .compact-actions {
