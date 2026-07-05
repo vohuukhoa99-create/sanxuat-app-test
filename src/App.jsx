@@ -9170,8 +9170,8 @@ function FinishedGoodsPage({ data, setData, user }) {
                 <th>Mã lô</th>
                 <th>Sản phẩm</th>
                 <th>Khách hàng</th>
-                <th><span>Khối lượng sau</span><span>QC thành phẩm</span></th>
-                <th><span>Tổng khối lượng</span><span>đã đóng gói</span></th>
+                <th>KL sau QC-TP</th>
+                <th>Tổng KL đóng gói</th>
                 <th><span>Quy cách</span><span>đóng gói</span></th>
                 <th>Số thùng</th>
                 <th>Người đóng gói</th>
@@ -9250,7 +9250,7 @@ function FinishedGoodsPage({ data, setData, user }) {
                   <td>{item.status}</td>
                 </tr>
               ))}
-              {filteredFinishedGoods.length === 0 && <tr><td className="empty-row" colSpan={11}>Chưa có thành phẩm nhập kho phù hợp.</td></tr>}
+              {filteredFinishedGoods.length === 0 && <tr><td className="empty-row" colSpan={10}>Chưa có thành phẩm nhập kho phù hợp.</td></tr>}
             </tbody>
           </table>
         </div>
