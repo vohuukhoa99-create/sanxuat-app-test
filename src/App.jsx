@@ -5645,18 +5645,19 @@ function QC1({ data, setData, user }) {
               <div className="qc-trial-header">
                 <div className="qc-trial-info">
                   <span className="section-kicker">Đang QC sản xuất thử</span>
-                  <h2>Đang QC sản xuất thử</h2>
+                  <div className="section-heading-row qc-action-heading">
+                    <h2>Đang QC sản xuất thử</h2>
+                    <div className="qc-action-bar qc-trial-action-bar">
+                      <button className="secondary-button touch-button" onClick={() => setShowAddMaterial(true)}>Thêm NVL</button>
+                      <button className="primary-button touch-button" onClick={() => approve(activeOrder, hasChanges)}>QC đạt</button>
+                    </div>
+                  </div>
                   <div className="qc-trial-summary-grid">
                     <div><span>Mã lô</span><strong>{getOrderLotCode(activeOrder)}</strong></div>
                     <div><span>Sản phẩm</span><strong>{activeOrder.productName || activeOrder.product}</strong></div>
                     <div><span>Khối lượng</span><strong>{kg(activeOrder.requestedWeight ?? activeOrder.quantityKg)}</strong></div>
                     <div><span>Khách hàng</span><strong>{activeOrder.customerName || activeOrder.customer || '-'}</strong></div>
                   </div>
-                </div>
-                <div className="qc-trial-action-bar">
-                  {!hasChanges && <button className="primary-button touch-button" onClick={() => approve(activeOrder, false)}>QC đạt</button>}
-                  {hasChanges && <button className="primary-button touch-button" onClick={() => approve(activeOrder, true)}>Lưu điều chỉnh và duyệt sản xuất</button>}
-                  <button className="secondary-button touch-button" onClick={() => setShowAddMaterial(true)}>Thêm NVL</button>
                 </div>
               </div>
 
@@ -6122,13 +6123,18 @@ function FinishedProductQcPage({ data, setData, user }) {
             <>
               <div>
                 <span className="section-kicker">Đang kiểm tra thành phẩm</span>
-                <div className="section-heading-row">
+                <div className="section-heading-row qc-action-heading">
                   <h2>Đang kiểm tra thành phẩm</h2>
-                  <div className="log-tabs">
-                    <button className={qc2Tab === 'current' ? 'active' : ''} onClick={() => setQc2Tab('current')}>QC-TP hiện tại</button>
-                    <button className={qc2Tab === 'history' ? 'active' : ''} onClick={() => setQc2Tab('history')}>Lịch sử điều chỉnh</button>
-                    <button className={qc2Tab === 'analysis' ? 'active' : ''} onClick={() => setQc2Tab('analysis')}>Phân tích chất lượng</button>
+                  <div className="qc-action-bar qc2-action-bar">
+                    <button className="secondary-button touch-button" disabled={!canEdit} onClick={addNewMaterial}>Thêm NVL</button>
+                    <button type="button" className="secondary-button touch-button qc-save-button" disabled={!canEdit} onClick={saveQc2}>Lưu QC</button>
+                    <button type="button" className="primary-button touch-button" disabled={!canConfirmQcTpPass} onClick={confirmQcTpPass}>QC đạt</button>
                   </div>
+                </div>
+                <div className="log-tabs qc2-log-tabs">
+                  <button className={qc2Tab === 'current' ? 'active' : ''} onClick={() => setQc2Tab('current')}>QC-TP hiện tại</button>
+                  <button className={qc2Tab === 'history' ? 'active' : ''} onClick={() => setQc2Tab('history')}>Lịch sử điều chỉnh</button>
+                  <button className={qc2Tab === 'analysis' ? 'active' : ''} onClick={() => setQc2Tab('analysis')}>Phân tích chất lượng</button>
                 </div>
                 <div className="qc-order-summary finished-qc-info-grid qc-finished-info-grid">
                   <div className="finished-qc-info-card qc-finished-info-card"><span className="label">Mã lô</span><strong className="value">{getOrderLotCode(activeOrder)}</strong></div>
@@ -6145,7 +6151,6 @@ function FinishedProductQcPage({ data, setData, user }) {
                   <section className="v3-card">
                     <div className="section-heading-row">
                       <h3>Bảng QC thành phẩm</h3>
-                      <button className="secondary-button" onClick={addNewMaterial}>Thêm NVL bổ sung</button>
                     </div>
                     <div className="qc2-material-table finished-qc-table-wrapper qc-finished-table-wrapper">
                       <table className="finished-qc-table qc-finished-table">
@@ -6208,10 +6213,6 @@ function FinishedProductQcPage({ data, setData, user }) {
                       <label>Ghi chú kiểm tra<input value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} /></label>
                       <label>Kết quả QC-TP<select value={form.result} onChange={(event) => setForm({ ...form, result: event.target.value })}><option>Đạt</option><option>Cần điều chỉnh</option><option>Không đạt</option></select></label>
                       <label className="wide-field">Lý do điều chỉnh<input value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} /></label>
-                    </div>
-                    <div className="modal-actions">
-                      {canConfirmQcTpPass && <button type="button" className="primary-button touch-button" onClick={confirmQcTpPass}>Xác nhận đạt</button>}
-                      {canEdit ? <button type="button" className="primary-button touch-button" onClick={saveQc2}>Lưu kết quả QC-TP</button> : <span className="muted-text">Chỉ xem</span>}
                     </div>
                   </section>
                 </>
