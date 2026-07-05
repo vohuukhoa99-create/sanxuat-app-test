@@ -8617,6 +8617,11 @@ function PackagingPage({ data, setData, user }) {
     .filter((log) => log.status === 'completed')
     .slice()
     .reverse()
+  const packagingOrderBadgeText = (order = {}) => {
+    if (order.packingStatus === 'completed' || order.packagingStatus === 'Completed') return 'Đã đóng gói'
+    if (order.status === 'Đang đóng gói') return 'Đang đóng gói'
+    return 'Sẵn sàng đóng gói'
+  }
 
   const updateForm = (patch) => {
     if (!activeOrder) return
@@ -8863,8 +8868,8 @@ function PackagingPage({ data, setData, user }) {
             {orders.map((order) => (
               <button key={order.id} type="button" className={["packaging-order-card", order.id === activeOrder?.id ? "active" : ""].filter(Boolean).join(" ")} onClick={() => { setActiveOrderId(order.id); setWarning("") }}>
                 <strong>{getOrderLotCode(order)}</strong>
-                <span>{order.productCode || order.formulaCode || order.originalFormulaId || "-"} | {kg(qc2FinalWeight(order))} QC-TP</span>
-                <i className={["dispatch-badge", order.packingStatus === "completed" || order.packagingStatus === "Completed" ? "done" : order.status === "Đang đóng gói" ? "mixing" : "waiting"].join(" ")}>{order.status}</i>
+                <span>{order.productCode || order.formulaCode || order.originalFormulaId || "-"} | {kg(qc2FinalWeight(order))}</span>
+                <i className={["dispatch-badge", order.packingStatus === "completed" || order.packagingStatus === "Completed" ? "done" : order.status === "Đang đóng gói" ? "mixing" : "waiting"].join(" ")}>{packagingOrderBadgeText(order)}</i>
               </button>
             ))}
             {orders.length === 0 && <p className="empty-alert">Không có lệnh chờ đóng gói.</p>}
