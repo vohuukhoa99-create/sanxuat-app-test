@@ -15580,6 +15580,46 @@ body,
   text-align: right !important;
 }
 
+.packing-table th {
+  text-align: center !important;
+  vertical-align: middle !important;
+  white-space: normal !important;
+  line-height: 1.25 !important;
+}
+
+.packing-table td {
+  vertical-align: middle !important;
+}
+
+.packing-table input {
+  text-align: center !important;
+}
+
+.packaging-plan-detail-table td:nth-child(2),
+.packaging-plan-detail-table td:nth-child(3),
+.packaging-plan-detail-table td:nth-child(4),
+.packaging-plan-detail-table td:nth-child(5),
+.packaging-plan-detail-table td:nth-child(6),
+.packaging-plan-detail-table td:nth-child(7),
+.packaging-history-table td:nth-child(3),
+.packaging-history-table td:nth-child(4),
+.packaging-history-table td:nth-child(5),
+.packaging-history-table td:nth-child(6),
+.packaging-history-table td:nth-child(7),
+.packaging-history-table td:nth-child(8) {
+  text-align: center !important;
+}
+
+.packaging-plan-detail-table td:nth-child(7) .action-row,
+.packaging-history-table td:nth-child(8) .action-row {
+  justify-content: center !important;
+}
+
+.packaging-plan-detail-table td:nth-child(8),
+.packaging-plan-detail-table td:nth-child(8) input {
+  text-align: left !important;
+}
+
 @media (max-width: 980px) {
   .packaging-page .packaging-layout {
     grid-template-columns: 1fr !important;

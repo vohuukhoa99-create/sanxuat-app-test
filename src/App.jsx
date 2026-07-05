@@ -8831,7 +8831,7 @@ function PackagingPage({ data, setData, user }) {
               </div>
               <section className="v3-card">
                 <h3>Kế hoạch đóng gói theo lệnh</h3>
-                <SimpleTable tableClassName="packaging-plan-detail-table" headers={['Quy cách', 'Kế hoạch', 'Đã đóng', 'Còn lại', 'KL quy đổi', 'Đã in', 'In tem', 'Ghi chú']} rows={form.details.map((item) => {
+                <SimpleTable tableClassName="packing-table packaging-plan-detail-table" headers={['Quy cách', 'Kế hoạch', 'Đã đóng', 'Còn lại', 'KL quy đổi', 'Đã in', 'In tem', 'Ghi chú']} rows={form.details.map((item) => {
                   const packedBoxes = num(item.boxes)
                   const plannedBoxes = num(item.plannedBoxes)
                   const remainingBoxes = Math.max(0, plannedBoxes - packedBoxes)
@@ -8862,7 +8862,7 @@ function PackagingPage({ data, setData, user }) {
               </section>
               <section className="v3-card packaging-history-card">
                 <h3>Lịch sử đóng gói</h3>
-                <SimpleTable tableClassName="packaging-history-table" headers={['Mã lô', 'Mã SP', 'KL QC-TP', 'KL đã ĐG', 'Dư SX', 'Người ĐG', 'Thời gian hoàn tất', 'Hành động']} rows={packingHistory.map((log) => {
+                <SimpleTable tableClassName="packing-table packaging-history-table" headers={['Mã lô', 'Mã SP', 'KL QC-TP', 'KL đã ĐG', 'Dư SX', 'Người ĐG', 'Thời gian hoàn tất', 'Hành động']} rows={packingHistory.map((log) => {
                   const historyOrder = data.orders.find((order) => order.id === log.orderId || order.orderCode === log.orderCode)
                   const hasQr = (log.finishedQrItems || []).length > 0 || (log.packingDetails || []).some((item) => (item.finishedQrItems || []).length > 0)
                   return (
