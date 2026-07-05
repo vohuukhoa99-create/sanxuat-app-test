@@ -8820,7 +8820,7 @@ function PackagingPage({ data, setData, user }) {
                 </div>
               </div>
               {warning && <div className="process-alert">{warning}</div>}
-              <div className="qc-order-summary">
+              <div className="qc-order-summary packing-detail-grid">
                 <div><span>Mã lô</span><strong>{getOrderLotCode(activeOrder)}</strong></div>
                 <div><span>Sản phẩm</span><strong>{activeOrder.productName || activeOrder.product}</strong></div>
                 <div><span>KL QC-TP</span><strong>{kg(totals.qcWeight)}</strong></div>

@@ -15294,16 +15294,32 @@ body,
   font-style: normal;
 }
 
-.packaging-page .qc-order-summary {
+.packaging-page .packing-detail-grid {
   display: grid !important;
-  grid-template-columns: repeat(4, minmax(150px, 1fr)) !important;
-  gap: 10px 12px !important;
-  max-width: 860px !important;
+  grid-template-columns: 170px 150px 110px 110px 110px 100px 100px !important;
+  gap: 12px !important;
+  align-items: stretch !important;
+  max-width: none !important;
 }
 
-.packaging-page .qc-order-summary div {
+.packaging-page .packing-detail-grid > div {
   min-height: 58px !important;
   padding: 10px 12px !important;
+  min-width: 0 !important;
+}
+
+.packaging-page .packing-detail-grid span,
+.packaging-page .packing-detail-grid strong {
+  display: block !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 1365px) {
+  .packaging-page .packing-detail-grid {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)) !important;
+  }
 }
 
 .packaging-page .v3-card {
@@ -15575,7 +15591,7 @@ body,
     min-width: 0 !important;
   }
 
-  .packaging-page .qc-order-summary {
+  .packaging-page .packing-detail-grid {
     grid-template-columns: repeat(2, minmax(150px, 1fr)) !important;
   }
 }
