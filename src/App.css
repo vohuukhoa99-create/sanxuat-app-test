@@ -15375,7 +15375,7 @@ body,
 
 .packaging-print-body {
   display: grid;
-  grid-template-columns: 380px minmax(0, 1fr);
+  grid-template-columns: 360px minmax(0, 1fr);
   gap: 42px;
   align-items: start;
 }
@@ -15384,11 +15384,12 @@ body,
   display: grid;
   justify-items: start;
   align-content: start;
-  gap: 30px;
-  width: 380px;
+  gap: 12px;
+  width: 360px;
   min-height: 230px;
   max-width: 100%;
-  padding: 30px;
+  padding: 18px 16px 18px 12px;
+  box-sizing: border-box;
   border: 1px solid #d7e0db;
   border-radius: 10px;
   background: #fff;
@@ -15400,7 +15401,7 @@ body,
   flex-wrap: nowrap;
   gap: 8px;
   width: 100%;
-  min-height: 40px;
+  height: 36px;
   margin: 0 !important;
   padding: 0 !important;
   background: transparent !important;
@@ -15413,13 +15414,14 @@ body,
 
 .packaging-reprint-choice input[type='radio'] {
   flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
+  width: 11px;
+  height: 11px;
   margin: 0;
 }
 
 .packaging-reprint-choice span {
   white-space: nowrap;
+  line-height: 1.2;
 }
 
 .packaging-reprint-inputs {
@@ -15430,11 +15432,11 @@ body,
 
 .packaging-reprint-options input[type='number'] {
   box-sizing: border-box;
-  width: 66px !important;
-  min-width: 66px !important;
-  max-width: 70px !important;
-  height: 42px;
-  padding: 6px 8px;
+  width: 52px !important;
+  min-width: 52px !important;
+  max-width: 56px !important;
+  height: 32px;
+  padding: 0 6px;
   text-align: center;
   font-size: 15px;
   font-weight: 700;
