@@ -741,8 +741,8 @@ tbody tr:hover {
 
 .production-order-form-grid {
   display: grid;
-  grid-template-columns: 160px 92px 88px 172px 138px minmax(360px, 1fr) 170px 220px;
-  gap: 10px 12px;
+  grid-template-columns: 112px 92px 88px 80px 154px 120px minmax(220px, 1fr) 170px 170px;
+  gap: 10px;
   align-items: end;
   margin-bottom: 16px;
   overflow: visible;
@@ -777,7 +777,7 @@ tbody tr:hover {
 
 .production-lot-field {
   display: grid;
-  grid-template-columns: 64px 104px;
+  grid-template-columns: 58px 86px;
   gap: 6px;
 }
 
@@ -789,7 +789,7 @@ tbody tr:hover {
 .production-order-form-grid .customer-field {
   position: relative;
   z-index: 60;
-  min-width: 340px;
+  min-width: 220px;
   width: 100%;
   max-width: none;
 }
@@ -797,9 +797,9 @@ tbody tr:hover {
 .production-order-form-grid .formula-field {
   position: relative;
   z-index: 9999;
-  width: 160px;
-  min-width: 160px;
-  max-width: 160px;
+  width: 112px;
+  min-width: 112px;
+  max-width: 112px;
 }
 
 .production-order-form-grid .product-group-field {
@@ -816,6 +816,43 @@ tbody tr:hover {
   position: relative;
   width: 100%;
   min-width: 0;
+}
+
+.production-order-form-grid .field-weight,
+.production-order-form-grid .field-mixer,
+.production-order-form-grid .field-production-request,
+.production-order-form-grid .field-order-note {
+  white-space: nowrap;
+}
+
+.production-order-form-grid .field-weight {
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
+}
+
+.production-order-form-grid .field-weight input {
+  max-width: 80px;
+}
+
+.production-order-form-grid .field-mixer {
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
+}
+
+.production-order-form-grid .field-mixer select {
+  max-width: 120px;
+}
+
+.production-order-form-grid .field-production-request {
+  width: 170px;
+  min-width: 170px;
+}
+
+.production-order-form-grid .field-order-note {
+  width: 170px;
+  min-width: 170px;
 }
 
 .customer-combobox {
@@ -13433,11 +13470,11 @@ body,
 
 @media (max-width: 1400px) {
   .production-order-form-grid {
-    grid-template-columns: 160px 92px 88px 172px 138px minmax(340px, 1fr);
+    grid-template-columns: 112px 92px 88px 80px 154px 120px minmax(220px, 1fr) 170px 170px;
   }
 
   .production-order-form-grid label:nth-last-child(-n+2) {
-    grid-column: span 1;
+    grid-column: auto;
   }
 }
 
@@ -13453,7 +13490,11 @@ body,
   }
 
   .production-order-form-grid .formula-field,
-  .production-order-form-grid .product-group-field {
+  .production-order-form-grid .product-group-field,
+  .production-order-form-grid .field-weight,
+  .production-order-form-grid .field-mixer,
+  .production-order-form-grid .field-production-request,
+  .production-order-form-grid .field-order-note {
     width: 100%;
     min-width: 0;
     max-width: none;
@@ -14855,7 +14896,7 @@ body,
 /* Compact packaging plan block in production order form. */
 .packaging-plan-card {
   width: fit-content !important;
-  max-width: 1000px !important;
+  max-width: 1120px !important;
   margin-left: 0 !important;
   margin-right: auto !important;
   padding: 14px !important;
@@ -14867,7 +14908,7 @@ body,
   align-items: flex-start !important;
   justify-content: space-between !important;
   gap: 16px !important;
-  max-width: 960px !important;
+  max-width: 1090px !important;
 }
 
 .packaging-plan-card .section-heading-row > div:first-child {
@@ -14882,13 +14923,19 @@ body,
 .packaging-plan-card .formula-ratio-ok,
 .packaging-plan-card .formula-ratio-alert {
   flex: 0 0 auto !important;
-  max-width: 420px !important;
+  max-width: none !important;
   margin: 0 !important;
   padding: 8px 10px !important;
   font-size: 12px !important;
   line-height: 1.35 !important;
   text-align: right !important;
-  white-space: normal !important;
+  white-space: nowrap !important;
+}
+
+.packaging-plan-card .packaging-summary {
+  min-width: 430px !important;
+  text-align: center !important;
+  white-space: nowrap !important;
 }
 
 .packaging-plan-card > .table-wrapper {

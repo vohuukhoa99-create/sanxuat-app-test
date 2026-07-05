@@ -5068,7 +5068,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
               }}
             />
           </label>
-          <label>Khối lượng kg<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value, packagingPlan: rebuildPackagingPlan(selectedProductGroup, event.target.value, selectedProductSubgroup) })} /></label>
+          <label className="field-weight">KL (Kg)<input type="number" value={form.quantityKg} onChange={(event) => setForm({ ...form, quantityKg: event.target.value, packagingPlan: rebuildPackagingPlan(selectedProductGroup, event.target.value, selectedProductSubgroup) })} /></label>
           <label>Mã lô
             <div className="production-lot-field">
               <select value={form.lotPrefix} onChange={(event) => setForm({ ...form, lotPrefix: event.target.value })}>
@@ -5077,7 +5077,7 @@ function OrdersPage({ data, setData, permissions = [] }) {
               <input value="" readOnly placeholder={productionLot.replace(`${form.lotPrefix}.`, '')} aria-label="Mã lô dự kiến" />
             </div>
           </label>
-          <label>Máy phối trộn *<select value={form.mixerMachine} disabled={!selectedProductGroup || !filteredMachines.length} onChange={(event) => setForm({ ...form, mixerMachine: event.target.value })}><option value="">{!selectedProductGroup ? 'Sản phẩm chưa phân nhóm' : !filteredMachines.length ? 'Chưa có thiết bị phù hợp' : 'Chọn máy'}</option>{filteredMachines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}</select></label>
+          <label className="field-mixer">Máy phối trộn *<select value={form.mixerMachine} disabled={!selectedProductGroup || !filteredMachines.length} onChange={(event) => setForm({ ...form, mixerMachine: event.target.value })}><option value="">{!selectedProductGroup ? 'Sản phẩm chưa phân nhóm' : !filteredMachines.length ? 'Chưa có thiết bị phù hợp' : 'Chọn máy'}</option>{filteredMachines.map((machine) => <option key={machine.machineCode} value={machine.machineCode}>{mixingMachineOptionLabel(machine)}</option>)}</select></label>
           <label className="customer-field">Khách hàng *
             <CustomerSearchCombobox
               customers={customerOptions}
@@ -5087,16 +5087,16 @@ function OrdersPage({ data, setData, permissions = [] }) {
               onSelect={(customer) => setForm({ ...form, customerSearch: formatCustomerOption(customer), customer: customer.customerName, customerName: customer.customerName, customerCode: customer.customerCode, province: customer.province || '', channelCode: customer.channelCode || '', customerObject: customer })}
             />
           </label>
-          <label>Phiếu yêu cầu SX<input value={form.productionRequestNo} placeholder="Nhập số phiếu yêu cầu sản xuất" onChange={(event) => setForm({ ...form, productionRequestNo: event.target.value })} /></label>
-          <label>Ghi chú<textarea value={form.note} placeholder="Ví dụ: Giống mẫu đã duyệt ngày .../..." onChange={(event) => setForm({ ...form, note: event.target.value })} /></label>
+          <label className="field-production-request">Phiếu yêu cầu SX<input value={form.productionRequestNo} placeholder="Nhập số phiếu yêu cầu sản xuất" onChange={(event) => setForm({ ...form, productionRequestNo: event.target.value })} /></label>
+          <label className="field-order-note">Ghi chú<textarea value={form.note} placeholder="Ví dụ: Giống mẫu đã duyệt ngày .../..." onChange={(event) => setForm({ ...form, note: event.target.value })} /></label>
         </div>
         <section className="v3-card packaging-plan-card">
           <div className="section-heading-row">
             <div>
               <h3>Kế hoạch đóng gói</h3>
-              <p className="panel-text">Kế hoạch được khai báo ngay khi tạo lệnh và công đoạn Đóng gói sẽ chỉ thực hiện theo kế hoạch này.</p>
+              <p className="panel-text">Khai báo kế hoạch đóng gói ngay khi tạo lệnh sản xuất</p>
             </div>
-            <div className={packagingWithinTolerance ? packagingResidualTone : 'formula-ratio-alert'}>
+            <div className={`packaging-summary ${packagingWithinTolerance ? packagingResidualTone : 'formula-ratio-alert'}`}>
               Tổng quy đổi: {kg(packagingTotals.convertedWeight)} / {kg(form.quantityKg)} | Chênh lệch: {kg(packagingDifference)} | Dung sai: ±{kg(packagingTotals.totalTolerance)}
             </div>
           </div>
