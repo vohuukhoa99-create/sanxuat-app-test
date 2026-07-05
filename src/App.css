@@ -1295,7 +1295,21 @@ tbody tr:hover {
 .orders-table th:nth-child(8),
 .orders-table td:nth-child(8) {
   width: 120px;
+}
+
+.orders-table th:nth-child(8) {
   text-align: center;
+}
+
+.orders-table td:nth-child(8) {
+  text-align: left;
+  padding-left: 14px;
+}
+
+.orders-table td:nth-child(8) .flow-pill {
+  display: inline-flex;
+  margin-left: 0;
+  margin-right: auto;
 }
 
 .orders-table th:nth-child(9),
