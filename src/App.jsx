@@ -5927,7 +5927,7 @@ function FinishedProductQcPage({ data, setData, user }) {
     const checkedAt = nowText()
     const actor = user?.name || user?.username || user?.role || assignmentEmployeeText || 'QC'
     const qc2Record = {
-      ...(activeOrder.qc2 || {}),
+      ...form,
       result: 'Đạt',
       checkedAt,
       confirmedBy: actor,
@@ -6127,7 +6127,6 @@ function FinishedProductQcPage({ data, setData, user }) {
                   <h2>Đang kiểm tra thành phẩm</h2>
                   <div className="qc-action-bar qc2-action-bar">
                     <button className="secondary-button touch-button" disabled={!canEdit} onClick={addNewMaterial}>Thêm NVL</button>
-                    <button type="button" className="secondary-button touch-button qc-save-button" disabled={!canEdit} onClick={saveQc2}>Lưu QC</button>
                     <button type="button" className="primary-button touch-button" disabled={!canConfirmQcTpPass} onClick={confirmQcTpPass}>QC đạt</button>
                   </div>
                 </div>

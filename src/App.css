@@ -15796,12 +15796,6 @@ body,
   border-color: #cbd8d2 !important;
 }
 
-.qc-action-bar .qc-save-button,
-.qc2-page .qc2-action-bar .qc-save-button {
-  background: #e8f5ef !important;
-  border-color: #b7dacd !important;
-}
-
 .qc-action-bar .primary-button,
 .qc2-page .qc2-action-bar .primary-button,
 .qc-sample-page:not(.qc2-page) .qc-trial-action-bar .primary-button {
