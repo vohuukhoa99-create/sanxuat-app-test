@@ -9015,6 +9015,7 @@ function PackagingPage({ data, setData, user }) {
 }
 
 function FinishedGoodsPage({ data, setData, user }) {
+  const showWarehouseLocation = false
   const packingLogs = data.packingLogs || []
   const finishedGoods = normalizeFinishedGoodsData(data.finishedGoods || [])
   const waitingOrders = data.orders
@@ -9212,15 +9213,15 @@ function FinishedGoodsPage({ data, setData, user }) {
             <button className="secondary-button" onClick={exportPdf}>Tải PDF</button>
           </div>
         </div>
-        <div className="production-form-grid finished-goods-filters">
+        <div className={`production-form-grid finished-goods-filters ${showWarehouseLocation ? 'show-location' : 'hide-location'}`}>
           <label>Từ ngày<input type="date" value={filters.fromDate} onChange={(event) => setFilters({ ...filters, fromDate: event.target.value })} /></label>
           <label>Đến ngày<input type="date" value={filters.toDate} onChange={(event) => setFilters({ ...filters, toDate: event.target.value })} /></label>
           <label>Mã lô<input value={filters.orderCode} onChange={(event) => setFilters({ ...filters, orderCode: event.target.value })} /></label>
           <label>Sản phẩm<input value={filters.product} onChange={(event) => setFilters({ ...filters, product: event.target.value })} /></label>
-          <label>Vị trí kho<input value={filters.location} onChange={(event) => setFilters({ ...filters, location: event.target.value })} /></label>
+          {showWarehouseLocation && <label>Vị trí kho<input value={filters.location} onChange={(event) => setFilters({ ...filters, location: event.target.value })} /></label>}
         </div>
         <div className="finished-goods-table-wrapper warehouse-table-wrapper">
-          <table className="finished-goods-table warehouse-table">
+          <table className={`finished-goods-table warehouse-table ${showWarehouseLocation ? 'show-location' : 'hide-location'}`}>
             <thead>
               <tr>
                 <th>Mã lô</th>
@@ -9229,7 +9230,7 @@ function FinishedGoodsPage({ data, setData, user }) {
                 <th>Số thùng</th>
                 <th>Khối lượng</th>
                 <th>Ngày nhập</th>
-                <th>Vị trí kho</th>
+                {showWarehouseLocation && <th>Vị trí kho</th>}
                 <th>Người nhập</th>
                 <th>Hành động</th>
               </tr>
@@ -9243,12 +9244,12 @@ function FinishedGoodsPage({ data, setData, user }) {
                   <td>{item.boxes}</td>
                   <td>{kg(item.weight)}</td>
                   <td>{item.importDate}</td>
-                  <td>{item.location}</td>
+                  {showWarehouseLocation && <td>{item.location}</td>}
                   <td>{item.receiver || '-'}</td>
                   <td>{item.status}</td>
                 </tr>
               ))}
-              {filteredFinishedGoods.length === 0 && <tr><td className="empty-row" colSpan={9}>Chưa có thành phẩm nhập kho phù hợp.</td></tr>}
+              {filteredFinishedGoods.length === 0 && <tr><td className="empty-row" colSpan={showWarehouseLocation ? 9 : 8}>Chưa có thành phẩm nhập kho phù hợp.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -9268,7 +9269,7 @@ function FinishedGoodsPage({ data, setData, user }) {
               <label>Khối lượng nhập kho<input type="number" value={form.weight} onChange={(event) => updateForm('weight', event.target.value)} /></label>
               <label>Số thùng nhập kho<input type="number" value={form.boxes} onChange={(event) => updateForm('boxes', event.target.value)} /></label>
               <label>Quy cách<input value={form.spec} onChange={(event) => updateForm('spec', event.target.value)} /></label>
-              <label>Vị trí kho<input value={form.location} onChange={(event) => updateForm('location', event.target.value)} /></label>
+              {showWarehouseLocation && <label>Vị trí kho<input value={form.location} onChange={(event) => updateForm('location', event.target.value)} /></label>}
               <label>Người nhập kho<input value={form.receiver} onChange={(event) => updateForm('receiver', event.target.value)} /></label>
               <label>Ngày nhập kho<input type="date" value={form.importDate} onChange={(event) => updateForm('importDate', event.target.value)} /></label>
               <label className="wide-field">Ghi chú<input value={form.note} onChange={(event) => updateForm('note', event.target.value)} /></label>
