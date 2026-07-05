@@ -1184,6 +1184,7 @@ tbody tr:hover {
 
 .orders-table th {
   text-align: center;
+  vertical-align: middle;
 }
 
 .orders-table th:nth-child(1),
@@ -1207,12 +1208,13 @@ tbody tr:hover {
 .orders-table th:nth-child(4),
 .orders-table td:nth-child(4) {
   width: 100px;
-  text-align: right;
+  text-align: center;
 }
 
 .orders-table th:nth-child(5),
 .orders-table td:nth-child(5) {
   width: 150px;
+  text-align: center;
 }
 
 .orders-table th:nth-child(6),
@@ -1231,6 +1233,19 @@ tbody tr:hover {
 .orders-table td:nth-child(8) {
   width: 160px;
   text-align: center;
+}
+
+.orders-table td:nth-child(8) .compact-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.orders-table td:nth-child(8) .compact-actions button {
+  min-width: 72px;
 }
 
 .compact-actions {
