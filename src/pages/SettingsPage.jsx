@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 
 const SETTINGS_KEY = 'sonhoabinh-system-settings-v1'
 const PRODUCTION_KEY = 'sonhoabinh-production-v1'
+const STORAGE_QUOTA_MESSAGE = 'Bộ nhớ trình duyệt đã đầy. Vui lòng Reset dữ liệu demo hoặc chuyển sang database.'
 
 const tabs = [
   ['materials', 'Nguyên liệu'],
@@ -100,8 +101,26 @@ function loadSettings() {
   }
 }
 
+function isQuotaExceededError(error) {
+  return error?.name === 'QuotaExceededError'
+    || error?.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+    || error?.code === 22
+    || error?.code === 1014
+}
+
+function safeSetJsonLocalStorage(key, data) {
+  try {
+    localStorage.setItem(key, JSON.stringify(data))
+    return true
+  } catch (error) {
+    if (isQuotaExceededError(error)) window.alert(STORAGE_QUOTA_MESSAGE)
+    else console.warn(`Không thể lưu localStorage key ${key}.`, error)
+    return false
+  }
+}
+
 function saveSettings(settings) {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+  safeSetJsonLocalStorage(SETTINGS_KEY, settings)
 }
 
 function newId(prefix) {
@@ -439,7 +458,7 @@ function BackupTab({ settings, onRestore, importRef }) {
         onRestore({ ...defaultSettings, ...data.systemSettings })
       }
       if (data.productionOrders) {
-        localStorage.setItem(PRODUCTION_KEY, JSON.stringify(data))
+        safeSetJsonLocalStorage(PRODUCTION_KEY, data)
       }
     }
     reader.readAsText(file)

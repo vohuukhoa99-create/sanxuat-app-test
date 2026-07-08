@@ -12,6 +12,9 @@ import { USE_SUPABASE } from './utils/supabaseMode.js'
 import './App.css'
 
 const DATA_KEY = 'sonhoabinh-v3-data'
+const STORAGE_QUOTA_MESSAGE = 'Bộ nhớ trình duyệt đã đầy. Vui lòng Reset dữ liệu demo hoặc chuyển sang database.'
+const STORAGE_QUOTA_EVENT = 'sonhoabinh-storage-quota'
+let skipLargeDemoStorageWrites = false
 const PRODUCTION_LOT_PREFIXES = ['HBP', 'NIP', 'TOA']
 const DEFAULT_PRODUCTION_LOT_PREFIX = 'HBP'
 const PRODUCTION_ORDERS_KEY = 'productionOrders'
@@ -37,6 +40,80 @@ const SCALE_SERIAL_CONFIG = {
 }
 const debugMode = false
 const SERIAL_DEBUG_LOG_LIMIT = 160
+
+function isQuotaExceededError(error) {
+  return error?.name === 'QuotaExceededError'
+    || error?.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+    || error?.code === 22
+    || error?.code === 1014
+}
+
+function notifyStorageQuota(key, error) {
+  console.warn(STORAGE_QUOTA_MESSAGE, { key, error })
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(STORAGE_QUOTA_EVENT, { detail: { key, message: STORAGE_QUOTA_MESSAGE } }))
+  }
+}
+
+function localStorageReplacer(key, value) {
+  const lowerKey = String(key || '').toLowerCase()
+  if (
+    lowerKey.includes('base64')
+    || lowerKey.includes('image')
+    || lowerKey.includes('pdf')
+    || lowerKey.includes('canvas')
+    || lowerKey.includes('blob')
+  ) {
+    return ''
+  }
+  if (typeof value === 'string' && /^(data:image|data:application\/pdf|blob:)/i.test(value.trim())) return ''
+  return value
+}
+
+function safeSetLocalStorage(key, value) {
+  try {
+    if (typeof localStorage === 'undefined') return false
+    localStorage.setItem(key, value)
+    return true
+  } catch (error) {
+    if (isQuotaExceededError(error)) notifyStorageQuota(key, error)
+    else console.warn(`Không thể lưu localStorage key ${key}.`, error)
+    return false
+  }
+}
+
+function safeSetJsonLocalStorage(key, data) {
+  try {
+    return safeSetLocalStorage(key, JSON.stringify(data, localStorageReplacer))
+  } catch (error) {
+    console.warn(`Không thể serialize dữ liệu localStorage key ${key}.`, error)
+    return false
+  }
+}
+
+function removeLocalStorageKey(key) {
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(key)
+  } catch (error) {
+    console.warn(`Không thể xóa localStorage key ${key}.`, error)
+  }
+}
+
+function buildLocalConfigSnapshot(data = {}, productCatalog = [], materialCatalog = []) {
+  return stripDeprecatedScaleToolData({
+    schema: 'local-config-v1',
+    productCatalog,
+    materialCatalog,
+    formulaVersions: data.formulaVersions || [],
+    packagingSpecCatalog: data.packagingSpecCatalog || [],
+    customerCatalog: data.customerCatalog || [],
+    employeeCatalog: data.employeeCatalog || [],
+    teamCatalog: data.teamCatalog || [],
+    supplierCatalog: data.supplierCatalog || [],
+    shiftCatalog: data.shiftCatalog || [],
+    mixingMachines: data.mixingMachines || [],
+  })
+}
 
 class PageErrorBoundary extends Component {
   state = { hasError: false }
@@ -1019,7 +1096,7 @@ function useScaleSerialSession(scaleType = 'chemical', setWarning) {
         })
         activeScalePortOwners.set(port, scaleProfile.label)
         setScalePortLabel(portLabel)
-        if (typeof localStorage !== 'undefined') localStorage.setItem(scalePortConfigKey, portLabel)
+        safeSetLocalStorage(scalePortConfigKey, portLabel)
       }
       scalePortRef.current = port
       isScaleConnectedRef.current = true
@@ -6598,9 +6675,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
     }
   }, [])
   useEffect(() => {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(SCALE_BAUD_RATE_KEY, String(scaleBaudRate))
-    }
+    safeSetLocalStorage(SCALE_BAUD_RATE_KEY, String(scaleBaudRate))
   }, [scaleBaudRate])
   useEffect(() => {
     scaleStableSampleCountRef.current = scaleStableSampleCount
@@ -12297,7 +12372,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
   )
 }
 
-function AdminPage({ authData, setAuthData, section = 'users' }) {
+function AdminPage({ authData, setAuthData, section = 'users', storageNotice = '' }) {
   const [showCreateRole, setShowCreateRole] = useState(false)
   const [newRoleName, setNewRoleName] = useState('')
   const [notice, setNotice] = useState('')
@@ -12427,11 +12502,22 @@ function AdminPage({ authData, setAuthData, section = 'users' }) {
     updateAuth({ ...authData, roles: nextRoles }, `Đã xóa vai trò ${role}.`)
   }
   const savePermissions = () => {
-    localStorage.setItem(AUTH_KEY, JSON.stringify(withAdminPermissions(authData)))
+    safeSetJsonLocalStorage(AUTH_KEY, withAdminPermissions(authData))
     setNotice('Đã lưu phân quyền. Thay đổi có hiệu lực khi người dùng đăng nhập lại.')
+  }
+  const clearLocalDemoData = () => {
+    removeLocalStorageKey(DATA_KEY)
+    window.location.reload()
   }
   return (
     <div className={`page-content admin-page ${section === 'permissions' ? 'permission-matrix-page' : ''}`}>
+      <section className="panel">
+        <div className="section-heading-row">
+          <div><span className="section-kicker">Quản trị hệ thống</span><h2>Dữ liệu local demo</h2></div>
+          <button className="danger-button" type="button" onClick={clearLocalDemoData}>Xóa dữ liệu local demo</button>
+        </div>
+        {(storageNotice || notice) && <p className="empty-alert">{storageNotice || notice}</p>}
+      </section>
       {section === 'users' && <section className="panel">
         <div className="section-heading-row">
           <div><span className="section-kicker">Quản trị hệ thống</span><h2>Danh sách người dùng</h2></div>
@@ -12701,24 +12787,36 @@ function App() {
   const [selectedPage, setSelectedPage] = useState(initialPage)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [unsavedScopes, setUnsavedScopes] = useState({})
+  const [storageNotice, setStorageNotice] = useState('')
+
+  useEffect(() => {
+    const handleStorageQuota = (event) => {
+      setStorageNotice(event.detail?.message || STORAGE_QUOTA_MESSAGE)
+    }
+    window.addEventListener(STORAGE_QUOTA_EVENT, handleStorageQuota)
+    return () => window.removeEventListener(STORAGE_QUOTA_EVENT, handleStorageQuota)
+  }, [])
 
   useEffect(() => {
     const orders = normalizeProductionOrders(data.orders || [], data.formulas || [])
     const productCatalog = buildProductMasterCatalog(data.productCatalog || [], data.formulas || [], data.formulaVersions || [])
-    localStorage.setItem(PRODUCTION_ORDERS_KEY, JSON.stringify(orders))
-    localStorage.setItem(FORMULAS_KEY, JSON.stringify(data.formulas || []))
-    localStorage.setItem(PRODUCTION_LOGS_KEY, JSON.stringify(data.productionLogs || data.logs || []))
-    localStorage.setItem(QC2_LOGS_KEY, JSON.stringify(data.qc2Logs || []))
-    localStorage.setItem(QC2_ADJUSTMENTS_KEY, JSON.stringify(data.qc2AdjustmentTickets || data.qc2Adjustments || []))
-    localStorage.setItem(SUPPLEMENTAL_WEIGHING_KEY, JSON.stringify(data.supplementalWeighing || []))
-    localStorage.setItem(WEIGHED_CONTAINERS_KEY, JSON.stringify(normalizeWeighedContainers(data.weighedContainers || [])))
-    localStorage.setItem(PACKING_LOGS_KEY, JSON.stringify(data.packingLogs || []))
-    localStorage.setItem(FINISHED_GOODS_KEY, JSON.stringify(normalizeFinishedGoodsData(data.finishedGoods || [])))
-    localStorage.setItem(MATERIAL_CATALOG_KEY, JSON.stringify(deriveMaterialCatalog(data)))
-    const dataWithoutScaleTools = stripDeprecatedScaleToolData(data)
-    localStorage.setItem(DATA_KEY, JSON.stringify({ ...dataWithoutScaleTools, productCatalog, materialCatalog: deriveMaterialCatalog(data), rawMaterials: normalizeRawMaterialLots(data.rawMaterials || []), orders, productionOrders: orders }))
+    const materialCatalog = deriveMaterialCatalog(data)
+    safeSetJsonLocalStorage(PRODUCTION_ORDERS_KEY, orders)
+    safeSetJsonLocalStorage(FORMULAS_KEY, data.formulas || [])
+    safeSetJsonLocalStorage(PRODUCTION_LOGS_KEY, data.productionLogs || data.logs || [])
+    safeSetJsonLocalStorage(QC2_LOGS_KEY, data.qc2Logs || [])
+    safeSetJsonLocalStorage(QC2_ADJUSTMENTS_KEY, data.qc2AdjustmentTickets || data.qc2Adjustments || [])
+    safeSetJsonLocalStorage(SUPPLEMENTAL_WEIGHING_KEY, data.supplementalWeighing || [])
+    safeSetJsonLocalStorage(WEIGHED_CONTAINERS_KEY, normalizeWeighedContainers(data.weighedContainers || []))
+    safeSetJsonLocalStorage(PACKING_LOGS_KEY, data.packingLogs || [])
+    safeSetJsonLocalStorage(FINISHED_GOODS_KEY, normalizeFinishedGoodsData(data.finishedGoods || []))
+    safeSetJsonLocalStorage(MATERIAL_CATALOG_KEY, materialCatalog)
+    if (!skipLargeDemoStorageWrites) {
+      const saved = safeSetJsonLocalStorage(DATA_KEY, buildLocalConfigSnapshot(data, productCatalog, materialCatalog))
+      if (!saved) skipLargeDemoStorageWrites = true
+    }
   }, [data])
-  useEffect(() => { localStorage.setItem(AUTH_KEY, JSON.stringify(authData)) }, [authData])
+  useEffect(() => { safeSetJsonLocalStorage(AUTH_KEY, authData) }, [authData])
 
   const user = currentUser && authData.users.find((item) => item.username === currentUser.username)
   const navItems = useMemo(() => {
@@ -12740,7 +12838,7 @@ function App() {
     const normalizedUsername = username.trim()
     const found = authData.users.find((item) => item.username === normalizedUsername && item.password === password && item.status === ACTIVE_STATUS)
     if (!found) { setLoginError('Sai tài khoản, mật khẩu hoặc tài khoản bị khóa.'); return }
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ username: found.username, loggedAt: nowText() }))
+    safeSetJsonLocalStorage(SESSION_KEY, { username: found.username, loggedAt: nowText() })
     setAuthData((current) => ({
       ...current,
       accessLogs: [
@@ -12753,7 +12851,7 @@ function App() {
   }
   const logout = () => {
     if (Object.values(unsavedScopes).some(Boolean) && !window.confirm('Có thay đổi chưa lưu. Anh có muốn rời khỏi màn hình không?')) return
-    localStorage.removeItem(SESSION_KEY)
+    removeLocalStorageKey(SESSION_KEY)
     setCurrentUser(null)
     setMobileMenuOpen(false)
   }
@@ -12800,10 +12898,10 @@ function App() {
     'reports-trace': <ReportsPage data={data} initialTab="trace" lockedTab />,
     'reports-staff-performance': <StaffPerformanceReportPage data={data} />,
     'reports-machine-performance': <MachinePerformanceReportPage data={data} />,
-    admin: <AdminPage authData={authData} setAuthData={setAuthData} section="users" />,
-    'admin-users': <AdminPage authData={authData} setAuthData={setAuthData} section="users" />,
-    'admin-roles': <AdminPage authData={authData} setAuthData={setAuthData} section="roles" />,
-    'admin-permissions': <AdminPage authData={authData} setAuthData={setAuthData} section="permissions" />,
+    admin: <AdminPage authData={authData} setAuthData={setAuthData} section="users" storageNotice={storageNotice} />,
+    'admin-users': <AdminPage authData={authData} setAuthData={setAuthData} section="users" storageNotice={storageNotice} />,
+    'admin-roles': <AdminPage authData={authData} setAuthData={setAuthData} section="roles" storageNotice={storageNotice} />,
+    'admin-permissions': <AdminPage authData={authData} setAuthData={setAuthData} section="permissions" storageNotice={storageNotice} />,
     'admin-system-logs': <SystemLogsPage data={data} />,
     'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'mainGroup', 'subclassification', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Phân nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} user={user} />,
     'master-products': <ProductMasterPage data={data} setData={setData} permissions={userPermissions} />,
@@ -12846,6 +12944,7 @@ function App() {
           </div>
         </header>
         <TopBar title={title} subtitle={subtitle} user={user} onLogout={logout} />
+        {storageNotice && <div className="process-alert">{storageNotice}</div>}
         <PageErrorBoundary resetKey={page} page={page}>
           {pages[page] || pages.dashboard}
         </PageErrorBoundary>
