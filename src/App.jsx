@@ -4322,34 +4322,111 @@ function MaterialLotLookupPage({ data }) {
 }
 
 function MaterialConsumptionLogPage({ data }) {
-  const [filters, setFilters] = useState({ fromDate: '', toDate: '', materialCode: '', batch: '', order: '', internalLotCode: '' })
   const usages = normalizeMaterialLotUsages(data.materialLotUsages || [])
-  const filtered = usages.filter((usage) => (
-    (!filters.fromDate || String(usage.usedAt).slice(0, 10) >= filters.fromDate)
-    && (!filters.toDate || String(usage.usedAt).slice(0, 10) <= filters.toDate)
-    && (!filters.materialCode || normalizeText(usage.materialCode).includes(normalizeText(filters.materialCode)))
-    && (!filters.batch || normalizeText(usage.batchId).includes(normalizeText(filters.batch)))
-    && (!filters.order || normalizeText(usage.productionOrderId).includes(normalizeText(filters.order)))
-    && (!filters.internalLotCode || normalizeText(usage.internalLotCode).includes(normalizeText(filters.internalLotCode)))
-  ))
-  const updateFilter = (field, value) => setFilters((current) => ({ ...current, [field]: value }))
+  const [draftFilters, setDraftFilters] = useState({ fromDate: '', toDate: '', materialCode: '', order: '', viewMode: 'summary' })
+  const [reportFilters, setReportFilters] = useState(draftFilters)
+  const materialOptions = Array.from(new Set(usages.map((usage) => usage.materialCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const orderOptions = Array.from(new Set(usages.map((usage) => usage.productionOrderId).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const updateFilter = (field, value) => setDraftFilters((current) => ({ ...current, [field]: value }))
+  const filtered = usages.filter((usage) => {
+    const usedDate = String(usage.usedAt || '').slice(0, 10)
+    return (!reportFilters.fromDate || usedDate >= reportFilters.fromDate)
+      && (!reportFilters.toDate || usedDate <= reportFilters.toDate)
+      && (!reportFilters.materialCode || normalizeCode(usage.materialCode) === normalizeCode(reportFilters.materialCode))
+      && (!reportFilters.order || String(usage.productionOrderId || '') === reportFilters.order)
+  })
+  const detailRows = filtered
+    .slice()
+    .sort((a, b) => String(a.usedAt || '').localeCompare(String(b.usedAt || ''), 'vi', { numeric: true }))
+  const summaryRows = Object.values(detailRows.reduce((groups, usage) => {
+    const key = normalizeCode(usage.materialCode)
+    if (!groups[key]) {
+      groups[key] = {
+        materialCode: usage.materialCode,
+        unit: usage.unit || 'kg',
+        totalUsedQty: 0,
+        weighingCount: 0,
+        orderCodes: new Set(),
+      }
+    }
+    groups[key].totalUsedQty += num(usage.usedQty)
+    groups[key].weighingCount += 1
+    if (usage.productionOrderId) groups[key].orderCodes.add(usage.productionOrderId)
+    return groups
+  }, {})).map((row) => ({
+    ...row,
+    totalUsedQty: Number(row.totalUsedQty.toFixed(3)),
+    productionOrderCount: row.orderCodes.size,
+  })).sort((a, b) => String(a.materialCode || '').localeCompare(String(b.materialCode || ''), 'vi', { numeric: true }))
+  const summaryExportRows = summaryRows.map((row) => ({
+    fromDate: reportFilters.fromDate || '',
+    toDate: reportFilters.toDate || '',
+    materialCode: row.materialCode,
+    unit: row.unit,
+    totalUsedQty: row.totalUsedQty,
+    weighingCount: row.weighingCount,
+    productionOrderCount: row.productionOrderCount,
+  }))
+  const detailExportRows = detailRows.map((usage) => ({
+    usedAt: usage.usedAt || '',
+    productionOrderCode: usage.productionOrderId || '',
+    batchCode: usage.batchId || '',
+    materialCode: usage.materialCode || '',
+    internalLotCode: usage.internalLotCode || '',
+    usedQty: num(usage.usedQty),
+    unit: usage.unit || 'kg',
+    weighingStation: usage.weighingStation || '',
+    weighedBy: usage.createdBy || '',
+  }))
+  const exportExcel = () => {
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(summaryExportRows), 'TIEU_HAO_TONG_HOP')
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(detailExportRows), 'TIEU_HAO_CHI_TIET')
+    XLSX.writeFile(book, `tieu-hao-nguyen-lieu-${todayText().replaceAll('-', '')}.xlsx`)
+  }
+  const exportCsv = () => {
+    const rows = reportFilters.viewMode === 'detail' ? detailExportRows : summaryExportRows
+    const headers = reportFilters.viewMode === 'detail'
+      ? ['usedAt', 'productionOrderCode', 'batchCode', 'materialCode', 'internalLotCode', 'usedQty', 'unit', 'weighingStation', 'weighedBy']
+      : ['fromDate', 'toDate', 'materialCode', 'unit', 'totalUsedQty', 'weighingCount', 'productionOrderCount']
+    const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`
+    const csv = [headers.join(','), ...rows.map((row) => headers.map((header) => escapeCsv(row[header])).join(','))].join('\r\n')
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `tieu-hao-nguyen-lieu-${reportFilters.viewMode}-${todayText().replaceAll('-', '')}.csv`
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }
   return (
     <div className="page-content">
       <section className="panel">
-        <div className="section-heading-row"><h2>Nhật ký tiêu hao</h2></div>
+        <div className="section-heading-row">
+          <h2>Tiêu hao nguyên liệu</h2>
+          <div className="action-row">
+            <button className="primary-button" type="button" onClick={() => setReportFilters(draftFilters)}>Xem báo cáo</button>
+            <button className="secondary-button" type="button" onClick={exportExcel}>Xuất Excel</button>
+            <button className="secondary-button" type="button" onClick={exportCsv}>Xuất CSV</button>
+          </div>
+        </div>
         <div className="production-form-grid">
-          <label>Từ ngày<input type="date" value={filters.fromDate} onChange={(event) => updateFilter('fromDate', event.target.value)} /></label>
-          <label>Đến ngày<input type="date" value={filters.toDate} onChange={(event) => updateFilter('toDate', event.target.value)} /></label>
-          <label>Mã vật tư<input value={filters.materialCode} onChange={(event) => updateFilter('materialCode', event.target.value)} /></label>
-          <label>Batch<input value={filters.batch} onChange={(event) => updateFilter('batch', event.target.value)} /></label>
-          <label>Lệnh sản xuất<input value={filters.order} onChange={(event) => updateFilter('order', event.target.value)} /></label>
-          <label>Internal Lot<input value={filters.internalLotCode} onChange={(event) => updateFilter('internalLotCode', event.target.value)} /></label>
+          <label>Từ ngày<input type="date" value={draftFilters.fromDate} onChange={(event) => updateFilter('fromDate', event.target.value)} /></label>
+          <label>Đến ngày<input type="date" value={draftFilters.toDate} onChange={(event) => updateFilter('toDate', event.target.value)} /></label>
+          <label>Mã vật tư<select value={draftFilters.materialCode} onChange={(event) => updateFilter('materialCode', event.target.value)}><option value="">Tất cả</option>{materialOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+          <label>Lệnh sản xuất<select value={draftFilters.order} onChange={(event) => updateFilter('order', event.target.value)}><option value="">Tất cả</option>{orderOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+          <label>Kiểu hiển thị<select value={draftFilters.viewMode} onChange={(event) => updateFilter('viewMode', event.target.value)}><option value="summary">Tổng hợp</option><option value="detail">Chi tiết</option></select></label>
         </div>
       </section>
       <section className="panel">
-        <SimpleTable headers={['Ngày giờ', 'Lệnh sản xuất', 'Batch', 'Mã vật tư', 'Tên vật tư', 'Internal Lot', 'Số lượng sử dụng', 'Trạm cân', 'Người cân']} rows={filtered.map((usage) => (
-          <tr key={usage.id}><td>{usage.usedAt}</td><td>{usage.productionOrderId}</td><td>{usage.batchId}</td><td>{usage.materialCode}</td><td>{usage.materialName}</td><td><code>{usage.internalLotCode}</code></td><td>{kg(usage.usedQty)}</td><td>{usage.weighingStation}</td><td>{usage.createdBy}</td></tr>
-        ))} empty="Chưa có nhật ký tiêu hao." />
+        {reportFilters.viewMode === 'detail' ? (
+          <SimpleTable headers={['Ngày giờ', 'Lệnh sản xuất', 'Batch', 'Mã vật tư', 'Internal Lot', 'Số lượng sử dụng', 'ĐVT', 'Trạm cân', 'Người cân']} rows={detailRows.map((usage) => (
+            <tr key={usage.id}><td>{usage.usedAt || '-'}</td><td>{usage.productionOrderId || '-'}</td><td>{usage.batchId || '-'}</td><td>{usage.materialCode}</td><td><code>{usage.internalLotCode || '-'}</code></td><td>{kg(usage.usedQty)}</td><td>{usage.unit || 'kg'}</td><td>{usage.weighingStation || '-'}</td><td>{usage.createdBy || '-'}</td></tr>
+          ))} empty="Chưa có dữ liệu tiêu hao phù hợp." />
+        ) : (
+          <SimpleTable headers={['Mã vật tư', 'ĐVT', 'Tổng số lượng tiêu hao', 'Số lần cân', 'Số lệnh sản xuất liên quan', 'Từ ngày', 'Đến ngày']} rows={summaryRows.map((row) => (
+            <tr key={row.materialCode}><td>{row.materialCode}</td><td>{row.unit}</td><td>{kg(row.totalUsedQty)}</td><td>{row.weighingCount}</td><td>{row.productionOrderCount}</td><td>{reportFilters.fromDate || '-'}</td><td>{reportFilters.toDate || '-'}</td></tr>
+          ))} empty="Chưa có dữ liệu tiêu hao phù hợp." />
+        )}
       </section>
     </div>
   )
@@ -13294,7 +13371,7 @@ const pageMeta = {
   'raw-material-active-lots': ['Lô đang sử dụng', 'Theo dõi lô nguyên liệu đang sử dụng'],
   'raw-material-balance-adjustment': ['Điều chỉnh số dư truy xuất', 'Điều chỉnh số dư truy xuất nguyên liệu'],
   'raw-material-lot-lookup': ['Tra cứu lô', 'Tra cứu thông tin lô nguyên liệu'],
-  'raw-material-consumption-log': ['Nhật ký tiêu hao', 'Dữ liệu tiêu hao nguyên liệu'],
+  'raw-material-consumption-log': ['Tiêu hao nguyên liệu', 'Báo cáo tiêu hao nguyên liệu trung lập ERP'],
   formulas: ['Công thức gốc', 'Quản lý sản phẩm và công thức theo dữ liệu gốc sản phẩm'],
   orders: ['Lệnh sản xuất', 'Tạo lệnh từ công thức gốc và chờ QC sản xuất thử'],
   'production-assignments': ['Phân công nhân sự', 'Theo dõi nhân sự trực công đoạn trong từng ca sản xuất'],
