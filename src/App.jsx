@@ -6,6 +6,7 @@ import { QRCodeCanvas } from 'qrcode.react'
 import { CustomerFilterCombobox } from './components/CustomerFilterCombobox.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { TopBar } from './components/TopBar.jsx'
+import arialFontUrl from './assets/fonts/arial.ttf?url'
 import { customerCatalog as customerCatalogSeed, filterCustomerCatalog, normalizeText } from './data/customerCatalog.js'
 import { defaultNavItems } from './data/navigation.js'
 import { USE_SUPABASE } from './utils/supabaseMode.js'
@@ -35,6 +36,26 @@ const SESSION_KEY = 'sonhoabinh-v3-session'
 const SCALE_BAUD_RATE_KEY = 'scaleSerialBaudRate'
 const SCALE_BAUD_RATES = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200]
 const DEFAULT_SCALE_BAUD_RATE = 1200
+let cachedPdfUnicodeFontBase64 = ''
+const arrayBufferToBase64 = (buffer) => {
+  let binary = ''
+  const bytes = new Uint8Array(buffer)
+  const chunkSize = 0x8000
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize))
+  }
+  return btoa(binary)
+}
+const registerPdfUnicodeFont = async (doc) => {
+  if (!cachedPdfUnicodeFontBase64) {
+    const response = await fetch(arialFontUrl)
+    cachedPdfUnicodeFontBase64 = arrayBufferToBase64(await response.arrayBuffer())
+  }
+  doc.addFileToVFS('Arial.ttf', cachedPdfUnicodeFontBase64)
+  doc.addFont('Arial.ttf', 'Arial', 'normal')
+  doc.addFont('Arial.ttf', 'Arial', 'bold')
+  doc.setFont('Arial', 'normal')
+}
 const SCALE_SERIAL_CONFIG = {
   decimalPlaces: 3,
   sourceUnit: 'kg',
@@ -9765,261 +9786,104 @@ function FinishedGoodsPage({ data, setData, user }) {
     XLSX.utils.book_append_sheet(book, sheet, 'PHIEU_DE_NGHI_NHAP_KHO_TP')
     XLSX.writeFile(book, `phieu-de-nghi-nhap-kho-${requestVoucherNo}.xlsx`)
   }
-  const exportRequestVoucherPdf = () => {
+  const exportRequestVoucherPdf = async () => {
     if (!validateRequestVoucherExport()) return
-    if (typeof document === 'undefined') return
-    const detailRowsHtml = requestVoucherRows.map((row) => `
-      <tr>
-        <td>${htmlEscape(row.no)}</td>
-        <td>${htmlEscape(row.name)}</td>
-        <td>${htmlEscape(row.unit)}</td>
-        <td>${htmlEscape(row.qty)}</td>
-        <td>${htmlEscape(row.note || requestVoucherFilters.note || '')}</td>
-      </tr>
-    `).join('')
-    const printHtml = `<!doctype html>
-      <html lang="vi">
-        <head>
-          <meta charset="utf-8" />
-          <title>${htmlEscape(`phieu-de-nghi-nhap-kho-${requestVoucherNo}`)}</title>
-          <style>
-            * { box-sizing: border-box; }
-            @media print {
-              @page {
-                size: A5 landscape;
-                margin: 0;
-              }
-
-              html,
-              body {
-                width: 210mm !important;
-                height: 148mm !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                overflow: hidden !important;
-              }
-
-              body * {
-                visibility: hidden !important;
-              }
-
-              #finishedGoodsRequestPrint,
-              #finishedGoodsRequestPrint * {
-                visibility: visible !important;
-              }
-
-              #finishedGoodsRequestPrint {
-                position: fixed !important;
-                left: 0 !important;
-                top: 0 !important;
-                width: 210mm !important;
-                height: 148mm !important;
-                max-height: 148mm !important;
-                box-sizing: border-box !important;
-                padding: 10mm 10mm 8mm 20mm !important;
-                overflow: hidden !important;
-                page-break-before: avoid !important;
-                page-break-after: avoid !important;
-                break-before: avoid !important;
-                break-after: avoid !important;
-              }
-
-              .no-print {
-                display: none !important;
-              }
-            }
-
-            html,
-            body {
-              width: 210mm;
-              height: 148mm;
-              margin: 0;
-              padding: 0;
-              overflow: hidden;
-              background: #fff;
-            }
-
-            body {
-              color: #111;
-              font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
-              font-size: 11px;
-              line-height: 1.25;
-            }
-
-            #finishedGoodsRequestPrint {
-              width: 210mm;
-              height: 148mm;
-              max-height: 148mm;
-              padding: 10mm 10mm 8mm 20mm;
-              overflow: hidden;
-              background: #fff;
-            }
-
-            .print-company {
-              font-size: 11px;
-              font-weight: 700;
-              margin-bottom: 6px;
-            }
-
-            h1 {
-              margin: 0 0 3px;
-              text-align: center;
-              font-size: 16px;
-              line-height: 1.2;
-              letter-spacing: 0;
-            }
-
-            .print-date {
-              margin: 0 0 8px;
-              text-align: center;
-              font-size: 11px;
-            }
-
-            .print-meta {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 5px 22px;
-              margin-bottom: 8px;
-            }
-
-            .print-meta-column {
-              display: grid;
-              gap: 5px;
-            }
-
-            .finished-goods-request-table {
-              width: 100%;
-              border-collapse: collapse;
-              table-layout: fixed;
-            }
-
-            .finished-goods-request-table th,
-            .finished-goods-request-table td {
-              border: 1px solid #000;
-              padding: 4px 6px;
-              font-size: 11px;
-              line-height: 1.2;
-              vertical-align: middle;
-            }
-
-            .finished-goods-request-table th {
-              text-align: center;
-              font-weight: 700;
-            }
-
-            .finished-goods-request-table th:nth-child(1),
-            .finished-goods-request-table td:nth-child(1) {
-              width: 10mm;
-              text-align: center;
-            }
-
-            .finished-goods-request-table th:nth-child(2),
-            .finished-goods-request-table td:nth-child(2) {
-              width: 95mm;
-              text-align: left;
-            }
-
-            .finished-goods-request-table th:nth-child(3),
-            .finished-goods-request-table td:nth-child(3) {
-              width: 20mm;
-              text-align: center;
-            }
-
-            .finished-goods-request-table th:nth-child(4),
-            .finished-goods-request-table td:nth-child(4) {
-              width: 20mm;
-              text-align: right;
-            }
-
-            .finished-goods-request-table th:nth-child(5),
-            .finished-goods-request-table td:nth-child(5) {
-              width: 35mm;
-              text-align: left;
-            }
-
-            .print-signature-row {
-              display: grid;
-              grid-template-columns: repeat(4, 1fr);
-              gap: 12px;
-              margin-top: 8mm;
-              text-align: center;
-              font-weight: 700;
-            }
-
-            .print-signature-row div {
-              min-height: 28mm;
-            }
-          </style>
-        </head>
-        <body>
-          <div id="finishedGoodsRequestPrint">
-            <div class="print-company">CÔNG TY CỔ PHẦN SƠN &amp; CHẤT PHỦ HÒA BÌNH</div>
-            <h1>PHIẾU ĐỀ NGHỊ NHẬP KHO THÀNH PHẨM</h1>
-            <div class="print-date">${htmlEscape(requestVoucherDateText)}</div>
-            <section class="print-meta">
-              <div class="print-meta-column">
-                <div>Người yêu cầu: ${htmlEscape(requestVoucherRequester || '-')}</div>
-                <div>Bộ phận: Sản xuất</div>
-                <div>Lý do yêu cầu: ${htmlEscape(requestVoucherFilters.reason || '-')}</div>
-              </div>
-              <div class="print-meta-column">
-                <div>Tên khách hàng: ${htmlEscape(requestVoucherCustomerName || '-')}</div>
-                <div>Lô sản xuất: ${htmlEscape(requestVoucherFilters.lotCode || '-')}</div>
-                <div>Ghi chú: ${htmlEscape(requestVoucherFilters.note || '-')}</div>
-              </div>
-            </section>
-            <table class="finished-goods-request-table">
-              <thead>
-                <tr>
-                  <th>STT</th>
-                  <th>Tên, mã hiệu vật tư</th>
-                  <th>ĐVT</th>
-                  <th>Số lượng</th>
-                  <th>Ghi chú</th>
-                </tr>
-              </thead>
-              <tbody>${detailRowsHtml}</tbody>
-            </table>
-            <section class="print-signature-row">
-              <div>KTT / Trưởng BP</div>
-              <div>Thủ kho</div>
-              <div>QC</div>
-              <div>Người đề nghị</div>
-            </section>
-          </div>
-        </body>
-      </html>`
-    const iframe = document.createElement('iframe')
-    iframe.setAttribute('title', `phieu-de-nghi-nhap-kho-${requestVoucherNo}`)
-    iframe.style.position = 'fixed'
-    iframe.style.right = '0'
-    iframe.style.bottom = '0'
-    iframe.style.width = '0'
-    iframe.style.height = '0'
-    iframe.style.border = '0'
-    iframe.style.visibility = 'hidden'
-    document.body.appendChild(iframe)
-    const frameDocument = iframe.contentWindow?.document
-    if (!frameDocument) {
-      document.body.removeChild(iframe)
+    if (requestVoucherRows.length > 10) {
+      setNotice('Phiếu có quá nhiều dòng, vui lòng tách lô hoặc giảm số dòng.')
       return
     }
-    frameDocument.open()
-    frameDocument.write(printHtml)
-    frameDocument.close()
-    window.setTimeout(() => {
-      const printNodeCount = frameDocument.querySelectorAll('#finishedGoodsRequestPrint').length
-      console.log(printNodeCount)
-      const printArea = frameDocument.querySelector('#finishedGoodsRequestPrint')
-      if (printArea) console.info('finishedGoodsRequestPrint rect', printArea.getBoundingClientRect())
-      const cleanup = () => {
-        iframe.parentNode?.removeChild(iframe)
+    try {
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a5' })
+      await registerPdfUnicodeFont(doc)
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const left = 20
+      const right = 10
+      const top = 10
+      const bottom = 8
+      const usableWidth = pageWidth - left - right
+      doc.setFont('Arial', 'bold')
+      doc.setFontSize(11)
+      doc.text('CÔNG TY CỔ PHẦN SƠN & CHẤT PHỦ HÒA BÌNH', left, top + 2)
+      doc.setFontSize(16)
+      doc.text('PHIẾU ĐỀ NGHỊ NHẬP KHO THÀNH PHẨM', pageWidth / 2, top + 12, { align: 'center' })
+      doc.setFont('Arial', 'normal')
+      doc.setFontSize(11)
+      doc.text(requestVoucherDateText || '-', pageWidth / 2, top + 19, { align: 'center' })
+
+      const leftMetaX = left
+      const rightMetaX = left + 95
+      let metaY = top + 30
+      const metaLineHeight = 6
+      doc.text(`Người yêu cầu: ${requestVoucherRequester || '-'}`, leftMetaX, metaY)
+      doc.text(`Tên khách hàng: ${requestVoucherCustomerName || '-'}`, rightMetaX, metaY)
+      metaY += metaLineHeight
+      doc.text('Bộ phận: Sản xuất', leftMetaX, metaY)
+      doc.text(`Lô sản xuất: ${requestVoucherFilters.lotCode || '-'}`, rightMetaX, metaY)
+      metaY += metaLineHeight
+      doc.text(`Lý do yêu cầu: ${requestVoucherFilters.reason || '-'}`, leftMetaX, metaY)
+      doc.text(`Ghi chú: ${requestVoucherFilters.note || '-'}`, rightMetaX, metaY)
+
+      autoTable(doc, {
+        startY: 55,
+        margin: { left, right, top, bottom },
+        tableWidth: usableWidth,
+        theme: 'grid',
+        showHead: 'firstPage',
+        pageBreak: 'avoid',
+        rowPageBreak: 'avoid',
+        head: [['STT', 'Tên, mã hiệu vật tư', 'ĐVT', 'Số lượng', 'Ghi chú']],
+        body: requestVoucherRows.map((row) => [row.no, row.name, row.unit, row.qty, row.note || requestVoucherFilters.note || '']),
+        styles: {
+          font: 'Arial',
+          fontSize: 9.5,
+          cellPadding: { top: 1.4, right: 1.5, bottom: 1.4, left: 1.5 },
+          lineWidth: 0.2,
+          lineColor: [0, 0, 0],
+          textColor: [0, 0, 0],
+          overflow: 'linebreak',
+          minCellHeight: 5.5,
+        },
+        headStyles: {
+          font: 'Arial',
+          fontStyle: 'bold',
+          fillColor: [255, 255, 255],
+          textColor: [0, 0, 0],
+          halign: 'center',
+          valign: 'middle',
+          lineWidth: 0.2,
+          lineColor: [0, 0, 0],
+        },
+        bodyStyles: {
+          valign: 'middle',
+          lineWidth: 0.2,
+          lineColor: [0, 0, 0],
+        },
+        columnStyles: {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 95, halign: 'left' },
+          2: { cellWidth: 20, halign: 'center' },
+          3: { cellWidth: 20, halign: 'right' },
+          4: { cellWidth: 35, halign: 'left' },
+        },
+      })
+
+      const tableEndY = doc.lastAutoTable?.finalY || 65
+      const signatureY = Math.min(tableEndY + 11, 118)
+      const signatureWidth = usableWidth / 4
+      doc.setFont('Arial', 'bold')
+      doc.setFontSize(10.5)
+      ;['KTT / Trưởng BP', 'Thủ kho', 'QC', 'Người đề nghị'].forEach((label, index) => {
+        doc.text(label, left + signatureWidth * index + signatureWidth / 2, signatureY, { align: 'center' })
+      })
+
+      while (doc.getNumberOfPages() > 1) {
+        doc.deletePage(doc.getNumberOfPages())
       }
-      iframe.contentWindow?.addEventListener('afterprint', cleanup, { once: true })
-      iframe.contentWindow?.focus()
-      iframe.contentWindow?.print()
-      window.setTimeout(cleanup, 30000)
-    }, 100)
+      doc.save(`phieu-de-nghi-nhap-kho-${requestVoucherNo}.pdf`)
+    } catch (error) {
+      console.error(error)
+      setNotice('Không thể xuất PDF phiếu. Vui lòng kiểm tra font hoặc dữ liệu phiếu.')
+    }
   }
   const productCodeOptions = Array.from(new Set(finishedGoods.map(finishedGoodsProductCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const orderCodeOptions = Array.from(new Set(finishedGoods.map(finishedGoodsOrderCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
