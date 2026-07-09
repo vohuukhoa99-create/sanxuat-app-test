@@ -9705,22 +9705,24 @@ function FinishedGoodsPage({ data, setData, user }) {
     if (!win) return
     win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${htmlEscape(title)}</title><style>
       * { box-sizing: border-box; }
-      body { margin: 0; background: #fff; color: #111; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: 13px; }
-      .print-page { width: 210mm; min-height: 297mm; padding: 16mm 14mm; margin: 0 auto; background: #fff; }
-      .company { font-weight: 700; margin-bottom: 14px; }
-      h1 { margin: 0 0 16px; text-align: center; font-size: 20px; letter-spacing: 0; }
-      .voucher-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 34px; margin-bottom: 16px; }
+      body { margin: 0; background: #fff; color: #111; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: 11px; }
+      .print-page { width: 210mm; min-height: 148mm; padding: 9mm 10mm; margin: 0 auto; background: #fff; }
+      .company { font-weight: 700; margin-bottom: 8px; }
+      h1 { margin: 0 0 4px; text-align: center; font-size: 17px; letter-spacing: 0; }
+      .voucher-date { margin: 0 0 12px; text-align: center; font-size: 12px; }
+      .voucher-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 28px; margin-bottom: 12px; }
+      .voucher-meta-column { display: grid; gap: 6px; }
       table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-      th, td { border: 1px solid #222; padding: 7px 8px; vertical-align: middle; }
+      th, td { border: 1px solid #222; padding: 5px 6px; vertical-align: middle; }
       th { text-align: center; font-weight: 700; background: #f3f4f6; }
-      th:nth-child(1), td:nth-child(1) { width: 50px; text-align: center; }
+      th:nth-child(1), td:nth-child(1) { width: 38px; text-align: center; }
       th:nth-child(2), td:nth-child(2) { width: auto; text-align: left; }
-      th:nth-child(3), td:nth-child(3) { width: 70px; text-align: center; }
-      th:nth-child(4), td:nth-child(4) { width: 90px; text-align: right; }
-      th:nth-child(5), td:nth-child(5) { width: 130px; text-align: left; }
-      .signature-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 34px; text-align: center; font-weight: 700; }
-      .signature-row div { min-height: 78px; }
-      @page { size: A4 portrait; margin: 0; }
+      th:nth-child(3), td:nth-child(3) { width: 58px; text-align: center; }
+      th:nth-child(4), td:nth-child(4) { width: 76px; text-align: right; }
+      th:nth-child(5), td:nth-child(5) { width: 110px; text-align: left; }
+      .signature-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 24px; text-align: center; font-weight: 700; }
+      .signature-row div { min-height: 54px; }
+      @page { size: A5 landscape; margin: 0; }
     </style></head><body>${html}</body></html>`)
     win.document.close()
     win.focus()
@@ -9807,15 +9809,18 @@ function FinishedGoodsPage({ data, setData, user }) {
       <main class="print-page">
         <div class="company">CÔNG TY CỔ PHẦN SƠN &amp; CHẤT PHỦ HÒA BÌNH</div>
         <h1>PHIẾU ĐỀ NGHỊ NHẬP KHO THÀNH PHẨM</h1>
+        <div class="voucher-date">${htmlEscape(requestVoucherDateText)}</div>
         <section class="voucher-meta">
-          <div>${htmlEscape(requestVoucherDateText)}</div>
-          <div>Người yêu cầu: ${htmlEscape(requestVoucherRequester || '-')}</div>
-          <div>Bộ phận: Sản xuất</div>
-          <div>Tên khách hàng: ${htmlEscape(requestVoucherCustomerName || '-')}</div>
-          <div>Lý do yêu cầu: ${htmlEscape(requestVoucherFilters.reason)}</div>
-          <div>Lô sản xuất: ${htmlEscape(requestVoucherFilters.lotCode)}</div>
-          <div></div>
-          <div>Ghi chú: ${htmlEscape(requestVoucherFilters.note || '-')}</div>
+          <div class="voucher-meta-column">
+            <div>Người yêu cầu: ${htmlEscape(requestVoucherRequester || '-')}</div>
+            <div>Bộ phận: Sản xuất</div>
+            <div>Lý do yêu cầu: ${htmlEscape(requestVoucherFilters.reason)}</div>
+          </div>
+          <div class="voucher-meta-column">
+            <div>Tên khách hàng: ${htmlEscape(requestVoucherCustomerName || '-')}</div>
+            <div>Lô sản xuất: ${htmlEscape(requestVoucherFilters.lotCode)}</div>
+            <div>Ghi chú: ${htmlEscape(requestVoucherFilters.note || '-')}</div>
+          </div>
         </section>
         <table>
           <thead><tr><th>STT</th><th>Tên, mã hiệu vật tư</th><th>ĐVT</th><th>Số lượng</th><th>Ghi chú</th></tr></thead>
