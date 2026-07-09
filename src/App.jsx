@@ -9705,24 +9705,25 @@ function FinishedGoodsPage({ data, setData, user }) {
     if (!win) return
     win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${htmlEscape(title)}</title><style>
       * { box-sizing: border-box; }
-      body { margin: 0; background: #fff; color: #111; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: 11px; }
-      .print-page { width: 210mm; min-height: 148mm; padding: 9mm 10mm; margin: 0 auto; background: #fff; }
-      .company { font-weight: 700; margin-bottom: 8px; }
-      h1 { margin: 0 0 4px; text-align: center; font-size: 17px; letter-spacing: 0; }
-      .voucher-date { margin: 0 0 12px; text-align: center; font-size: 12px; }
-      .voucher-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 28px; margin-bottom: 12px; }
-      .voucher-meta-column { display: grid; gap: 6px; }
-      table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-      th, td { border: 1px solid #222; padding: 5px 6px; vertical-align: middle; }
+      html, body { width: 210mm; height: 148mm; margin: 0; overflow: hidden; }
+      body { background: #fff; color: #111; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: 10.5px; }
+      .print-page { width: 198mm; height: 136mm; max-height: 136mm; padding: 0; margin: 0; overflow: hidden; background: #fff; page-break-after: avoid; break-after: avoid; }
+      .company { font-weight: 700; margin-bottom: 6px; }
+      h1 { margin: 0 0 3px; text-align: center; font-size: 16px; letter-spacing: 0; }
+      .voucher-date { margin: 0 0 9px; text-align: center; font-size: 11px; }
+      .voucher-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 24px; margin-bottom: 9px; }
+      .voucher-meta-column { display: grid; gap: 5px; }
+      table { width: 169mm; max-width: 169mm; margin: 0; border-collapse: collapse; table-layout: fixed; }
+      th, td { border: 1px solid #222; padding: 4px 5px; vertical-align: middle; }
       th { text-align: center; font-weight: 700; background: #f3f4f6; }
-      th:nth-child(1), td:nth-child(1) { width: 38px; text-align: center; }
-      th:nth-child(2), td:nth-child(2) { width: auto; text-align: left; }
-      th:nth-child(3), td:nth-child(3) { width: 58px; text-align: center; }
-      th:nth-child(4), td:nth-child(4) { width: 76px; text-align: right; }
-      th:nth-child(5), td:nth-child(5) { width: 110px; text-align: left; }
-      .signature-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 24px; text-align: center; font-weight: 700; }
-      .signature-row div { min-height: 54px; }
-      @page { size: A5 landscape; margin: 0; }
+      th:nth-child(1), td:nth-child(1) { width: 12mm; text-align: center; }
+      th:nth-child(2), td:nth-child(2) { width: 80mm; text-align: left; }
+      th:nth-child(3), td:nth-child(3) { width: 20mm; text-align: center; }
+      th:nth-child(4), td:nth-child(4) { width: 22mm; text-align: right; }
+      th:nth-child(5), td:nth-child(5) { width: 35mm; text-align: left; }
+      .signature-row { width: 169mm; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 12mm; text-align: center; font-weight: 700; }
+      .signature-row div { min-height: 38mm; }
+      @page { size: A5 landscape; margin: 6mm; }
     </style></head><body>${html}</body></html>`)
     win.document.close()
     win.focus()
