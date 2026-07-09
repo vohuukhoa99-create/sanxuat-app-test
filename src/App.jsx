@@ -9619,7 +9619,7 @@ function FinishedGoodsPage({ data, setData, user }) {
     .sort(sortOldestOrders)
   const [activeOrder, setActiveOrder] = useState(null)
   const [filters, setFilters] = useState({ fromDate: '', toDate: '', orderCode: '', product: '', lot: '', location: '' })
-  const [requestVoucherFilters, setRequestVoucherFilters] = useState({ requestDate: todayText(), orderCode: '', product: '', requestedBy: '', reason: 'Hoàn thành lệnh sản xuất', note: '' })
+  const [requestVoucherFilters, setRequestVoucherFilters] = useState({ requestDate: todayText(), lotCode: '', customerCode: '', requestedBy: '', reason: 'Hoàn thành lệnh sản xuất', note: '' })
   const [showRequestVoucher, setShowRequestVoucher] = useState(true)
   const [dailyReportDraftFilters, setDailyReportDraftFilters] = useState({ fromDate: todayText(), toDate: todayText(), productCode: '', orderCode: '' })
   const [dailyReportFilters, setDailyReportFilters] = useState(dailyReportDraftFilters)
@@ -9637,6 +9637,7 @@ function FinishedGoodsPage({ data, setData, user }) {
     || order.lot === item.lot
   )) || null
   const finishedGoodsCustomerCode = (item = {}) => item.customerCode || findFinishedGoodsOrder(item)?.customerCode || ''
+  const finishedGoodsCustomerName = (item = {}) => item.customerName || item.customer || findFinishedGoodsOrder(item)?.customerName || findFinishedGoodsOrder(item)?.customer || ''
   const isGeneratedFinishedCode = (value = '') => /^TP-\d{8}-\d{3,}$/i.test(String(value || '').trim())
   const finishedGoodsProductName = (item = {}) => {
     const candidates = [item.productName, item.product, item.productCode, item.formulaCode].map((value) => String(value || '').trim()).filter(Boolean)
@@ -9709,16 +9710,26 @@ function FinishedGoodsPage({ data, setData, user }) {
     if (filtersToUse.productCode && normalizeCode(finishedGoodsProductCode(item)) !== normalizeCode(filtersToUse.productCode)) return false
     return true
   })
-  const updateRequestVoucherFilter = (field, value) => setRequestVoucherFilters((current) => ({ ...current, [field]: value }))
-  const requestVoucherItems = filterFinishedGoodsForVoucher(finishedGoods, {
-    fromDate: requestVoucherFilters.requestDate,
-    toDate: requestVoucherFilters.requestDate,
-    orderCode: requestVoucherFilters.orderCode,
-    product: requestVoucherFilters.product,
+  const finishedGoodsLotOptions = Array.from(new Set(finishedGoods.map(finishedGoodsLotCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const updateRequestVoucherFilter = (field, value) => setRequestVoucherFilters((current) => {
+    if (field !== 'lotCode') return { ...current, [field]: value }
+    const lotItems = finishedGoods.filter((item) => finishedGoodsLotCode(item) === value)
+    const firstCustomerItem = lotItems.find((item) => finishedGoodsCustomerCode(item))
+    return { ...current, lotCode: value, customerCode: firstCustomerItem ? finishedGoodsCustomerCode(firstCustomerItem) : '' }
   })
+  const requestVoucherLotItems = requestVoucherFilters.lotCode
+    ? finishedGoods.filter((item) => finishedGoodsLotCode(item) === requestVoucherFilters.lotCode)
+    : []
+  const requestVoucherCustomerOptions = Array.from(new Set(requestVoucherLotItems.map(finishedGoodsCustomerCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const requestVoucherItems = requestVoucherLotItems.filter((item) => !requestVoucherFilters.customerCode || finishedGoodsCustomerCode(item) === requestVoucherFilters.customerCode)
   const requestVoucherNo = `DNNK-${String(requestVoucherFilters.requestDate || todayText()).replace(/-/g, '').slice(2)}-001`
   const requestVoucherRequester = requestVoucherFilters.requestedBy || requestVoucherItems.find((item) => item.receiver)?.receiver || user?.fullName || user?.username || ''
-  const requestVoucherOrderText = requestVoucherFilters.orderCode || Array.from(new Set(requestVoucherItems.map(finishedGoodsOrderCode).filter(Boolean))).slice(0, 3).join(', ') || '-'
+  const requestVoucherCustomerItem = requestVoucherItems.find((item) => finishedGoodsCustomerCode(item))
+  const requestVoucherCustomerCode = requestVoucherFilters.customerCode || (requestVoucherCustomerItem ? finishedGoodsCustomerCode(requestVoucherCustomerItem) : '')
+  const requestVoucherCustomerNameItem = requestVoucherItems.find((item) => finishedGoodsCustomerName(item))
+  const requestVoucherCustomerName = requestVoucherCustomerNameItem ? finishedGoodsCustomerName(requestVoucherCustomerNameItem) : ''
+  const requestVoucherDate = parseInputDate(requestVoucherFilters.requestDate || todayText())
+  const requestVoucherDateText = requestVoucherDate ? `Ngày ${String(requestVoucherDate.getDate()).padStart(2, '0')} tháng ${String(requestVoucherDate.getMonth() + 1).padStart(2, '0')} năm ${requestVoucherDate.getFullYear()}` : ''
   const requestVoucherRows = requestVoucherItems.map((item, index) => ({
     no: index + 1,
     lotCode: finishedGoodsLotCode(item),
@@ -9732,49 +9743,60 @@ function FinishedGoodsPage({ data, setData, user }) {
     note: item.note || '',
     productionOrderCode: finishedGoodsOrderCode(item),
   }))
-  const requestVoucherExportRows = requestVoucherRows.map((row) => ({
-    requestNo: requestVoucherNo,
-    requestDate: requestVoucherFilters.requestDate,
-    requestedBy: requestVoucherRequester,
-    department: 'Sản xuất',
-    productionOrderCode: row.productionOrderCode,
-    reason: requestVoucherFilters.reason,
-    lotCode: row.lotCode,
-    customerCode: row.customerCode,
-    productCode: row.productCode,
-    productNameSpec: row.name,
-    unit: row.unit,
-    qty: row.qty,
-    note: row.note || requestVoucherFilters.note,
-  }))
-  const exportRequestVoucherExcel = () => {
-    if (!requestVoucherExportRows.length) {
-      setNotice('Không có dữ liệu để xuất.')
-      return
+  const requestVoucherDetailRows = requestVoucherRows.map((row) => [row.no, row.name, row.unit, row.qty, row.note || requestVoucherFilters.note || ''])
+  const validateRequestVoucherExport = () => {
+    if (!requestVoucherFilters.lotCode) {
+      setNotice('Vui lòng chọn Mã lô trước khi xuất phiếu.')
+      return false
     }
+    if (!requestVoucherRows.length) {
+      setNotice('Không có dữ liệu để xuất.')
+      return false
+    }
+    return true
+  }
+  const exportRequestVoucherExcel = () => {
+    if (!validateRequestVoucherExport()) return
     const book = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(requestVoucherExportRows), 'PHIEU_DE_NGHI_NHAP_KHO_TP')
+    const sheetData = [
+      ['CÔNG TY CỔ PHẦN SƠN & CHẤT PHỦ HÒA BÌNH'],
+      ['PHIẾU ĐỀ NGHỊ NHẬP KHO THÀNH PHẨM'],
+      [requestVoucherDateText],
+      ['Người yêu cầu', requestVoucherRequester || ''],
+      ['Bộ phận', 'Sản xuất'],
+      ['Tên khách hàng', requestVoucherCustomerName || '-'],
+      ['Mã khách hàng', requestVoucherCustomerCode || '-'],
+      ['Lô sản xuất', requestVoucherFilters.lotCode],
+      ['Lý do yêu cầu', requestVoucherFilters.reason],
+      ['Ghi chú', requestVoucherFilters.note || ''],
+      [],
+      ['STT', 'Tên, mã hiệu vật tư', 'ĐVT', 'Số lượng', 'Ghi chú'],
+      ...requestVoucherDetailRows,
+      [],
+      ['KTT / Trưởng BP', 'Thủ kho', 'QC', 'Người đề nghị'],
+    ]
+    const sheet = XLSX.utils.aoa_to_sheet(sheetData)
+    sheet['!cols'] = [{ wch: 8 }, { wch: 42 }, { wch: 10 }, { wch: 14 }, { wch: 24 }]
+    XLSX.utils.book_append_sheet(book, sheet, 'PHIEU_DE_NGHI_NHAP_KHO_TP')
     XLSX.writeFile(book, `phieu-de-nghi-nhap-kho-${requestVoucherNo}.xlsx`)
   }
   const exportRequestVoucherPdf = () => {
-    if (!requestVoucherRows.length) {
-      setNotice('Không có dữ liệu để xuất.')
-      return
-    }
+    if (!validateRequestVoucherExport()) return
     exportHtmlPdf(reportHtml({
     title: 'PHIẾU ĐỀ NGHỊ NHẬP KHO THÀNH PHẨM',
     meta: [
-      `Ngày phiếu: ${requestVoucherFilters.requestDate}`,
-      `Số phiếu: ${requestVoucherNo}`,
-      `Người đề nghị: ${requestVoucherRequester || '-'}`,
+      requestVoucherDateText,
+      `Người yêu cầu: ${requestVoucherRequester || '-'}`,
       'Bộ phận: Sản xuất',
-      `Lệnh sản xuất: ${requestVoucherOrderText}`,
+      `Tên khách hàng: ${requestVoucherCustomerName || '-'}`,
+      `Mã khách hàng: ${requestVoucherCustomerCode || '-'}`,
+      `Lô sản xuất: ${requestVoucherFilters.lotCode}`,
       `Lý do yêu cầu: ${requestVoucherFilters.reason}`,
       `Ghi chú: ${requestVoucherFilters.note || '-'}`,
     ],
-    headers: ['STT', 'Mã lô', 'Mã khách hàng', 'Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Số lượng', 'Ghi chú'],
-    rows: requestVoucherRows.map((row) => [row.no, row.lotCode, row.customerCode || '-', row.productCode, row.name, row.unit, row.qty, row.note || '']),
-    signatures: ['Người đề nghị', 'QC', 'Thủ kho', 'KTT / Trưởng bộ phận'],
+    headers: ['STT', 'Tên, mã hiệu vật tư', 'ĐVT', 'Số lượng', 'Ghi chú'],
+    rows: requestVoucherDetailRows,
+    signatures: ['KTT / Trưởng BP', 'Thủ kho', 'QC', 'Người đề nghị'],
     }), `phieu-de-nghi-nhap-kho-${requestVoucherNo}.pdf`)
   }
   const productCodeOptions = Array.from(new Set(finishedGoods.map(finishedGoodsProductCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
@@ -10072,9 +10094,9 @@ function FinishedGoodsPage({ data, setData, user }) {
         </div>
         <div className="production-form-grid finished-goods-filters">
           <label>Ngày phiếu<input type="date" value={requestVoucherFilters.requestDate} onChange={(event) => updateRequestVoucherFilter('requestDate', event.target.value)} /></label>
-          <label>Lệnh sản xuất<input value={requestVoucherFilters.orderCode} onChange={(event) => updateRequestVoucherFilter('orderCode', event.target.value)} /></label>
-          <label>Sản phẩm<input value={requestVoucherFilters.product} onChange={(event) => updateRequestVoucherFilter('product', event.target.value)} /></label>
-          <label>Người đề nghị<input value={requestVoucherFilters.requestedBy} onChange={(event) => updateRequestVoucherFilter('requestedBy', event.target.value)} /></label>
+          <label>Mã lô<select value={requestVoucherFilters.lotCode} onChange={(event) => updateRequestVoucherFilter('lotCode', event.target.value)}><option value="">Chọn Mã lô</option>{finishedGoodsLotOptions.map((lotCode) => <option key={lotCode} value={lotCode}>{lotCode}</option>)}</select></label>
+          <label>Mã khách hàng<select value={requestVoucherFilters.customerCode} onChange={(event) => updateRequestVoucherFilter('customerCode', event.target.value)}>{requestVoucherCustomerOptions.length ? requestVoucherCustomerOptions.map((customerCode) => <option key={customerCode} value={customerCode}>{customerCode}</option>) : <option value="">Chưa có mã khách hàng</option>}</select></label>
+          <label>Người yêu cầu<input value={requestVoucherFilters.requestedBy} onChange={(event) => updateRequestVoucherFilter('requestedBy', event.target.value)} /></label>
           <label>Lý do yêu cầu<select value={requestVoucherFilters.reason} onChange={(event) => updateRequestVoucherFilter('reason', event.target.value)}><option>Hoàn thành lệnh sản xuất</option><option>QC đạt</option><option>Nhập lại sau điều chỉnh</option><option>Khác</option></select></label>
           <label className="wide-field">Ghi chú<input value={requestVoucherFilters.note} onChange={(event) => updateRequestVoucherFilter('note', event.target.value)} /></label>
         </div>
@@ -10084,11 +10106,12 @@ function FinishedGoodsPage({ data, setData, user }) {
               <strong>CÔNG TY CỔ PHẦN SƠN &amp; CHẤT PHỦ HÒA BÌNH</strong>
               <h3>PHIẾU ĐỀ NGHỊ NHẬP KHO THÀNH PHẨM</h3>
               <div className="finished-voucher-meta">
-                <span>Ngày phiếu: {requestVoucherFilters.requestDate}</span>
-                <span>Số phiếu: {requestVoucherNo}</span>
-                <span>Người đề nghị: {requestVoucherRequester || '-'}</span>
+                <span>{requestVoucherDateText || '-'}</span>
+                <span>Người yêu cầu: {requestVoucherRequester || '-'}</span>
                 <span>Bộ phận: Sản xuất</span>
-                <span>Lệnh sản xuất: {requestVoucherOrderText}</span>
+                <span>Tên khách hàng: {requestVoucherCustomerName || '-'}</span>
+                <span>Mã khách hàng: {requestVoucherCustomerCode || '-'}</span>
+                <span>Lô sản xuất: {requestVoucherFilters.lotCode || '-'}</span>
                 <span>Lý do yêu cầu: {requestVoucherFilters.reason}</span>
                 <span>Ghi chú: {requestVoucherFilters.note || '-'}</span>
               </div>
@@ -10096,10 +10119,7 @@ function FinishedGoodsPage({ data, setData, user }) {
             <table className="warehouse-table finished-voucher-table request-voucher-table">
               <colgroup>
                 <col style={{ width: '50px' }} />
-                <col style={{ width: '130px' }} />
-                <col style={{ width: '120px' }} />
-                <col style={{ width: '120px' }} />
-                <col style={{ width: '260px' }} />
+                <col style={{ width: '420px' }} />
                 <col style={{ width: '70px' }} />
                 <col style={{ width: '90px' }} />
                 <col style={{ width: '140px' }} />
@@ -10107,10 +10127,7 @@ function FinishedGoodsPage({ data, setData, user }) {
               <thead>
                 <tr>
                   <th>STT</th>
-                  <th>Mã lô</th>
-                  <th>Mã khách hàng</th>
-                  <th>Mã sản phẩm</th>
-                  <th>Tên sản phẩm / Quy cách</th>
+                  <th>Tên, mã hiệu vật tư</th>
                   <th>ĐVT</th>
                   <th>Số lượng</th>
                   <th>Ghi chú</th>
@@ -10120,23 +10137,20 @@ function FinishedGoodsPage({ data, setData, user }) {
                 {requestVoucherRows.map((row) => (
                   <tr key={`${row.no}-${row.productCode}-${row.productionOrderCode}`}>
                     <td>{row.no}</td>
-                    <td>{row.lotCode}</td>
-                    <td>{row.customerCode || '-'}</td>
-                    <td>{row.productCode}</td>
                     <td>{row.name}</td>
                     <td>{row.unit}</td>
                     <td>{row.qty}</td>
                     <td>{row.note || '-'}</td>
                   </tr>
                 ))}
-                {requestVoucherRows.length === 0 && <tr><td className="empty-row" colSpan={8}>Không có dữ liệu thành phẩm phù hợp bộ lọc.</td></tr>}
+                {requestVoucherRows.length === 0 && <tr><td className="empty-row" colSpan={5}>Vui lòng chọn Mã lô để lập phiếu.</td></tr>}
               </tbody>
             </table>
             <div className="finished-voucher-signature-row">
-              <strong>Người đề nghị</strong>
-              <strong>QC</strong>
-              <strong>Thủ kho</strong>
               <strong>KTT / Trưởng bộ phận</strong>
+              <strong>Thủ kho</strong>
+              <strong>QC</strong>
+              <strong>Người đề nghị</strong>
             </div>
           </div>
         )}
