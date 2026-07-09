@@ -3959,307 +3959,103 @@ function PseudoQr({ value }) {
 function RawMaterialsPage({ data, setData }) {
   const importMaterialCatalogRef = useRef(null)
   const [notice, setNotice] = useState('')
-  const [pdfPreviewRows, setPdfPreviewRows] = useState([])
-  const [pdfPreviewFileName, setPdfPreviewFileName] = useState('')
+  const [importPreviewRows, setImportPreviewRows] = useState([])
+  const [importPreviewFileName, setImportPreviewFileName] = useState('')
   const materialLots = normalizeMaterialLots(data.materialLots || [])
   const downloadMaterialCatalogTemplate = () => {
     const rows = [
-      { receiptDate: '2026-07-01', receiptNo: 'NM-07/26-001', supplierName: 'CTY TNHH PRIZE STONE', STT: 1, 'Mã số': 'SPB063', 'Đơn vị tính': 'Kg', 'Số lượng thực nhập': 1750 },
-      { receiptDate: '2026-07-01', receiptNo: 'NM-07/26-001', supplierName: 'CTY TNHH PRIZE STONE', STT: 2, 'Mã số': 'SD11', 'Đơn vị tính': 'Kg', 'Số lượng thực nhập': 2450 },
+      ['PHIẾU NHẬP KHO'],
+      ['stt', 'Mã số', 'ĐVT', 'Số lượng thực nhập', 'Ngày nhập', 'Số phiếu', 'Nhà cung cấp'],
+      [1, 'SPB063', 'Kg', 1750, '01/07/2026', 'NM-07/26-001', 'CTY TNHH PRIZE STONE'],
+      [2, 'SD11', 'Kg', 2450, '01/07/2026', 'NM-07/26-001', 'CTY TNHH PRIZE STONE'],
     ]
-    const sheet = XLSX.utils.json_to_sheet(rows)
+    const sheet = XLSX.utils.aoa_to_sheet(rows)
     const book = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(book, sheet, 'Bravo')
     XLSX.writeFile(book, 'mau-cap-nhat-lo-bravo.xlsx')
   }
   const excelDateText = (value) => {
-    if (!value) return todayText()
+    if (!value) return ''
     if (typeof value === 'number') {
       const parsed = XLSX.SSF.parse_date_code(value)
       if (parsed) return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`
     }
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10)
     const text = String(value).trim()
     const match = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
     if (match) return `${match[3]}-${String(match[2]).padStart(2, '0')}-${String(match[1]).padStart(2, '0')}`
     return text.slice(0, 10)
   }
   const cellText = (value) => String(value ?? '').trim()
-  const normalizedCell = (value) => normalizeText(cellText(value))
-  const findValueNearLabel = (rows, patterns = []) => {
-    for (const row of rows) {
-      for (let index = 0; index < row.length; index += 1) {
-        const text = normalizedCell(row[index])
-        if (patterns.some((pattern) => text.includes(pattern))) {
-          const sameCellText = cellText(row[index])
-          const afterColon = sameCellText.includes(':') ? sameCellText.split(':').slice(1).join(':').trim() : ''
-          if (afterColon) return afterColon
-          for (let next = index + 1; next < row.length; next += 1) {
-            if (cellText(row[next])) return row[next]
-          }
-        }
-      }
-    }
-    return ''
-  }
-  const findHeaderIndex = (rows) => rows.findIndex((row) => {
-    const normalized = row.map(normalizedCell)
-    return normalized.some((cell) => cell === 'stt')
-      && normalized.some((cell) => cell === 'ma so' || cell.includes('ma vat tu'))
-      && normalized.some((cell) => cell.includes('don vi'))
-      && normalized.some((cell) => cell.includes('so luong thuc nhap') || cell.includes('so luong nhap') || cell === 'receivedqty')
-  })
-  const columnIndex = (header = [], patterns = []) => header.findIndex((cell) => {
-    const text = normalizedCell(cell)
-    return patterns.some((pattern) => text === pattern || text.includes(pattern))
-  })
-  const parseBravoReceiptRows = (rows = []) => {
-    const headerIndex = findHeaderIndex(rows)
-    if (headerIndex < 0) return []
-    const header = rows[headerIndex]
-    const sttIndex = columnIndex(header, ['stt'])
-    const materialIndex = columnIndex(header, ['ma so', 'ma vat tu'])
-    const unitIndex = columnIndex(header, ['don vi'])
-    const qtyIndex = columnIndex(header, ['so luong thuc nhap', 'so luong nhap', 'receivedqty'])
-    const receiptDateIndex = columnIndex(header, ['receiptdate', 'ngay', 'ngay nhap', 'ngay chung tu'])
-    const receiptNoIndex = columnIndex(header, ['receiptno', 'so phieu', 'so phieu nhap', 'so chung tu'])
-    const supplierIndex = columnIndex(header, ['suppliername', 'nguoi giao hang', 'ho ten nguoi giao hang', 'nha cung cap'])
-    const headerReceiptDate = excelDateText(findValueNearLabel(rows.slice(0, headerIndex), ['ngay', 'ngay chung tu', 'ngay nhap']))
-    const headerReceiptNo = cellText(findValueNearLabel(rows.slice(0, headerIndex), ['so phieu', 'so chung tu', 'so phieu nhap']))
-    const headerSupplier = cellText(findValueNearLabel(rows.slice(0, headerIndex), ['ho ten nguoi giao hang', 'nguoi giao hang', 'nha cung cap']))
-    return rows.slice(headerIndex + 1).map((row) => {
-      const stt = cellText(row[sttIndex])
-      const materialCode = cellText(row[materialIndex])
-      const unit = cellText(row[unitIndex]) || 'Kg'
-      const receivedQty = num(row[qtyIndex])
-      return {
-        receiptDate: receiptDateIndex >= 0 && cellText(row[receiptDateIndex]) ? excelDateText(row[receiptDateIndex]) : headerReceiptDate,
-        receiptNo: receiptNoIndex >= 0 && cellText(row[receiptNoIndex]) ? cellText(row[receiptNoIndex]) : headerReceiptNo,
-        supplierName: supplierIndex >= 0 && cellText(row[supplierIndex]) ? cellText(row[supplierIndex]) : headerSupplier,
-        stt,
-        materialCode,
-        unit,
-        receivedQty,
-      }
-    }).filter((row) => row.receiptDate && row.receiptNo && row.materialCode && row.stt && row.receivedQty > 0)
-  }
-  const decodePdfString = (value = '') => value
-    .replace(/\\([nrtbf()\\])/g, (_, char) => ({ n: '\n', r: '\r', t: '\t', b: '\b', f: '\f', '(': '(', ')': ')', '\\': '\\' }[char] || char))
-    .replace(/\\([0-7]{1,3})/g, (_, octal) => String.fromCharCode(parseInt(octal, 8)))
-  const decodePdfHexString = (hexValue = '') => {
-    const hex = hexValue.replace(/\s+/g, '')
-    if (!hex) return ''
-    if (hex.length % 4 === 0 && /^00/.test(hex)) {
-      let text = ''
-      for (let index = 0; index < hex.length; index += 4) {
-        const code = parseInt(hex.slice(index, index + 4), 16)
-        if (code && code < 65535) text += String.fromCharCode(code)
-      }
-      return text
-    }
-    let text = ''
-    for (let index = 0; index < hex.length; index += 2) {
-      const code = parseInt(hex.slice(index, index + 2), 16)
-      if (Number.isFinite(code) && code > 0) text += String.fromCharCode(code)
-    }
-    return text
-  }
-  const extractPdfTextFromContent = (content = '') => {
-    const chunks = []
-    const textBlocks = content.match(/BT[\s\S]*?ET/g) || [content]
-    textBlocks.forEach((block) => {
-      const literalMatches = block.matchAll(/\((?:\\.|[^\\)])*\)/g)
-      Array.from(literalMatches).forEach((match) => chunks.push(decodePdfString(match[0].slice(1, -1))))
-      const hexMatches = block.matchAll(/<([0-9A-Fa-f\s]{4,})>/g)
-      Array.from(hexMatches).forEach((match) => {
-        const text = decodePdfHexString(match[1])
-        if (text.trim()) chunks.push(text)
-      })
-    })
-    return chunks.join('\n')
-  }
-  const inflatePdfStream = async (bytes) => {
-    if (typeof DecompressionStream === 'undefined') return ''
-    try {
-      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate'))
-      const buffer = await new Response(stream).arrayBuffer()
-      return new TextDecoder('latin1').decode(buffer)
-    } catch {
-      return ''
-    }
-  }
-  const extractPdfText = async (arrayBuffer) => {
-    const bytes = new Uint8Array(arrayBuffer)
-    const binary = new TextDecoder('latin1').decode(bytes)
-    const textParts = [extractPdfTextFromContent(binary)]
-    const streamRegex = /<<(?:.|\r|\n)*?>>\s*stream\r?\n/g
-    let match = streamRegex.exec(binary)
-    while (match) {
-      const streamStart = match.index + match[0].length
-      const endIndex = binary.indexOf('endstream', streamStart)
-      if (endIndex < 0) break
-      const dict = match[0]
-      const rawStream = bytes.slice(streamStart, endIndex)
-      if (/FlateDecode/i.test(dict)) {
-        const inflated = await inflatePdfStream(rawStream)
-        if (inflated) textParts.push(extractPdfTextFromContent(inflated))
-      } else {
-        textParts.push(extractPdfTextFromContent(new TextDecoder('latin1').decode(rawStream)))
-      }
-      match = streamRegex.exec(binary)
-    }
-    return textParts.join('\n')
-  }
-  const parseVietnameseNumber = (value = '') => {
+  const normalizedCell = (value) => normalizeText(cellText(value)).replace(/\u0111/g, 'd').replace(/\u0110/g, 'd')
+  const isEmptyImportRow = (row = []) => !row.slice(0, 7).some((cell) => cellText(cell))
+  const parseImportQty = (value = '') => {
+    if (typeof value === 'number') return value
     const raw = String(value || '').trim()
     if (!raw) return 0
     if (raw.includes(',') && raw.includes('.')) return num(raw.replace(/\./g, '').replace(',', '.'))
     if (raw.includes(',')) return num(raw.replace(',', '.'))
     return num(raw)
   }
-  const cleanPdfToken = (value = '') => String(value || '').replace(/[|;]/g, '').replace(/^[^\w\d]+|[^\w\d.,/-]+$/g, '').trim()
-  const isBravoUnitToken = (value = '') => {
-    const unitKey = normalizeText(cleanPdfToken(value))
-    return ['kg', 'kgs', 'tan', 'cai', 'lit', 'thung'].includes(unitKey)
+  const isValidReceiptDate = (value = '') => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) && !Number.isNaN(Date.parse(`${value}T00:00:00`))
+  const validateBravoImportHeader = (header = []) => {
+    const expected = ['stt', 'ma so', 'dvt', 'so luong thuc nhap', 'ngay nhap', 'so phieu', 'nha cung cap']
+    return expected.every((text, index) => normalizedCell(header[index]) === text)
   }
-  const isBravoMaterialCode = (value = '') => /^[A-Z0-9]{2,}$/i.test(cleanPdfToken(value))
-  const isBravoNumberToken = (value = '') => /^[\d.,]+$/.test(cleanPdfToken(value))
-  const parseBravoPdfDate = (text = '') => {
-    const source = String(text || '')
-    const longMatch = source.match(/ng[aà]y\s+(\d{1,2})\s+th[aá]ng\s+(\d{1,2})\s+n[aă]m\s+(\d{4})/i)
-    if (longMatch) return `${longMatch[3]}-${String(longMatch[2]).padStart(2, '0')}-${String(longMatch[1]).padStart(2, '0')}`
-    const shortMatch = source.match(/(?:ngay|ng\u00e0y)?\s*:?\s*(\d{1,2})[/-](\d{1,2})[/-](\d{4})/i)
-    if (shortMatch) return `${shortMatch[3]}-${String(shortMatch[2]).padStart(2, '0')}-${String(shortMatch[1]).padStart(2, '0')}`
-    return ''
-  }
-  const parseBravoPdfLine = (line = '', header = {}) => {
-    const normalizedLine = String(line || '').replace(/[|;]/g, ' ').replace(/\s+/g, ' ').trim()
-    const sttMatch = normalizedLine.match(/^(\d{1,3})\s+(.+)$/)
-    if (!sttMatch) return null
-    const stt = sttMatch[1]
-    const tokens = sttMatch[2].split(/\s+/).map(cleanPdfToken).filter(Boolean)
-    for (let index = tokens.length - 1; index >= 1; index -= 1) {
-      if (!isBravoUnitToken(tokens[index])) continue
-      const materialCode = cleanPdfToken(tokens[index - 1])
-      const qtyToken = cleanPdfToken(tokens[index + 1])
-      if (!isBravoMaterialCode(materialCode) || !isBravoNumberToken(qtyToken)) continue
-      const receivedQty = parseVietnameseNumber(qtyToken)
-      if (receivedQty <= 0) continue
-      return {
-        receiptDate: header.receiptDate,
-        receiptNo: header.receiptNo,
-        supplierName: header.supplierName,
-        stt,
-        materialCode,
-        unit: tokens[index],
-        receivedQty,
+  const parseBravoReceiptRows = (rows = []) => {
+    const titleRow = normalizedCell(rows[0]?.[0])
+    const headerIndex = titleRow === 'phieu nhap kho' ? 1 : 0
+    const header = rows[headerIndex] || []
+    if (!validateBravoImportHeader(header)) throw new Error('Header file import không đúng mẫu.')
+    const parsedRows = []
+    for (let rowIndex = headerIndex + 1; rowIndex < rows.length; rowIndex += 1) {
+      const row = rows[rowIndex] || []
+      if (isEmptyImportRow(row)) break
+      const parsedRow = {
+        stt: cellText(row[0]),
+        materialCode: cellText(row[1]),
+        unit: cellText(row[2]),
+        receivedQty: parseImportQty(row[3]),
+        receiptDate: excelDateText(row[4]),
+        receiptNo: cellText(row[5]),
+        supplierName: cellText(row[6]),
       }
-    }
-    return null
-  }
-  const parseBravoPdfTokenRows = (text = '', header = {}) => {
-    const tokens = String(text || '')
-      .replace(/[|;]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .split(/\s+/)
-      .map(cleanPdfToken)
-      .filter(Boolean)
-    const rows = []
-    let cursor = 0
-    for (let expectedStt = 1; expectedStt <= 500; expectedStt += 1) {
-      const sttIndex = tokens.findIndex((token, index) => index >= cursor && token === String(expectedStt))
-      if (sttIndex < 0) break
-      const nextSttIndex = tokens.findIndex((token, index) => index > sttIndex && token === String(expectedStt + 1))
-      const scanEnd = nextSttIndex > -1 ? nextSttIndex : Math.min(tokens.length, sttIndex + 80)
-      let candidate = null
-      for (let index = sttIndex + 1; index < scanEnd; index += 1) {
-        if (!isBravoUnitToken(tokens[index])) continue
-        const materialCode = cleanPdfToken(tokens[index - 1])
-        const qtyToken = cleanPdfToken(tokens[index + 1])
-        if (!isBravoMaterialCode(materialCode) || !isBravoNumberToken(qtyToken)) continue
-        const receivedQty = parseVietnameseNumber(qtyToken)
-        if (receivedQty <= 0) continue
-        candidate = {
-          ...header,
-          stt: String(expectedStt),
-          materialCode,
-          unit: cleanPdfToken(tokens[index]),
-          receivedQty,
-        }
+      if (
+        !parsedRow.materialCode
+        || !parsedRow.unit
+        || parsedRow.receivedQty <= 0
+        || !isValidReceiptDate(parsedRow.receiptDate)
+        || !parsedRow.receiptNo
+        || !parsedRow.supplierName
+      ) {
+        throw new Error(`Dòng số ${rowIndex + 1} không hợp lệ.`)
       }
-      if (!candidate) break
-      rows.push(candidate)
-      cursor = scanEnd
+      parsedRows.push(parsedRow)
     }
-    return rows
-  }
-  const parseBravoPdfText = (text = '') => {
-    const normalizedText = text
-      .replace(/\u0000/g, '')
-      .replace(/[ \t]+/g, ' ')
-      .replace(/\r/g, '\n')
-      .replace(/\n{2,}/g, '\n')
-      .trim()
-    const flatText = normalizedText.replace(/\n+/g, ' ')
-    const receiptDate = parseBravoPdfDate(flatText)
-    const receiptMatch = flatText.match(/(?:^|\s)(?:so|s\u1ed1)\s*(?:phieu|phi\u1ebfu)?\s*:?\s*([A-Z0-9][A-Z0-9./-]+)/i)
-      || flatText.match(/(?:so|s\u1ed1)\s+(?:chung\s+tu|ch\u1ee9ng\s+t\u1eeb)\s*:?\s*([A-Z0-9][A-Z0-9./-]+)/i)
-    const supplierMatch = flatText.match(/(?:-?\s*)?(?:ho\s+ten\s+nguoi\s+giao\s+hang|h\u1ecd\s+t\u00ean\s+ng\u01b0\u1eddi\s+giao\s+h\u00e0ng|nguoi\s+giao\s+hang|ng\u01b0\u1eddi\s+giao\s+h\u00e0ng)\s*:?\s*(.+?)(?=\s+(?:stt|so\s+thu\s+tu|s\u1ed1\s+th\u1ee9\s+t\u1ef1|ma\s+so|m\u00e3\s+s\u1ed1|dia\s+chi|\u0111\u1ecba\s+ch\u1ec9|kem\s+theo|k\u00e8m\s+theo|nhap\s+tai|nh\u1eadp\s+t\u1ea1i|ly\s+do|l\u00fd\s+do|\d{1,3}\s+.+?\s+[A-Z0-9]{2,}\s+kg\b)\b|$)/i)
-    const receiptNoFallback = flatText.match(/\b[A-Z]{1,4}-\d{2}\/\d{2}-\d{3,}\b/i)
-    const firstDetailMatch = flatText.match(/\s\d{1,3}\s+.+?\s+[A-Z0-9]{2,}\s+(?:kg|kgs)\s+[\d.,]+/i)
-    const headerText = firstDetailMatch ? flatText.slice(0, firstDetailMatch.index) : flatText
-    const supplierFallback = headerText.match(/(?:giao\s+hang|giao\s+h\u00e0ng)\s*:?\s*(.+)$/i)
-      || headerText.match(/\b(CTY\s+TNHH\s+.+)$/i)
-    const header = {
-      receiptDate,
-      receiptNo: cellText(receiptMatch?.[1] || receiptNoFallback?.[0] || ''),
-      supplierName: cellText(supplierMatch?.[1] || supplierFallback?.[1] || '').replace(/\s{2,}/g, ' '),
-    }
-    if (!header.receiptDate || !header.receiptNo || !header.supplierName) return []
-    const detailRows = []
-    normalizedText.split('\n').forEach((line) => {
-      const parsed = parseBravoPdfLine(line, header)
-      if (parsed) detailRows.push(parsed)
-    })
-    const tokenRows = parseBravoPdfTokenRows(flatText, header)
-    if (tokenRows.length > detailRows.length) {
-      detailRows.splice(0, detailRows.length, ...tokenRows)
-    }
-    if (!detailRows.length) {
-      const rowRegex = /(?:^|\s)(\d{1,3})\s+(.{0,180}?)\s+([A-Z0-9]{2,})\s+(Kg|KG|kg|T[aấ]n|Tan|C[aá]i|Cai|L[ií]t|Lit|Th[uù]ng|Thung)\s+([\d.]+,\d{2}|[\d.,]+)\s+[\d.]+,\d{2}\s+[\d.]+,\d{2}/g
-      let rowMatch = rowRegex.exec(flatText)
-      while (rowMatch) {
-        const receivedQty = parseVietnameseNumber(rowMatch[5])
-        if (receivedQty > 0) {
-          detailRows.push({
-            ...header,
-            stt: rowMatch[1],
-            materialCode: rowMatch[3],
-            unit: rowMatch[4],
-            receivedQty,
-          })
-        }
-        rowMatch = rowRegex.exec(flatText)
-      }
-    }
-    return detailRows.filter((row) => row.receiptDate && row.receiptNo && row.supplierName && row.materialCode && row.receivedQty > 0)
+    return parsedRows
   }
   const importBravoRows = (parsedRows = [], sourceLabel = 'Import phiếu nhập Bravo') => {
     if (!parsedRows.length) {
-      setNotice('Không đọc được dữ liệu PDF. Vui lòng kiểm tra file hoặc nhập Excel.')
+      setNotice('Không có dòng phiếu nhập Bravo hợp lệ để import.')
       return
     }
     setData((current) => {
       const existingLots = normalizeMaterialLots(current.materialLots || [])
       const duplicateKeys = new Set(existingLots.map((lot) => [lot.receiptNo || lot.bravoReceiptNo, normalizeCode(lot.materialCode), lot.stt].join('|')))
+      const importKeys = new Set()
+      const hasDuplicate = parsedRows.some((row) => {
+        const key = [row.receiptNo, normalizeCode(row.materialCode), row.stt].join('|')
+        if (duplicateKeys.has(key) || importKeys.has(key)) return true
+        importKeys.add(key)
+        return false
+      })
+      if (hasDuplicate) {
+        setNotice('Dữ liệu đã tồn tại.')
+        return current
+      }
       const nextLots = []
-      let duplicateCount = 0
       parsedRows.forEach((row) => {
         const key = [row.receiptNo, normalizeCode(row.materialCode), row.stt].join('|')
-        if (duplicateKeys.has(key)) {
-          duplicateCount += 1
-          return
-        }
         duplicateKeys.add(key)
         const internalLotCode = buildInternalLotCode(row.materialCode, row.receiptDate, [...existingLots, ...nextLots], row.stt)
         nextLots.push(normalizeMaterialLot({
@@ -4272,38 +4068,20 @@ function RawMaterialsPage({ data, setData }) {
           internalLotCode,
         }))
       })
-      setNotice(`Đã import ${nextLots.length} dòng vật tư${duplicateCount ? `. ${duplicateCount} dòng vật tư này đã được import trước đó.` : '.'}`)
+      setNotice(`Đã import ${nextLots.length} dòng vật tư.`)
       return addLogToData({
         ...current,
         materialLots: [...nextLots, ...existingLots],
-      }, `${sourceLabel}: thêm ${nextLots.length} dòng, bỏ qua ${duplicateCount} dòng trùng.`)
+      }, `${sourceLabel}: thêm ${nextLots.length} dòng.`)
     })
-    setPdfPreviewRows([])
-    setPdfPreviewFileName('')
+    setImportPreviewRows([])
+    setImportPreviewFileName('')
   }
   const importMaterialCatalogExcel = (file) => {
     if (!file) return
-    if (/\.pdf$/i.test(file.name || '')) {
-      const reader = new FileReader()
-      reader.onload = async (event) => {
-        try {
-          const pdfText = await extractPdfText(event.target.result)
-          const parsedRows = parseBravoPdfText(pdfText)
-          if (!parsedRows.length) {
-            setNotice(pdfText.trim() ? 'Không tìm thấy dòng vật tư trong PDF. Vui lòng kiểm tra file Bravo.' : 'Không đọc được dữ liệu PDF. Vui lòng kiểm tra file hoặc nhập Excel.')
-            return
-          }
-          setPdfPreviewRows(parsedRows)
-          setPdfPreviewFileName(file.name || 'PDF Bravo')
-          setNotice(`Đã đọc ${parsedRows.length} dòng từ PDF. Vui lòng kiểm tra preview trước khi xác nhận import.`)
-        } catch (error) {
-          console.error(error)
-          setNotice('Không đọc được dữ liệu PDF. Vui lòng kiểm tra file hoặc nhập Excel.')
-        } finally {
-          if (importMaterialCatalogRef.current) importMaterialCatalogRef.current.value = ''
-        }
-      }
-      reader.readAsArrayBuffer(file)
+    if (!/\.(xlsx|xls)$/i.test(file.name || '')) {
+      setNotice('Chỉ hỗ trợ file Excel chuẩn .xlsx hoặc .xls.')
+      if (importMaterialCatalogRef.current) importMaterialCatalogRef.current.value = ''
       return
     }
     const reader = new FileReader()
@@ -4317,10 +4095,14 @@ function RawMaterialsPage({ data, setData }) {
           setNotice('Không có dòng phiếu nhập Bravo hợp lệ để import.')
           return
         }
-        importBravoRows(parsedRows, 'Import phiếu nhập Bravo từ Excel/CSV')
+        setImportPreviewRows(parsedRows)
+        setImportPreviewFileName(file.name || 'Excel Bravo')
+        setNotice(`Đã đọc ${parsedRows.length} dòng từ Excel. Vui lòng kiểm tra preview trước khi xác nhận import.`)
       } catch (error) {
         console.error(error)
-        setNotice('Không thể đọc file Bravo. Vui lòng kiểm tra file Excel/CSV đã chuyển đổi.')
+        setImportPreviewRows([])
+        setImportPreviewFileName('')
+        setNotice(error?.message || 'Không thể đọc file Bravo. Vui lòng kiểm tra file Excel chuẩn.')
       } finally {
         if (importMaterialCatalogRef.current) importMaterialCatalogRef.current.value = ''
       }
@@ -4337,19 +4119,19 @@ function RawMaterialsPage({ data, setData }) {
             <button className="secondary-button" onClick={downloadMaterialCatalogTemplate}>Tải file mẫu Bravo</button>
           </div>
         </div>
-        <input ref={importMaterialCatalogRef} type="file" accept=".xlsx,.xls,.csv,.pdf" hidden onChange={(event) => importMaterialCatalogExcel(event.target.files?.[0])} />
+        <input ref={importMaterialCatalogRef} type="file" accept=".xlsx,.xls" hidden onChange={(event) => importMaterialCatalogExcel(event.target.files?.[0])} />
         {notice && <div className="process-alert">{notice}</div>}
       </section>
-      {pdfPreviewRows.length > 0 && (
+      {importPreviewRows.length > 0 && (
         <section className="panel">
           <div className="section-heading-row">
-            <div><span className="section-kicker">Preview PDF</span><h2>{pdfPreviewFileName}</h2></div>
+            <div><span className="section-kicker">Preview Excel</span><h2>{importPreviewFileName}</h2></div>
             <div className="action-row">
-              <button className="primary-button" type="button" onClick={() => importBravoRows(pdfPreviewRows, 'Import phiếu nhập Bravo từ PDF')}>Xác nhận import</button>
-              <button className="secondary-button" type="button" onClick={() => { setPdfPreviewRows([]); setPdfPreviewFileName(''); setNotice('Đã hủy preview PDF.') }}>Hủy</button>
+              <button className="primary-button" type="button" onClick={() => importBravoRows(importPreviewRows, 'Import phiếu nhập Bravo từ Excel')}>Xác nhận Import</button>
+              <button className="secondary-button" type="button" onClick={() => { setImportPreviewRows([]); setImportPreviewFileName(''); setNotice('Đã hủy preview Excel.') }}>Hủy</button>
             </div>
           </div>
-          <SimpleTable headers={['Ngày', 'Số phiếu', 'Người giao hàng', 'STT', 'Mã vật tư', 'Đơn vị tính', 'Số lượng thực nhập', 'Internal Lot dự kiến']} rows={pdfPreviewRows.map((item) => (
+          <SimpleTable headers={['Ngày', 'Số phiếu', 'Nhà cung cấp', 'STT', 'Mã vật tư', 'ĐVT', 'Số lượng', 'Internal Lot dự kiến']} rows={importPreviewRows.map((item) => (
             <tr key={`${item.receiptNo}-${item.materialCode}-${item.stt}`}>
               <td>{item.receiptDate}</td>
               <td>{item.receiptNo}</td>
@@ -4365,7 +4147,7 @@ function RawMaterialsPage({ data, setData }) {
       )}
       <section className="panel">
         <h3>Danh sách lô đã cập nhật</h3>
-        <SimpleTable headers={['Ngày', 'Số phiếu', 'Người giao hàng', 'STT', 'Mã vật tư', 'Đơn vị tính', 'Số lượng thực nhập', 'Internal Lot', 'Số dư truy xuất', 'Trạng thái']} rows={materialLots.map((item) => (
+        <SimpleTable headers={['Ngày', 'Số phiếu', 'Nhà cung cấp', 'STT', 'Mã vật tư', 'ĐVT', 'Số lượng thực nhập', 'Internal Lot', 'Số dư truy xuất', 'Trạng thái']} rows={materialLots.map((item) => (
           <tr key={item.id}>
             <td>{item.receiptDate || item.bravoReceiptDate}</td>
             <td>{item.receiptNo || item.bravoReceiptNo}</td>
