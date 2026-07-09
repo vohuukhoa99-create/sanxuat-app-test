@@ -1,4 +1,5 @@
 import { Children, Component, cloneElement, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -9605,6 +9606,57 @@ function PackagingPage({ data, setData, user }) {
   )
 }
 
+function PrintFinishedGoodsRequestA5({ voucher }) {
+  if (!voucher) return null
+  return (
+    <main className="print-only-a5" aria-hidden={!voucher}>
+      <div className="print-a5-company">CÔNG TY CỔ PHẦN SƠN &amp; CHẤT PHỦ HÒA BÌNH</div>
+      <h1>PHIẾU ĐỀ NGHỊ NHẬP KHO THÀNH PHẨM</h1>
+      <div className="print-a5-date">{voucher.dateText || '-'}</div>
+      <section className="print-a5-meta">
+        <div className="print-a5-meta-column">
+          <div>Người yêu cầu: {voucher.requester || '-'}</div>
+          <div>Bộ phận: Sản xuất</div>
+          <div>Lý do yêu cầu: {voucher.reason || '-'}</div>
+        </div>
+        <div className="print-a5-meta-column">
+          <div>Tên khách hàng: {voucher.customerName || '-'}</div>
+          <div>Lô sản xuất: {voucher.lotCode || '-'}</div>
+          <div>Ghi chú: {voucher.note || '-'}</div>
+        </div>
+      </section>
+      <table className="print-a5-table">
+        <thead>
+          <tr>
+            <th>STT</th>
+            <th>Tên, mã hiệu vật tư</th>
+            <th>ĐVT</th>
+            <th>Số lượng</th>
+            <th>Ghi chú</th>
+          </tr>
+        </thead>
+        <tbody>
+          {voucher.rows.map((row) => (
+            <tr key={`${row.no}-${row.name}-${row.unit}`}>
+              <td>{row.no}</td>
+              <td>{row.name}</td>
+              <td>{row.unit}</td>
+              <td>{row.qty}</td>
+              <td>{row.note || voucher.note || ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <section className="print-a5-signature-row">
+        <div>KTT / Trưởng BP</div>
+        <div>Thủ kho</div>
+        <div>QC</div>
+        <div>Người đề nghị</div>
+      </section>
+    </main>
+  )
+}
+
 function FinishedGoodsPage({ data, setData, user }) {
   const showWarehouseLocation = false
   const packingLogs = data.packingLogs || []
@@ -9625,6 +9677,7 @@ function FinishedGoodsPage({ data, setData, user }) {
   const [dailyReportFilters, setDailyReportFilters] = useState(dailyReportDraftFilters)
   const [form, setForm] = useState(null)
   const [notice, setNotice] = useState('')
+  const [printRequestVoucherData, setPrintRequestVoucherData] = useState(null)
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], FINISHED_GOODS_LEGACY_STAGE)
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
   const filteredFinishedGoods = filterFinishedGoods(finishedGoods, filters)
@@ -9699,75 +9752,6 @@ function FinishedGoodsPage({ data, setData, user }) {
       document.body.removeChild(container)
     }
   }
-  const printHtmlDocument = (html, title = 'Phiếu') => {
-    if (typeof window === 'undefined') return
-    const win = window.open('', '_blank')
-    if (!win) return
-    win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${htmlEscape(title)}</title><style>
-      * { box-sizing: border-box; }
-      html, body { width: 210mm; height: 148mm; margin: 0; padding: 0; overflow: hidden; }
-      body { background: #fff; color: #111; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: 10.5px; }
-      .print-area { width: 180mm; height: 128mm; max-height: 128mm; padding: 0; margin: 0; overflow: hidden; background: #fff; page-break-after: avoid; break-after: avoid; }
-      .company { font-weight: 700; margin-bottom: 6px; }
-      h1 { margin: 0 0 3px; text-align: center; font-size: 16px; letter-spacing: 0; }
-      .voucher-date { margin: 0 0 9px; text-align: center; font-size: 11px; }
-      .voucher-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 24px; margin-bottom: 9px; }
-      .voucher-meta-column { display: grid; gap: 5px; }
-      table { width: 169mm; max-width: 169mm; margin: 0; border-collapse: collapse; table-layout: fixed; }
-      th, td { border: 1px solid #222; padding: 4px 5px; vertical-align: middle; }
-      th { text-align: center; font-weight: 700; background: #f3f4f6; }
-      th:nth-child(1), td:nth-child(1) { width: 12mm; text-align: center; }
-      th:nth-child(2), td:nth-child(2) { width: 80mm; text-align: left; }
-      th:nth-child(3), td:nth-child(3) { width: 20mm; text-align: center; }
-      th:nth-child(4), td:nth-child(4) { width: 22mm; text-align: right; }
-      th:nth-child(5), td:nth-child(5) { width: 35mm; text-align: left; }
-      .signature-row { width: 169mm; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 12mm; text-align: center; font-weight: 700; }
-      .signature-row div { min-height: 38mm; }
-      .no-print { display: none !important; }
-      @media print {
-        @page {
-          size: A5 landscape;
-          margin: 10mm 10mm 10mm 20mm;
-        }
-
-        html, body {
-          width: 210mm;
-          height: 148mm;
-          margin: 0;
-          padding: 0;
-          overflow: hidden;
-        }
-
-        body * {
-          visibility: hidden;
-        }
-
-        .print-area,
-        .print-area * {
-          visibility: visible;
-        }
-
-        .print-area {
-          position: absolute;
-          left: 0;
-          top: 0;
-          width: 180mm;
-          height: 128mm;
-          max-height: 128mm;
-          overflow: hidden;
-          page-break-after: avoid;
-          break-after: avoid;
-        }
-
-        .no-print {
-          display: none !important;
-        }
-      }
-    </style></head><body>${html}</body></html>`)
-    win.document.close()
-    win.focus()
-    window.setTimeout(() => win.print(), 150)
-  }
   const filterFinishedGoodsForVoucher = (source = [], filtersToUse = {}) => source.filter((item) => {
     const dateText = String(item.importDate || '').slice(0, 10)
     const orderText = String(finishedGoodsOrderCode(item)).toLowerCase()
@@ -9836,45 +9820,31 @@ function FinishedGoodsPage({ data, setData, user }) {
   }
   const exportRequestVoucherPdf = () => {
     if (!validateRequestVoucherExport()) return
-    const rowsHtml = requestVoucherRows.map((row) => `
-      <tr>
-        <td>${htmlEscape(row.no)}</td>
-        <td>${htmlEscape(row.name)}</td>
-        <td>${htmlEscape(row.unit)}</td>
-        <td>${htmlEscape(row.qty)}</td>
-        <td>${htmlEscape(row.note || requestVoucherFilters.note || '')}</td>
-      </tr>
-    `).join('')
-    printHtmlDocument(`
-      <main class="print-area">
-        <div class="company">CÔNG TY CỔ PHẦN SƠN &amp; CHẤT PHỦ HÒA BÌNH</div>
-        <h1>PHIẾU ĐỀ NGHỊ NHẬP KHO THÀNH PHẨM</h1>
-        <div class="voucher-date">${htmlEscape(requestVoucherDateText)}</div>
-        <section class="voucher-meta">
-          <div class="voucher-meta-column">
-            <div>Người yêu cầu: ${htmlEscape(requestVoucherRequester || '-')}</div>
-            <div>Bộ phận: Sản xuất</div>
-            <div>Lý do yêu cầu: ${htmlEscape(requestVoucherFilters.reason)}</div>
-          </div>
-          <div class="voucher-meta-column">
-            <div>Tên khách hàng: ${htmlEscape(requestVoucherCustomerName || '-')}</div>
-            <div>Lô sản xuất: ${htmlEscape(requestVoucherFilters.lotCode)}</div>
-            <div>Ghi chú: ${htmlEscape(requestVoucherFilters.note || '-')}</div>
-          </div>
-        </section>
-        <table>
-          <thead><tr><th>STT</th><th>Tên, mã hiệu vật tư</th><th>ĐVT</th><th>Số lượng</th><th>Ghi chú</th></tr></thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>
-        <section class="signature-row">
-          <div>KTT / Trưởng BP</div>
-          <div>Thủ kho</div>
-          <div>QC</div>
-          <div>Người đề nghị</div>
-        </section>
-      </main>
-    `, `phieu-de-nghi-nhap-kho-${requestVoucherNo}`)
+    const voucher = {
+      dateText: requestVoucherDateText,
+      requester: requestVoucherRequester,
+      customerName: requestVoucherCustomerName,
+      lotCode: requestVoucherFilters.lotCode,
+      reason: requestVoucherFilters.reason,
+      note: requestVoucherFilters.note,
+      rows: requestVoucherRows,
+    }
+    setPrintRequestVoucherData(voucher)
+    document.body.classList.add('printing-finished-request-a5-active')
+    window.setTimeout(() => {
+      const printArea = document.querySelector('.print-only-a5')
+      if (printArea) console.info('print-only-a5 rect', printArea.getBoundingClientRect())
+      window.print()
+    }, 100)
   }
+  useEffect(() => {
+    const cleanupPrint = () => {
+      document.body.classList.remove('printing-finished-request-a5-active')
+      setPrintRequestVoucherData(null)
+    }
+    window.addEventListener('afterprint', cleanupPrint)
+    return () => window.removeEventListener('afterprint', cleanupPrint)
+  }, [])
   const productCodeOptions = Array.from(new Set(finishedGoods.map(finishedGoodsProductCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const orderCodeOptions = Array.from(new Set(finishedGoods.map(finishedGoodsOrderCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const updateDailyReportDraftFilter = (field, value) => setDailyReportDraftFilters((current) => ({ ...current, [field]: value }))
@@ -10061,6 +10031,11 @@ function FinishedGoodsPage({ data, setData, user }) {
   }
 
   return (
+    <>
+    {printRequestVoucherData && typeof document !== 'undefined' && createPortal(
+      <PrintFinishedGoodsRequestA5 voucher={printRequestVoucherData} />,
+      document.body,
+    )}
     <div className="page-content finished-goods-page">
       <section className="panel">
         <div className="section-heading-row">
@@ -10290,6 +10265,7 @@ function FinishedGoodsPage({ data, setData, user }) {
         </div>
       )}
     </div>
+    </>
   )
 }
 
