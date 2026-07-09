@@ -4116,27 +4116,32 @@ function RawMaterialsPage({ data, setData }) {
     if (raw.includes(',')) return num(raw.replace(',', '.'))
     return num(raw)
   }
+  const cleanPdfToken = (value = '') => String(value || '').replace(/[|;]/g, '').replace(/^[^\w\d]+|[^\w\d.,/-]+$/g, '').trim()
+  const isBravoUnitToken = (value = '') => {
+    const unitKey = normalizeText(cleanPdfToken(value))
+    return ['kg', 'kgs', 'tan', 'cai', 'lit', 'thung'].includes(unitKey)
+  }
+  const isBravoMaterialCode = (value = '') => /^[A-Z0-9]{2,}$/i.test(cleanPdfToken(value))
+  const isBravoNumberToken = (value = '') => /^[\d.,]+$/.test(cleanPdfToken(value))
   const parseBravoPdfDate = (text = '') => {
     const source = String(text || '')
     const longMatch = source.match(/ng[aà]y\s+(\d{1,2})\s+th[aá]ng\s+(\d{1,2})\s+n[aă]m\s+(\d{4})/i)
     if (longMatch) return `${longMatch[3]}-${String(longMatch[2]).padStart(2, '0')}-${String(longMatch[1]).padStart(2, '0')}`
-    const shortMatch = source.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/)
+    const shortMatch = source.match(/(?:ngay|ng\u00e0y)?\s*:?\s*(\d{1,2})[/-](\d{1,2})[/-](\d{4})/i)
     if (shortMatch) return `${shortMatch[3]}-${String(shortMatch[2]).padStart(2, '0')}-${String(shortMatch[1]).padStart(2, '0')}`
     return ''
   }
   const parseBravoPdfLine = (line = '', header = {}) => {
-    const normalizedLine = String(line || '').replace(/\s+/g, ' ').trim()
+    const normalizedLine = String(line || '').replace(/[|;]/g, ' ').replace(/\s+/g, ' ').trim()
     const sttMatch = normalizedLine.match(/^(\d{1,3})\s+(.+)$/)
     if (!sttMatch) return null
     const stt = sttMatch[1]
-    const tokens = sttMatch[2].split(/\s+/).filter(Boolean)
-    const unitTokens = new Set(['kg', 'kgs', 'tan', 'tấn', 'cai', 'cái', 'lit', 'lít', 'thung', 'thùng'])
+    const tokens = sttMatch[2].split(/\s+/).map(cleanPdfToken).filter(Boolean)
     for (let index = tokens.length - 1; index >= 1; index -= 1) {
-      const unitKey = normalizeText(tokens[index])
-      if (!unitTokens.has(unitKey)) continue
-      const materialCode = tokens[index - 1]
-      const qtyToken = tokens[index + 1]
-      if (!/^[A-Z0-9]{2,}$/i.test(materialCode || '') || !/^[\d.,]+$/.test(qtyToken || '')) continue
+      if (!isBravoUnitToken(tokens[index])) continue
+      const materialCode = cleanPdfToken(tokens[index - 1])
+      const qtyToken = cleanPdfToken(tokens[index + 1])
+      if (!isBravoMaterialCode(materialCode) || !isBravoNumberToken(qtyToken)) continue
       const receivedQty = parseVietnameseNumber(qtyToken)
       if (receivedQty <= 0) continue
       return {
@@ -4151,6 +4156,43 @@ function RawMaterialsPage({ data, setData }) {
     }
     return null
   }
+  const parseBravoPdfTokenRows = (text = '', header = {}) => {
+    const tokens = String(text || '')
+      .replace(/[|;]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .map(cleanPdfToken)
+      .filter(Boolean)
+    const rows = []
+    let cursor = 0
+    for (let expectedStt = 1; expectedStt <= 500; expectedStt += 1) {
+      const sttIndex = tokens.findIndex((token, index) => index >= cursor && token === String(expectedStt))
+      if (sttIndex < 0) break
+      const nextSttIndex = tokens.findIndex((token, index) => index > sttIndex && token === String(expectedStt + 1))
+      const scanEnd = nextSttIndex > -1 ? nextSttIndex : Math.min(tokens.length, sttIndex + 80)
+      let candidate = null
+      for (let index = sttIndex + 1; index < scanEnd; index += 1) {
+        if (!isBravoUnitToken(tokens[index])) continue
+        const materialCode = cleanPdfToken(tokens[index - 1])
+        const qtyToken = cleanPdfToken(tokens[index + 1])
+        if (!isBravoMaterialCode(materialCode) || !isBravoNumberToken(qtyToken)) continue
+        const receivedQty = parseVietnameseNumber(qtyToken)
+        if (receivedQty <= 0) continue
+        candidate = {
+          ...header,
+          stt: String(expectedStt),
+          materialCode,
+          unit: cleanPdfToken(tokens[index]),
+          receivedQty,
+        }
+      }
+      if (!candidate) break
+      rows.push(candidate)
+      cursor = scanEnd
+    }
+    return rows
+  }
   const parseBravoPdfText = (text = '') => {
     const normalizedText = text
       .replace(/\u0000/g, '')
@@ -4160,13 +4202,18 @@ function RawMaterialsPage({ data, setData }) {
       .trim()
     const flatText = normalizedText.replace(/\n+/g, ' ')
     const receiptDate = parseBravoPdfDate(flatText)
-    const receiptMatch = flatText.match(/(?:^|\s)(?:s[oố])\s*:?\s*([A-Z0-9][A-Z0-9./-]+)/i)
-      || flatText.match(/(?:s[oố]\s+(?:phi[eế]u|ch[uứ]ng\s+t[uừ]))\s*:?\s*([A-Z0-9][A-Z0-9./-]+)/i)
-    const supplierMatch = flatText.match(/(?:-?\s*)?(?:h[oọ]\s+t[eê]n\s+ng[uư][oờ]i\s+giao\s+h[aà]ng|ngu[oờ]i\s+giao\s+h[aà]ng)\s*:?\s*(.+?)(?=\s+(?:stt|số\s+thứ\s+tự|ma\s+so|m[aã]\s+s[oố]|dia\s+chi|[dđ][iị]a\s+ch[iỉ]|k[eế]m\s+theo|nh[aậ]p\s+t[aạ]i|l[yý]\s+do)\b|$)/i)
+    const receiptMatch = flatText.match(/(?:^|\s)(?:so|s\u1ed1)\s*(?:phieu|phi\u1ebfu)?\s*:?\s*([A-Z0-9][A-Z0-9./-]+)/i)
+      || flatText.match(/(?:so|s\u1ed1)\s+(?:chung\s+tu|ch\u1ee9ng\s+t\u1eeb)\s*:?\s*([A-Z0-9][A-Z0-9./-]+)/i)
+    const supplierMatch = flatText.match(/(?:-?\s*)?(?:ho\s+ten\s+nguoi\s+giao\s+hang|h\u1ecd\s+t\u00ean\s+ng\u01b0\u1eddi\s+giao\s+h\u00e0ng|nguoi\s+giao\s+hang|ng\u01b0\u1eddi\s+giao\s+h\u00e0ng)\s*:?\s*(.+?)(?=\s+(?:stt|so\s+thu\s+tu|s\u1ed1\s+th\u1ee9\s+t\u1ef1|ma\s+so|m\u00e3\s+s\u1ed1|dia\s+chi|\u0111\u1ecba\s+ch\u1ec9|kem\s+theo|k\u00e8m\s+theo|nhap\s+tai|nh\u1eadp\s+t\u1ea1i|ly\s+do|l\u00fd\s+do|\d{1,3}\s+.+?\s+[A-Z0-9]{2,}\s+kg\b)\b|$)/i)
+    const receiptNoFallback = flatText.match(/\b[A-Z]{1,4}-\d{2}\/\d{2}-\d{3,}\b/i)
+    const firstDetailMatch = flatText.match(/\s\d{1,3}\s+.+?\s+[A-Z0-9]{2,}\s+(?:kg|kgs)\s+[\d.,]+/i)
+    const headerText = firstDetailMatch ? flatText.slice(0, firstDetailMatch.index) : flatText
+    const supplierFallback = headerText.match(/(?:giao\s+hang|giao\s+h\u00e0ng)\s*:?\s*(.+)$/i)
+      || headerText.match(/\b(CTY\s+TNHH\s+.+)$/i)
     const header = {
       receiptDate,
-      receiptNo: cellText(receiptMatch?.[1] || ''),
-      supplierName: cellText(supplierMatch?.[1] || '').replace(/\s{2,}/g, ' '),
+      receiptNo: cellText(receiptMatch?.[1] || receiptNoFallback?.[0] || ''),
+      supplierName: cellText(supplierMatch?.[1] || supplierFallback?.[1] || '').replace(/\s{2,}/g, ' '),
     }
     if (!header.receiptDate || !header.receiptNo || !header.supplierName) return []
     const detailRows = []
@@ -4174,6 +4221,10 @@ function RawMaterialsPage({ data, setData }) {
       const parsed = parseBravoPdfLine(line, header)
       if (parsed) detailRows.push(parsed)
     })
+    const tokenRows = parseBravoPdfTokenRows(flatText, header)
+    if (tokenRows.length > detailRows.length) {
+      detailRows.splice(0, detailRows.length, ...tokenRows)
+    }
     if (!detailRows.length) {
       const rowRegex = /(?:^|\s)(\d{1,3})\s+(.{0,180}?)\s+([A-Z0-9]{2,})\s+(Kg|KG|kg|T[aấ]n|Tan|C[aá]i|Cai|L[ií]t|Lit|Th[uù]ng|Thung)\s+([\d.]+,\d{2}|[\d.,]+)\s+[\d.]+,\d{2}\s+[\d.]+,\d{2}/g
       let rowMatch = rowRegex.exec(flatText)
