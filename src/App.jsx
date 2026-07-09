@@ -4131,32 +4131,34 @@ function RawMaterialsPage({ data, setData }) {
               <button className="secondary-button" type="button" onClick={() => { setImportPreviewRows([]); setImportPreviewFileName(''); setNotice('Đã hủy preview Excel.') }}>Hủy</button>
             </div>
           </div>
-          <SimpleTable headers={['Ngày', 'Số phiếu', 'Nhà cung cấp', 'STT', 'Mã vật tư', 'ĐVT', 'Số lượng', 'Internal Lot dự kiến']} rows={importPreviewRows.map((item) => (
+          <SimpleTable headers={['STT', 'Mã vật tư', 'ĐVT', 'Số lượng', 'Internal Lot dự kiến', 'Ngày', 'Số phiếu', 'Nhà cung cấp', 'Số dư truy xuất', 'Trạng thái']} rows={importPreviewRows.map((item) => (
             <tr key={`${item.receiptNo}-${item.materialCode}-${item.stt}`}>
-              <td>{item.receiptDate}</td>
-              <td>{item.receiptNo}</td>
-              <td>{item.supplierName}</td>
               <td>{item.stt}</td>
               <td>{item.materialCode}</td>
               <td>{item.unit}</td>
               <td>{kg(item.receivedQty)}</td>
               <td><code>{buildInternalLotCode(item.materialCode, item.receiptDate, materialLots, item.stt)}</code></td>
+              <td>{item.receiptDate}</td>
+              <td>{item.receiptNo}</td>
+              <td>{item.supplierName}</td>
+              <td>{kg(item.receivedQty)}</td>
+              <td><span className="dispatch-badge ready">active</span></td>
             </tr>
           ))} />
         </section>
       )}
       <section className="panel">
         <h3>Danh sách lô đã cập nhật</h3>
-        <SimpleTable headers={['Ngày', 'Số phiếu', 'Nhà cung cấp', 'STT', 'Mã vật tư', 'ĐVT', 'Số lượng thực nhập', 'Internal Lot', 'Số dư truy xuất', 'Trạng thái']} rows={materialLots.map((item) => (
+        <SimpleTable headers={['STT', 'Mã vật tư', 'ĐVT', 'Số lượng', 'Internal Lot', 'Ngày', 'Số phiếu', 'Nhà cung cấp', 'Số dư truy xuất', 'Trạng thái']} rows={materialLots.map((item) => (
           <tr key={item.id}>
-            <td>{item.receiptDate || item.bravoReceiptDate}</td>
-            <td>{item.receiptNo || item.bravoReceiptNo}</td>
-            <td>{item.supplierName}</td>
             <td>{item.stt || '-'}</td>
             <td>{item.materialCode}</td>
             <td>{item.unit}</td>
             <td>{kg(item.receivedQty ?? item.importedQty)}</td>
             <td><code>{item.internalLotCode}</code></td>
+            <td>{item.receiptDate || item.bravoReceiptDate}</td>
+            <td>{item.receiptNo || item.bravoReceiptNo}</td>
+            <td>{item.supplierName}</td>
             <td>{kg(item.traceBalanceQty)}</td>
             <td><span className={`dispatch-badge ${item.status === 'blocked' ? 'fail' : item.status === 'depleted' ? 'locked' : 'ready'}`}>{item.status}</span></td>
           </tr>
