@@ -9705,9 +9705,9 @@ function FinishedGoodsPage({ data, setData, user }) {
     if (!win) return
     win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${htmlEscape(title)}</title><style>
       * { box-sizing: border-box; }
-      html, body { width: 210mm; height: 148mm; margin: 0; overflow: hidden; }
+      html, body { width: 210mm; height: 148mm; margin: 0; padding: 0; overflow: hidden; }
       body { background: #fff; color: #111; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: 10.5px; }
-      .print-page { width: 198mm; height: 136mm; max-height: 136mm; padding: 0; margin: 0; overflow: hidden; background: #fff; page-break-after: avoid; break-after: avoid; }
+      .print-area { width: 180mm; height: 128mm; max-height: 128mm; padding: 0; margin: 0; overflow: hidden; background: #fff; page-break-after: avoid; break-after: avoid; }
       .company { font-weight: 700; margin-bottom: 6px; }
       h1 { margin: 0 0 3px; text-align: center; font-size: 16px; letter-spacing: 0; }
       .voucher-date { margin: 0 0 9px; text-align: center; font-size: 11px; }
@@ -9723,7 +9723,46 @@ function FinishedGoodsPage({ data, setData, user }) {
       th:nth-child(5), td:nth-child(5) { width: 35mm; text-align: left; }
       .signature-row { width: 169mm; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 12mm; text-align: center; font-weight: 700; }
       .signature-row div { min-height: 38mm; }
-      @page { size: A5 landscape; margin: 6mm; }
+      .no-print { display: none !important; }
+      @media print {
+        @page {
+          size: A5 landscape;
+          margin: 10mm 10mm 10mm 20mm;
+        }
+
+        html, body {
+          width: 210mm;
+          height: 148mm;
+          margin: 0;
+          padding: 0;
+          overflow: hidden;
+        }
+
+        body * {
+          visibility: hidden;
+        }
+
+        .print-area,
+        .print-area * {
+          visibility: visible;
+        }
+
+        .print-area {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 180mm;
+          height: 128mm;
+          max-height: 128mm;
+          overflow: hidden;
+          page-break-after: avoid;
+          break-after: avoid;
+        }
+
+        .no-print {
+          display: none !important;
+        }
+      }
     </style></head><body>${html}</body></html>`)
     win.document.close()
     win.focus()
@@ -9807,7 +9846,7 @@ function FinishedGoodsPage({ data, setData, user }) {
       </tr>
     `).join('')
     printHtmlDocument(`
-      <main class="print-page">
+      <main class="print-area">
         <div class="company">CÔNG TY CỔ PHẦN SƠN &amp; CHẤT PHỦ HÒA BÌNH</div>
         <h1>PHIẾU ĐỀ NGHỊ NHẬP KHO THÀNH PHẨM</h1>
         <div class="voucher-date">${htmlEscape(requestVoucherDateText)}</div>
