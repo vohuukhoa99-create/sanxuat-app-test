@@ -4395,6 +4395,45 @@ td .primary-button {
   gap: 18px;
 }
 
+.bravo-voucher-preview {
+  display: grid;
+  gap: 14px;
+}
+
+.bravo-voucher-header {
+  display: grid;
+  gap: 8px;
+}
+
+.bravo-voucher-header h3 {
+  margin: 0;
+  text-align: center;
+  font-size: 22px;
+  letter-spacing: 0;
+}
+
+.bravo-voucher-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 18px;
+  font-size: 14px;
+}
+
+.bravo-voucher-table th:nth-child(2),
+.bravo-voucher-table td:nth-child(2) {
+  min-width: 280px;
+  text-align: left;
+}
+
+.bravo-signature-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  min-height: 72px;
+  padding-top: 14px;
+  text-align: center;
+}
+
 .finished-goods-filters {
   margin-bottom: 16px;
 }

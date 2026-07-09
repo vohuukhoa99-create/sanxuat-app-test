@@ -9437,11 +9437,88 @@ function FinishedGoodsPage({ data, setData, user }) {
     .sort(sortOldestOrders)
   const [activeOrder, setActiveOrder] = useState(null)
   const [filters, setFilters] = useState({ fromDate: '', toDate: '', orderCode: '', product: '', lot: '', location: '' })
+  const [bravoFilters, setBravoFilters] = useState({ fromDate: todayText(), toDate: todayText(), orderCode: '', product: '', note: '' })
+  const [showBravoVoucher, setShowBravoVoucher] = useState(true)
   const [form, setForm] = useState(null)
   const [notice, setNotice] = useState('')
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], FINISHED_GOODS_LEGACY_STAGE)
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
   const filteredFinishedGoods = filterFinishedGoods(finishedGoods, filters)
+  const updateBravoFilter = (field, value) => setBravoFilters((current) => ({ ...current, [field]: value }))
+  const bravoFinishedGoods = finishedGoods.filter((item) => {
+    const dateText = String(item.importDate || '').slice(0, 10)
+    const lotText = String(item.lot || item.orderCode || item.orderId || '').toLowerCase()
+    const productText = String(item.productName || item.product || '').toLowerCase()
+    if (bravoFilters.fromDate && dateText && dateText < bravoFilters.fromDate) return false
+    if (bravoFilters.toDate && dateText && dateText > bravoFilters.toDate) return false
+    if (bravoFilters.orderCode && !lotText.includes(bravoFilters.orderCode.toLowerCase())) return false
+    if (bravoFilters.product && !productText.includes(bravoFilters.product.toLowerCase())) return false
+    return true
+  })
+  const bravoVoucherDate = bravoFilters.toDate || bravoFilters.fromDate || todayText()
+  const bravoVoucherNo = (() => {
+    const ymd = String(bravoVoucherDate || todayText()).replace(/-/g, '')
+    return `PN-${ymd}-001`
+  })()
+  const bravoReceiver = bravoFinishedGoods.find((item) => item.receiver)?.receiver || user?.fullName || user?.username || ''
+  const bravoLineName = (item = {}) => [item.productName || item.product || '-', item.spec].filter(Boolean).join(' - ')
+  const bravoUnit = (item = {}) => /thùng|thung|25\s*kg|10\s*kg|5\s*kg/i.test(String(item.spec || '')) ? 'Thùng' : (item.unit || 'Thùng')
+  const bravoItemCode = (item = {}) => item.productCode || item.finishedCode || item.lot || item.orderCode || item.orderId || ''
+  const bravoRows = bravoFinishedGoods.map((item, index) => ({
+    no: index + 1,
+    name: bravoLineName(item),
+    code: bravoItemCode(item),
+    unit: bravoUnit(item),
+    documentQty: num(item.boxes),
+    actualQty: num(item.boxes),
+    unitPrice: '',
+    amount: '',
+  }))
+  const bravoTotalQty = bravoRows.reduce((sum, item) => sum + num(item.actualQty), 0)
+  const bravoSheetRows = () => [
+    ['CÔNG TY CỔ PHẦN SƠN & CHẤT PHỦ HÒA BÌNH'],
+    [],
+    ['PHIẾU NHẬP KHO'],
+    [`Ngày chứng từ: ${bravoVoucherDate}`, `Số phiếu: ${bravoVoucherNo}`],
+    [`Người nhập kho: ${bravoReceiver}`, 'Kho nhập: Kho KCN Vĩnh Lộc (K02)'],
+    [`Ghi chú: ${bravoFilters.note || ''}`],
+    [],
+    ['STT', 'Tên, nhãn, quy cách phẩm chất vật tư, dụng cụ sản phẩm, hàng hóa', 'Mã số', 'Đơn vị tính', 'Số lượng theo chứng từ', 'Số lượng thực nhập', 'Đơn giá', 'Thành tiền'],
+    ...bravoRows.map((row) => [row.no, row.name, row.code, row.unit, row.documentQty, row.actualQty, row.unitPrice, row.amount]),
+    ['Tổng cộng', '', '', '', bravoTotalQty, bravoTotalQty, '', ''],
+    [],
+    ['Người lập phiếu', 'Người nhập kho', 'Thủ kho', 'Kế toán trưởng'],
+    ['', '', '', ''],
+    ['', '', '', ''],
+  ]
+  const exportBravoExcel = () => {
+    const book = XLSX.utils.book_new()
+    const sheet = XLSX.utils.aoa_to_sheet(bravoSheetRows())
+    sheet['!cols'] = [{ wch: 8 }, { wch: 56 }, { wch: 18 }, { wch: 14 }, { wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 14 }]
+    XLSX.utils.book_append_sheet(book, sheet, 'Phieu nhap Bravo')
+    XLSX.writeFile(book, `phieu-nhap-bravo-${bravoVoucherNo}.xlsx`)
+  }
+  const exportBravoPdf = () => {
+    const doc = new jsPDF({ orientation: 'landscape' })
+    doc.text('CONG TY CO PHAN SON & CHAT PHU HOA BINH', 14, 14)
+    doc.text('PHIEU NHAP KHO', 130, 24)
+    doc.text(`Ngay chung tu: ${bravoVoucherDate}`, 14, 34)
+    doc.text(`So phieu: ${bravoVoucherNo}`, 210, 34)
+    doc.text(`Nguoi nhap kho: ${bravoReceiver || '-'}`, 14, 42)
+    doc.text('Kho nhap: Kho KCN Vinh Loc (K02)', 210, 42)
+    autoTable(doc, {
+      startY: 52,
+      head: [['STT', 'Ten, nhan, quy cach', 'Ma so', 'DVT', 'SL chung tu', 'SL thuc nhap', 'Don gia', 'Thanh tien']],
+      body: bravoRows.map((row) => [row.no, row.name, row.code, row.unit, row.documentQty, row.actualQty, row.unitPrice || '', row.amount || '']),
+      foot: [['Tong cong', '', '', '', bravoTotalQty, bravoTotalQty, '', '']],
+    })
+    const finalY = doc.lastAutoTable?.finalY || 120
+    doc.text('Nguoi lap phieu', 25, finalY + 20)
+    doc.text('Nguoi nhap kho', 95, finalY + 20)
+    doc.text('Thu kho', 170, finalY + 20)
+    doc.text('Ke toan truong', 235, finalY + 20)
+    doc.save(`phieu-nhap-bravo-${bravoVoucherNo}.pdf`)
+  }
   useEffect(() => {
     logScreenValidation(FINISHED_GOODS_LEGACY_STAGE, waitingOrders, 'validateFinishedGoods', validateFinishedGoods)
   }, [waitingOrders])
@@ -9662,6 +9739,82 @@ function FinishedGoodsPage({ data, setData, user }) {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="panel finished-goods-bravo-panel">
+        <div className="section-heading-row">
+          <div><span className="section-kicker">Phiếu nhập Bravo</span><h2>Phiếu nhập kho</h2></div>
+          <div className="action-row">
+            <button className="secondary-button" type="button" onClick={() => setShowBravoVoucher((current) => !current)}>Xem phiếu</button>
+            <button className="secondary-button" type="button" onClick={exportBravoExcel}>Xuất Excel Bravo</button>
+            <button className="secondary-button" type="button" onClick={exportBravoPdf}>Xuất PDF phiếu</button>
+          </div>
+        </div>
+        <div className="production-form-grid finished-goods-filters">
+          <label>Từ ngày<input type="date" value={bravoFilters.fromDate} onChange={(event) => updateBravoFilter('fromDate', event.target.value)} /></label>
+          <label>Đến ngày<input type="date" value={bravoFilters.toDate} onChange={(event) => updateBravoFilter('toDate', event.target.value)} /></label>
+          <label>Mã lô<input value={bravoFilters.orderCode} onChange={(event) => updateBravoFilter('orderCode', event.target.value)} /></label>
+          <label>Sản phẩm<input value={bravoFilters.product} onChange={(event) => updateBravoFilter('product', event.target.value)} /></label>
+          <label className="wide-field">Ghi chú<input value={bravoFilters.note} onChange={(event) => updateBravoFilter('note', event.target.value)} /></label>
+        </div>
+        {showBravoVoucher && (
+          <div className="warehouse-table-wrapper bravo-voucher-preview">
+            <div className="bravo-voucher-header">
+              <strong>CÔNG TY CỔ PHẦN SƠN &amp; CHẤT PHỦ HÒA BÌNH</strong>
+              <h3>PHIẾU NHẬP KHO</h3>
+              <div className="bravo-voucher-meta">
+                <span>Ngày chứng từ: {bravoVoucherDate}</span>
+                <span>Số phiếu: {bravoVoucherNo}</span>
+                <span>Người nhập kho: {bravoReceiver || '-'}</span>
+                <span>Kho nhập: Kho KCN Vĩnh Lộc (K02)</span>
+                <span>Ghi chú: {bravoFilters.note || '-'}</span>
+              </div>
+            </div>
+            <table className="warehouse-table bravo-voucher-table">
+              <thead>
+                <tr>
+                  <th>STT</th>
+                  <th>Tên, nhãn, quy cách phẩm chất vật tư, dụng cụ sản phẩm, hàng hóa</th>
+                  <th>Mã số</th>
+                  <th>Đơn vị tính</th>
+                  <th>Số lượng theo chứng từ</th>
+                  <th>Số lượng thực nhập</th>
+                  <th>Đơn giá</th>
+                  <th>Thành tiền</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bravoRows.map((row) => (
+                  <tr key={`${row.no}-${row.code}`}>
+                    <td>{row.no}</td>
+                    <td>{row.name}</td>
+                    <td>{row.code}</td>
+                    <td>{row.unit}</td>
+                    <td>{row.documentQty}</td>
+                    <td>{row.actualQty}</td>
+                    <td>{row.unitPrice}</td>
+                    <td>{row.amount}</td>
+                  </tr>
+                ))}
+                {bravoRows.length === 0 && <tr><td className="empty-row" colSpan={8}>Không có dữ liệu thành phẩm phù hợp bộ lọc.</td></tr>}
+                <tr>
+                  <td><strong>Tổng cộng</strong></td>
+                  <td colSpan={3}></td>
+                  <td><strong>{bravoTotalQty}</strong></td>
+                  <td><strong>{bravoTotalQty}</strong></td>
+                  <td></td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+            <div className="bravo-signature-row">
+              <strong>Người lập phiếu</strong>
+              <strong>Người nhập kho</strong>
+              <strong>Thủ kho</strong>
+              <strong>Kế toán trưởng</strong>
+            </div>
+          </div>
+        )}
       </section>
 
       {form && activeOrder && (
