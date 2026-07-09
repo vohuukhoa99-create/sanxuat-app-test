@@ -9621,6 +9621,10 @@ function FinishedGoodsPage({ data, setData, user }) {
   const [filters, setFilters] = useState({ fromDate: '', toDate: '', orderCode: '', product: '', lot: '', location: '' })
   const [finishedVoucherFilters, setFinishedVoucherFilters] = useState({ fromDate: todayText(), toDate: todayText(), orderCode: '', product: '', note: '' })
   const [showFinishedVoucher, setShowFinishedVoucher] = useState(true)
+  const [requestVoucherFilters, setRequestVoucherFilters] = useState({ requestDate: todayText(), orderCode: '', product: '', requestedBy: '', reason: 'Hoàn thành lệnh sản xuất', note: '' })
+  const [showRequestVoucher, setShowRequestVoucher] = useState(true)
+  const [dailyReportDraftFilters, setDailyReportDraftFilters] = useState({ fromDate: todayText(), toDate: todayText(), productCode: '', orderCode: '' })
+  const [dailyReportFilters, setDailyReportFilters] = useState(dailyReportDraftFilters)
   const [form, setForm] = useState(null)
   const [notice, setNotice] = useState('')
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], FINISHED_GOODS_LEGACY_STAGE)
@@ -9646,6 +9650,21 @@ function FinishedGoodsPage({ data, setData, user }) {
   const finishedVoucherLineName = (item = {}) => [item.productName || item.product || '-', item.spec].filter(Boolean).join(' - ')
   const finishedVoucherUnit = (item = {}) => /thùng|thung|25\s*kg|10\s*kg|5\s*kg/i.test(String(item.spec || '')) ? 'Thùng' : (item.unit || 'Thùng')
   const finishedVoucherItemCode = (item = {}) => item.productCode || item.finishedCode || item.lot || item.orderCode || item.orderId || ''
+  const finishedGoodsOrderCode = (item = {}) => item.orderCode || item.orderId || item.lot || ''
+  const finishedGoodsProductCode = (item = {}) => item.productCode || item.finishedCode || item.lot || item.orderCode || item.orderId || ''
+  const finishedGoodsProductName = (item = {}) => item.productName || item.product || '-'
+  const finishedGoodsUnit = (item = {}) => /thùng|thung|25\s*kg|10\s*kg|5\s*kg/i.test(String(item.spec || '')) ? 'Thùng' : (item.unit || 'Thùng')
+  const filterFinishedGoodsForVoucher = (source = [], filtersToUse = {}) => source.filter((item) => {
+    const dateText = String(item.importDate || '').slice(0, 10)
+    const orderText = String(finishedGoodsOrderCode(item)).toLowerCase()
+    const productText = String([finishedGoodsProductCode(item), finishedGoodsProductName(item)].join(' ')).toLowerCase()
+    if (filtersToUse.fromDate && dateText && dateText < filtersToUse.fromDate) return false
+    if (filtersToUse.toDate && dateText && dateText > filtersToUse.toDate) return false
+    if (filtersToUse.orderCode && !orderText.includes(String(filtersToUse.orderCode).toLowerCase())) return false
+    if (filtersToUse.product && !productText.includes(String(filtersToUse.product).toLowerCase())) return false
+    if (filtersToUse.productCode && normalizeCode(finishedGoodsProductCode(item)) !== normalizeCode(filtersToUse.productCode)) return false
+    return true
+  })
   const finishedVoucherRows = voucherFinishedGoods.map((item, index) => ({
     no: index + 1,
     name: finishedVoucherLineName(item),
@@ -9698,6 +9717,129 @@ function FinishedGoodsPage({ data, setData, user }) {
     doc.text('San xuat', 170, finalY + 20)
     doc.text('Quan ly bo phan', 235, finalY + 20)
     doc.save(`phieu-thanh-pham-${finishedVoucherNo}.pdf`)
+  }
+  const updateRequestVoucherFilter = (field, value) => setRequestVoucherFilters((current) => ({ ...current, [field]: value }))
+  const requestVoucherItems = filterFinishedGoodsForVoucher(finishedGoods, {
+    fromDate: requestVoucherFilters.requestDate,
+    toDate: requestVoucherFilters.requestDate,
+    orderCode: requestVoucherFilters.orderCode,
+    product: requestVoucherFilters.product,
+  })
+  const requestVoucherNo = `DNNK-${String(requestVoucherFilters.requestDate || todayText()).replace(/-/g, '').slice(2)}-001`
+  const requestVoucherRequester = requestVoucherFilters.requestedBy || requestVoucherItems.find((item) => item.receiver)?.receiver || user?.fullName || user?.username || ''
+  const requestVoucherOrderText = requestVoucherFilters.orderCode || Array.from(new Set(requestVoucherItems.map(finishedGoodsOrderCode).filter(Boolean))).slice(0, 3).join(', ') || '-'
+  const requestVoucherRows = requestVoucherItems.map((item, index) => ({
+    no: index + 1,
+    productCode: finishedGoodsProductCode(item),
+    productName: finishedGoodsProductName(item),
+    packageSpec: item.spec || '',
+    name: [finishedGoodsProductName(item), item.spec].filter(Boolean).join(' - '),
+    unit: finishedGoodsUnit(item),
+    qty: num(item.boxes),
+    note: item.note || '',
+    productionOrderCode: finishedGoodsOrderCode(item),
+  }))
+  const requestVoucherSheetRows = requestVoucherRows.map((row) => ({
+    requestNo: requestVoucherNo,
+    requestDate: requestVoucherFilters.requestDate,
+    requestedBy: requestVoucherRequester,
+    department: 'Sản xuất',
+    productionOrderCode: row.productionOrderCode,
+    reason: requestVoucherFilters.reason,
+    productCode: row.productCode,
+    productName: row.productName,
+    packageSpec: row.packageSpec,
+    unit: row.unit,
+    qty: row.qty,
+    note: row.note || requestVoucherFilters.note,
+  }))
+  const exportRequestVoucherExcel = () => {
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(requestVoucherSheetRows), 'PHIEU_DE_NGHI_NHAP_KHO')
+    XLSX.writeFile(book, `phieu-de-nghi-nhap-kho-${requestVoucherNo}.xlsx`)
+  }
+  const exportRequestVoucherPdf = () => {
+    const doc = new jsPDF({ orientation: 'landscape' })
+    doc.text('CONG TY CO PHAN SON & CHAT PHU HOA BINH', 14, 14)
+    doc.text('PHIEU DE NGHI NHAP KHO THANH PHAM', 105, 24)
+    doc.text(`Ngay phieu: ${requestVoucherFilters.requestDate}`, 14, 34)
+    doc.text(`So phieu: ${requestVoucherNo}`, 210, 34)
+    doc.text(`Nguoi de nghi: ${requestVoucherRequester || '-'}`, 14, 42)
+    doc.text('Bo phan: San xuat', 210, 42)
+    doc.text(`Lenh san xuat: ${requestVoucherOrderText}`, 14, 50)
+    doc.text(`Ly do: ${requestVoucherFilters.reason}`, 14, 58)
+    doc.text(`Ghi chu: ${requestVoucherFilters.note || '-'}`, 14, 66)
+    autoTable(doc, {
+      startY: 74,
+      head: [['STT', 'Ma san pham', 'Ten san pham / Quy cach', 'DVT', 'So luong', 'Ghi chu']],
+      body: requestVoucherRows.map((row) => [row.no, row.productCode, row.name, row.unit, row.qty, row.note || '']),
+    })
+    const finalY = doc.lastAutoTable?.finalY || 130
+    doc.text('Nguoi de nghi', 25, finalY + 20)
+    doc.text('QC', 95, finalY + 20)
+    doc.text('Thu kho', 170, finalY + 20)
+    doc.text('KTT / Truong bo phan', 225, finalY + 20)
+    doc.save(`phieu-de-nghi-nhap-kho-${requestVoucherNo}.pdf`)
+  }
+  const productCodeOptions = Array.from(new Set(finishedGoods.map(finishedGoodsProductCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const orderCodeOptions = Array.from(new Set(finishedGoods.map(finishedGoodsOrderCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
+  const updateDailyReportDraftFilter = (field, value) => setDailyReportDraftFilters((current) => ({ ...current, [field]: value }))
+  const dailyReportItems = filterFinishedGoodsForVoucher(finishedGoods, {
+    fromDate: dailyReportFilters.fromDate,
+    toDate: dailyReportFilters.toDate,
+    productCode: dailyReportFilters.productCode,
+    orderCode: dailyReportFilters.orderCode,
+  })
+  const dailyReportRows = Object.values(dailyReportItems.reduce((groups, item) => {
+    const productCode = finishedGoodsProductCode(item)
+    const packageSpec = item.spec || ''
+    const key = `${normalizeCode(productCode)}|${normalizeText(packageSpec)}`
+    if (!groups[key]) {
+      groups[key] = {
+        productCode,
+        productName: finishedGoodsProductName(item),
+        packageSpec,
+        unit: finishedGoodsUnit(item),
+        totalQty: 0,
+        orders: new Set(),
+      }
+    }
+    groups[key].totalQty += num(item.boxes)
+    const orderCode = finishedGoodsOrderCode(item)
+    if (orderCode) groups[key].orders.add(orderCode)
+    return groups
+  }, {})).map((row) => ({
+    fromDate: dailyReportFilters.fromDate || '',
+    toDate: dailyReportFilters.toDate || '',
+    productCode: row.productCode,
+    productName: row.productName,
+    packageSpec: row.packageSpec,
+    unit: row.unit,
+    totalQty: Number(row.totalQty.toFixed(3)),
+    productionOrderCount: row.orders.size,
+  })).sort((a, b) => String(a.productCode || '').localeCompare(String(b.productCode || ''), 'vi', { numeric: true })
+    || String(a.packageSpec || '').localeCompare(String(b.packageSpec || ''), 'vi', { numeric: true }))
+  const dailyReportProductTotals = Object.values(dailyReportRows.reduce((groups, row) => {
+    const key = normalizeCode(row.productCode)
+    if (!groups[key]) groups[key] = { productCode: row.productCode, totalQty: 0 }
+    groups[key].totalQty += num(row.totalQty)
+    return groups
+  }, {}))
+  const exportDailyReportExcel = () => {
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(dailyReportRows), 'BAO_CAO_THANH_PHAM')
+    XLSX.writeFile(book, `bao-cao-thanh-pham-${todayText().replaceAll('-', '')}.xlsx`)
+  }
+  const exportDailyReportPdf = () => {
+    const doc = new jsPDF({ orientation: 'landscape' })
+    doc.text('BAO CAO NHAP KHO CUOI NGAY THEO NHOM MA SAN PHAM', 14, 14)
+    doc.text(`Tu ngay: ${dailyReportFilters.fromDate || '-'}    Den ngay: ${dailyReportFilters.toDate || '-'}`, 14, 24)
+    autoTable(doc, {
+      startY: 32,
+      head: [['Ma san pham', 'Ten san pham', 'Quy cach', 'DVT', 'Tong so luong', 'So lenh SX', 'Tu ngay', 'Den ngay']],
+      body: dailyReportRows.map((row) => [row.productCode, row.productName, row.packageSpec, row.unit, row.totalQty, row.productionOrderCount, row.fromDate, row.toDate]),
+    })
+    doc.save(`bao-cao-thanh-pham-${todayText().replaceAll('-', '')}.pdf`)
   }
   useEffect(() => {
     logScreenValidation(FINISHED_GOODS_LEGACY_STAGE, waitingOrders, 'validateFinishedGoods', validateFinishedGoods)
@@ -9984,6 +10126,107 @@ function FinishedGoodsPage({ data, setData, user }) {
               <strong>Sản xuất</strong>
               <strong>Quản lý bộ phận</strong>
             </div>
+          </div>
+        )}
+      </section>
+
+      <section className="panel finished-goods-request-panel">
+        <div className="section-heading-row">
+          <div><span className="section-kicker">Phiếu đề nghị nhập kho</span><h2>Phiếu đề nghị nhập kho thành phẩm</h2></div>
+          <div className="action-row">
+            <button className="secondary-button" type="button" onClick={() => setShowRequestVoucher((current) => !current)}>Xem phiếu</button>
+            <button className="secondary-button" type="button" onClick={exportRequestVoucherExcel}>Xuất Excel</button>
+            <button className="secondary-button" type="button" onClick={exportRequestVoucherPdf}>Xuất PDF phiếu</button>
+          </div>
+        </div>
+        <div className="production-form-grid finished-goods-filters">
+          <label>Ngày phiếu<input type="date" value={requestVoucherFilters.requestDate} onChange={(event) => updateRequestVoucherFilter('requestDate', event.target.value)} /></label>
+          <label>Lệnh sản xuất<input value={requestVoucherFilters.orderCode} onChange={(event) => updateRequestVoucherFilter('orderCode', event.target.value)} /></label>
+          <label>Sản phẩm<input value={requestVoucherFilters.product} onChange={(event) => updateRequestVoucherFilter('product', event.target.value)} /></label>
+          <label>Người đề nghị<input value={requestVoucherFilters.requestedBy} onChange={(event) => updateRequestVoucherFilter('requestedBy', event.target.value)} /></label>
+          <label>Lý do yêu cầu<select value={requestVoucherFilters.reason} onChange={(event) => updateRequestVoucherFilter('reason', event.target.value)}><option>Hoàn thành lệnh sản xuất</option><option>QC đạt</option><option>Nhập lại sau điều chỉnh</option><option>Khác</option></select></label>
+          <label className="wide-field">Ghi chú<input value={requestVoucherFilters.note} onChange={(event) => updateRequestVoucherFilter('note', event.target.value)} /></label>
+        </div>
+        {showRequestVoucher && (
+          <div className="warehouse-table-wrapper finished-voucher-preview">
+            <div className="finished-voucher-header">
+              <strong>CÔNG TY CỔ PHẦN SƠN &amp; CHẤT PHỦ HÒA BÌNH</strong>
+              <h3>PHIẾU ĐỀ NGHỊ NHẬP KHO THÀNH PHẨM</h3>
+              <div className="finished-voucher-meta">
+                <span>Ngày phiếu: {requestVoucherFilters.requestDate}</span>
+                <span>Số phiếu: {requestVoucherNo}</span>
+                <span>Người đề nghị: {requestVoucherRequester || '-'}</span>
+                <span>Bộ phận: Sản xuất</span>
+                <span>Lệnh sản xuất: {requestVoucherOrderText}</span>
+                <span>Lý do yêu cầu: {requestVoucherFilters.reason}</span>
+                <span>Ghi chú: {requestVoucherFilters.note || '-'}</span>
+              </div>
+            </div>
+            <table className="warehouse-table finished-voucher-table">
+              <thead>
+                <tr>
+                  <th>STT</th>
+                  <th>Mã sản phẩm</th>
+                  <th>Tên sản phẩm / Quy cách</th>
+                  <th>ĐVT</th>
+                  <th>Số lượng</th>
+                  <th>Ghi chú</th>
+                </tr>
+              </thead>
+              <tbody>
+                {requestVoucherRows.map((row) => (
+                  <tr key={`${row.no}-${row.productCode}-${row.productionOrderCode}`}>
+                    <td>{row.no}</td>
+                    <td>{row.productCode}</td>
+                    <td>{row.name}</td>
+                    <td>{row.unit}</td>
+                    <td>{row.qty}</td>
+                    <td>{row.note || '-'}</td>
+                  </tr>
+                ))}
+                {requestVoucherRows.length === 0 && <tr><td className="empty-row" colSpan={6}>Không có dữ liệu thành phẩm phù hợp bộ lọc.</td></tr>}
+              </tbody>
+            </table>
+            <div className="finished-voucher-signature-row">
+              <strong>Người đề nghị</strong>
+              <strong>QC</strong>
+              <strong>Thủ kho</strong>
+              <strong>KTT / Trưởng bộ phận</strong>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="panel finished-goods-daily-report-panel">
+        <div className="section-heading-row">
+          <div><span className="section-kicker">Báo cáo nhập kho cuối ngày</span><h2>Báo cáo nhập kho cuối ngày theo nhóm mã sản phẩm</h2></div>
+          <div className="action-row">
+            <button className="primary-button" type="button" onClick={() => setDailyReportFilters(dailyReportDraftFilters)}>Xem báo cáo</button>
+            <button className="secondary-button" type="button" onClick={exportDailyReportExcel}>Xuất Excel</button>
+            <button className="secondary-button" type="button" onClick={exportDailyReportPdf}>Xuất PDF</button>
+          </div>
+        </div>
+        <div className="production-form-grid finished-goods-filters">
+          <label>Từ ngày<input type="date" value={dailyReportDraftFilters.fromDate} onChange={(event) => updateDailyReportDraftFilter('fromDate', event.target.value)} /></label>
+          <label>Đến ngày<input type="date" value={dailyReportDraftFilters.toDate} onChange={(event) => updateDailyReportDraftFilter('toDate', event.target.value)} /></label>
+          <label>Mã sản phẩm<select value={dailyReportDraftFilters.productCode} onChange={(event) => updateDailyReportDraftFilter('productCode', event.target.value)}><option value="">Tất cả</option>{productCodeOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+          <label>Lệnh sản xuất<select value={dailyReportDraftFilters.orderCode} onChange={(event) => updateDailyReportDraftFilter('orderCode', event.target.value)}><option value="">Tất cả</option>{orderCodeOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+        </div>
+        <SimpleTable headers={['Mã sản phẩm', 'Tên sản phẩm', 'Quy cách', 'ĐVT', 'Tổng số lượng', 'Số lệnh sản xuất liên quan', 'Từ ngày', 'Đến ngày']} rows={dailyReportRows.map((row) => (
+          <tr key={`${row.productCode}-${row.packageSpec}`}>
+            <td>{row.productCode}</td>
+            <td>{row.productName}</td>
+            <td>{row.packageSpec}</td>
+            <td>{row.unit}</td>
+            <td>{row.totalQty}</td>
+            <td>{row.productionOrderCount}</td>
+            <td>{row.fromDate || '-'}</td>
+            <td>{row.toDate || '-'}</td>
+          </tr>
+        ))} empty="Chưa có dữ liệu thành phẩm phù hợp bộ lọc." />
+        {dailyReportProductTotals.length > 0 && (
+          <div className="production-log-grid">
+            {dailyReportProductTotals.map((row) => <div key={row.productCode}><span>Tổng {row.productCode}</span><strong>{row.totalQty}</strong></div>)}
           </div>
         )}
       </section>
