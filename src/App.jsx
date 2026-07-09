@@ -1285,18 +1285,19 @@ const normalizeTraceLotStatus = (lot = {}) => {
   return 'active'
 }
 
-const buildInternalLotCode = (materialCode = '', receiptDate = todayText(), lots = []) => {
+const buildInternalLotCode = (materialCode = '', receiptDate = todayText(), lots = [], sequenceOverride = null) => {
   const code = normalizeCode(materialCode) || 'NVL'
   const ymd = String(receiptDate || todayText()).slice(0, 10).replace(/-/g, '')
   const prefix = `LOT-${code}-${ymd}`
-  const sequence = (lots || []).filter((lot) => String(lot.internalLotCode || '').startsWith(prefix)).length + 1
+  const sequence = sequenceOverride ? num(sequenceOverride) : (lots || []).filter((lot) => String(lot.internalLotCode || '').startsWith(prefix)).length + 1
   return `${prefix}-${String(sequence).padStart(3, '0')}`
 }
 
 function normalizeMaterialLot(item = {}) {
-  const importedQty = num(item.importedQty ?? item.quantity ?? item.qty ?? item.weight)
+  const importedQty = num(item.importedQty ?? item.receivedQty ?? item.quantity ?? item.qty ?? item.weight)
   const traceBalanceQty = item.traceBalanceQty == null ? importedQty : num(item.traceBalanceQty)
   const bravoReceiptDate = String(item.bravoReceiptDate || item.importDate || item.receiptDate || todayText()).slice(0, 10)
+  const bravoReceiptNo = item.bravoReceiptNo || item.receiptNo || ''
   const lot = {
     ...item,
     id: item.id || uid('MLOT'),
@@ -1304,7 +1305,11 @@ function normalizeMaterialLot(item = {}) {
     materialCode: String(item.materialCode || '').trim(),
     materialName: item.materialName || item.name || item.materialCode || '',
     unit: item.unit || 'kg',
-    bravoReceiptNo: item.bravoReceiptNo || item.receiptNo || '',
+    stt: item.stt ?? item.no ?? '',
+    receivedQty: importedQty,
+    receiptDate: bravoReceiptDate,
+    receiptNo: bravoReceiptNo,
+    bravoReceiptNo,
     bravoReceiptDate,
     supplierName: item.supplierName || item.supplier || '',
     supplierLotNo: item.supplierLotNo || item.supplierLot || '',
@@ -3957,8 +3962,8 @@ function RawMaterialsPage({ data, setData }) {
   const materialLots = normalizeMaterialLots(data.materialLots || [])
   const downloadMaterialCatalogTemplate = () => {
     const rows = [
-      { 'Ngày nhập': todayText(), 'Số phiếu nhập': 'BRV-001', 'Mã vật tư': 'SW34', 'Tên vật tư': 'Nguyên liệu SW34', 'Đơn vị tính': 'kg', 'Số lượng nhập': 100, 'Nhà cung cấp': 'NCC A', 'Lô nhà cung cấp': 'SUP-LOT-001' },
-      { 'Ngày nhập': todayText(), 'Số phiếu nhập': 'BRV-002', 'Mã vật tư': 'SW34', 'Tên vật tư': 'Nguyên liệu SW34', 'Đơn vị tính': 'kg', 'Số lượng nhập': 200, 'Nhà cung cấp': 'NCC A', 'Lô nhà cung cấp': 'SUP-LOT-002' },
+      { receiptDate: '2026-07-01', receiptNo: 'NM-07/26-001', supplierName: 'CTY TNHH PRIZE STONE', STT: 1, 'Mã số': 'SPB063', 'Đơn vị tính': 'Kg', 'Số lượng thực nhập': 1750 },
+      { receiptDate: '2026-07-01', receiptNo: 'NM-07/26-001', supplierName: 'CTY TNHH PRIZE STONE', STT: 2, 'Mã số': 'SD11', 'Đơn vị tính': 'Kg', 'Số lượng thực nhập': 2450 },
     ]
     const sheet = XLSX.utils.json_to_sheet(rows)
     const book = XLSX.utils.book_new()
@@ -3976,56 +3981,115 @@ function RawMaterialsPage({ data, setData }) {
     if (match) return `${match[3]}-${String(match[2]).padStart(2, '0')}-${String(match[1]).padStart(2, '0')}`
     return text.slice(0, 10)
   }
+  const cellText = (value) => String(value ?? '').trim()
+  const normalizedCell = (value) => normalizeText(cellText(value))
+  const findValueNearLabel = (rows, patterns = []) => {
+    for (const row of rows) {
+      for (let index = 0; index < row.length; index += 1) {
+        const text = normalizedCell(row[index])
+        if (patterns.some((pattern) => text.includes(pattern))) {
+          const sameCellText = cellText(row[index])
+          const afterColon = sameCellText.includes(':') ? sameCellText.split(':').slice(1).join(':').trim() : ''
+          if (afterColon) return afterColon
+          for (let next = index + 1; next < row.length; next += 1) {
+            if (cellText(row[next])) return row[next]
+          }
+        }
+      }
+    }
+    return ''
+  }
+  const findHeaderIndex = (rows) => rows.findIndex((row) => {
+    const normalized = row.map(normalizedCell)
+    return normalized.some((cell) => cell === 'stt')
+      && normalized.some((cell) => cell === 'ma so' || cell.includes('ma vat tu'))
+      && normalized.some((cell) => cell.includes('don vi'))
+      && normalized.some((cell) => cell.includes('so luong thuc nhap') || cell.includes('so luong nhap') || cell === 'receivedqty')
+  })
+  const columnIndex = (header = [], patterns = []) => header.findIndex((cell) => {
+    const text = normalizedCell(cell)
+    return patterns.some((pattern) => text === pattern || text.includes(pattern))
+  })
+  const parseBravoReceiptRows = (rows = []) => {
+    const headerIndex = findHeaderIndex(rows)
+    if (headerIndex < 0) return []
+    const header = rows[headerIndex]
+    const sttIndex = columnIndex(header, ['stt'])
+    const materialIndex = columnIndex(header, ['ma so', 'ma vat tu'])
+    const unitIndex = columnIndex(header, ['don vi'])
+    const qtyIndex = columnIndex(header, ['so luong thuc nhap', 'so luong nhap', 'receivedqty'])
+    const receiptDateIndex = columnIndex(header, ['receiptdate', 'ngay', 'ngay nhap', 'ngay chung tu'])
+    const receiptNoIndex = columnIndex(header, ['receiptno', 'so phieu', 'so phieu nhap', 'so chung tu'])
+    const supplierIndex = columnIndex(header, ['suppliername', 'nguoi giao hang', 'ho ten nguoi giao hang', 'nha cung cap'])
+    const headerReceiptDate = excelDateText(findValueNearLabel(rows.slice(0, headerIndex), ['ngay', 'ngay chung tu', 'ngay nhap']))
+    const headerReceiptNo = cellText(findValueNearLabel(rows.slice(0, headerIndex), ['so phieu', 'so chung tu', 'so phieu nhap']))
+    const headerSupplier = cellText(findValueNearLabel(rows.slice(0, headerIndex), ['ho ten nguoi giao hang', 'nguoi giao hang', 'nha cung cap']))
+    return rows.slice(headerIndex + 1).map((row) => {
+      const stt = cellText(row[sttIndex])
+      const materialCode = cellText(row[materialIndex])
+      const unit = cellText(row[unitIndex]) || 'Kg'
+      const receivedQty = num(row[qtyIndex])
+      return {
+        receiptDate: receiptDateIndex >= 0 && cellText(row[receiptDateIndex]) ? excelDateText(row[receiptDateIndex]) : headerReceiptDate,
+        receiptNo: receiptNoIndex >= 0 && cellText(row[receiptNoIndex]) ? cellText(row[receiptNoIndex]) : headerReceiptNo,
+        supplierName: supplierIndex >= 0 && cellText(row[supplierIndex]) ? cellText(row[supplierIndex]) : headerSupplier,
+        stt,
+        materialCode,
+        unit,
+        receivedQty,
+      }
+    }).filter((row) => row.receiptDate && row.receiptNo && row.materialCode && row.stt && row.receivedQty > 0)
+  }
   const importMaterialCatalogExcel = (file) => {
     if (!file) return
+    if (/\.pdf$/i.test(file.name || '')) {
+      setNotice('PDF gốc cần được chuyển sang Excel/CSV trước khi import để app chỉ lấy STT, mã số, đơn vị tính và số lượng thực nhập.')
+      if (importMaterialCatalogRef.current) importMaterialCatalogRef.current.value = ''
+      return
+    }
     const reader = new FileReader()
     reader.onload = (event) => {
       try {
         const workbook = XLSX.read(event.target.result, { type: 'array', cellDates: false })
         const sheet = workbook.Sheets[workbook.SheetNames[0]]
-        const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
-        const readRow = (row) => ({
-          bravoReceiptDate: excelDateText(readExcelCell(row, ['Ngày nhập', 'Ngay nhap', 'Ngày chứng từ', 'Ngay chung tu'])),
-          bravoReceiptNo: String(readExcelCell(row, ['Số phiếu nhập', 'So phieu nhap', 'Số chứng từ', 'So chung tu'])).trim(),
-          materialCode: String(readExcelCell(row, ['Mã vật tư', 'Ma vat tu', 'Mã VT', 'Ma VT'])).trim(),
-          materialName: String(readExcelCell(row, ['Tên vật tư', 'Ten vat tu', 'Tên VT', 'Ten VT'])).trim(),
-          unit: String(readExcelCell(row, ['Đơn vị tính', 'Don vi tinh', 'Đơn vị', 'Don vi'])).trim() || 'kg',
-          importedQty: num(readExcelCell(row, ['Số lượng nhập', 'So luong nhap', 'Số lượng', 'So luong', 'SL nhập', 'SL nhap'])),
-          supplierName: String(readExcelCell(row, ['Nhà cung cấp', 'Nha cung cap', 'NCC'])).trim(),
-          supplierLotNo: String(readExcelCell(row, ['Lô nhà cung cấp', 'Lo nha cung cap', 'Supplier lot', 'Lot NCC'])).trim(),
-        })
-        const parsedRows = rows.map(readRow).filter((row) => row.materialCode && row.bravoReceiptNo && row.importedQty > 0)
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+        const parsedRows = parseBravoReceiptRows(rows)
         if (!parsedRows.length) {
-          setNotice('Không có dòng Bravo hợp lệ để cập nhật.')
+          setNotice('Không có dòng phiếu nhập Bravo hợp lệ để import.')
           return
         }
         setData((current) => {
           const existingLots = normalizeMaterialLots(current.materialLots || [])
-          const duplicateKeys = new Set(existingLots.map((lot) => [lot.bravoReceiptNo, normalizeCode(lot.materialCode), normalizeCode(lot.supplierLotNo)].join('|')))
+          const duplicateKeys = new Set(existingLots.map((lot) => [lot.receiptNo || lot.bravoReceiptNo, normalizeCode(lot.materialCode), lot.stt].join('|')))
           const nextLots = []
-          const nextCatalogRows = []
           let duplicateCount = 0
           parsedRows.forEach((row) => {
-            const key = [row.bravoReceiptNo, normalizeCode(row.materialCode), normalizeCode(row.supplierLotNo)].join('|')
+            const key = [row.receiptNo, normalizeCode(row.materialCode), row.stt].join('|')
             if (duplicateKeys.has(key)) {
               duplicateCount += 1
               return
             }
             duplicateKeys.add(key)
-            const internalLotCode = buildInternalLotCode(row.materialCode, row.bravoReceiptDate, [...existingLots, ...nextLots])
-            nextLots.push(normalizeMaterialLot({ ...row, internalLotCode, traceBalanceQty: row.importedQty, status: 'active' }))
-            nextCatalogRows.push({ materialCode: row.materialCode, materialName: row.materialName, unit: row.unit, materialGroup: CHEMICAL })
+            const internalLotCode = buildInternalLotCode(row.materialCode, row.receiptDate, [...existingLots, ...nextLots], row.stt)
+            nextLots.push(normalizeMaterialLot({
+              ...row,
+              bravoReceiptDate: row.receiptDate,
+              bravoReceiptNo: row.receiptNo,
+              importedQty: row.receivedQty,
+              traceBalanceQty: row.receivedQty,
+              status: 'active',
+              internalLotCode,
+            }))
           })
-          setNotice(`Đã cập nhật ${nextLots.length} lô nhập${duplicateCount ? `, bỏ qua ${duplicateCount} dòng trùng.` : '.'}`)
+          setNotice(`Đã import ${nextLots.length} dòng vật tư${duplicateCount ? `. ${duplicateCount} dòng vật tư này đã được import trước đó.` : '.'}`)
           return addLogToData({
             ...current,
             materialLots: [...nextLots, ...existingLots],
-            materialCatalog: mergeMaterialCatalog(deriveMaterialCatalog(current), normalizeMaterialCatalog(nextCatalogRows)),
-          }, `Cập nhật lô nhập Bravo: thêm ${nextLots.length} lô, bỏ qua ${duplicateCount} dòng trùng.`)
+          }, `Import phiếu nhập Bravo: thêm ${nextLots.length} dòng, bỏ qua ${duplicateCount} dòng trùng.`)
         })
       } catch (error) {
         console.error(error)
-        setNotice('Không thể đọc file Bravo. Vui lòng kiểm tra cấu trúc cột.')
+        setNotice('Không thể đọc file Bravo. Vui lòng kiểm tra file Excel/CSV đã chuyển đổi.')
       } finally {
         if (importMaterialCatalogRef.current) importMaterialCatalogRef.current.value = ''
       }
@@ -4036,26 +4100,27 @@ function RawMaterialsPage({ data, setData }) {
     <div className="page-content">
       <section className="panel">
         <div className="panel-header-row">
-          <div><h2>Cập nhật lô nhập</h2><p className="panel-text">Import dữ liệu nhập Bravo để app tự sinh Internal Lot và số dư truy xuất.</p></div>
+          <div><h2>Cập nhật lô nhập</h2><p className="panel-text">Import phiếu nhập nguyên liệu Bravo, chỉ lấy mã vật tư, đơn vị tính và số lượng thực nhập để sinh Internal Lot.</p></div>
           <div className="action-row">
-            <button className="secondary-button" onClick={() => importMaterialCatalogRef.current?.click()}>Import Bravo Excel/CSV</button>
+            <button className="secondary-button" onClick={() => importMaterialCatalogRef.current?.click()}>Import phiếu Bravo</button>
             <button className="secondary-button" onClick={downloadMaterialCatalogTemplate}>Tải file mẫu Bravo</button>
           </div>
         </div>
-        <input ref={importMaterialCatalogRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={(event) => importMaterialCatalogExcel(event.target.files?.[0])} />
+        <input ref={importMaterialCatalogRef} type="file" accept=".xlsx,.xls,.csv,.pdf" hidden onChange={(event) => importMaterialCatalogExcel(event.target.files?.[0])} />
         {notice && <div className="process-alert">{notice}</div>}
       </section>
       <section className="panel">
         <h3>Danh sách lô đã cập nhật</h3>
-        <SimpleTable headers={['Internal Lot', 'Mã vật tư', 'Tên vật tư', 'Ngày nhập', 'Phiếu Bravo', 'Nhà cung cấp', 'Số lượng tham chiếu', 'Số dư truy xuất', 'Trạng thái']} rows={materialLots.map((item) => (
+        <SimpleTable headers={['Ngày', 'Số phiếu', 'Người giao hàng', 'STT', 'Mã vật tư', 'Đơn vị tính', 'Số lượng thực nhập', 'Internal Lot', 'Số dư truy xuất', 'Trạng thái']} rows={materialLots.map((item) => (
           <tr key={item.id}>
-            <td><code>{item.internalLotCode}</code></td>
-            <td>{item.materialCode}</td>
-            <td>{item.materialName}</td>
-            <td>{item.bravoReceiptDate}</td>
-            <td>{item.bravoReceiptNo}</td>
+            <td>{item.receiptDate || item.bravoReceiptDate}</td>
+            <td>{item.receiptNo || item.bravoReceiptNo}</td>
             <td>{item.supplierName}</td>
-            <td>{kg(item.importedQty)}</td>
+            <td>{item.stt || '-'}</td>
+            <td>{item.materialCode}</td>
+            <td>{item.unit}</td>
+            <td>{kg(item.receivedQty ?? item.importedQty)}</td>
+            <td><code>{item.internalLotCode}</code></td>
             <td>{kg(item.traceBalanceQty)}</td>
             <td><span className={`dispatch-badge ${item.status === 'blocked' ? 'fail' : item.status === 'depleted' ? 'locked' : 'ready'}`}>{item.status}</span></td>
           </tr>
