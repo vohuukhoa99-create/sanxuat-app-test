@@ -9924,33 +9924,109 @@ function FinishedGoodsPage({ data, setData, user }) {
     productionOrderCount: row.orders.size,
   })).sort((a, b) => String(a.productCode || '').localeCompare(String(b.productCode || ''), 'vi', { numeric: true })
     || String(a.packageSpec || '').localeCompare(String(b.packageSpec || ''), 'vi', { numeric: true }))
-  const dailyReportProductTotals = Object.values(dailyReportRows.reduce((groups, row) => {
-    const key = normalizeCode(row.productCode)
-    if (!groups[key]) groups[key] = { productCode: row.productCode, totalQty: 0 }
-    groups[key].totalQty += num(row.totalQty)
-    return groups
-  }, {}))
-  const dailyReportExportRows = dailyReportRows.map((row) => ({
-    fromDate: row.fromDate,
-    toDate: row.toDate,
+  const dailyReportSummary = {
+    productCodeCount: new Set(dailyReportRows.map((row) => row.productCode).filter(Boolean)).size,
+    totalQty: Number(dailyReportRows.reduce((sum, row) => sum + num(row.totalQty), 0).toFixed(3)),
+    productionOrderCount: new Set(dailyReportItems.map(finishedGoodsOrderCode).filter(Boolean)).size,
+  }
+  const dailyReportExportRows = dailyReportRows.map((row, index) => ({
+    stt: index + 1,
     productCode: row.productCode,
-    productName: row.productName,
-    packageSpec: row.packageSpec,
+    productNameSpec: row.productNameSpec,
     unit: row.unit,
     totalQty: row.totalQty,
     productionOrderCount: row.productionOrderCount,
   }))
   const exportDailyReportExcel = () => {
     const book = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(dailyReportExportRows), 'BAO_CAO_THANH_PHAM')
+    const reportSheet = XLSX.utils.aoa_to_sheet([
+      ['CÔNG TY CỔ PHẦN SƠN & CHẤT PHỦ HÒA BÌNH'],
+      ['BÁO CÁO TỔNG HỢP NHẬP KHO THÀNH PHẨM'],
+      ['Từ ngày:', dailyReportFilters.fromDate || '-'],
+      ['Đến ngày:', dailyReportFilters.toDate || '-'],
+      ['Ngày in:', new Date().toLocaleString('vi-VN')],
+      ['Người in:', user?.fullName || user?.username || '-'],
+      [],
+      ['STT', 'Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Tổng số lượng', 'Số lệnh SX liên quan'],
+      ...dailyReportExportRows.map((row) => [row.stt, row.productCode, row.productNameSpec, row.unit, row.totalQty, row.productionOrderCount]),
+      [],
+      ['Tổng số mã sản phẩm', dailyReportSummary.productCodeCount],
+      ['Tổng số lượng nhập kho', dailyReportSummary.totalQty],
+      ['Tổng số lệnh sản xuất', dailyReportSummary.productionOrderCount],
+    ])
+    reportSheet['!cols'] = [{ wch: 8 }, { wch: 18 }, { wch: 36 }, { wch: 10 }, { wch: 16 }, { wch: 22 }]
+    XLSX.utils.book_append_sheet(book, reportSheet, 'BAO_CAO_THANH_PHAM')
     XLSX.writeFile(book, `bao-cao-thanh-pham-${todayText().replaceAll('-', '')}.xlsx`)
   }
-  const exportDailyReportPdf = () => exportHtmlPdf(reportHtml({
-    title: 'BÁO CÁO NHẬP KHO CUỐI NGÀY THEO NHÓM MÃ SẢN PHẨM',
-    meta: [`Từ ngày: ${dailyReportFilters.fromDate || '-'}`, `Đến ngày: ${dailyReportFilters.toDate || '-'}`],
-    headers: ['Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Tổng số lượng', 'Số lệnh sản xuất', 'Từ ngày', 'Đến ngày'],
-    rows: dailyReportRows.map((row) => [row.productCode, row.productNameSpec, row.unit, row.totalQty, row.productionOrderCount, row.fromDate, row.toDate]),
-  }), `bao-cao-thanh-pham-${todayText().replaceAll('-', '')}.pdf`)
+  const exportDailyReportPdf = async () => {
+    try {
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+      await registerPdfUnicodeFont(doc)
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const left = 14
+      const right = 14
+      const usableWidth = pageWidth - left - right
+      doc.setFont('Arial', 'bold')
+      doc.setFontSize(11)
+      doc.text('CÔNG TY CỔ PHẦN SƠN & CHẤT PHỦ HÒA BÌNH', left, 14)
+      doc.setFontSize(16)
+      doc.text('BÁO CÁO TỔNG HỢP NHẬP KHO THÀNH PHẨM', pageWidth / 2, 24, { align: 'center' })
+      doc.setFont('Arial', 'normal')
+      doc.setFontSize(10.5)
+      const printedBy = user?.fullName || user?.username || '-'
+      const printedAt = new Date().toLocaleString('vi-VN')
+      doc.text(`Từ ngày: ${dailyReportFilters.fromDate || '-'}`, left, 34)
+      doc.text(`Đến ngày: ${dailyReportFilters.toDate || '-'}`, left, 40)
+      doc.text(`Ngày in: ${printedAt}`, pageWidth / 2 + 20, 34)
+      doc.text(`Người in: ${printedBy}`, pageWidth / 2 + 20, 40)
+
+      autoTable(doc, {
+        startY: 48,
+        margin: { left, right, top: 12, bottom: 18 },
+        tableWidth: usableWidth,
+        theme: 'grid',
+        head: [['STT', 'Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Tổng số lượng', 'Số lệnh SX liên quan']],
+        body: dailyReportExportRows.map((row) => [row.stt, row.productCode, row.productNameSpec, row.unit, row.totalQty, row.productionOrderCount]),
+        styles: {
+          font: 'Arial',
+          fontSize: 9.5,
+          cellPadding: { top: 1.5, right: 1.8, bottom: 1.5, left: 1.8 },
+          lineWidth: 0.2,
+          lineColor: [0, 0, 0],
+          textColor: [0, 0, 0],
+          overflow: 'linebreak',
+        },
+        headStyles: {
+          font: 'Arial',
+          fontStyle: 'bold',
+          fillColor: [255, 255, 255],
+          textColor: [0, 0, 0],
+          halign: 'center',
+          lineWidth: 0.2,
+          lineColor: [0, 0, 0],
+        },
+        columnStyles: {
+          0: { cellWidth: 12, halign: 'center' },
+          1: { cellWidth: 36, halign: 'left' },
+          2: { cellWidth: usableWidth - 12 - 36 - 20 - 30 - 36, halign: 'left' },
+          3: { cellWidth: 20, halign: 'center' },
+          4: { cellWidth: 30, halign: 'right' },
+          5: { cellWidth: 36, halign: 'center' },
+        },
+      })
+
+      const summaryY = (doc.lastAutoTable?.finalY || 48) + 8
+      doc.setFont('Arial', 'bold')
+      doc.setFontSize(10.5)
+      doc.text(`Tổng số mã sản phẩm: ${dailyReportSummary.productCodeCount}`, left, summaryY)
+      doc.text(`Tổng số lượng nhập kho: ${dailyReportSummary.totalQty}`, left, summaryY + 6)
+      doc.text(`Tổng số lệnh sản xuất: ${dailyReportSummary.productionOrderCount}`, left, summaryY + 12)
+      doc.save(`bao-cao-thanh-pham-${todayText().replaceAll('-', '')}.pdf`)
+    } catch (error) {
+      console.error(error)
+      setNotice('Không thể xuất PDF báo cáo. Vui lòng kiểm tra font hoặc dữ liệu báo cáo.')
+    }
+  }
   useEffect(() => {
     logScreenValidation(FINISHED_GOODS_LEGACY_STAGE, waitingOrders, 'validateFinishedGoods', validateFinishedGoods)
   }, [waitingOrders])
@@ -10243,7 +10319,7 @@ function FinishedGoodsPage({ data, setData, user }) {
 
       <section className="panel finished-goods-daily-report-panel">
         <div className="section-heading-row">
-          <div><span className="section-kicker">Báo cáo nhập kho cuối ngày</span><h2>Báo cáo nhập kho cuối ngày theo nhóm mã sản phẩm</h2></div>
+          <div><span className="section-kicker">Báo cáo nhập kho thành phẩm</span><h2>BÁO CÁO TỔNG HỢP NHẬP KHO THÀNH PHẨM</h2></div>
           <div className="action-row">
             <button className="primary-button" type="button" onClick={() => setDailyReportFilters(dailyReportDraftFilters)}>Xem báo cáo</button>
             <button className="secondary-button" type="button" onClick={exportDailyReportExcel}>Xuất Excel</button>
@@ -10256,22 +10332,21 @@ function FinishedGoodsPage({ data, setData, user }) {
           <label>Mã sản phẩm<select value={dailyReportDraftFilters.productCode} onChange={(event) => updateDailyReportDraftFilter('productCode', event.target.value)}><option value="">Tất cả</option>{productCodeOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
           <label>Lệnh sản xuất<select value={dailyReportDraftFilters.orderCode} onChange={(event) => updateDailyReportDraftFilter('orderCode', event.target.value)}><option value="">Tất cả</option>{orderCodeOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
         </div>
-        <SimpleTable headers={['Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Tổng số lượng', 'Số lệnh SX liên quan', 'Từ ngày', 'Đến ngày']} rows={dailyReportRows.map((row) => (
+        <SimpleTable headers={['STT', 'Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Tổng số lượng', 'Số lệnh SX liên quan']} rows={dailyReportRows.map((row, index) => (
           <tr key={`${row.productCode}-${row.packageSpec}`}>
+            <td>{index + 1}</td>
             <td>{row.productCode}</td>
             <td>{row.productNameSpec}</td>
             <td>{row.unit}</td>
             <td>{row.totalQty}</td>
             <td>{row.productionOrderCount}</td>
-            <td>{row.fromDate || '-'}</td>
-            <td>{row.toDate || '-'}</td>
           </tr>
         ))} empty="Chưa có dữ liệu thành phẩm phù hợp bộ lọc." />
-        {dailyReportProductTotals.length > 0 && (
-          <div className="production-log-grid">
-            {dailyReportProductTotals.map((row) => <div key={row.productCode}><span>Tổng {row.productCode}</span><strong>{row.totalQty}</strong></div>)}
-          </div>
-        )}
+        <div className="production-log-grid">
+          <div><span>Tổng số mã sản phẩm</span><strong>{dailyReportSummary.productCodeCount}</strong></div>
+          <div><span>Tổng số lượng nhập kho</span><strong>{dailyReportSummary.totalQty}</strong></div>
+          <div><span>Tổng số lệnh sản xuất</span><strong>{dailyReportSummary.productionOrderCount}</strong></div>
+        </div>
       </section>
 
       {form && activeOrder && (
