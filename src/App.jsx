@@ -9649,11 +9649,61 @@ function FinishedGoodsPage({ data, setData, user }) {
   const finishedVoucherRecorder = voucherFinishedGoods.find((item) => item.receiver)?.receiver || user?.fullName || user?.username || ''
   const finishedVoucherLineName = (item = {}) => [item.productName || item.product || '-', item.spec].filter(Boolean).join(' - ')
   const finishedVoucherUnit = (item = {}) => /thùng|thung|25\s*kg|10\s*kg|5\s*kg/i.test(String(item.spec || '')) ? 'Thùng' : (item.unit || 'Thùng')
-  const finishedVoucherItemCode = (item = {}) => item.productCode || item.finishedCode || item.lot || item.orderCode || item.orderId || ''
   const finishedGoodsOrderCode = (item = {}) => item.orderCode || item.orderId || item.lot || ''
-  const finishedGoodsProductCode = (item = {}) => item.productCode || item.finishedCode || item.lot || item.orderCode || item.orderId || ''
   const finishedGoodsProductName = (item = {}) => item.productName || item.product || '-'
+  const finishedGoodsProductCode = (item = {}) => finishedGoodsProductName(item)
+  const finishedVoucherItemCode = (item = {}) => finishedGoodsProductCode(item)
   const finishedGoodsUnit = (item = {}) => /thùng|thung|25\s*kg|10\s*kg|5\s*kg/i.test(String(item.spec || '')) ? 'Thùng' : (item.unit || 'Thùng')
+  const htmlEscape = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]))
+  const tableRowsHtml = (rows = []) => rows.map((row) => `<tr>${row.map((cell) => `<td style="border:1px solid #333; padding:6px;">${htmlEscape(cell)}</td>`).join('')}</tr>`).join('')
+  const reportHtml = ({ title, meta = [], headers = [], rows = [], footer = null, signatures = [] }) => `
+    <div style="font-family: Arial, sans-serif; color: #111; padding: 18px; font-size: 12px;">
+      <div style="font-weight: 700; margin-bottom: 12px;">CÔNG TY CỔ PHẦN SƠN &amp; CHẤT PHỦ HÒA BÌNH</div>
+      <h1 style="text-align:center; font-size: 20px; margin: 0 0 16px;">${htmlEscape(title)}</h1>
+      <div style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 18px; margin-bottom: 14px;">
+        ${meta.map((item) => `<div>${htmlEscape(item)}</div>`).join('')}
+      </div>
+      <table style="width:100%; border-collapse: collapse; font-size: 11px;">
+        <thead><tr>${headers.map((header) => `<th style="border:1px solid #333; padding:6px; background:#f0f0f0;">${htmlEscape(header)}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${tableRowsHtml(rows)}
+          ${footer ? `<tr>${footer.map((cell, index) => `<td style="border:1px solid #333; padding:6px; font-weight:700;" ${index === 0 ? '' : ''}>${htmlEscape(cell)}</td>`).join('')}</tr>` : ''}
+        </tbody>
+      </table>
+      ${signatures.length ? `<div style="display:grid; grid-template-columns: repeat(${signatures.length}, minmax(0, 1fr)); gap: 18px; margin-top: 34px; text-align:center; font-weight:700;">${signatures.map((item) => `<div style="min-height:70px;">${htmlEscape(item)}</div>`).join('')}</div>` : ''}
+    </div>
+  `
+  const exportHtmlPdf = async (html, filename) => {
+    if (typeof document === 'undefined') return
+    const container = document.createElement('div')
+    container.style.position = 'fixed'
+    container.style.left = '-10000px'
+    container.style.top = '0'
+    container.style.width = '1120px'
+    container.innerHTML = html
+    document.body.appendChild(container)
+    try {
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
+      await doc.html(container, {
+        callback: (pdf) => pdf.save(filename),
+        margin: [24, 24, 24, 24],
+        width: 794,
+        windowWidth: 1120,
+        html2canvas: { scale: 0.72, useCORS: true },
+      })
+    } catch (error) {
+      console.error(error)
+      const win = window.open('', '_blank')
+      if (win) {
+        win.document.write(`<html><head><title>${htmlEscape(filename)}</title></head><body>${html}</body></html>`)
+        win.document.close()
+        win.focus()
+        win.print()
+      }
+    } finally {
+      document.body.removeChild(container)
+    }
+  }
   const filterFinishedGoodsForVoucher = (source = [], filtersToUse = {}) => source.filter((item) => {
     const dateText = String(item.importDate || '').slice(0, 10)
     const orderText = String(finishedGoodsOrderCode(item)).toLowerCase()
@@ -9667,7 +9717,7 @@ function FinishedGoodsPage({ data, setData, user }) {
   })
   const finishedVoucherRows = voucherFinishedGoods.map((item, index) => ({
     no: index + 1,
-    name: finishedVoucherLineName(item),
+    name: [finishedGoodsProductCode(item), item.spec].filter(Boolean).join(' - '),
     code: finishedVoucherItemCode(item),
     unit: finishedVoucherUnit(item),
     actualQty: num(item.boxes),
@@ -9696,28 +9746,20 @@ function FinishedGoodsPage({ data, setData, user }) {
     XLSX.utils.book_append_sheet(book, sheet, 'Phieu thanh pham')
     XLSX.writeFile(book, `phieu-thanh-pham-${finishedVoucherNo}.xlsx`)
   }
-  const exportFinishedVoucherPdf = () => {
-    const doc = new jsPDF({ orientation: 'landscape' })
-    doc.text('CONG TY CO PHAN SON & CHAT PHU HOA BINH', 14, 14)
-    doc.text('PHIEU GHI NHAN THANH PHAM', 115, 24)
-    doc.text(`Ngay chung tu: ${finishedVoucherDate}`, 14, 34)
-    doc.text(`So phieu: ${finishedVoucherNo}`, 210, 34)
-    doc.text(`Nguoi ghi nhan: ${finishedVoucherRecorder || '-'}`, 14, 42)
-    doc.text('Bo phan ghi nhan: San xuat', 210, 42)
-    doc.text(`Ghi chu: ${finishedVoucherFilters.note || '-'}`, 14, 50)
-    autoTable(doc, {
-      startY: 58,
-      head: [['STT', 'Ten san pham / Quy cach', 'Ma san pham', 'DVT', 'So luong thuc te']],
-      body: finishedVoucherRows.map((row) => [row.no, row.name, row.code, row.unit, row.actualQty]),
-      foot: [['Tong so luong thuc te', '', '', '', finishedVoucherTotalQty]],
-    })
-    const finalY = doc.lastAutoTable?.finalY || 120
-    doc.text('Nguoi lap phieu', 25, finalY + 20)
-    doc.text('Nguoi ghi nhan', 95, finalY + 20)
-    doc.text('San xuat', 170, finalY + 20)
-    doc.text('Quan ly bo phan', 235, finalY + 20)
-    doc.save(`phieu-thanh-pham-${finishedVoucherNo}.pdf`)
-  }
+  const exportFinishedVoucherPdf = () => exportHtmlPdf(reportHtml({
+    title: 'PHIẾU GHI NHẬN THÀNH PHẨM',
+    meta: [
+      `Ngày chứng từ: ${finishedVoucherDate}`,
+      `Số phiếu: ${finishedVoucherNo}`,
+      `Người ghi nhận: ${finishedVoucherRecorder || '-'}`,
+      'Bộ phận ghi nhận: Sản xuất',
+      `Ghi chú: ${finishedVoucherFilters.note || '-'}`,
+    ],
+    headers: ['STT', 'Tên sản phẩm / Quy cách', 'Mã sản phẩm', 'Đơn vị tính', 'Số lượng thực tế'],
+    rows: finishedVoucherRows.map((row) => [row.no, row.name, row.code, row.unit, row.actualQty]),
+    footer: ['Tổng số lượng thực tế', '', '', '', finishedVoucherTotalQty],
+    signatures: ['Người lập phiếu', 'Người ghi nhận', 'Sản xuất', 'Quản lý bộ phận'],
+  }), `phieu-thanh-pham-${finishedVoucherNo}.pdf`)
   const updateRequestVoucherFilter = (field, value) => setRequestVoucherFilters((current) => ({ ...current, [field]: value }))
   const requestVoucherItems = filterFinishedGoodsForVoucher(finishedGoods, {
     fromDate: requestVoucherFilters.requestDate,
@@ -9758,29 +9800,21 @@ function FinishedGoodsPage({ data, setData, user }) {
     XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(requestVoucherSheetRows), 'PHIEU_DE_NGHI_NHAP_KHO')
     XLSX.writeFile(book, `phieu-de-nghi-nhap-kho-${requestVoucherNo}.xlsx`)
   }
-  const exportRequestVoucherPdf = () => {
-    const doc = new jsPDF({ orientation: 'landscape' })
-    doc.text('CONG TY CO PHAN SON & CHAT PHU HOA BINH', 14, 14)
-    doc.text('PHIEU DE NGHI NHAP KHO THANH PHAM', 105, 24)
-    doc.text(`Ngay phieu: ${requestVoucherFilters.requestDate}`, 14, 34)
-    doc.text(`So phieu: ${requestVoucherNo}`, 210, 34)
-    doc.text(`Nguoi de nghi: ${requestVoucherRequester || '-'}`, 14, 42)
-    doc.text('Bo phan: San xuat', 210, 42)
-    doc.text(`Lenh san xuat: ${requestVoucherOrderText}`, 14, 50)
-    doc.text(`Ly do: ${requestVoucherFilters.reason}`, 14, 58)
-    doc.text(`Ghi chu: ${requestVoucherFilters.note || '-'}`, 14, 66)
-    autoTable(doc, {
-      startY: 74,
-      head: [['STT', 'Ma san pham', 'Ten san pham / Quy cach', 'DVT', 'So luong', 'Ghi chu']],
-      body: requestVoucherRows.map((row) => [row.no, row.productCode, row.name, row.unit, row.qty, row.note || '']),
-    })
-    const finalY = doc.lastAutoTable?.finalY || 130
-    doc.text('Nguoi de nghi', 25, finalY + 20)
-    doc.text('QC', 95, finalY + 20)
-    doc.text('Thu kho', 170, finalY + 20)
-    doc.text('KTT / Truong bo phan', 225, finalY + 20)
-    doc.save(`phieu-de-nghi-nhap-kho-${requestVoucherNo}.pdf`)
-  }
+  const exportRequestVoucherPdf = () => exportHtmlPdf(reportHtml({
+    title: 'PHIẾU ĐỀ NGHỊ NHẬP KHO THÀNH PHẨM',
+    meta: [
+      `Ngày phiếu: ${requestVoucherFilters.requestDate}`,
+      `Số phiếu: ${requestVoucherNo}`,
+      `Người đề nghị: ${requestVoucherRequester || '-'}`,
+      'Bộ phận: Sản xuất',
+      `Lệnh sản xuất: ${requestVoucherOrderText}`,
+      `Lý do yêu cầu: ${requestVoucherFilters.reason}`,
+      `Ghi chú: ${requestVoucherFilters.note || '-'}`,
+    ],
+    headers: ['STT', 'Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Số lượng', 'Ghi chú'],
+    rows: requestVoucherRows.map((row) => [row.no, row.productCode, row.name, row.unit, row.qty, row.note || '']),
+    signatures: ['Người đề nghị', 'QC', 'Thủ kho', 'KTT / Trưởng bộ phận'],
+  }), `phieu-de-nghi-nhap-kho-${requestVoucherNo}.pdf`)
   const productCodeOptions = Array.from(new Set(finishedGoods.map(finishedGoodsProductCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const orderCodeOptions = Array.from(new Set(finishedGoods.map(finishedGoodsOrderCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const updateDailyReportDraftFilter = (field, value) => setDailyReportDraftFilters((current) => ({ ...current, [field]: value }))
@@ -9830,17 +9864,12 @@ function FinishedGoodsPage({ data, setData, user }) {
     XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(dailyReportRows), 'BAO_CAO_THANH_PHAM')
     XLSX.writeFile(book, `bao-cao-thanh-pham-${todayText().replaceAll('-', '')}.xlsx`)
   }
-  const exportDailyReportPdf = () => {
-    const doc = new jsPDF({ orientation: 'landscape' })
-    doc.text('BAO CAO NHAP KHO CUOI NGAY THEO NHOM MA SAN PHAM', 14, 14)
-    doc.text(`Tu ngay: ${dailyReportFilters.fromDate || '-'}    Den ngay: ${dailyReportFilters.toDate || '-'}`, 14, 24)
-    autoTable(doc, {
-      startY: 32,
-      head: [['Ma san pham', 'Ten san pham', 'Quy cach', 'DVT', 'Tong so luong', 'So lenh SX', 'Tu ngay', 'Den ngay']],
-      body: dailyReportRows.map((row) => [row.productCode, row.productName, row.packageSpec, row.unit, row.totalQty, row.productionOrderCount, row.fromDate, row.toDate]),
-    })
-    doc.save(`bao-cao-thanh-pham-${todayText().replaceAll('-', '')}.pdf`)
-  }
+  const exportDailyReportPdf = () => exportHtmlPdf(reportHtml({
+    title: 'BÁO CÁO NHẬP KHO CUỐI NGÀY THEO NHÓM MÃ SẢN PHẨM',
+    meta: [`Từ ngày: ${dailyReportFilters.fromDate || '-'}`, `Đến ngày: ${dailyReportFilters.toDate || '-'}`],
+    headers: ['Mã sản phẩm', 'Tên sản phẩm', 'Quy cách', 'ĐVT', 'Tổng số lượng', 'Số lệnh sản xuất', 'Từ ngày', 'Đến ngày'],
+    rows: dailyReportRows.map((row) => [row.productCode, row.productName, row.packageSpec, row.unit, row.totalQty, row.productionOrderCount, row.fromDate, row.toDate]),
+  }), `bao-cao-thanh-pham-${todayText().replaceAll('-', '')}.pdf`)
   useEffect(() => {
     logScreenValidation(FINISHED_GOODS_LEGACY_STAGE, waitingOrders, 'validateFinishedGoods', validateFinishedGoods)
   }, [waitingOrders])
@@ -9936,9 +9965,9 @@ function FinishedGoodsPage({ data, setData, user }) {
     setForm(null)
   }
   const exportRows = filteredFinishedGoods.map((item) => ({
-    'Mã TP': item.finishedCode,
+    'Mã ghi nhận': item.finishedCode,
+    'Mã sản phẩm': finishedGoodsProductCode(item),
     'Mã lô': item.lot || item.orderCode || item.orderId,
-    'Sản phẩm': item.productName || item.product,
     'Quy cách': item.spec,
     'Số thùng': item.boxes,
     'Khối lượng': item.weight,
@@ -9954,14 +9983,11 @@ function FinishedGoodsPage({ data, setData, user }) {
     XLSX.writeFile(book, 'kho-thanh-pham.xlsx')
   }
   const exportPdf = () => {
-    const doc = new jsPDF({ orientation: 'landscape' })
-    doc.text('Bao cao kho thanh pham', 14, 14)
-    autoTable(doc, {
-      head: [['Ma TP', 'Ma lo', 'San pham', 'Quy cach', 'So thung', 'Khoi luong', 'Ngay nhap', 'Vi tri', 'Nguoi nhap', 'Trang thai']],
-      body: filteredFinishedGoods.map((item) => [item.finishedCode, item.lot || item.orderCode || item.orderId, item.productName || item.product, item.spec, item.boxes, item.weight, item.importDate, item.location, item.receiver, item.status]),
-      startY: 20,
-    })
-    doc.save('thanh-pham.pdf')
+    exportHtmlPdf(reportHtml({
+      title: 'DỮ LIỆU THÀNH PHẨM',
+      headers: ['Mã ghi nhận', 'Mã sản phẩm', 'Mã lô', 'Quy cách', 'Số thùng', 'Khối lượng', 'Ngày ghi nhận', 'Vị trí', 'Người ghi nhận', 'Trạng thái'],
+      rows: filteredFinishedGoods.map((item) => [item.finishedCode, finishedGoodsProductCode(item), item.lot || item.orderCode || item.orderId, item.spec, item.boxes, item.weight, item.importDate, item.location, item.receiver, item.status]),
+    }), 'thanh-pham.pdf')
   }
 
   return (
@@ -9977,7 +10003,7 @@ function FinishedGoodsPage({ data, setData, user }) {
             <thead>
               <tr>
                 <th>Mã lô</th>
-                <th>Sản phẩm</th>
+                <th>Mã sản phẩm</th>
                 <th>Khách hàng</th>
                 <th>KL sau QC-TP</th>
                 <th>Tổng KL đóng gói</th>
@@ -10047,7 +10073,7 @@ function FinishedGoodsPage({ data, setData, user }) {
               {filteredFinishedGoods.map((item) => (
                 <tr key={item.id}>
                   <td>{item.lot || item.orderCode || item.orderId}</td>
-                  <td>{item.productName || item.product}</td>
+                  <td>{finishedGoodsProductCode(item)}</td>
                   <td>{item.spec}</td>
                   <td>{item.boxes}</td>
                   <td>{kg(item.weight)}</td>
@@ -10239,7 +10265,7 @@ function FinishedGoodsPage({ data, setData, user }) {
               <button type="button" className="icon-button" onClick={() => { setForm(null); setActiveOrder(null) }} aria-label="Đóng">×</button>
             </div>
             <div className="production-form-grid">
-              <label>Mã thành phẩm<input value={form.finishedCode} onChange={(event) => updateForm('finishedCode', event.target.value)} /></label>
+              <label>Mã ghi nhận<input value={form.finishedCode} onChange={(event) => updateForm('finishedCode', event.target.value)} /></label>
               <label>Mã lô<input readOnly value={form.lot || form.orderCode} /></label>
               <label>Sản phẩm<input readOnly value={form.productName} /></label>
               <label>Khối lượng thành phẩm<input type="number" value={form.weight} onChange={(event) => updateForm('weight', event.target.value)} /></label>
