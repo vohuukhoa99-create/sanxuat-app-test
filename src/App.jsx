@@ -3633,7 +3633,7 @@ function finishedPrintStatusText(item = {}) {
 
 function nextFinishedCode(finishedGoods = []) {
   const date = todayText().replaceAll('-', '')
-  const prefix = `TP-${date}-`
+  const prefix = `FGI-${date}-`
   const maxNo = finishedGoods
     .map((item) => String(item.finishedCode || item.finishedGoodsCode || item.id || ''))
     .filter((code) => code.startsWith(prefix))
@@ -3645,11 +3645,11 @@ function nextFinishedCode(finishedGoods = []) {
 function normalizeFinishedGoodsData(items = []) {
   return (items || []).map((item, index) => ({
     id: item.id || item.finishedGoodsId || item.finishedCode || `FG-${index + 1}`,
-    finishedCode: item.finishedCode || item.finishedGoodsCode || item.id || `TP-CU-${String(index + 1).padStart(3, '0')}`,
+    finishedCode: item.finishedCode || item.finishedGoodsCode || item.id || `FGI-CU-${String(index + 1).padStart(3, '0')}`,
     orderId: item.orderId || item.orderCode || '',
     orderCode: item.orderCode || item.orderId || '',
-    productName: item.productName || item.finishedCode || item.product || '',
-    product: item.product || item.productName || item.finishedCode || '',
+    productName: item.productName || item.product || item.productCode || '',
+    product: item.product || item.productName || item.productCode || '',
     lot: item.lot || '',
     spec: item.spec || item.packagingSpec || '-',
     boxes: num(item.boxes ?? item.quantity),
@@ -9619,8 +9619,6 @@ function FinishedGoodsPage({ data, setData, user }) {
     .sort(sortOldestOrders)
   const [activeOrder, setActiveOrder] = useState(null)
   const [filters, setFilters] = useState({ fromDate: '', toDate: '', orderCode: '', product: '', lot: '', location: '' })
-  const [finishedVoucherFilters, setFinishedVoucherFilters] = useState({ fromDate: todayText(), toDate: todayText(), orderCode: '', product: '', note: '' })
-  const [showFinishedVoucher, setShowFinishedVoucher] = useState(true)
   const [requestVoucherFilters, setRequestVoucherFilters] = useState({ requestDate: todayText(), orderCode: '', product: '', requestedBy: '', reason: 'Hoàn thành lệnh sản xuất', note: '' })
   const [showRequestVoucher, setShowRequestVoucher] = useState(true)
   const [dailyReportDraftFilters, setDailyReportDraftFilters] = useState({ fromDate: todayText(), toDate: todayText(), productCode: '', orderCode: '' })
@@ -9630,29 +9628,21 @@ function FinishedGoodsPage({ data, setData, user }) {
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], FINISHED_GOODS_LEGACY_STAGE)
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
   const filteredFinishedGoods = filterFinishedGoods(finishedGoods, filters)
-  const updateFinishedVoucherFilter = (field, value) => setFinishedVoucherFilters((current) => ({ ...current, [field]: value }))
-  const voucherFinishedGoods = finishedGoods.filter((item) => {
-    const dateText = String(item.importDate || '').slice(0, 10)
-    const lotText = String(item.lot || item.orderCode || item.orderId || '').toLowerCase()
-    const productText = String(item.productName || item.product || '').toLowerCase()
-    if (finishedVoucherFilters.fromDate && dateText && dateText < finishedVoucherFilters.fromDate) return false
-    if (finishedVoucherFilters.toDate && dateText && dateText > finishedVoucherFilters.toDate) return false
-    if (finishedVoucherFilters.orderCode && !lotText.includes(finishedVoucherFilters.orderCode.toLowerCase())) return false
-    if (finishedVoucherFilters.product && !productText.includes(finishedVoucherFilters.product.toLowerCase())) return false
-    return true
-  })
-  const finishedVoucherDate = finishedVoucherFilters.toDate || finishedVoucherFilters.fromDate || todayText()
-  const finishedVoucherNo = (() => {
-    const ymd = String(finishedVoucherDate || todayText()).replace(/-/g, '')
-    return `TP-${ymd}-001`
-  })()
-  const finishedVoucherRecorder = voucherFinishedGoods.find((item) => item.receiver)?.receiver || user?.fullName || user?.username || ''
-  const finishedVoucherLineName = (item = {}) => [item.productName || item.product || '-', item.spec].filter(Boolean).join(' - ')
-  const finishedVoucherUnit = (item = {}) => /thùng|thung|25\s*kg|10\s*kg|5\s*kg/i.test(String(item.spec || '')) ? 'Thùng' : (item.unit || 'Thùng')
   const finishedGoodsOrderCode = (item = {}) => item.orderCode || item.orderId || item.lot || ''
-  const finishedGoodsProductName = (item = {}) => item.productName || item.product || '-'
+  const finishedGoodsLotCode = (item = {}) => item.lot || item.orderCode || item.orderId || ''
+  const findFinishedGoodsOrder = (item = {}) => (data.orders || []).find((order) => (
+    order.id === item.orderId
+    || order.orderCode === item.orderCode
+    || getOrderLotCode(order) === item.lot
+    || order.lot === item.lot
+  )) || null
+  const finishedGoodsCustomerCode = (item = {}) => item.customerCode || findFinishedGoodsOrder(item)?.customerCode || ''
+  const isGeneratedFinishedCode = (value = '') => /^TP-\d{8}-\d{3,}$/i.test(String(value || '').trim())
+  const finishedGoodsProductName = (item = {}) => {
+    const candidates = [item.productName, item.product, item.productCode, item.formulaCode].map((value) => String(value || '').trim()).filter(Boolean)
+    return candidates.find((value) => !isGeneratedFinishedCode(value)) || '-'
+  }
   const finishedGoodsProductCode = (item = {}) => finishedGoodsProductName(item)
-  const finishedVoucherItemCode = (item = {}) => finishedGoodsProductCode(item)
   const finishedGoodsUnit = (item = {}) => /thùng|thung|25\s*kg|10\s*kg|5\s*kg/i.test(String(item.spec || '')) ? 'Thùng' : (item.unit || 'Thùng')
   const htmlEscape = (value = '') => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]))
   const tableRowsHtml = (rows = []) => rows.map((row) => `<tr>${row.map((cell) => `<td style="border:1px solid #333; padding:6px;">${htmlEscape(cell)}</td>`).join('')}</tr>`).join('')
@@ -9715,51 +9705,6 @@ function FinishedGoodsPage({ data, setData, user }) {
     if (filtersToUse.productCode && normalizeCode(finishedGoodsProductCode(item)) !== normalizeCode(filtersToUse.productCode)) return false
     return true
   })
-  const finishedVoucherRows = voucherFinishedGoods.map((item, index) => ({
-    no: index + 1,
-    name: [finishedGoodsProductCode(item), item.spec].filter(Boolean).join(' - '),
-    code: finishedVoucherItemCode(item),
-    unit: finishedVoucherUnit(item),
-    actualQty: num(item.boxes),
-  }))
-  const finishedVoucherTotalQty = finishedVoucherRows.reduce((sum, item) => sum + num(item.actualQty), 0)
-  const finishedVoucherSheetRows = () => [
-    ['CÔNG TY CỔ PHẦN SƠN & CHẤT PHỦ HÒA BÌNH'],
-    [],
-    ['PHIẾU GHI NHẬN THÀNH PHẨM'],
-    [`Ngày chứng từ: ${finishedVoucherDate}`, `Số phiếu: ${finishedVoucherNo}`],
-    [`Người ghi nhận: ${finishedVoucherRecorder}`, 'Bộ phận ghi nhận: Sản xuất'],
-    [`Ghi chú: ${finishedVoucherFilters.note || ''}`],
-    [],
-    ['STT', 'Tên sản phẩm / Quy cách', 'Mã sản phẩm', 'Đơn vị tính', 'Số lượng thực tế'],
-    ...finishedVoucherRows.map((row) => [row.no, row.name, row.code, row.unit, row.actualQty]),
-    ['Tổng số lượng thực tế', '', '', '', finishedVoucherTotalQty],
-    [],
-    ['Người lập phiếu', 'Người ghi nhận', 'Sản xuất', 'Quản lý bộ phận'],
-    ['', '', '', ''],
-    ['', '', '', ''],
-  ]
-  const exportFinishedVoucherExcel = () => {
-    const book = XLSX.utils.book_new()
-    const sheet = XLSX.utils.aoa_to_sheet(finishedVoucherSheetRows())
-    sheet['!cols'] = [{ wch: 8 }, { wch: 56 }, { wch: 18 }, { wch: 14 }, { wch: 18 }]
-    XLSX.utils.book_append_sheet(book, sheet, 'Phieu thanh pham')
-    XLSX.writeFile(book, `phieu-thanh-pham-${finishedVoucherNo}.xlsx`)
-  }
-  const exportFinishedVoucherPdf = () => exportHtmlPdf(reportHtml({
-    title: 'PHIẾU GHI NHẬN THÀNH PHẨM',
-    meta: [
-      `Ngày chứng từ: ${finishedVoucherDate}`,
-      `Số phiếu: ${finishedVoucherNo}`,
-      `Người ghi nhận: ${finishedVoucherRecorder || '-'}`,
-      'Bộ phận ghi nhận: Sản xuất',
-      `Ghi chú: ${finishedVoucherFilters.note || '-'}`,
-    ],
-    headers: ['STT', 'Tên sản phẩm / Quy cách', 'Mã sản phẩm', 'Đơn vị tính', 'Số lượng thực tế'],
-    rows: finishedVoucherRows.map((row) => [row.no, row.name, row.code, row.unit, row.actualQty]),
-    footer: ['Tổng số lượng thực tế', '', '', '', finishedVoucherTotalQty],
-    signatures: ['Người lập phiếu', 'Người ghi nhận', 'Sản xuất', 'Quản lý bộ phận'],
-  }), `phieu-thanh-pham-${finishedVoucherNo}.pdf`)
   const updateRequestVoucherFilter = (field, value) => setRequestVoucherFilters((current) => ({ ...current, [field]: value }))
   const requestVoucherItems = filterFinishedGoodsForVoucher(finishedGoods, {
     fromDate: requestVoucherFilters.requestDate,
@@ -9772,10 +9717,12 @@ function FinishedGoodsPage({ data, setData, user }) {
   const requestVoucherOrderText = requestVoucherFilters.orderCode || Array.from(new Set(requestVoucherItems.map(finishedGoodsOrderCode).filter(Boolean))).slice(0, 3).join(', ') || '-'
   const requestVoucherRows = requestVoucherItems.map((item, index) => ({
     no: index + 1,
+    lotCode: finishedGoodsLotCode(item),
+    customerCode: finishedGoodsCustomerCode(item),
     productCode: finishedGoodsProductCode(item),
     productName: finishedGoodsProductName(item),
     packageSpec: item.spec || '',
-    name: [finishedGoodsProductName(item), item.spec].filter(Boolean).join(' - '),
+    name: [finishedGoodsProductCode(item), item.spec].filter(Boolean).join(' - '),
     unit: finishedGoodsUnit(item),
     qty: num(item.boxes),
     note: item.note || '',
@@ -9788,6 +9735,8 @@ function FinishedGoodsPage({ data, setData, user }) {
     department: 'Sản xuất',
     productionOrderCode: row.productionOrderCode,
     reason: requestVoucherFilters.reason,
+    lotCode: row.lotCode,
+    customerCode: row.customerCode,
     productCode: row.productCode,
     productName: row.productName,
     packageSpec: row.packageSpec,
@@ -9811,8 +9760,8 @@ function FinishedGoodsPage({ data, setData, user }) {
       `Lý do yêu cầu: ${requestVoucherFilters.reason}`,
       `Ghi chú: ${requestVoucherFilters.note || '-'}`,
     ],
-    headers: ['STT', 'Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Số lượng', 'Ghi chú'],
-    rows: requestVoucherRows.map((row) => [row.no, row.productCode, row.name, row.unit, row.qty, row.note || '']),
+    headers: ['STT', 'Mã lô', 'Mã khách hàng', 'Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Số lượng', 'Ghi chú'],
+    rows: requestVoucherRows.map((row) => [row.no, row.lotCode, row.customerCode || '-', row.productCode, row.name, row.unit, row.qty, row.note || '']),
     signatures: ['Người đề nghị', 'QC', 'Thủ kho', 'KTT / Trưởng bộ phận'],
   }), `phieu-de-nghi-nhap-kho-${requestVoucherNo}.pdf`)
   const productCodeOptions = Array.from(new Set(finishedGoods.map(finishedGoodsProductCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
@@ -9847,6 +9796,7 @@ function FinishedGoodsPage({ data, setData, user }) {
     toDate: dailyReportFilters.toDate || '',
     productCode: row.productCode,
     productName: row.productName,
+    productNameSpec: [row.productCode, row.packageSpec].filter(Boolean).join(' - '),
     packageSpec: row.packageSpec,
     unit: row.unit,
     totalQty: Number(row.totalQty.toFixed(3)),
@@ -9859,16 +9809,26 @@ function FinishedGoodsPage({ data, setData, user }) {
     groups[key].totalQty += num(row.totalQty)
     return groups
   }, {}))
+  const dailyReportExportRows = dailyReportRows.map((row) => ({
+    fromDate: row.fromDate,
+    toDate: row.toDate,
+    productCode: row.productCode,
+    productName: row.productName,
+    packageSpec: row.packageSpec,
+    unit: row.unit,
+    totalQty: row.totalQty,
+    productionOrderCount: row.productionOrderCount,
+  }))
   const exportDailyReportExcel = () => {
     const book = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(dailyReportRows), 'BAO_CAO_THANH_PHAM')
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(dailyReportExportRows), 'BAO_CAO_THANH_PHAM')
     XLSX.writeFile(book, `bao-cao-thanh-pham-${todayText().replaceAll('-', '')}.xlsx`)
   }
   const exportDailyReportPdf = () => exportHtmlPdf(reportHtml({
     title: 'BÁO CÁO NHẬP KHO CUỐI NGÀY THEO NHÓM MÃ SẢN PHẨM',
     meta: [`Từ ngày: ${dailyReportFilters.fromDate || '-'}`, `Đến ngày: ${dailyReportFilters.toDate || '-'}`],
-    headers: ['Mã sản phẩm', 'Tên sản phẩm', 'Quy cách', 'ĐVT', 'Tổng số lượng', 'Số lệnh sản xuất', 'Từ ngày', 'Đến ngày'],
-    rows: dailyReportRows.map((row) => [row.productCode, row.productName, row.packageSpec, row.unit, row.totalQty, row.productionOrderCount, row.fromDate, row.toDate]),
+    headers: ['Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Tổng số lượng', 'Số lệnh sản xuất', 'Từ ngày', 'Đến ngày'],
+    rows: dailyReportRows.map((row) => [row.productCode, row.productNameSpec, row.unit, row.totalQty, row.productionOrderCount, row.fromDate, row.toDate]),
   }), `bao-cao-thanh-pham-${todayText().replaceAll('-', '')}.pdf`)
   useEffect(() => {
     logScreenValidation(FINISHED_GOODS_LEGACY_STAGE, waitingOrders, 'validateFinishedGoods', validateFinishedGoods)
@@ -9960,12 +9920,11 @@ function FinishedGoodsPage({ data, setData, user }) {
         completedAt,
         updatedAt: completedAt,
       } : order),
-    }, `${FINISHED_GOODS_LEGACY_ACTION} mã lô ${getOrderLotCode(activeOrder)}, mã ${form.finishedCode}. Hoàn thành.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: FINISHED_GOODS_LEGACY_STAGE, order: activeOrder, result: FINISHED_GOODS_LEGACY_ACTION })))
+    }, `${FINISHED_GOODS_LEGACY_ACTION} mã lô ${getOrderLotCode(activeOrder)}. Hoàn thành.`, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: FINISHED_GOODS_LEGACY_STAGE, order: activeOrder, result: FINISHED_GOODS_LEGACY_ACTION })))
     setActiveOrder(null)
     setForm(null)
   }
   const exportRows = filteredFinishedGoods.map((item) => ({
-    'Mã ghi nhận': item.finishedCode,
     'Mã sản phẩm': finishedGoodsProductCode(item),
     'Mã lô': item.lot || item.orderCode || item.orderId,
     'Quy cách': item.spec,
@@ -9985,8 +9944,8 @@ function FinishedGoodsPage({ data, setData, user }) {
   const exportPdf = () => {
     exportHtmlPdf(reportHtml({
       title: 'DỮ LIỆU THÀNH PHẨM',
-      headers: ['Mã ghi nhận', 'Mã sản phẩm', 'Mã lô', 'Quy cách', 'Số thùng', 'Khối lượng', 'Ngày ghi nhận', 'Vị trí', 'Người ghi nhận', 'Trạng thái'],
-      rows: filteredFinishedGoods.map((item) => [item.finishedCode, finishedGoodsProductCode(item), item.lot || item.orderCode || item.orderId, item.spec, item.boxes, item.weight, item.importDate, item.location, item.receiver, item.status]),
+      headers: ['Mã sản phẩm', 'Mã lô', 'Quy cách', 'Số thùng', 'Khối lượng', 'Ngày ghi nhận', 'Vị trí', 'Người ghi nhận', 'Trạng thái'],
+      rows: filteredFinishedGoods.map((item) => [finishedGoodsProductCode(item), item.lot || item.orderCode || item.orderId, item.spec, item.boxes, item.weight, item.importDate, item.location, item.receiver, item.status]),
     }), 'thanh-pham.pdf')
   }
 
@@ -10029,7 +9988,7 @@ function FinishedGoodsPage({ data, setData, user }) {
                     <td>{totalPackingBoxes(details)}</td>
                     <td>{packingLog?.packer || order.packaging?.packer || '-'}</td>
                     <td>{packingLog?.completedAt || order.packaging?.completedAt || '-'}</td>
-                    <td><button className="primary-button warehouse-import-button" onClick={() => openImportForm(order)}>Ghi nhận thành phẩm</button></td>
+                    <td><button className="primary-button warehouse-import-button" onClick={() => openImportForm(order)}>Ghi nhận</button></td>
                   </tr>
                 )
               })}
@@ -10089,73 +10048,6 @@ function FinishedGoodsPage({ data, setData, user }) {
         </div>
       </section>
 
-      <section className="panel finished-goods-voucher-panel">
-        <div className="section-heading-row">
-          <div><span className="section-kicker">Phiếu thành phẩm</span><h2>Phiếu ghi nhận thành phẩm</h2></div>
-          <div className="action-row">
-            <button className="secondary-button" type="button" onClick={() => setShowFinishedVoucher((current) => !current)}>Xem phiếu</button>
-            <button className="secondary-button" type="button" onClick={exportFinishedVoucherExcel}>Xuất Excel</button>
-            <button className="secondary-button" type="button" onClick={exportFinishedVoucherPdf}>Xuất PDF phiếu</button>
-          </div>
-        </div>
-        <div className="production-form-grid finished-goods-filters">
-          <label>Từ ngày<input type="date" value={finishedVoucherFilters.fromDate} onChange={(event) => updateFinishedVoucherFilter('fromDate', event.target.value)} /></label>
-          <label>Đến ngày<input type="date" value={finishedVoucherFilters.toDate} onChange={(event) => updateFinishedVoucherFilter('toDate', event.target.value)} /></label>
-          <label>Mã lô<input value={finishedVoucherFilters.orderCode} onChange={(event) => updateFinishedVoucherFilter('orderCode', event.target.value)} /></label>
-          <label>Sản phẩm<input value={finishedVoucherFilters.product} onChange={(event) => updateFinishedVoucherFilter('product', event.target.value)} /></label>
-          <label className="wide-field">Ghi chú<input value={finishedVoucherFilters.note} onChange={(event) => updateFinishedVoucherFilter('note', event.target.value)} /></label>
-        </div>
-        {showFinishedVoucher && (
-          <div className="warehouse-table-wrapper finished-voucher-preview">
-            <div className="finished-voucher-header">
-              <strong>CÔNG TY CỔ PHẦN SƠN &amp; CHẤT PHỦ HÒA BÌNH</strong>
-              <h3>PHIẾU GHI NHẬN THÀNH PHẨM</h3>
-              <div className="finished-voucher-meta">
-                <span>Ngày chứng từ: {finishedVoucherDate}</span>
-                <span>Số phiếu: {finishedVoucherNo}</span>
-                <span>Người ghi nhận: {finishedVoucherRecorder || '-'}</span>
-                <span>Bộ phận ghi nhận: Sản xuất</span>
-                <span>Ghi chú: {finishedVoucherFilters.note || '-'}</span>
-              </div>
-            </div>
-            <table className="warehouse-table finished-voucher-table">
-              <thead>
-                <tr>
-                  <th>STT</th>
-                  <th>Tên sản phẩm / Quy cách</th>
-                  <th>Mã sản phẩm</th>
-                  <th>Đơn vị tính</th>
-                  <th>Số lượng thực tế</th>
-                </tr>
-              </thead>
-              <tbody>
-                {finishedVoucherRows.map((row) => (
-                  <tr key={`${row.no}-${row.code}`}>
-                    <td>{row.no}</td>
-                    <td>{row.name}</td>
-                    <td>{row.code}</td>
-                    <td>{row.unit}</td>
-                    <td>{row.actualQty}</td>
-                  </tr>
-                ))}
-                {finishedVoucherRows.length === 0 && <tr><td className="empty-row" colSpan={5}>Không có dữ liệu thành phẩm phù hợp bộ lọc.</td></tr>}
-                <tr>
-                  <td><strong>Tổng số lượng thực tế</strong></td>
-                  <td colSpan={3}></td>
-                  <td><strong>{finishedVoucherTotalQty}</strong></td>
-                </tr>
-              </tbody>
-            </table>
-            <div className="finished-voucher-signature-row">
-              <strong>Người lập phiếu</strong>
-              <strong>Người ghi nhận</strong>
-              <strong>Sản xuất</strong>
-              <strong>Quản lý bộ phận</strong>
-            </div>
-          </div>
-        )}
-      </section>
-
       <section className="panel finished-goods-request-panel">
         <div className="section-heading-row">
           <div><span className="section-kicker">Phiếu đề nghị nhập kho</span><h2>Phiếu đề nghị nhập kho thành phẩm</h2></div>
@@ -10192,6 +10084,8 @@ function FinishedGoodsPage({ data, setData, user }) {
               <thead>
                 <tr>
                   <th>STT</th>
+                  <th>Mã lô</th>
+                  <th>Mã khách hàng</th>
                   <th>Mã sản phẩm</th>
                   <th>Tên sản phẩm / Quy cách</th>
                   <th>ĐVT</th>
@@ -10203,6 +10097,8 @@ function FinishedGoodsPage({ data, setData, user }) {
                 {requestVoucherRows.map((row) => (
                   <tr key={`${row.no}-${row.productCode}-${row.productionOrderCode}`}>
                     <td>{row.no}</td>
+                    <td>{row.lotCode}</td>
+                    <td>{row.customerCode || '-'}</td>
                     <td>{row.productCode}</td>
                     <td>{row.name}</td>
                     <td>{row.unit}</td>
@@ -10210,7 +10106,7 @@ function FinishedGoodsPage({ data, setData, user }) {
                     <td>{row.note || '-'}</td>
                   </tr>
                 ))}
-                {requestVoucherRows.length === 0 && <tr><td className="empty-row" colSpan={6}>Không có dữ liệu thành phẩm phù hợp bộ lọc.</td></tr>}
+                {requestVoucherRows.length === 0 && <tr><td className="empty-row" colSpan={8}>Không có dữ liệu thành phẩm phù hợp bộ lọc.</td></tr>}
               </tbody>
             </table>
             <div className="finished-voucher-signature-row">
@@ -10238,11 +10134,10 @@ function FinishedGoodsPage({ data, setData, user }) {
           <label>Mã sản phẩm<select value={dailyReportDraftFilters.productCode} onChange={(event) => updateDailyReportDraftFilter('productCode', event.target.value)}><option value="">Tất cả</option>{productCodeOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
           <label>Lệnh sản xuất<select value={dailyReportDraftFilters.orderCode} onChange={(event) => updateDailyReportDraftFilter('orderCode', event.target.value)}><option value="">Tất cả</option>{orderCodeOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
         </div>
-        <SimpleTable headers={['Mã sản phẩm', 'Tên sản phẩm', 'Quy cách', 'ĐVT', 'Tổng số lượng', 'Số lệnh sản xuất liên quan', 'Từ ngày', 'Đến ngày']} rows={dailyReportRows.map((row) => (
+        <SimpleTable headers={['Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Tổng số lượng', 'Số lệnh SX liên quan', 'Từ ngày', 'Đến ngày']} rows={dailyReportRows.map((row) => (
           <tr key={`${row.productCode}-${row.packageSpec}`}>
             <td>{row.productCode}</td>
-            <td>{row.productName}</td>
-            <td>{row.packageSpec}</td>
+            <td>{row.productNameSpec}</td>
             <td>{row.unit}</td>
             <td>{row.totalQty}</td>
             <td>{row.productionOrderCount}</td>
@@ -10265,7 +10160,6 @@ function FinishedGoodsPage({ data, setData, user }) {
               <button type="button" className="icon-button" onClick={() => { setForm(null); setActiveOrder(null) }} aria-label="Đóng">×</button>
             </div>
             <div className="production-form-grid">
-              <label>Mã ghi nhận<input value={form.finishedCode} onChange={(event) => updateForm('finishedCode', event.target.value)} /></label>
               <label>Mã lô<input readOnly value={form.lot || form.orderCode} /></label>
               <label>Sản phẩm<input readOnly value={form.productName} /></label>
               <label>Khối lượng thành phẩm<input type="number" value={form.weight} onChange={(event) => updateForm('weight', event.target.value)} /></label>
@@ -10759,7 +10653,7 @@ function ProductionHistoryModal({ record, tab, setTab, onClose }) {
       const rows = log?.packingDetails || []
       return <SimpleTable headers={['Quy cách 25kg / 10kg / 5kg', 'Số thùng', 'Khối lượng đóng gói', 'Sai lệch', 'Người đóng gói', 'Thời gian hoàn tất']} rows={rows.map((item, index) => <tr key={index}><td>{item.spec || `${item.sizeKg} kg`}</td><td>{item.boxes}</td><td>{kg(item.actualWeight)}</td><td>{kg((item.actualWeight || 0) - (item.convertedWeight || 0))}</td><td>{log?.packer || '-'}</td><td>{log?.completedAt || '-'}</td></tr>)} />
     }
-    if (tab === 'warehouse') return <SimpleTable headers={['Mã TP', 'Mã lô', 'Quy cách', 'Số thùng', 'Khối lượng thành phẩm', 'Vị trí', 'Người ghi nhận', 'Ngày ghi nhận']} rows={record.finishedRows.map((item) => <tr key={item.id}><td>{item.finishedCode}</td><td>{item.lot || item.orderCode || item.orderId}</td><td>{item.spec}</td><td>{item.boxes}</td><td>{kg(item.weight)}</td><td>{item.location}</td><td>{item.receiver || '-'}</td><td>{item.importDate}</td></tr>)} />
+    if (tab === 'warehouse') return <SimpleTable headers={['Mã sản phẩm', 'Mã lô', 'Quy cách', 'Số thùng', 'Khối lượng thành phẩm', 'Vị trí', 'Người ghi nhận', 'Ngày ghi nhận']} rows={record.finishedRows.map((item) => <tr key={item.id}><td>{item.productName || item.product || '-'}</td><td>{item.lot || item.orderCode || item.orderId}</td><td>{item.spec}</td><td>{item.boxes}</td><td>{kg(item.weight)}</td><td>{item.location}</td><td>{item.receiver || '-'}</td><td>{item.importDate}</td></tr>)} />
     return <SimpleTable headers={['Thời gian', 'Công đoạn', 'Người thực hiện', 'Nội dung', 'Trạng thái']} rows={record.timeline.map((item, index) => <tr key={index}><td>{item.time || '-'}</td><td>{item.stage || '-'}</td><td>{item.actor || '-'}</td><td>{item.content || '-'}</td><td>{item.status || '-'}</td></tr>)} />
   }
   return (
@@ -11100,7 +10994,7 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
     warehouse: [
       ['Phiếu đóng gói', packingLogs.length],
       ['Kg đã đóng gói', kg(packingLogs.reduce((sum, log) => sum + num(log.totalPackedWeight), 0))],
-      ['Mã TP ghi nhận', finishedGoods.length],
+      ['Bản ghi thành phẩm', finishedGoods.length],
       ['Kg TP ghi nhận', kg(finishedGoods.reduce((sum, item) => sum + num(item.weight), 0))],
     ],
     machines: [
@@ -11209,7 +11103,7 @@ function ReportsPage({ data, initialTab = 'production', lockedTab = false }) {
       <>
         {renderKpis(reportKpis.warehouse)}
         <section className="panel report-table-panel"><h2>Báo cáo đóng gói</h2><SimpleTable tableClassName="report-wide-table" headers={['Phiếu đóng gói', 'Mã lô', 'Sản phẩm', 'Khối lượng QC-TP', 'Đã đóng gói', 'Còn lại', 'Sai lệch', 'Người đóng gói', 'Trạng thái']} rows={packingLogs.map((log) => <tr key={log.packingId}><td>{log.packingId}</td><td>{log.lot || log.orderCode || log.orderId}</td><td>{log.productName}</td><td>{kg(log.qc2FinalWeight)}</td><td>{kg(log.totalPackedWeight)}</td><td>{kg(log.remainingWeight)}</td><td>{kg(log.differenceWeight)}</td><td>{log.packer || '-'}</td><td>{log.status === 'completed' ? 'Hoàn thành' : log.status}</td></tr>)} /></section>
-        <section className="panel report-table-panel"><h2>Dữ liệu thành phẩm</h2><SimpleTable tableClassName="report-wide-table" headers={['Mã TP', 'Mã lô', 'Sản phẩm', 'Quy cách', 'Số thùng', 'Khối lượng', 'Ngày ghi nhận', 'Vị trí', 'Người ghi nhận']} rows={finishedGoods.map((item) => <tr key={item.id}><td>{item.finishedCode}</td><td>{item.lot || item.orderCode || item.orderId}</td><td>{item.productName}</td><td>{item.spec}</td><td>{item.boxes}</td><td>{kg(item.weight)}</td><td>{item.importDate}</td><td>{item.location}</td><td>{item.receiver || '-'}</td></tr>)} /></section>
+        <section className="panel report-table-panel"><h2>Dữ liệu thành phẩm</h2><SimpleTable tableClassName="report-wide-table" headers={['Mã sản phẩm', 'Mã lô', 'Quy cách', 'Số thùng', 'Khối lượng', 'Ngày ghi nhận', 'Vị trí', 'Người ghi nhận']} rows={finishedGoods.map((item) => <tr key={item.id}><td>{item.productName || item.product || '-'}</td><td>{item.lot || item.orderCode || item.orderId}</td><td>{item.spec}</td><td>{item.boxes}</td><td>{kg(item.weight)}</td><td>{item.importDate}</td><td>{item.location}</td><td>{item.receiver || '-'}</td></tr>)} /></section>
       </>
     )
     if (tab === 'machines') return (

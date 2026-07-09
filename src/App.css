@@ -12723,13 +12723,14 @@ body,
   .warehouse-table-wrapper {
     width: 100%;
     max-width: 100%;
-    overflow-x: hidden !important;
+    overflow-x: auto !important;
   }
 
   .finished-warehouse-table,
   .finished-goods-table,
   .warehouse-table {
     width: 100%;
+    min-width: 1120px;
     table-layout: fixed;
     border-collapse: collapse;
   }
@@ -12769,7 +12770,7 @@ body,
   .finished-warehouse-table td:nth-child(2) { width: 11%; }
 
   .finished-warehouse-table th:nth-child(3),
-  .finished-warehouse-table td:nth-child(3) { width: 20%; }
+  .finished-warehouse-table td:nth-child(3) { width: 17%; }
 
   .finished-warehouse-table th:nth-child(4),
   .finished-warehouse-table td:nth-child(4) { width: 8%; }
@@ -12790,7 +12791,10 @@ body,
   .finished-warehouse-table td:nth-child(9) { width: 9%; }
 
   .finished-warehouse-table th:nth-child(10),
-  .finished-warehouse-table td:nth-child(10) { width: 8%; }
+  .finished-warehouse-table td:nth-child(10) {
+    width: 12%;
+    min-width: 132px;
+  }
 
   .finished-warehouse-table td:nth-child(4),
   .finished-warehouse-table td:nth-child(5),
@@ -12802,10 +12806,11 @@ body,
   .finished-warehouse-table .warehouse-import-button {
     min-height: 28px !important;
     height: auto !important;
-    padding: 4px 7px !important;
+    padding: 5px 10px !important;
     font-size: 11.5px !important;
     line-height: 1.15 !important;
-    white-space: normal;
+    white-space: nowrap !important;
+    min-width: 96px;
   }
 
   .finished-goods-table {
