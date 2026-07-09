@@ -9889,6 +9889,11 @@ function FinishedGoodsPage({ data, setData, user }) {
   const productCodeOptions = Array.from(new Set(finishedGoods.map(finishedGoodsProductCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const orderCodeOptions = Array.from(new Set(finishedGoods.map(finishedGoodsOrderCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const updateDailyReportDraftFilter = (field, value) => setDailyReportDraftFilters((current) => ({ ...current, [field]: value }))
+  const finishedGoodsPackageWeightKg = (spec = '') => {
+    const text = String(spec || '').trim()
+    if (!text || normalizeText(text) === normalizeText(RESIDUAL_PRODUCTION_SPEC)) return 0
+    return num(text.match(/(\d+(?:[.,]\d+)?)\s*kg/i)?.[1]?.replace(',', '.') || 0)
+  }
   const dailyReportItems = filterFinishedGoodsForVoucher(finishedGoods, {
     fromDate: dailyReportFilters.fromDate,
     toDate: dailyReportFilters.toDate,
@@ -9906,10 +9911,13 @@ function FinishedGoodsPage({ data, setData, user }) {
         packageSpec,
         unit: finishedGoodsUnit(item),
         totalQty: 0,
+        totalWeightKg: 0,
         orders: new Set(),
       }
     }
-    groups[key].totalQty += num(item.boxes)
+    const boxes = num(item.boxes)
+    groups[key].totalQty += boxes
+    groups[key].totalWeightKg += boxes * finishedGoodsPackageWeightKg(packageSpec)
     const orderCode = finishedGoodsOrderCode(item)
     if (orderCode) groups[key].orders.add(orderCode)
     return groups
@@ -9922,12 +9930,14 @@ function FinishedGoodsPage({ data, setData, user }) {
     packageSpec: row.packageSpec,
     unit: row.unit,
     totalQty: Number(row.totalQty.toFixed(3)),
+    totalWeightKg: Number(row.totalWeightKg.toFixed(3)),
     productionOrderCount: row.orders.size,
   })).sort((a, b) => String(a.productCode || '').localeCompare(String(b.productCode || ''), 'vi', { numeric: true })
     || String(a.packageSpec || '').localeCompare(String(b.packageSpec || ''), 'vi', { numeric: true }))
   const dailyReportSummary = {
     productCodeCount: new Set(dailyReportRows.map((row) => row.productCode).filter(Boolean)).size,
     totalQty: Number(dailyReportRows.reduce((sum, row) => sum + num(row.totalQty), 0).toFixed(3)),
+    totalWeightKg: Number(dailyReportRows.reduce((sum, row) => sum + num(row.totalWeightKg), 0).toFixed(3)),
     productionOrderCount: new Set(dailyReportItems.map(finishedGoodsOrderCode).filter(Boolean)).size,
   }
   const dailyReportExportRows = dailyReportRows.map((row, index) => ({
@@ -9936,6 +9946,7 @@ function FinishedGoodsPage({ data, setData, user }) {
     productNameSpec: row.productNameSpec,
     unit: row.unit,
     totalQty: row.totalQty,
+    totalWeightKg: row.totalWeightKg,
     productionOrderCount: row.productionOrderCount,
   }))
   const exportDailyReportExcel = () => {
@@ -9948,14 +9959,15 @@ function FinishedGoodsPage({ data, setData, user }) {
       ['Ngày in:', new Date().toLocaleString('vi-VN')],
       ['Người in:', user?.fullName || user?.username || '-'],
       [],
-      ['STT', 'Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Tổng số lượng', 'Số lệnh SX liên quan'],
-      ...dailyReportExportRows.map((row) => [row.stt, row.productCode, row.productNameSpec, row.unit, row.totalQty, row.productionOrderCount]),
+      ['STT', 'Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Tổng số lượng (Thùng)', 'Khối lượng (Kg)', 'Số lệnh SX liên quan'],
+      ...dailyReportExportRows.map((row) => [row.stt, row.productCode, row.productNameSpec, row.unit, row.totalQty, row.totalWeightKg, row.productionOrderCount]),
       [],
-      ['Tổng số mã sản phẩm', dailyReportSummary.productCodeCount],
-      ['Tổng số lượng nhập kho', dailyReportSummary.totalQty],
-      ['Tổng số lệnh sản xuất', dailyReportSummary.productionOrderCount],
+      ['Tổng số mã sản phẩm (Mã SP)', dailyReportSummary.productCodeCount],
+      ['Tổng số lượng nhập kho (Thùng)', dailyReportSummary.totalQty],
+      ['Tổng số lệnh sản xuất (Lệnh)', dailyReportSummary.productionOrderCount],
+      ['Tổng khối lượng (Kg)', dailyReportSummary.totalWeightKg],
     ])
-    reportSheet['!cols'] = [{ wch: 8 }, { wch: 18 }, { wch: 36 }, { wch: 10 }, { wch: 16 }, { wch: 22 }]
+    reportSheet['!cols'] = [{ wch: 8 }, { wch: 18 }, { wch: 36 }, { wch: 10 }, { wch: 20 }, { wch: 16 }, { wch: 22 }]
     XLSX.utils.book_append_sheet(book, reportSheet, 'BAO_CAO_THANH_PHAM')
     XLSX.writeFile(book, `bao-cao-thanh-pham-${todayText().replaceAll('-', '')}.xlsx`)
   }
@@ -9989,8 +10001,8 @@ function FinishedGoodsPage({ data, setData, user }) {
         margin: { left, right, top, bottom: bottom + 38 },
         tableWidth: usableWidth,
         theme: 'grid',
-        head: [['STT', 'Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Tổng số lượng', 'Số lệnh SX liên quan']],
-        body: dailyReportExportRows.map((row) => [row.stt, row.productCode, row.productNameSpec, row.unit, row.totalQty, row.productionOrderCount]),
+        head: [['STT', 'Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Tổng số lượng (Thùng)', 'Khối lượng (Kg)', 'Số lệnh SX liên quan']],
+        body: dailyReportExportRows.map((row) => [row.stt, row.productCode, row.productNameSpec, row.unit, row.totalQty, row.totalWeightKg, row.productionOrderCount]),
         styles: {
           font: 'Arial',
           fontSize: 9.2,
@@ -10010,22 +10022,32 @@ function FinishedGoodsPage({ data, setData, user }) {
           lineColor: [0, 0, 0],
         },
         columnStyles: {
-          0: { cellWidth: 10, halign: 'center' },
-          1: { cellWidth: 28, halign: 'left' },
-          2: { cellWidth: usableWidth - 10 - 28 - 16 - 26 - 34, halign: 'left' },
+          0: { cellWidth: 9, halign: 'center' },
+          1: { cellWidth: 25, halign: 'left' },
+          2: { cellWidth: usableWidth - 9 - 25 - 16 - 27 - 24 - 31, halign: 'left' },
           3: { cellWidth: 16, halign: 'center' },
-          4: { cellWidth: 26, halign: 'right' },
-          5: { cellWidth: 34, halign: 'center' },
+          4: { cellWidth: 27, halign: 'right' },
+          5: { cellWidth: 24, halign: 'right' },
+          6: { cellWidth: 31, halign: 'center' },
         },
       })
 
-      const summaryY = (doc.lastAutoTable?.finalY || 48) + 8
+      let summaryY = (doc.lastAutoTable?.finalY || 48) + 8
+      if (summaryY + 52 > pageHeight - bottom) {
+        doc.addPage()
+        summaryY = top + 8
+      }
       doc.setFont('Arial', 'bold')
       doc.setFontSize(10.5)
-      doc.text(`Tổng số mã sản phẩm: ${dailyReportSummary.productCodeCount}`, left, summaryY)
-      doc.text(`Tổng số lượng nhập kho: ${dailyReportSummary.totalQty}`, left, summaryY + 6)
-      doc.text(`Tổng số lệnh sản xuất: ${dailyReportSummary.productionOrderCount}`, left, summaryY + 12)
-      const signatureY = Math.max(summaryY + 28, pageHeight - bottom - 36)
+      doc.text(`Tổng số mã sản phẩm (Mã SP): ${dailyReportSummary.productCodeCount}`, left, summaryY)
+      doc.text(`Tổng số lượng nhập kho (Thùng): ${dailyReportSummary.totalQty}`, left, summaryY + 6)
+      doc.text(`Tổng số lệnh sản xuất (Lệnh): ${dailyReportSummary.productionOrderCount}`, left, summaryY + 12)
+      doc.text(`Tổng khối lượng (Kg): ${dailyReportSummary.totalWeightKg}`, left, summaryY + 18)
+      let signatureY = summaryY + 34
+      if (signatureY + 18 > pageHeight - bottom) {
+        doc.addPage()
+        signatureY = top + 12
+      }
       const signatureWidth = usableWidth / 4
       const signatureLabels = [
         ['Người lập phiếu', '(Ký, họ tên)'],
@@ -10362,20 +10384,22 @@ function FinishedGoodsPage({ data, setData, user }) {
           <label>Mã sản phẩm<select value={dailyReportDraftFilters.productCode} onChange={(event) => updateDailyReportDraftFilter('productCode', event.target.value)}><option value="">Tất cả</option>{productCodeOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
           <label>Lệnh sản xuất<select value={dailyReportDraftFilters.orderCode} onChange={(event) => updateDailyReportDraftFilter('orderCode', event.target.value)}><option value="">Tất cả</option>{orderCodeOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
         </div>
-        <SimpleTable headers={['STT', 'Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Tổng số lượng', 'Số lệnh SX liên quan']} rows={dailyReportRows.map((row, index) => (
+        <SimpleTable headers={['STT', 'Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Tổng số lượng (Thùng)', 'Khối lượng (Kg)', 'Số lệnh SX liên quan']} rows={dailyReportRows.map((row, index) => (
           <tr key={`${row.productCode}-${row.packageSpec}`}>
             <td>{index + 1}</td>
             <td>{row.productCode}</td>
             <td>{row.productNameSpec}</td>
             <td>{row.unit}</td>
             <td>{row.totalQty}</td>
+            <td>{row.totalWeightKg}</td>
             <td>{row.productionOrderCount}</td>
           </tr>
         ))} empty="Chưa có dữ liệu thành phẩm phù hợp bộ lọc." />
         <div className="production-log-grid">
-          <div><span>Tổng số mã sản phẩm</span><strong>{dailyReportSummary.productCodeCount}</strong></div>
-          <div><span>Tổng số lượng nhập kho</span><strong>{dailyReportSummary.totalQty}</strong></div>
-          <div><span>Tổng số lệnh sản xuất</span><strong>{dailyReportSummary.productionOrderCount}</strong></div>
+          <div><span>Tổng số mã sản phẩm (Mã SP)</span><strong>{dailyReportSummary.productCodeCount}</strong></div>
+          <div><span>Tổng số lượng nhập kho (Thùng)</span><strong>{dailyReportSummary.totalQty}</strong></div>
+          <div><span>Tổng số lệnh sản xuất (Lệnh)</span><strong>{dailyReportSummary.productionOrderCount}</strong></div>
+          <div><span>Tổng khối lượng (Kg)</span><strong>{dailyReportSummary.totalWeightKg}</strong></div>
         </div>
       </section>
 
