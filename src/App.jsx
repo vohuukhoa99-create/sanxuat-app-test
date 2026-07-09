@@ -9667,11 +9667,15 @@ function FinishedGoodsPage({ data, setData, user }) {
     if (typeof document === 'undefined') return
     const container = document.createElement('div')
     container.style.position = 'fixed'
-    container.style.left = '-10000px'
+    container.style.left = '0'
     container.style.top = '0'
     container.style.width = '1120px'
+    container.style.background = '#fff'
+    container.style.zIndex = '-1'
+    container.style.pointerEvents = 'none'
     container.innerHTML = html
     document.body.appendChild(container)
+    await new Promise((resolve) => setTimeout(resolve, 60))
     try {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
       await doc.html(container, {
@@ -9728,7 +9732,7 @@ function FinishedGoodsPage({ data, setData, user }) {
     note: item.note || '',
     productionOrderCode: finishedGoodsOrderCode(item),
   }))
-  const requestVoucherSheetRows = requestVoucherRows.map((row) => ({
+  const requestVoucherExportRows = requestVoucherRows.map((row) => ({
     requestNo: requestVoucherNo,
     requestDate: requestVoucherFilters.requestDate,
     requestedBy: requestVoucherRequester,
@@ -9738,18 +9742,26 @@ function FinishedGoodsPage({ data, setData, user }) {
     lotCode: row.lotCode,
     customerCode: row.customerCode,
     productCode: row.productCode,
-    productName: row.productName,
-    packageSpec: row.packageSpec,
+    productNameSpec: row.name,
     unit: row.unit,
     qty: row.qty,
     note: row.note || requestVoucherFilters.note,
   }))
   const exportRequestVoucherExcel = () => {
+    if (!requestVoucherExportRows.length) {
+      setNotice('Không có dữ liệu để xuất.')
+      return
+    }
     const book = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(requestVoucherSheetRows), 'PHIEU_DE_NGHI_NHAP_KHO')
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(requestVoucherExportRows), 'PHIEU_DE_NGHI_NHAP_KHO_TP')
     XLSX.writeFile(book, `phieu-de-nghi-nhap-kho-${requestVoucherNo}.xlsx`)
   }
-  const exportRequestVoucherPdf = () => exportHtmlPdf(reportHtml({
+  const exportRequestVoucherPdf = () => {
+    if (!requestVoucherRows.length) {
+      setNotice('Không có dữ liệu để xuất.')
+      return
+    }
+    exportHtmlPdf(reportHtml({
     title: 'PHIẾU ĐỀ NGHỊ NHẬP KHO THÀNH PHẨM',
     meta: [
       `Ngày phiếu: ${requestVoucherFilters.requestDate}`,
@@ -9763,7 +9775,8 @@ function FinishedGoodsPage({ data, setData, user }) {
     headers: ['STT', 'Mã lô', 'Mã khách hàng', 'Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Số lượng', 'Ghi chú'],
     rows: requestVoucherRows.map((row) => [row.no, row.lotCode, row.customerCode || '-', row.productCode, row.name, row.unit, row.qty, row.note || '']),
     signatures: ['Người đề nghị', 'QC', 'Thủ kho', 'KTT / Trưởng bộ phận'],
-  }), `phieu-de-nghi-nhap-kho-${requestVoucherNo}.pdf`)
+    }), `phieu-de-nghi-nhap-kho-${requestVoucherNo}.pdf`)
+  }
   const productCodeOptions = Array.from(new Set(finishedGoods.map(finishedGoodsProductCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const orderCodeOptions = Array.from(new Set(finishedGoods.map(finishedGoodsOrderCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const updateDailyReportDraftFilter = (field, value) => setDailyReportDraftFilters((current) => ({ ...current, [field]: value }))
@@ -10080,7 +10093,17 @@ function FinishedGoodsPage({ data, setData, user }) {
                 <span>Ghi chú: {requestVoucherFilters.note || '-'}</span>
               </div>
             </div>
-            <table className="warehouse-table finished-voucher-table">
+            <table className="warehouse-table finished-voucher-table request-voucher-table">
+              <colgroup>
+                <col style={{ width: '50px' }} />
+                <col style={{ width: '130px' }} />
+                <col style={{ width: '120px' }} />
+                <col style={{ width: '120px' }} />
+                <col style={{ width: '260px' }} />
+                <col style={{ width: '70px' }} />
+                <col style={{ width: '90px' }} />
+                <col style={{ width: '140px' }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>STT</th>

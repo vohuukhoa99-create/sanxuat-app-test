@@ -4425,6 +4425,55 @@ td .primary-button {
   text-align: left;
 }
 
+.request-voucher-table {
+  width: 980px !important;
+  min-width: 980px !important;
+  max-width: 980px;
+  table-layout: fixed !important;
+  margin: 0;
+}
+
+.request-voucher-table th,
+.request-voucher-table td {
+  box-sizing: border-box;
+  vertical-align: middle !important;
+}
+
+.request-voucher-table th {
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+.request-voucher-table th:nth-child(1),
+.request-voucher-table td:nth-child(1),
+.request-voucher-table th:nth-child(2),
+.request-voucher-table td:nth-child(2),
+.request-voucher-table th:nth-child(3),
+.request-voucher-table td:nth-child(3),
+.request-voucher-table th:nth-child(4),
+.request-voucher-table td:nth-child(4),
+.request-voucher-table th:nth-child(6),
+.request-voucher-table td:nth-child(6) {
+  text-align: center !important;
+}
+
+.request-voucher-table th:nth-child(5),
+.request-voucher-table td:nth-child(5),
+.request-voucher-table th:nth-child(8),
+.request-voucher-table td:nth-child(8) {
+  text-align: left !important;
+}
+
+.request-voucher-table th:nth-child(7),
+.request-voucher-table td:nth-child(7) {
+  text-align: right !important;
+}
+
+.request-voucher-table th:nth-child(2),
+.request-voucher-table td:nth-child(2) {
+  min-width: 0;
+}
+
 .finished-voucher-signature-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
