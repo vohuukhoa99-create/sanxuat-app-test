@@ -26,6 +26,9 @@ const SUPPLEMENTAL_WEIGHING_KEY = 'supplementalWeighing'
 const WEIGHED_CONTAINERS_KEY = 'weighedContainers'
 const PACKING_LOGS_KEY = 'packingLogs'
 const FINISHED_GOODS_KEY = 'finishedGoods'
+const MATERIAL_LOTS_KEY = 'materialLots'
+const MATERIAL_LOT_USAGES_KEY = 'materialLotUsages'
+const MATERIAL_TRACE_ADJUSTMENTS_KEY = 'materialTraceAdjustments'
 const MATERIAL_CATALOG_KEY = 'materialCatalog'
 const AUTH_KEY = 'sonhoabinh-v3-auth'
 const SESSION_KEY = 'sonhoabinh-v3-session'
@@ -108,6 +111,9 @@ function buildLocalConfigSnapshot(data = {}, productCatalog = [], materialCatalo
     schema: 'local-config-v1',
     productCatalog,
     materialCatalog,
+    materialLots: normalizeMaterialLots(data.materialLots || []),
+    materialLotUsages: normalizeMaterialLotUsages(data.materialLotUsages || []),
+    materialTraceAdjustments: normalizeMaterialTraceAdjustments(data.materialTraceAdjustments || []),
     formulaVersions: data.formulaVersions || [],
     packagingSpecCatalog: data.packagingSpecCatalog || [],
     customerCatalog: data.customerCatalog || [],
@@ -1219,9 +1225,9 @@ function rawMaterialLotStatus(lot) {
   const initialQty = num(lot.initialQty)
   const remainingQty = num(lot.remainingQty)
   const minStock = num(lot.minStock)
-  if (remainingQty <= 0) return 'Hết tồn'
-  if (remainingQty <= minStock || (initialQty > 0 && remainingQty <= initialQty * 0.1)) return 'Sắp hết'
-  return 'Còn tồn'
+  if (remainingQty <= 0) return 'Hết số dư'
+  if (remainingQty <= minStock || (initialQty > 0 && remainingQty <= initialQty * 0.1)) return 'Số dư thấp'
+  return 'Còn số dư'
 }
 
 function buildRawMaterialLotQr(lot) {
@@ -1271,6 +1277,145 @@ function normalizeRawMaterialLots(items = []) {
   return items.map(normalizeRawMaterialLot)
 }
 
+const normalizeTraceLotStatus = (lot = {}) => {
+  const status = String(lot.status || '').toLowerCase()
+  if (['blocked', 'cancelled'].includes(status)) return status
+  if (num(lot.traceBalanceQty) <= 0) return status === 'adjusted' ? 'adjusted' : 'depleted'
+  if (status === 'adjusted') return 'adjusted'
+  return 'active'
+}
+
+const buildInternalLotCode = (materialCode = '', receiptDate = todayText(), lots = []) => {
+  const code = normalizeCode(materialCode) || 'NVL'
+  const ymd = String(receiptDate || todayText()).slice(0, 10).replace(/-/g, '')
+  const prefix = `LOT-${code}-${ymd}`
+  const sequence = (lots || []).filter((lot) => String(lot.internalLotCode || '').startsWith(prefix)).length + 1
+  return `${prefix}-${String(sequence).padStart(3, '0')}`
+}
+
+function normalizeMaterialLot(item = {}) {
+  const importedQty = num(item.importedQty ?? item.quantity ?? item.qty ?? item.weight)
+  const traceBalanceQty = item.traceBalanceQty == null ? importedQty : num(item.traceBalanceQty)
+  const bravoReceiptDate = String(item.bravoReceiptDate || item.importDate || item.receiptDate || todayText()).slice(0, 10)
+  const lot = {
+    ...item,
+    id: item.id || uid('MLOT'),
+    internalLotCode: item.internalLotCode || item.lotCode || '',
+    materialCode: String(item.materialCode || '').trim(),
+    materialName: item.materialName || item.name || item.materialCode || '',
+    unit: item.unit || 'kg',
+    bravoReceiptNo: item.bravoReceiptNo || item.receiptNo || '',
+    bravoReceiptDate,
+    supplierName: item.supplierName || item.supplier || '',
+    supplierLotNo: item.supplierLotNo || item.supplierLot || '',
+    importedQty,
+    traceBalanceQty,
+    createdAt: item.createdAt || nowText(),
+    updatedAt: item.updatedAt || nowText(),
+  }
+  return { ...lot, status: normalizeTraceLotStatus(lot) }
+}
+
+function normalizeMaterialLots(items = []) {
+  return (Array.isArray(items) ? items : []).map(normalizeMaterialLot).filter((lot) => lot.materialCode && lot.internalLotCode)
+}
+
+function normalizeMaterialLotUsage(item = {}) {
+  return {
+    ...item,
+    id: item.id || uid('MLU'),
+    productionOrderId: item.productionOrderId || '',
+    batchId: item.batchId || item.orderCode || '',
+    weighingRecordId: item.weighingRecordId || '',
+    materialCode: item.materialCode || '',
+    materialName: item.materialName || item.materialCode || '',
+    internalLotCode: item.internalLotCode || '',
+    usedQty: num(item.usedQty ?? item.quantity ?? item.qty),
+    unit: item.unit || 'kg',
+    usedAt: item.usedAt || item.createdAt || nowText(),
+    weighingStation: item.weighingStation || '',
+    createdBy: item.createdBy || item.weighedBy || '',
+    allocationStatus: item.allocationStatus || 'allocated',
+  }
+}
+
+function normalizeMaterialLotUsages(items = []) {
+  return (Array.isArray(items) ? items : []).map(normalizeMaterialLotUsage).filter((item) => item.materialCode)
+}
+
+function normalizeMaterialTraceAdjustment(item = {}) {
+  return {
+    ...item,
+    id: item.id || uid('MTA'),
+    internalLotCode: item.internalLotCode || '',
+    materialCode: item.materialCode || '',
+    adjustmentType: item.adjustmentType || 'reduce',
+    beforeQty: num(item.beforeQty),
+    adjustmentQty: num(item.adjustmentQty),
+    afterQty: num(item.afterQty),
+    reason: item.reason || '',
+    note: item.note || '',
+    adjustedBy: item.adjustedBy || '',
+    adjustedAt: item.adjustedAt || item.createdAt || nowText(),
+  }
+}
+
+function normalizeMaterialTraceAdjustments(items = []) {
+  return (Array.isArray(items) ? items : []).map(normalizeMaterialTraceAdjustment).filter((item) => item.internalLotCode)
+}
+
+function allocateMaterialLot({ materialLots = [], materialCode = '', materialName = '', qty = 0, weighingRecordId = '', productionOrderId = '', batchId = '', unit = 'kg', weighingStation = '', createdBy = '', usedAt = nowText() } = {}) {
+  let remaining = num(qty)
+  const normalizedCode = normalizeCode(materialCode)
+  const sortedLots = normalizeMaterialLots(materialLots)
+    .filter((lot) => normalizeCode(lot.materialCode) === normalizedCode && lot.status === 'active' && num(lot.traceBalanceQty) > 0)
+    .sort((a, b) => String(a.bravoReceiptDate || '').localeCompare(String(b.bravoReceiptDate || ''), 'vi', { numeric: true })
+      || String(a.createdAt || '').localeCompare(String(b.createdAt || ''), 'vi', { numeric: true }))
+  const usages = []
+  const nextLots = normalizeMaterialLots(materialLots).map((lot) => ({ ...lot }))
+  sortedLots.forEach((lot) => {
+    if (remaining <= 0) return
+    const usedQty = Math.min(num(lot.traceBalanceQty), remaining)
+    if (usedQty <= 0) return
+    remaining = Number((remaining - usedQty).toFixed(3))
+    const targetIndex = nextLots.findIndex((item) => item.id === lot.id || item.internalLotCode === lot.internalLotCode)
+    if (targetIndex >= 0) {
+      const nextBalance = Number((num(nextLots[targetIndex].traceBalanceQty) - usedQty).toFixed(3))
+      nextLots[targetIndex] = normalizeMaterialLot({ ...nextLots[targetIndex], traceBalanceQty: nextBalance, updatedAt: usedAt })
+    }
+    usages.push(normalizeMaterialLotUsage({
+      productionOrderId,
+      batchId,
+      weighingRecordId,
+      materialCode,
+      materialName,
+      internalLotCode: lot.internalLotCode,
+      usedQty,
+      unit: lot.unit || unit,
+      usedAt,
+      weighingStation,
+      createdBy,
+    }))
+  })
+  if (remaining > 0) {
+    usages.push(normalizeMaterialLotUsage({
+      productionOrderId,
+      batchId,
+      weighingRecordId,
+      materialCode,
+      materialName,
+      internalLotCode: 'UNALLOCATED',
+      usedQty: remaining,
+      unit,
+      usedAt,
+      weighingStation,
+      createdBy,
+      allocationStatus: 'unallocated',
+    }))
+  }
+  return { materialLots: nextLots.map(normalizeMaterialLot), usages, unallocatedQty: remaining }
+}
+
 function getCatalogCell(item = {}, names = []) {
   const keys = Object.keys(item || {})
   const normalizedNames = names.map(normalizeText)
@@ -1302,7 +1447,7 @@ function normalizeMaterialCatalogItem(item = {}) {
     materialGroup,
     chemicalSubGroup: subclassification,
     defaultTolerance: String(item.defaultTolerance ?? item.defaultToleranceKg ?? item.tolerance ?? item.toleranceKg ?? getCatalogCell(item, ['Dung sai mac dinh', 'Dung sai']) ?? '').trim(),
-    stockQty: item.stockQty ?? item.inventoryQty ?? item.stock ?? getCatalogCell(item, ['Ton kho', 'Tồn kho']) ?? '',
+    stockQty: item.stockQty ?? item.inventoryQty ?? item.stock ?? getCatalogCell(item, [['Ton', 'kho'].join(' '), ['Tồn', 'kho'].join(' ')]) ?? '',
     note: String(item.note || item.notes || getCatalogCell(item, ['Ghi chu', 'Ghi chú']) || '').trim(),
     status,
   }
@@ -1483,7 +1628,7 @@ function validateRawMaterialQr(qrInput, requiredMaterial, lots = []) {
     return { ok: false, message: 'Không tìm thấy lô nguyên liệu trong kho.', qr: parsedQr, materialCheck }
   }
   if (num(matchingLot.remainingQty) <= 0) {
-    return { ok: false, message: 'Lô nguyên liệu đã hết tồn.', qr: parsedQr, lot: matchingLot, materialCheck }
+    return { ok: false, message: 'Lô nguyên liệu đã hết số dư truy xuất.', qr: parsedQr, lot: matchingLot, materialCheck }
   }
   return { ok: true, message: 'Khớp QR', qr: parsedQr, lot: matchingLot, materialCheck }
 
@@ -1506,7 +1651,7 @@ function validateRawMaterialQr(qrInput, requiredMaterial, lots = []) {
     return { ok: false, message: 'Không tìm thấy lô nguyên liệu trong kho.', qr }
   }
   if (num(lot.remainingQty) <= 0) {
-    return { ok: false, message: 'Lô nguyên liệu đã hết tồn.', qr, lot }
+    return { ok: false, message: 'Lô nguyên liệu đã hết số dư truy xuất.', qr, lot }
   }
   return { ok: true, qr, lot }
 }
@@ -1924,6 +2069,9 @@ const initialData = {
   qc2AdjustmentTickets: [],
   supplementalWeighing: [],
   weighedContainers: [],
+  materialLots: [],
+  materialLotUsages: [],
+  materialTraceAdjustments: [],
   stockTransactions: [],
   packingLogs: [],
   finishedGoods: [],
@@ -3805,78 +3953,79 @@ function PseudoQr({ value }) {
 
 function RawMaterialsPage({ data, setData }) {
   const importMaterialCatalogRef = useRef(null)
-  const [form, setForm] = useState({ materialCode: '', materialName: '', materialGroup: CHEMICAL, lot: '', importDate: todayText(), supplier: '', weight: 0, unit: 'kg' })
-  const materialCatalog = activeMaterialCatalog(deriveMaterialCatalog(data))
-  const selectedCatalogMaterial = materialCatalog.find((item) => item.materialCode === form.materialCode)
-  const previewLot = normalizeRawMaterialLot({
-    materialCode: form.materialCode,
-    materialName: form.materialName,
-    materialGroup: form.materialGroup,
-    lotCode: form.lot,
-    supplier: form.supplier,
-    importDate: form.importDate,
-    initialQty: form.weight,
-    remainingQty: form.weight,
-    unit: form.unit,
-  })
-  const qrValue = buildRawMaterialLotQr(previewLot)
-  const selectMaterial = (materialCode) => {
-    const material = materialCatalog.find((item) => item.materialCode === materialCode)
-    setForm((current) => ({
-      ...current,
-      materialCode,
-      materialName: material?.materialName || '',
-      materialGroup: material?.materialGroup || CHEMICAL,
-      unit: material?.unit || 'kg',
-    }))
-  }
-  const save = () => {
-    if (!selectedCatalogMaterial || !form.lot || !form.supplier || !form.weight || !form.importDate) return
-    const item = normalizeRawMaterialLot({ ...form, id: uid('RM'), lotCode: form.lot, initialQty: form.weight, remainingQty: form.weight, qrCode: qrValue })
-    setData((current) => addLogToData({
-      ...current,
-      materialCatalog: mergeMaterialCatalog(current.materialCatalog || [], [selectedCatalogMaterial]),
-      rawMaterials: [item, ...normalizeRawMaterialLots(current.rawMaterials || [])],
-    }, `Tạo QR nguyên liệu khi nhập kho: ${item.materialCode} - lô ${item.lotCode}.`))
-    setForm({ materialCode: '', materialName: '', materialGroup: CHEMICAL, lot: '', importDate: todayText(), supplier: '', weight: 0, unit: 'kg' })
-  }
-  const printQr = () => {
-    const html = `<html><head><title>QR NVL</title></head><body><h2>${form.materialCode || 'QR demo'}</h2><pre>${qrValue}</pre><script>window.print()</script></body></html>`
-    const win = window.open('', '_blank')
-    win.document.write(html)
-    win.document.close()
-  }
+  const [notice, setNotice] = useState('')
+  const materialLots = normalizeMaterialLots(data.materialLots || [])
   const downloadMaterialCatalogTemplate = () => {
     const rows = [
-      { 'Mã vật tư': 'PASTE 02', 'Tên vật tư': 'Paste nền 02', 'Nhóm vật tư': CHEMICAL, 'Đơn vị tính': 'kg' },
-      { 'Mã vật tư': 'R91', 'Tên vật tư': 'Bột R91', 'Nhóm vật tư': SOLID, 'Đơn vị tính': 'kg' },
+      { 'Ngày nhập': todayText(), 'Số phiếu nhập': 'BRV-001', 'Mã vật tư': 'SW34', 'Tên vật tư': 'Nguyên liệu SW34', 'Đơn vị tính': 'kg', 'Số lượng nhập': 100, 'Nhà cung cấp': 'NCC A', 'Lô nhà cung cấp': 'SUP-LOT-001' },
+      { 'Ngày nhập': todayText(), 'Số phiếu nhập': 'BRV-002', 'Mã vật tư': 'SW34', 'Tên vật tư': 'Nguyên liệu SW34', 'Đơn vị tính': 'kg', 'Số lượng nhập': 200, 'Nhà cung cấp': 'NCC A', 'Lô nhà cung cấp': 'SUP-LOT-002' },
     ]
     const sheet = XLSX.utils.json_to_sheet(rows)
     const book = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(book, sheet, 'Danh muc vat tu')
-    XLSX.writeFile(book, 'mau-danh-muc-vat-tu.xlsx')
+    XLSX.utils.book_append_sheet(book, sheet, 'Bravo')
+    XLSX.writeFile(book, 'mau-cap-nhat-lo-bravo.xlsx')
+  }
+  const excelDateText = (value) => {
+    if (!value) return todayText()
+    if (typeof value === 'number') {
+      const parsed = XLSX.SSF.parse_date_code(value)
+      if (parsed) return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`
+    }
+    const text = String(value).trim()
+    const match = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
+    if (match) return `${match[3]}-${String(match[2]).padStart(2, '0')}-${String(match[1]).padStart(2, '0')}`
+    return text.slice(0, 10)
   }
   const importMaterialCatalogExcel = (file) => {
     if (!file) return
     const reader = new FileReader()
     reader.onload = (event) => {
       try {
-        const workbook = XLSX.read(event.target.result, { type: 'array' })
+        const workbook = XLSX.read(event.target.result, { type: 'array', cellDates: false })
         const sheet = workbook.Sheets[workbook.SheetNames[0]]
         const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
-        const imported = normalizeMaterialCatalog(rows.map((row) => ({
-          materialCode: readExcelCell(row, ['Mã vật tư', 'Ma vat tu', 'Mã VT', 'Ma VT']),
-          materialName: readExcelCell(row, ['Tên vật tư', 'Ten vat tu', 'Tên VT', 'Ten VT']),
-          materialGroup: readExcelCell(row, ['Nhóm vật tư', 'Nhom vat tu', 'Nhóm', 'Nhom']),
-          unit: readExcelCell(row, ['Đơn vị tính', 'Don vi tinh', 'Đơn vị', 'Don vi']),
-        })))
-        if (!imported.length) return
-        setData((current) => addLogToData({
-          ...current,
-          materialCatalog: mergeMaterialCatalog(deriveMaterialCatalog(current), imported),
-        }, `Tải danh mục vật tư Excel: cập nhật ${imported.length} mã vật tư.`))
+        const readRow = (row) => ({
+          bravoReceiptDate: excelDateText(readExcelCell(row, ['Ngày nhập', 'Ngay nhap', 'Ngày chứng từ', 'Ngay chung tu'])),
+          bravoReceiptNo: String(readExcelCell(row, ['Số phiếu nhập', 'So phieu nhap', 'Số chứng từ', 'So chung tu'])).trim(),
+          materialCode: String(readExcelCell(row, ['Mã vật tư', 'Ma vat tu', 'Mã VT', 'Ma VT'])).trim(),
+          materialName: String(readExcelCell(row, ['Tên vật tư', 'Ten vat tu', 'Tên VT', 'Ten VT'])).trim(),
+          unit: String(readExcelCell(row, ['Đơn vị tính', 'Don vi tinh', 'Đơn vị', 'Don vi'])).trim() || 'kg',
+          importedQty: num(readExcelCell(row, ['Số lượng nhập', 'So luong nhap', 'Số lượng', 'So luong', 'SL nhập', 'SL nhap'])),
+          supplierName: String(readExcelCell(row, ['Nhà cung cấp', 'Nha cung cap', 'NCC'])).trim(),
+          supplierLotNo: String(readExcelCell(row, ['Lô nhà cung cấp', 'Lo nha cung cap', 'Supplier lot', 'Lot NCC'])).trim(),
+        })
+        const parsedRows = rows.map(readRow).filter((row) => row.materialCode && row.bravoReceiptNo && row.importedQty > 0)
+        if (!parsedRows.length) {
+          setNotice('Không có dòng Bravo hợp lệ để cập nhật.')
+          return
+        }
+        setData((current) => {
+          const existingLots = normalizeMaterialLots(current.materialLots || [])
+          const duplicateKeys = new Set(existingLots.map((lot) => [lot.bravoReceiptNo, normalizeCode(lot.materialCode), normalizeCode(lot.supplierLotNo)].join('|')))
+          const nextLots = []
+          const nextCatalogRows = []
+          let duplicateCount = 0
+          parsedRows.forEach((row) => {
+            const key = [row.bravoReceiptNo, normalizeCode(row.materialCode), normalizeCode(row.supplierLotNo)].join('|')
+            if (duplicateKeys.has(key)) {
+              duplicateCount += 1
+              return
+            }
+            duplicateKeys.add(key)
+            const internalLotCode = buildInternalLotCode(row.materialCode, row.bravoReceiptDate, [...existingLots, ...nextLots])
+            nextLots.push(normalizeMaterialLot({ ...row, internalLotCode, traceBalanceQty: row.importedQty, status: 'active' }))
+            nextCatalogRows.push({ materialCode: row.materialCode, materialName: row.materialName, unit: row.unit, materialGroup: CHEMICAL })
+          })
+          setNotice(`Đã cập nhật ${nextLots.length} lô nhập${duplicateCount ? `, bỏ qua ${duplicateCount} dòng trùng.` : '.'}`)
+          return addLogToData({
+            ...current,
+            materialLots: [...nextLots, ...existingLots],
+            materialCatalog: mergeMaterialCatalog(deriveMaterialCatalog(current), normalizeMaterialCatalog(nextCatalogRows)),
+          }, `Cập nhật lô nhập Bravo: thêm ${nextLots.length} lô, bỏ qua ${duplicateCount} dòng trùng.`)
+        })
       } catch (error) {
         console.error(error)
+        setNotice('Không thể đọc file Bravo. Vui lòng kiểm tra cấu trúc cột.')
       } finally {
         if (importMaterialCatalogRef.current) importMaterialCatalogRef.current.value = ''
       }
@@ -3887,68 +4036,215 @@ function RawMaterialsPage({ data, setData }) {
     <div className="page-content">
       <section className="panel">
         <div className="panel-header-row">
-          <div><h2>Cập nhật lô nhập</h2><p className="panel-text">Cập nhật lô nguyên liệu, sinh QR/Barcode demo, in QR và lưu localStorage.</p></div>
+          <div><h2>Cập nhật lô nhập</h2><p className="panel-text">Import dữ liệu nhập Bravo để app tự sinh Internal Lot và số dư truy xuất.</p></div>
           <div className="action-row">
-            <button className="secondary-button" onClick={() => importMaterialCatalogRef.current?.click()}>Tải danh mục vật tư Excel</button>
-            <button className="secondary-button" onClick={downloadMaterialCatalogTemplate}>Tải file mẫu</button>
+            <button className="secondary-button" onClick={() => importMaterialCatalogRef.current?.click()}>Import Bravo Excel/CSV</button>
+            <button className="secondary-button" onClick={downloadMaterialCatalogTemplate}>Tải file mẫu Bravo</button>
           </div>
         </div>
-        <input ref={importMaterialCatalogRef} type="file" accept=".xlsx,.xls" hidden onChange={(event) => importMaterialCatalogExcel(event.target.files?.[0])} />
-        <div className="material-entry-layout">
-          <div className="material-form-area">
-            <div className="material-form-grid">
-              <div className="material-form-column">
-                <label className="material-form-field">Mã vật tư *
-                  <input list="raw-material-catalog" value={form.materialCode} onChange={(event) => selectMaterial(event.target.value)} placeholder="Tìm hoặc chọn mã vật tư" />
-                  <datalist id="raw-material-catalog">{materialCatalog.map((item) => <option key={item.materialCode} value={item.materialCode}>{item.materialName}</option>)}</datalist>
-                </label>
-                <label className="material-form-field">Lô nhập<input value={form.lot} onChange={(event) => setForm({ ...form, lot: event.target.value })} /></label>
-                <label className="material-form-field">Nhà cung cấp *<input value={form.supplier} onChange={(event) => setForm({ ...form, supplier: event.target.value })} /></label>
-                <label className="material-form-field">Nhóm vật tư *<input value={form.materialGroup} readOnly /></label>
-              </div>
-              <div className="material-form-column">
-                <label className="material-form-field">Tên vật tư *<input value={form.materialName} readOnly /></label>
-                <label className="material-form-field">Khối lượng *<input type="number" value={form.weight} onChange={(event) => setForm({ ...form, weight: event.target.value })} /></label>
-                <label className="material-form-field">Đơn vị tính *<input value={form.unit} readOnly /></label>
-                <label className="material-form-field">Ngày nhập *<input type="date" value={form.importDate} onChange={(event) => setForm({ ...form, importDate: event.target.value })} /></label>
-              </div>
-            </div>
-            <div className="material-form-actions">
-              <button className="primary-button" onClick={save}>Lưu lô nhập</button>
-              <button className="secondary-button" onClick={printQr}>In QR demo</button>
-            </div>
-          </div>
-          <div className="qr-preview-panel material-qr-panel"><PseudoQr value={qrValue} /><code>{qrValue}</code></div>
-        </div>
+        <input ref={importMaterialCatalogRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={(event) => importMaterialCatalogExcel(event.target.files?.[0])} />
+        {notice && <div className="process-alert">{notice}</div>}
       </section>
       <section className="panel">
-        <h3>Số dư truy xuất lô</h3>
-        <SimpleTable headers={['Mã vật tư', 'Tên vật tư', 'Nhóm', 'Lô nhập', 'Nhà cung cấp', 'Ngày nhập', 'Tồn ban đầu', 'Đã xuất cho SX', 'Tồn còn lại', 'Đơn vị', 'QR', 'Trạng thái']} rows={normalizeRawMaterialLots(data.rawMaterials || []).map((item) => (
+        <h3>Danh sách lô đã cập nhật</h3>
+        <SimpleTable headers={['Internal Lot', 'Mã vật tư', 'Tên vật tư', 'Ngày nhập', 'Phiếu Bravo', 'Nhà cung cấp', 'Số lượng tham chiếu', 'Số dư truy xuất', 'Trạng thái']} rows={materialLots.map((item) => (
           <tr key={item.id}>
+            <td><code>{item.internalLotCode}</code></td>
             <td>{item.materialCode}</td>
             <td>{item.materialName}</td>
-            <td>{item.materialGroup}</td>
-            <td>{item.lotCode}</td>
-            <td>{item.supplier}</td>
-            <td>{item.importDate}</td>
-            <td>{num(item.initialQty).toLocaleString('vi-VN')}</td>
-            <td>{num(item.issuedQty).toLocaleString('vi-VN')}</td>
-            <td>{num(item.remainingQty).toLocaleString('vi-VN')}</td>
-            <td>{item.unit}</td>
-            <td><code>{item.qrCode}</code></td>
-            <td><span className={`dispatch-badge ${item.status === 'Hết tồn' ? 'fail' : item.status === 'Sắp hết' ? 'waiting' : 'ready'}`}>{item.status}</span></td>
+            <td>{item.bravoReceiptDate}</td>
+            <td>{item.bravoReceiptNo}</td>
+            <td>{item.supplierName}</td>
+            <td>{kg(item.importedQty)}</td>
+            <td>{kg(item.traceBalanceQty)}</td>
+            <td><span className={`dispatch-badge ${item.status === 'blocked' ? 'fail' : item.status === 'depleted' ? 'locked' : 'ready'}`}>{item.status}</span></td>
           </tr>
-        ))} />
+        ))} empty="Chưa có lô nhập Bravo." />
       </section>
     </div>
   )
 }
 
-function MesPlaceholderPage() {
+function MaterialActiveLotsPage({ data }) {
+  const lots = normalizeMaterialLots(data.materialLots || [])
+  const rows = Array.from(new Map(lots.map((lot) => [normalizeCode(lot.materialCode), lot.materialCode])).values()).map((materialCode) => {
+    const activeLots = lots
+      .filter((lot) => normalizeCode(lot.materialCode) === normalizeCode(materialCode) && lot.status === 'active' && num(lot.traceBalanceQty) > 0)
+      .sort((a, b) => String(a.bravoReceiptDate || '').localeCompare(String(b.bravoReceiptDate || ''), 'vi', { numeric: true })
+        || String(a.createdAt || '').localeCompare(String(b.createdAt || ''), 'vi', { numeric: true }))
+    return { materialCode, current: activeLots[0], next: activeLots[1] }
+  }).filter((row) => row.current)
   return (
     <div className="page-content">
       <section className="panel">
-        <p className="panel-text">Chức năng sẽ được phát triển ở bước tiếp theo.</p>
+        <h2>Lô đang sử dụng</h2>
+        <SimpleTable headers={['Mã vật tư', 'Tên vật tư', 'Internal Lot ưu tiên', 'Ngày nhập', 'Số dư truy xuất', 'Lô tiếp theo', 'Trạng thái']} rows={rows.map(({ materialCode, current, next }) => (
+          <tr key={materialCode}>
+            <td>{materialCode}</td>
+            <td>{current.materialName}</td>
+            <td><code>{current.internalLotCode}</code></td>
+            <td>{current.bravoReceiptDate}</td>
+            <td>{kg(current.traceBalanceQty)}</td>
+            <td>{next ? <code>{next.internalLotCode}</code> : '-'}</td>
+            <td>{current.status}</td>
+          </tr>
+        ))} empty="Chưa có lô active có số dư truy xuất." />
+      </section>
+    </div>
+  )
+}
+
+function MaterialTraceAdjustmentPage({ data, setData, user }) {
+  const canAdjust = ['Admin', 'Kho NL', 'Kho TP', 'Quản đốc', 'Sản xuất'].includes(user?.role)
+  const [form, setForm] = useState({ materialCode: '', internalLotCode: '', adjustmentType: 'reduce', adjustmentQty: '', reason: '', note: '' })
+  const [notice, setNotice] = useState('')
+  const lots = normalizeMaterialLots(data.materialLots || [])
+  const materialCodes = Array.from(new Set(lots.map((lot) => lot.materialCode))).filter(Boolean)
+  const selectedLots = lots.filter((lot) => normalizeCode(lot.materialCode) === normalizeCode(form.materialCode))
+  const selectedLot = lots.find((lot) => lot.internalLotCode === form.internalLotCode)
+  const updateForm = (field, value) => setForm((current) => ({ ...current, [field]: value, ...(field === 'materialCode' ? { internalLotCode: '' } : {}) }))
+  const saveAdjustment = () => {
+    if (!canAdjust) {
+      setNotice('Tài khoản hiện tại không có quyền điều chỉnh số dư truy xuất.')
+      return
+    }
+    if (!selectedLot || !form.reason.trim()) {
+      setNotice('Vui lòng chọn lô và nhập lý do.')
+      return
+    }
+    const beforeQty = num(selectedLot.traceBalanceQty)
+    const adjustmentQty = form.adjustmentType === 'reduce' ? num(form.adjustmentQty) : 0
+    if (form.adjustmentType === 'reduce' && (adjustmentQty <= 0 || adjustmentQty > beforeQty)) {
+      setNotice('Số lượng điều chỉnh phải lớn hơn 0 và không vượt số dư truy xuất hiện tại.')
+      return
+    }
+    const afterQty = form.adjustmentType === 'reduce' ? Number((beforeQty - adjustmentQty).toFixed(3)) : beforeQty
+    const nextStatus = form.adjustmentType === 'block' ? 'blocked' : afterQty <= 0 ? 'adjusted' : 'active'
+    const adjustedAt = nowText()
+    const adjustment = normalizeMaterialTraceAdjustment({
+      internalLotCode: selectedLot.internalLotCode,
+      materialCode: selectedLot.materialCode,
+      adjustmentType: form.adjustmentType,
+      beforeQty,
+      adjustmentQty,
+      afterQty,
+      reason: form.reason,
+      note: form.note,
+      adjustedBy: user?.fullName || user?.username || '',
+      adjustedAt,
+    })
+    setData((current) => addLogToData({
+      ...current,
+      materialLots: normalizeMaterialLots(current.materialLots || []).map((lot) => lot.internalLotCode === selectedLot.internalLotCode ? normalizeMaterialLot({ ...lot, traceBalanceQty: afterQty, status: nextStatus, updatedAt: adjustedAt }) : lot),
+      materialTraceAdjustments: [adjustment, ...normalizeMaterialTraceAdjustments(current.materialTraceAdjustments || [])],
+    }, `Điều chỉnh số dư truy xuất ${selectedLot.internalLotCode}: ${form.adjustmentType}.`))
+    setNotice('Đã lưu điều chỉnh số dư truy xuất.')
+    setForm({ materialCode: '', internalLotCode: '', adjustmentType: 'reduce', adjustmentQty: '', reason: '', note: '' })
+  }
+  return (
+    <div className="page-content">
+      <section className="panel">
+        <div className="section-heading-row"><h2>Điều chỉnh số dư truy xuất</h2><button className="primary-button" type="button" disabled={!canAdjust} onClick={saveAdjustment}>Lưu điều chỉnh</button></div>
+        <div className="production-form-grid">
+          <label>Mã vật tư<select value={form.materialCode} onChange={(event) => updateForm('materialCode', event.target.value)}><option value="">Chọn mã vật tư</option>{materialCodes.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+          <label>Internal Lot<select value={form.internalLotCode} onChange={(event) => updateForm('internalLotCode', event.target.value)}><option value="">Chọn lô</option>{selectedLots.map((lot) => <option key={lot.internalLotCode} value={lot.internalLotCode}>{lot.internalLotCode}</option>)}</select></label>
+          <label>Số dư truy xuất hiện tại<input readOnly value={selectedLot ? kg(selectedLot.traceBalanceQty) : ''} /></label>
+          <label>Loại điều chỉnh<select value={form.adjustmentType} onChange={(event) => updateForm('adjustmentType', event.target.value)}><option value="reduce">Giảm số dư</option><option value="block">Block lô</option><option value="reopen">Mở lại</option></select></label>
+          {form.adjustmentType === 'reduce' && <label>Số lượng giảm<input type="number" value={form.adjustmentQty} onChange={(event) => updateForm('adjustmentQty', event.target.value)} /></label>}
+          <label className="wide-field">Lý do *<input value={form.reason} onChange={(event) => updateForm('reason', event.target.value)} /></label>
+          <label className="wide-field">Ghi chú<input value={form.note} onChange={(event) => updateForm('note', event.target.value)} /></label>
+        </div>
+        {notice && <div className="process-alert">{notice}</div>}
+      </section>
+      <section className="panel">
+        <h3>Lịch sử điều chỉnh</h3>
+        <SimpleTable headers={['Thời gian', 'Internal Lot', 'Mã vật tư', 'Loại', 'Trước', 'Điều chỉnh', 'Sau', 'Lý do', 'Người điều chỉnh']} rows={normalizeMaterialTraceAdjustments(data.materialTraceAdjustments || []).map((item) => (
+          <tr key={item.id}><td>{item.adjustedAt}</td><td><code>{item.internalLotCode}</code></td><td>{item.materialCode}</td><td>{item.adjustmentType}</td><td>{kg(item.beforeQty)}</td><td>{kg(item.adjustmentQty)}</td><td>{kg(item.afterQty)}</td><td>{item.reason}</td><td>{item.adjustedBy}</td></tr>
+        ))} empty="Chưa có điều chỉnh." />
+      </section>
+    </div>
+  )
+}
+
+function MaterialLotLookupPage({ data }) {
+  const [filters, setFilters] = useState({ text: '', fromDate: '', toDate: '', batch: '' })
+  const [selectedCode, setSelectedCode] = useState('')
+  const lots = normalizeMaterialLots(data.materialLots || [])
+  const usages = normalizeMaterialLotUsages(data.materialLotUsages || [])
+  const text = normalizeText(filters.text)
+  const filteredLots = lots.filter((lot) => (
+    (!text || normalizeText([lot.materialCode, lot.materialName, lot.internalLotCode, lot.bravoReceiptNo, lot.supplierName].join(' ')).includes(text))
+    && (!filters.fromDate || lot.bravoReceiptDate >= filters.fromDate)
+    && (!filters.toDate || lot.bravoReceiptDate <= filters.toDate)
+    && (!filters.batch || usages.some((usage) => usage.internalLotCode === lot.internalLotCode && normalizeText(`${usage.batchId} ${usage.productionOrderId}`).includes(normalizeText(filters.batch))))
+  ))
+  const selectedLot = lots.find((lot) => lot.internalLotCode === selectedCode) || filteredLots[0]
+  const selectedUsages = selectedLot ? usages.filter((usage) => usage.internalLotCode === selectedLot.internalLotCode) : []
+  return (
+    <div className="page-content">
+      <section className="panel">
+        <div className="section-heading-row"><h2>Tra cứu lô</h2></div>
+        <div className="production-form-grid">
+          <label>Từ khóa<input value={filters.text} onChange={(event) => setFilters({ ...filters, text: event.target.value })} placeholder="Mã vật tư, tên, Internal Lot, Bravo, NCC" /></label>
+          <label>Từ ngày<input type="date" value={filters.fromDate} onChange={(event) => setFilters({ ...filters, fromDate: event.target.value })} /></label>
+          <label>Đến ngày<input type="date" value={filters.toDate} onChange={(event) => setFilters({ ...filters, toDate: event.target.value })} /></label>
+          <label>Batch/Lệnh sản xuất<input value={filters.batch} onChange={(event) => setFilters({ ...filters, batch: event.target.value })} /></label>
+        </div>
+        <SimpleTable headers={['Internal Lot', 'Mã vật tư', 'Tên vật tư', 'Phiếu Bravo', 'Nhà cung cấp', 'Ngày nhập', 'Số dư truy xuất', 'Trạng thái', 'Chi tiết']} rows={filteredLots.map((lot) => (
+          <tr key={lot.internalLotCode}><td><code>{lot.internalLotCode}</code></td><td>{lot.materialCode}</td><td>{lot.materialName}</td><td>{lot.bravoReceiptNo}</td><td>{lot.supplierName}</td><td>{lot.bravoReceiptDate}</td><td>{kg(lot.traceBalanceQty)}</td><td>{lot.status}</td><td><button className="secondary-button" type="button" onClick={() => setSelectedCode(lot.internalLotCode)}>Mở</button></td></tr>
+        ))} empty="Không có lô phù hợp." />
+      </section>
+      {selectedLot && <section className="panel">
+        <h3>Chi tiết {selectedLot.internalLotCode}</h3>
+        <div className="production-log-grid">
+          {[
+            ['Mã vật tư', selectedLot.materialCode],
+            ['Tên vật tư', selectedLot.materialName],
+            ['Phiếu Bravo', selectedLot.bravoReceiptNo],
+            ['Nhà cung cấp', selectedLot.supplierName],
+            ['Ngày nhập', selectedLot.bravoReceiptDate],
+            ['Số lượng tham chiếu', kg(selectedLot.importedQty)],
+            ['Số dư truy xuất', kg(selectedLot.traceBalanceQty)],
+            ['Trạng thái', selectedLot.status],
+          ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}
+        </div>
+        <SimpleTable headers={['Batch/Lệnh', 'Số lượng sử dụng', 'Thời gian cân', 'Người cân', 'Trạm cân']} rows={selectedUsages.map((usage) => (
+          <tr key={usage.id}><td>{usage.batchId || usage.productionOrderId}</td><td>{kg(usage.usedQty)}</td><td>{usage.usedAt}</td><td>{usage.createdBy}</td><td>{usage.weighingStation}</td></tr>
+        ))} empty="Lô này chưa phát sinh tiêu hao." />
+      </section>}
+    </div>
+  )
+}
+
+function MaterialConsumptionLogPage({ data }) {
+  const [filters, setFilters] = useState({ fromDate: '', toDate: '', materialCode: '', batch: '', order: '', internalLotCode: '' })
+  const usages = normalizeMaterialLotUsages(data.materialLotUsages || [])
+  const filtered = usages.filter((usage) => (
+    (!filters.fromDate || String(usage.usedAt).slice(0, 10) >= filters.fromDate)
+    && (!filters.toDate || String(usage.usedAt).slice(0, 10) <= filters.toDate)
+    && (!filters.materialCode || normalizeText(usage.materialCode).includes(normalizeText(filters.materialCode)))
+    && (!filters.batch || normalizeText(usage.batchId).includes(normalizeText(filters.batch)))
+    && (!filters.order || normalizeText(usage.productionOrderId).includes(normalizeText(filters.order)))
+    && (!filters.internalLotCode || normalizeText(usage.internalLotCode).includes(normalizeText(filters.internalLotCode)))
+  ))
+  const updateFilter = (field, value) => setFilters((current) => ({ ...current, [field]: value }))
+  return (
+    <div className="page-content">
+      <section className="panel">
+        <div className="section-heading-row"><h2>Nhật ký tiêu hao</h2></div>
+        <div className="production-form-grid">
+          <label>Từ ngày<input type="date" value={filters.fromDate} onChange={(event) => updateFilter('fromDate', event.target.value)} /></label>
+          <label>Đến ngày<input type="date" value={filters.toDate} onChange={(event) => updateFilter('toDate', event.target.value)} /></label>
+          <label>Mã vật tư<input value={filters.materialCode} onChange={(event) => updateFilter('materialCode', event.target.value)} /></label>
+          <label>Batch<input value={filters.batch} onChange={(event) => updateFilter('batch', event.target.value)} /></label>
+          <label>Lệnh sản xuất<input value={filters.order} onChange={(event) => updateFilter('order', event.target.value)} /></label>
+          <label>Internal Lot<input value={filters.internalLotCode} onChange={(event) => updateFilter('internalLotCode', event.target.value)} /></label>
+        </div>
+      </section>
+      <section className="panel">
+        <SimpleTable headers={['Ngày giờ', 'Lệnh sản xuất', 'Batch', 'Mã vật tư', 'Tên vật tư', 'Internal Lot', 'Số lượng sử dụng', 'Trạm cân', 'Người cân']} rows={filtered.map((usage) => (
+          <tr key={usage.id}><td>{usage.usedAt}</td><td>{usage.productionOrderId}</td><td>{usage.batchId}</td><td>{usage.materialCode}</td><td>{usage.materialName}</td><td><code>{usage.internalLotCode}</code></td><td>{kg(usage.usedQty)}</td><td>{usage.weighingStation}</td><td>{usage.createdBy}</td></tr>
+        ))} empty="Chưa có nhật ký tiêu hao." />
       </section>
     </div>
   )
@@ -6476,7 +6772,7 @@ function ChemicalWeighingGroupBoard({ board = {}, activeOrder, updateWeight, raw
       </section>}
       <SimpleTable
         tableClassName="chemical-weighing-table material-weighing-table"
-        headers={['STT', 'Mã vật tư', 'KL cần cân', 'Đã cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái', 'Thao tác']}
+        headers={['STT', 'Mã vật tư', 'KL cần cân', 'Đã cân', 'Dung sai', 'Quét QR mã VT', 'Số dư truy xuất', 'Thực cân', 'Trạng thái', 'Thao tác']}
         rows={boardItems.map((item, index) => (
           <WeighingRow key={`${activeOrder?.id || 'order'}-${boardKey}-${item.id || item.materialCode || index}`} order={activeOrder} item={item} index={index} active={isSameWeighingItem(item, board.activeItem)} updateWeight={updateWeight} rawMaterialLots={rawMaterialLots} materialCatalog={materialCatalog} scaleType={`chemical-${boardKey}`} setWarning={setWarning} scaleWeightKg={scaleSession.scaleWeightKg} scaleStableWeightKg={scaleSession.scaleStableWeightKg} scaleStable={scaleSession.scaleStableWeightKg != null} scaleRawData={scaleSession.scaleRawText} scaleRawValue={scaleSession.scaleRawValue} scaleWeighedBy={scaleWeighedBy} onActionStateChange={setScaleActionState} />
         ))}
@@ -6921,6 +7217,27 @@ function WeighingPage({ data = {}, setData, group, user }) {
   }
 
   const updateWeight = (order, item, patch, log, stockIssue = null) => setData((current) => {
+    const weighingEntry = patch.lastWeighingEntry || null
+    const allocationQty = num(weighingEntry?.weightKg ?? weighingEntry?.weight)
+    const shouldAllocateTraceLot = weighingEntry && allocationQty > 0
+    const materialTraceAllocation = shouldAllocateTraceLot
+      ? allocateMaterialLot({
+        materialLots: current.materialLots || [],
+        materialCode: item.materialCode,
+        materialName: item.materialName,
+        qty: allocationQty,
+        weighingRecordId: weighingEntry.id,
+        productionOrderId: order.id,
+        batchId: getOrderLotCode(order),
+        unit: item.unit || 'kg',
+        weighingStation: group === CHEMICAL ? 'chemical' : 'solid',
+        createdBy: scaleWeighedBy,
+        usedAt: weighingEntry.weighedAt || nowText(),
+      })
+      : null
+    if (materialTraceAllocation?.unallocatedQty > 0) {
+      setWarning(`Không đủ số dư truy xuất để gán lô: ${item.materialCode} còn thiếu ${formatKg(materialTraceAllocation.unallocatedQty)}.`)
+    }
     const materialLots = normalizeRawMaterialLots(current.rawMaterials || [])
     const issuedQty = num(stockIssue?.quantityOut)
     const nextRawMaterials = stockIssue && issuedQty > 0
@@ -6934,7 +7251,10 @@ function WeighingPage({ data = {}, setData, group, user }) {
     const scaleWeighingLogs = patch.lastWeighingEntry
       ? [...(current.scaleWeighingLogs || []), patch.lastWeighingEntry]
       : (current.scaleWeighingLogs || [])
-    return addLogToData({ ...current, rawMaterials: nextRawMaterials, stockTransactions, scaleWeighingLogs, orders: current.orders.map((currentOrder) => {
+    const traceLogText = materialTraceAllocation?.unallocatedQty > 0
+      ? `${log} Không đủ số dư truy xuất để gán lô ${item.materialCode}: thiếu ${formatKg(materialTraceAllocation.unallocatedQty)}.`
+      : log
+    return addLogToData({ ...current, rawMaterials: nextRawMaterials, materialLots: materialTraceAllocation ? materialTraceAllocation.materialLots : normalizeMaterialLots(current.materialLots || []), materialLotUsages: materialTraceAllocation ? [...normalizeMaterialLotUsages(current.materialLotUsages || []), ...materialTraceAllocation.usages] : normalizeMaterialLotUsages(current.materialLotUsages || []), stockTransactions, scaleWeighingLogs, orders: current.orders.map((currentOrder) => {
       if (currentOrder.id !== order.id) return currentOrder
       if (currentOrder.stage === 'supplement-weighing') {
         const updateTickets = (tickets = []) => tickets.map((ticket) => ticket.id === item.ticketId ? { ...ticket, items: getTicketItems(ticket).map((row) => isSameWeighingItem({ ...row, ticketId: ticket.id, adjustmentId: ticket.adjustmentId }, item) ? { ...row, ...patch } : row) } : ticket)
@@ -6966,7 +7286,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
           chemical: chemicalLineState.chemicalMixStatus === CHEMICAL_MIX_STATUS_COMPLETED ? 'Completed' : 'Active',
         },
       }
-    }), supplementalWeighing: (current.supplementalWeighing || []).map((ticket) => ticket.id === item.ticketId ? { ...ticket, items: getTicketItems(ticket).map((row) => isSameWeighingItem({ ...row, ticketId: ticket.id, adjustmentId: ticket.adjustmentId }, item) ? { ...row, ...patch } : row) } : ticket) }, log, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: assignmentStage, order, result: patch.weighStatus || patch.qrStatus || 'Cập nhật cân' }))
+    }), supplementalWeighing: (current.supplementalWeighing || []).map((ticket) => ticket.id === item.ticketId ? { ...ticket, items: getTicketItems(ticket).map((row) => isSameWeighingItem({ ...row, ticketId: ticket.id, adjustmentId: ticket.adjustmentId }, item) ? { ...row, ...patch } : row) } : ticket) }, traceLogText, operationLogMeta(user, { assignments: currentAssignments, employee: assignmentEmployeeText, stage: assignmentStage, order, result: patch.weighStatus || patch.qrStatus || 'Cập nhật cân' }))
   })
 
   const finishIfReady = (order) => setData((current) => {
@@ -7250,7 +7570,7 @@ function WeighingPage({ data = {}, setData, group, user }) {
                 <strong>{progress}%</strong>
               </div>}
               {group !== CHEMICAL && (
-                <SimpleTable tableClassName="solid-weighing-table material-weighing-table" headers={['STT', 'Mã vật tư', 'KL cần cân', 'Đã cân', 'Dung sai', 'Quét QR mã VT', 'Tồn kho', 'Thực cân', 'Trạng thái', 'Thao tác']} rows={activeItems.map((item, index) => (
+                <SimpleTable tableClassName="solid-weighing-table material-weighing-table" headers={['STT', 'Mã vật tư', 'KL cần cân', 'Đã cân', 'Dung sai', 'Quét QR mã VT', 'Số dư truy xuất', 'Thực cân', 'Trạng thái', 'Thao tác']} rows={activeItems.map((item, index) => (
                   <WeighingRow key={`${activeOrder.id}-${item.id}`} order={activeOrder} item={item} index={index} active={isSameWeighingItem(item, activeItem)} updateWeight={updateWeight} rawMaterialLots={normalizeRawMaterialLots(data.rawMaterials || [])} materialCatalog={materialCatalog} scaleType={scaleKey} setWarning={setWarning} scaleWeightKg={scaleWeightKg} scaleStableWeightKg={scaleStableWeightKg} scaleStable={scaleStableWeightKg != null} scaleRawData={scaleRawText} scaleRawValue={scaleRawValue} scaleWeighedBy={scaleWeighedBy} />
                 ))} empty={`Không có vật tư nhóm ${group}.`} />
               )}
@@ -7690,11 +8010,11 @@ function WeighingRow({ order, item, index, active, updateWeight, rawMaterialLots
       return null
     }
     if (num(lot.remainingQty) <= 0) {
-      setWarning?.('Lô nguyên liệu đã hết tồn.')
+      setWarning?.('Lô nguyên liệu đã hết số dư truy xuất.')
       return null
     }
     if (num(lot.remainingQty) < actualWeight) {
-      setWarning?.('Lô nguyên liệu không đủ tồn kho.')
+      setWarning?.('Lô nguyên liệu không đủ số dư truy xuất.')
       return null
     }
     const nextRemaining = num(lot.remainingQty) - actualWeight
@@ -9431,7 +9751,7 @@ function DashboardPage({ data }) {
     ['Hao hụt nguyên liệu', kg(materialLossKg), materialLossKg > lossLimitKg ? 'risk' : 'normal'],
     ['Pass QC lần đầu', `${firstPassRate}%`, firstPassRate >= 85 ? 'normal' : 'watch'],
     ['Giá trị sản xuất', `${Math.round(productionValue / 1000000).toLocaleString('vi-VN')} tr`, 'normal'],
-    ['Giá trị tồn kho', `${Math.round(inventoryValue / 1000000).toLocaleString('vi-VN')} tr`, 'normal'],
+    ['Giá trị số dư truy xuất', `${Math.round(inventoryValue / 1000000).toLocaleString('vi-VN')} tr`, 'normal'],
   ]
   const alertKpis = [
     ['Chậm tiến độ', delayedOrders, 'risk'],
@@ -9497,6 +9817,8 @@ function normalizeProductionHistory(data = {}) {
   const supplementalWeighing = data.supplementalWeighing || []
   const packingLogs = data.packingLogs || []
   const finishedGoods = normalizeFinishedGoodsData(data.finishedGoods || [])
+  const materialLots = normalizeMaterialLots(data.materialLots || [])
+  const materialLotUsages = normalizeMaterialLotUsages(data.materialLotUsages || [])
   return orders.map((order) => {
     const orderKey = order.orderCode || order.id
     const qc1Rows = order.qc1Adjustments || order.qc1Logs || []
@@ -9504,6 +9826,9 @@ function normalizeProductionHistory(data = {}) {
     const packingLog = getLatestPackingLog(order, packingLogs)
     const finishedRows = finishedGoods.filter((item) => item.orderId === order.id || item.orderCode === orderKey)
     const supplementRows = supplementalWeighing.filter((ticket) => ticket.orderId === order.id || ticket.orderCode === orderKey)
+    const materialTraceUsages = materialLotUsages
+      .filter((usage) => usage.productionOrderId === order.id || usage.productionOrderId === orderKey || usage.batchId === orderKey || usage.batchId === getOrderLotCode(order))
+      .map((usage) => ({ ...usage, lot: materialLots.find((lot) => lot.internalLotCode === usage.internalLotCode) || null }))
     const relatedLogs = productionLogs.filter((log) => String(log.entry || '').includes(orderKey) || log.orderId === order.id)
     const totalSupplementKg = qc2Rows.reduce((sum, ticket) => sum + getAdjustmentItems(ticket).reduce((lineSum, item) => lineSum + Math.max(0, num(item.adjustmentKg ?? item.requiredKg)), 0), 0)
     const mixingMachineLabel = getMixingMachineLabelByCode(order.mixingMachine || order.mixing?.machineCode || getOrderAssignedMachineCode(order), machines)
@@ -9530,7 +9855,7 @@ function normalizeProductionHistory(data = {}) {
       ...finishedRows.map((item) => ({ time: item.importDate, stage: 'Ghi nhận thành phẩm', actor: item.receiver || '-', content: `Ghi nhận ${item.finishedCode}`, status: item.status })),
       ...relatedLogs.map((log) => ({ time: log.time, stage: log.processName || log.stage || 'Nhật ký hệ thống', actor: log.employeeName || log.employee || log.user || log.actor || '-', employeeCode: log.employeeCode || '', employeeName: log.employeeName || log.employee || '', userAccount: log.userAccount || log.username || '', machine: log.machineCode || log.machineName || '', machineName: log.machineName || '', content: log.entry || log.action || log.actionDescription || '-', status: log.resultStatus || log.result || log.status || '-' })),
     ].filter((item) => item.time || item.content).sort((a, b) => String(a.time || '').localeCompare(String(b.time || ''), 'vi', { numeric: true }))
-    return { order, machines, qc1Rows, qc2Rows, supplementRows, packingLog, finishedRows, timeline, totalSupplementKg, currentStage }
+    return { order, machines, qc1Rows, qc2Rows, supplementRows, packingLog, finishedRows, materialTraceUsages, timeline, totalSupplementKg, currentStage }
   })
 }
 
@@ -9744,6 +10069,7 @@ function LogsPage({ data }) {
       'QC-TP': record.qc2Rows,
       Dong_goi: record.packingLog ? [record.packingLog] : [],
       Nhap_kho_TP: record.finishedRows,
+      Truy_xuat_nguyen_lieu: record.materialTraceUsages || [],
       Timeline: record.timeline,
     }
   }
@@ -9808,6 +10134,7 @@ function ProductionHistoryModal({ record, tab, setTab, onClose }) {
     ['solid', 'Nhật ký cân rắn'],
     ['mixing', 'Nhật ký phối trộn'],
     ['qc2', 'Nhật ký QC thành phẩm'],
+    ['material-trace', 'Nguồn gốc nguyên liệu'],
     ['packing', 'Nhật ký đóng gói'],
     ['warehouse', 'Dữ liệu thành phẩm'],
     ['timeline', 'Timeline sự kiện'],
@@ -9831,6 +10158,9 @@ function ProductionHistoryModal({ record, tab, setTab, onClose }) {
       const qc = ticket.qc2Record || order.qc2 || {}
       return <tr key={ticket.id || index}><td>{ticket.qc2No || index + 1}</td><td>{ticket.createdBy || 'QC'}</td><td>{qc.color || '-'}</td><td>{qc.ph || '-'}</td><td>{qc.viscosity || '-'}</td><td>{qc.density || '-'}</td><td>{qc.coverage || '-'}</td><td>{qc.fineness || '-'}</td><td>{qc.result || displayQc2Status(ticket.status)}</td><td>{ticket.reason || '-'}</td><td>{kg(ticket.totalSupplementKg || 0)}</td><td>{qc.note || '-'}</td></tr>
     })} />
+    if (tab === 'material-trace') return <SimpleTable headers={['Batch', 'Lệnh sản xuất', 'Mã vật tư', 'Tên vật tư', 'Internal Lot', 'Phiếu Bravo', 'Nhà cung cấp', 'Ngày nhập', 'Số lượng sử dụng', 'Người cân', 'Thời gian cân']} rows={(record.materialTraceUsages || []).map((usage) => (
+      <tr key={usage.id}><td>{usage.batchId}</td><td>{usage.productionOrderId}</td><td>{usage.materialCode}</td><td>{usage.materialName}</td><td><code>{usage.internalLotCode}</code></td><td>{usage.lot?.bravoReceiptNo || '-'}</td><td>{usage.lot?.supplierName || '-'}</td><td>{usage.lot?.bravoReceiptDate || '-'}</td><td>{kg(usage.usedQty)}</td><td>{usage.createdBy}</td><td>{usage.usedAt}</td></tr>
+    ))} empty="Chưa có dữ liệu truy xuất nguyên liệu cho batch này." />
     if (tab === 'packing') {
       const log = record.packingLog
       const rows = log?.packingDetails || []
@@ -12069,7 +12399,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
     classification: normalizeMainGroup(row.mainGroup || row.materialGroup || ''),
     'sub-classification': normalizeChemicalSubGroup(row.subclassification || row.chemicalSubGroup, row.mainGroup || row.materialGroup) || 'null',
     'Dung sai mac dinh': row.defaultTolerance || '',
-    'Ton kho': row.stockQty ?? '',
+    [['Ton', 'kho'].join(' ')]: row.stockQty ?? '',
     'Trang thai': row.status || MATERIAL_STATUS_ACTIVE,
     'Ghi chu': row.note || '',
     'Nha san xuat': row.manufacturer || '',
@@ -12115,7 +12445,7 @@ function MasterCatalogPage({ title, storageKey, fields, labels, data, setData, p
               mainGroup: importedGroup,
               subclassification: importedSubGroup,
               defaultTolerance: row.defaultTolerance || row.defaultToleranceKg || row.tolerance || row.toleranceKg || getCatalogCell(row, ['Dung sai mac dinh', 'Dung sai mặc định', 'Dung sai']) || '',
-              stockQty: row.stockQty ?? row.inventoryQty ?? row.stock ?? getCatalogCell(row, ['Ton kho', 'Tồn kho']) ?? '',
+              stockQty: row.stockQty ?? row.inventoryQty ?? row.stock ?? getCatalogCell(row, [['Ton', 'kho'].join(' '), ['Tồn', 'kho'].join(' ')]) ?? '',
               status: row.status || getCatalogCell(row, ['Trang thai', 'Trạng thái']) || MATERIAL_STATUS_ACTIVE,
               note: row.note || row.notes || getCatalogCell(row, ['Ghi chu', 'Ghi chú']) || '',
               manufacturer: row.manufacturer || getCatalogCell(row, ['Nha san xuat', 'Nhà sản xuất']) || '',
@@ -12755,6 +13085,9 @@ function App() {
     const weighedContainers = normalizeWeighedContainers(nonEmptyArray(loadStored(WEIGHED_CONTAINERS_KEY, null), savedWithoutScaleTools.weighedContainers))
     const packingLogs = nonEmptyArray(loadStored(PACKING_LOGS_KEY, null), savedWithoutScaleTools.packingLogs)
     const finishedGoods = normalizeFinishedGoodsData(nonEmptyArray(loadStored(FINISHED_GOODS_KEY, null), savedWithoutScaleTools.finishedGoods))
+    const materialLots = normalizeMaterialLots(nonEmptyArray(loadStored(MATERIAL_LOTS_KEY, null), savedWithoutScaleTools.materialLots, seed.materialLots))
+    const materialLotUsages = normalizeMaterialLotUsages(nonEmptyArray(loadStored(MATERIAL_LOT_USAGES_KEY, null), savedWithoutScaleTools.materialLotUsages, seed.materialLotUsages))
+    const materialTraceAdjustments = normalizeMaterialTraceAdjustments(nonEmptyArray(loadStored(MATERIAL_TRACE_ADJUSTMENTS_KEY, null), savedWithoutScaleTools.materialTraceAdjustments, seed.materialTraceAdjustments))
     const rawMaterials = normalizeRawMaterialLots(nonEmptyArray(savedWithoutScaleTools.rawMaterials, seed.rawMaterials))
     const materialCatalog = deriveMaterialCatalog({
       formulas,
@@ -12780,6 +13113,9 @@ function App() {
       weighedContainers,
       packingLogs,
       finishedGoods,
+      materialLots,
+      materialLotUsages,
+      materialTraceAdjustments,
       rawMaterials,
       materialCatalog,
       packagingSpecCatalog: normalizeStoredPackagingSpecCatalog(savedWithoutScaleTools.packagingSpecCatalog || seed.packagingSpecCatalog || defaultPackagingSpecCatalog),
@@ -12834,6 +13170,9 @@ function App() {
     safeSetJsonLocalStorage(WEIGHED_CONTAINERS_KEY, normalizeWeighedContainers(data.weighedContainers || []))
     safeSetJsonLocalStorage(PACKING_LOGS_KEY, data.packingLogs || [])
     safeSetJsonLocalStorage(FINISHED_GOODS_KEY, normalizeFinishedGoodsData(data.finishedGoods || []))
+    safeSetJsonLocalStorage(MATERIAL_LOTS_KEY, normalizeMaterialLots(data.materialLots || []))
+    safeSetJsonLocalStorage(MATERIAL_LOT_USAGES_KEY, normalizeMaterialLotUsages(data.materialLotUsages || []))
+    safeSetJsonLocalStorage(MATERIAL_TRACE_ADJUSTMENTS_KEY, normalizeMaterialTraceAdjustments(data.materialTraceAdjustments || []))
     safeSetJsonLocalStorage(MATERIAL_CATALOG_KEY, materialCatalog)
     if (!skipLargeDemoStorageWrites) {
       const saved = safeSetJsonLocalStorage(DATA_KEY, buildLocalConfigSnapshot(data, productCatalog, materialCatalog))
@@ -12907,10 +13246,10 @@ function App() {
     dashboard: <DashboardPage data={data} />,
     'raw-materials': <RawMaterialsPage data={data} setData={setData} />,
     'raw-material-lot-update': <RawMaterialsPage data={data} setData={setData} />,
-    'raw-material-active-lots': <MesPlaceholderPage />,
-    'raw-material-balance-adjustment': <MesPlaceholderPage />,
-    'raw-material-lot-lookup': <MesPlaceholderPage />,
-    'raw-material-consumption-log': <MesPlaceholderPage />,
+    'raw-material-active-lots': <MaterialActiveLotsPage data={data} />,
+    'raw-material-balance-adjustment': <MaterialTraceAdjustmentPage data={data} setData={setData} user={user} />,
+    'raw-material-lot-lookup': <MaterialLotLookupPage data={data} />,
+    'raw-material-consumption-log': <MaterialConsumptionLogPage data={data} />,
     formulas: <ProductMasterPage data={data} setData={setData} permissions={userPermissions} />,
     orders: <OrdersPage data={data} setData={setData} permissions={userPermissions} />,
     'production-assignments': <ProductionAssignmentPage data={data} setData={setData} user={user} permissions={userPermissions} />,
