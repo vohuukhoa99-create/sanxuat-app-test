@@ -54,6 +54,7 @@ const registerPdfUnicodeFont = async (doc) => {
   doc.addFileToVFS('Arial.ttf', cachedPdfUnicodeFontBase64)
   doc.addFont('Arial.ttf', 'Arial', 'normal')
   doc.addFont('Arial.ttf', 'Arial', 'bold')
+  doc.addFont('Arial.ttf', 'Arial', 'italic')
   doc.setFont('Arial', 'normal')
 }
 const SCALE_SERIAL_CONFIG = {
@@ -9960,37 +9961,40 @@ function FinishedGoodsPage({ data, setData, user }) {
   }
   const exportDailyReportPdf = async () => {
     try {
-      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
       await registerPdfUnicodeFont(doc)
       const pageWidth = doc.internal.pageSize.getWidth()
-      const left = 14
-      const right = 14
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const left = 12
+      const right = 12
+      const top = 8
+      const bottom = 8
       const usableWidth = pageWidth - left - right
       doc.setFont('Arial', 'bold')
       doc.setFontSize(11)
-      doc.text('CÔNG TY CỔ PHẦN SƠN & CHẤT PHỦ HÒA BÌNH', left, 14)
+      doc.text('CÔNG TY CỔ PHẦN SƠN & CHẤT PHỦ HÒA BÌNH', left, top + 3)
       doc.setFontSize(16)
-      doc.text('BÁO CÁO TỔNG HỢP NHẬP KHO THÀNH PHẨM', pageWidth / 2, 24, { align: 'center' })
+      doc.text('BÁO CÁO TỔNG HỢP NHẬP KHO THÀNH PHẨM', pageWidth / 2, top + 14, { align: 'center' })
       doc.setFont('Arial', 'normal')
       doc.setFontSize(10.5)
       const printedBy = user?.fullName || user?.username || '-'
       const printedAt = new Date().toLocaleString('vi-VN')
-      doc.text(`Từ ngày: ${dailyReportFilters.fromDate || '-'}`, left, 34)
-      doc.text(`Đến ngày: ${dailyReportFilters.toDate || '-'}`, left, 40)
-      doc.text(`Ngày in: ${printedAt}`, pageWidth / 2 + 20, 34)
-      doc.text(`Người in: ${printedBy}`, pageWidth / 2 + 20, 40)
+      doc.text(`Ngày in: ${printedAt}`, pageWidth / 2, top + 21, { align: 'center' })
+      doc.text(`Từ ngày: ${dailyReportFilters.fromDate || '-'}`, left, top + 32)
+      doc.text(`Đến ngày: ${dailyReportFilters.toDate || '-'}`, left, top + 38)
+      doc.text(`Người in: ${printedBy}`, left, top + 44)
 
       autoTable(doc, {
-        startY: 48,
-        margin: { left, right, top: 12, bottom: 18 },
+        startY: top + 52,
+        margin: { left, right, top, bottom: bottom + 38 },
         tableWidth: usableWidth,
         theme: 'grid',
         head: [['STT', 'Mã sản phẩm', 'Tên sản phẩm / Quy cách', 'ĐVT', 'Tổng số lượng', 'Số lệnh SX liên quan']],
         body: dailyReportExportRows.map((row) => [row.stt, row.productCode, row.productNameSpec, row.unit, row.totalQty, row.productionOrderCount]),
         styles: {
           font: 'Arial',
-          fontSize: 9.5,
-          cellPadding: { top: 1.5, right: 1.8, bottom: 1.5, left: 1.8 },
+          fontSize: 9.2,
+          cellPadding: { top: 1.4, right: 1.6, bottom: 1.4, left: 1.6 },
           lineWidth: 0.2,
           lineColor: [0, 0, 0],
           textColor: [0, 0, 0],
@@ -10006,12 +10010,12 @@ function FinishedGoodsPage({ data, setData, user }) {
           lineColor: [0, 0, 0],
         },
         columnStyles: {
-          0: { cellWidth: 12, halign: 'center' },
-          1: { cellWidth: 36, halign: 'left' },
-          2: { cellWidth: usableWidth - 12 - 36 - 20 - 30 - 36, halign: 'left' },
-          3: { cellWidth: 20, halign: 'center' },
-          4: { cellWidth: 30, halign: 'right' },
-          5: { cellWidth: 36, halign: 'center' },
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 28, halign: 'left' },
+          2: { cellWidth: usableWidth - 10 - 28 - 16 - 26 - 34, halign: 'left' },
+          3: { cellWidth: 16, halign: 'center' },
+          4: { cellWidth: 26, halign: 'right' },
+          5: { cellWidth: 34, halign: 'center' },
         },
       })
 
@@ -10021,6 +10025,32 @@ function FinishedGoodsPage({ data, setData, user }) {
       doc.text(`Tổng số mã sản phẩm: ${dailyReportSummary.productCodeCount}`, left, summaryY)
       doc.text(`Tổng số lượng nhập kho: ${dailyReportSummary.totalQty}`, left, summaryY + 6)
       doc.text(`Tổng số lệnh sản xuất: ${dailyReportSummary.productionOrderCount}`, left, summaryY + 12)
+      const signatureY = Math.max(summaryY + 28, pageHeight - bottom - 36)
+      const signatureWidth = usableWidth / 4
+      const signatureLabels = [
+        ['Người lập phiếu', '(Ký, họ tên)'],
+        ['Người nhập kho', '(Ký, họ tên)'],
+        ['Thủ kho', '(Ký, họ tên)'],
+        ['Kế toán trưởng', '(Hoặc bộ phận có nhu cầu nhập)', '(Ký, họ tên)'],
+      ]
+      signatureLabels.forEach((lines, index) => {
+        const centerX = left + signatureWidth * index + signatureWidth / 2
+        doc.setFont('Arial', 'bold')
+        doc.setFontSize(10.5)
+        doc.text(lines[0], centerX, signatureY, { align: 'center' })
+        if (lines.length === 3) {
+          doc.setFont('Arial', 'normal')
+          doc.setFontSize(9.5)
+          doc.text(lines[1], centerX, signatureY + 5, { align: 'center' })
+          doc.setFontSize(10.5)
+          doc.setFont('Arial', 'italic')
+          doc.text(lines[2], centerX, signatureY + 10, { align: 'center' })
+        } else {
+          doc.setFont('Arial', 'italic')
+          doc.setFontSize(10.5)
+          doc.text(lines[1], centerX, signatureY + 5, { align: 'center' })
+        }
+      })
       doc.save(`bao-cao-thanh-pham-${todayText().replaceAll('-', '')}.pdf`)
     } catch (error) {
       console.error(error)
