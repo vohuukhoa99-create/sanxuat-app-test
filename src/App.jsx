@@ -4045,6 +4045,24 @@ function RawMaterialsPage({ data, setData }) {
   const decodePdfString = (value = '') => value
     .replace(/\\([nrtbf()\\])/g, (_, char) => ({ n: '\n', r: '\r', t: '\t', b: '\b', f: '\f', '(': '(', ')': ')', '\\': '\\' }[char] || char))
     .replace(/\\([0-7]{1,3})/g, (_, octal) => String.fromCharCode(parseInt(octal, 8)))
+  const decodePdfHexString = (hexValue = '') => {
+    const hex = hexValue.replace(/\s+/g, '')
+    if (!hex) return ''
+    if (hex.length % 4 === 0 && /^00/.test(hex)) {
+      let text = ''
+      for (let index = 0; index < hex.length; index += 4) {
+        const code = parseInt(hex.slice(index, index + 4), 16)
+        if (code && code < 65535) text += String.fromCharCode(code)
+      }
+      return text
+    }
+    let text = ''
+    for (let index = 0; index < hex.length; index += 2) {
+      const code = parseInt(hex.slice(index, index + 2), 16)
+      if (Number.isFinite(code) && code > 0) text += String.fromCharCode(code)
+    }
+    return text
+  }
   const extractPdfTextFromContent = (content = '') => {
     const chunks = []
     const textBlocks = content.match(/BT[\s\S]*?ET/g) || [content]
@@ -4053,12 +4071,7 @@ function RawMaterialsPage({ data, setData }) {
       Array.from(literalMatches).forEach((match) => chunks.push(decodePdfString(match[0].slice(1, -1))))
       const hexMatches = block.matchAll(/<([0-9A-Fa-f\s]{4,})>/g)
       Array.from(hexMatches).forEach((match) => {
-        const hex = match[1].replace(/\s+/g, '')
-        let text = ''
-        for (let index = 0; index < hex.length; index += 4) {
-          const code = parseInt(hex.slice(index, index + 4), 16)
-          if (code && code < 65535) text += String.fromCharCode(code)
-        }
+        const text = decodePdfHexString(match[1])
         if (text.trim()) chunks.push(text)
       })
     })
@@ -4096,6 +4109,48 @@ function RawMaterialsPage({ data, setData }) {
     }
     return textParts.join('\n')
   }
+  const parseVietnameseNumber = (value = '') => {
+    const raw = String(value || '').trim()
+    if (!raw) return 0
+    if (raw.includes(',') && raw.includes('.')) return num(raw.replace(/\./g, '').replace(',', '.'))
+    if (raw.includes(',')) return num(raw.replace(',', '.'))
+    return num(raw)
+  }
+  const parseBravoPdfDate = (text = '') => {
+    const source = String(text || '')
+    const longMatch = source.match(/ng[aà]y\s+(\d{1,2})\s+th[aá]ng\s+(\d{1,2})\s+n[aă]m\s+(\d{4})/i)
+    if (longMatch) return `${longMatch[3]}-${String(longMatch[2]).padStart(2, '0')}-${String(longMatch[1]).padStart(2, '0')}`
+    const shortMatch = source.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/)
+    if (shortMatch) return `${shortMatch[3]}-${String(shortMatch[2]).padStart(2, '0')}-${String(shortMatch[1]).padStart(2, '0')}`
+    return ''
+  }
+  const parseBravoPdfLine = (line = '', header = {}) => {
+    const normalizedLine = String(line || '').replace(/\s+/g, ' ').trim()
+    const sttMatch = normalizedLine.match(/^(\d{1,3})\s+(.+)$/)
+    if (!sttMatch) return null
+    const stt = sttMatch[1]
+    const tokens = sttMatch[2].split(/\s+/).filter(Boolean)
+    const unitTokens = new Set(['kg', 'kgs', 'tan', 'tấn', 'cai', 'cái', 'lit', 'lít', 'thung', 'thùng'])
+    for (let index = tokens.length - 1; index >= 1; index -= 1) {
+      const unitKey = normalizeText(tokens[index])
+      if (!unitTokens.has(unitKey)) continue
+      const materialCode = tokens[index - 1]
+      const qtyToken = tokens[index + 1]
+      if (!/^[A-Z0-9]{2,}$/i.test(materialCode || '') || !/^[\d.,]+$/.test(qtyToken || '')) continue
+      const receivedQty = parseVietnameseNumber(qtyToken)
+      if (receivedQty <= 0) continue
+      return {
+        receiptDate: header.receiptDate,
+        receiptNo: header.receiptNo,
+        supplierName: header.supplierName,
+        stt,
+        materialCode,
+        unit: tokens[index],
+        receivedQty,
+      }
+    }
+    return null
+  }
   const parseBravoPdfText = (text = '') => {
     const normalizedText = text
       .replace(/\u0000/g, '')
@@ -4104,26 +4159,37 @@ function RawMaterialsPage({ data, setData }) {
       .replace(/\n{2,}/g, '\n')
       .trim()
     const flatText = normalizedText.replace(/\n+/g, ' ')
-    const dateMatch = flatText.match(/(?:ngay|ngày)(?:\s+chung\s+tu|\s+chứng\s+từ)?\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})/i)
-    const receiptMatch = flatText.match(/(?:so|số)\s+(?:phieu|phiếu|chung\s+tu|chứng\s+từ)\s*:?\s*([A-Z0-9./-]+)/i)
-    const supplierMatch = flatText.match(/(?:ho\s+ten\s+nguoi\s+giao\s+hang|họ\s+tên\s+người\s+giao\s+hàng|nguoi\s+giao\s+hang|người\s+giao\s+hàng)\s*:?\s*(.+?)(?=\s+(?:stt|ma\s+so|mã\s+số|dia\s+chi|địa\s+chỉ|dien\s+giai|diễn\s+giải)\b|$)/i)
-    const receiptDate = excelDateText(dateMatch?.[1] || '')
-    const receiptNo = cellText(receiptMatch?.[1] || '')
-    const supplierName = cellText(supplierMatch?.[1] || '').replace(/\s{2,}/g, ' ')
+    const receiptDate = parseBravoPdfDate(flatText)
+    const receiptMatch = flatText.match(/(?:^|\s)(?:s[oố])\s*:?\s*([A-Z0-9][A-Z0-9./-]+)/i)
+      || flatText.match(/(?:s[oố]\s+(?:phi[eế]u|ch[uứ]ng\s+t[uừ]))\s*:?\s*([A-Z0-9][A-Z0-9./-]+)/i)
+    const supplierMatch = flatText.match(/(?:-?\s*)?(?:h[oọ]\s+t[eê]n\s+ng[uư][oờ]i\s+giao\s+h[aà]ng|ngu[oờ]i\s+giao\s+h[aà]ng)\s*:?\s*(.+?)(?=\s+(?:stt|số\s+thứ\s+tự|ma\s+so|m[aã]\s+s[oố]|dia\s+chi|[dđ][iị]a\s+ch[iỉ]|k[eế]m\s+theo|nh[aậ]p\s+t[aạ]i|l[yý]\s+do)\b|$)/i)
+    const header = {
+      receiptDate,
+      receiptNo: cellText(receiptMatch?.[1] || ''),
+      supplierName: cellText(supplierMatch?.[1] || '').replace(/\s{2,}/g, ' '),
+    }
+    if (!header.receiptDate || !header.receiptNo || !header.supplierName) return []
     const detailRows = []
-    const rowRegex = /(?:^|\s)(\d{1,3})\s+([A-Z0-9]{2,})\s+(?:(?!(?:Kg|KG|kg|Tấn|Tan|Cái|Cai|Lít|Lit|Thùng|Thung)\b).{0,120}?\s+)?(Kg|KG|kg|Tấn|Tan|Cái|Cai|Lít|Lit|Thùng|Thung)\s+([\d.,]+)/g
-    let rowMatch = rowRegex.exec(flatText)
-    while (rowMatch) {
-      detailRows.push({
-        receiptDate,
-        receiptNo,
-        supplierName,
-        stt: rowMatch[1],
-        materialCode: rowMatch[2],
-        unit: rowMatch[3],
-        receivedQty: num(rowMatch[4].replace(/\./g, '').replace(',', '.')),
-      })
-      rowMatch = rowRegex.exec(flatText)
+    normalizedText.split('\n').forEach((line) => {
+      const parsed = parseBravoPdfLine(line, header)
+      if (parsed) detailRows.push(parsed)
+    })
+    if (!detailRows.length) {
+      const rowRegex = /(?:^|\s)(\d{1,3})\s+(.{0,180}?)\s+([A-Z0-9]{2,})\s+(Kg|KG|kg|T[aấ]n|Tan|C[aá]i|Cai|L[ií]t|Lit|Th[uù]ng|Thung)\s+([\d.]+,\d{2}|[\d.,]+)\s+[\d.]+,\d{2}\s+[\d.]+,\d{2}/g
+      let rowMatch = rowRegex.exec(flatText)
+      while (rowMatch) {
+        const receivedQty = parseVietnameseNumber(rowMatch[5])
+        if (receivedQty > 0) {
+          detailRows.push({
+            ...header,
+            stt: rowMatch[1],
+            materialCode: rowMatch[3],
+            unit: rowMatch[4],
+            receivedQty,
+          })
+        }
+        rowMatch = rowRegex.exec(flatText)
+      }
     }
     return detailRows.filter((row) => row.receiptDate && row.receiptNo && row.supplierName && row.materialCode && row.receivedQty > 0)
   }
@@ -4173,7 +4239,7 @@ function RawMaterialsPage({ data, setData }) {
           const pdfText = await extractPdfText(event.target.result)
           const parsedRows = parseBravoPdfText(pdfText)
           if (!parsedRows.length) {
-            setNotice('Không đọc được dữ liệu PDF. Vui lòng kiểm tra file hoặc nhập Excel.')
+            setNotice(pdfText.trim() ? 'Không tìm thấy dòng vật tư trong PDF. Vui lòng kiểm tra file Bravo.' : 'Không đọc được dữ liệu PDF. Vui lòng kiểm tra file hoặc nhập Excel.')
             return
           }
           setPdfPreviewRows(parsedRows)
