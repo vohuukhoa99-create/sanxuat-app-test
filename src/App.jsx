@@ -1287,10 +1287,12 @@ const normalizeTraceLotStatus = (lot = {}) => {
 
 const buildInternalLotCode = (materialCode = '', receiptDate = todayText(), lots = [], sequenceOverride = null) => {
   const code = normalizeCode(materialCode) || 'NVL'
-  const ymd = String(receiptDate || todayText()).slice(0, 10).replace(/-/g, '')
-  const prefix = `LOT-${code}-${ymd}`
+  const dateText = String(receiptDate || todayText()).slice(0, 10)
+  const yymmdd = dateText.replace(/-/g, '').slice(2)
+  const prefix = `LOT-${code}-${yymmdd}`
   const sequence = sequenceOverride ? num(sequenceOverride) : (lots || []).filter((lot) => String(lot.internalLotCode || '').startsWith(prefix)).length + 1
-  return `${prefix}-${String(sequence).padStart(3, '0')}`
+  const lineNo = sequence < 100 ? String(sequence).padStart(2, '0') : String(sequence)
+  return `${prefix}-${lineNo}`
 }
 
 function normalizeMaterialLot(item = {}) {
