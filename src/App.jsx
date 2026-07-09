@@ -9619,7 +9619,7 @@ function FinishedGoodsPage({ data, setData, user }) {
     .sort(sortOldestOrders)
   const [activeOrder, setActiveOrder] = useState(null)
   const [filters, setFilters] = useState({ fromDate: '', toDate: '', orderCode: '', product: '', lot: '', location: '' })
-  const [requestVoucherFilters, setRequestVoucherFilters] = useState({ requestDate: todayText(), lotCode: '', customerCode: '', requestedBy: '', reason: 'Hoàn thành lệnh sản xuất', note: '' })
+  const [requestVoucherFilters, setRequestVoucherFilters] = useState({ requestDate: todayText(), lotCode: '', requestedBy: '', reason: 'Hoàn thành lệnh sản xuất', note: '' })
   const [showRequestVoucher, setShowRequestVoucher] = useState(true)
   const [dailyReportDraftFilters, setDailyReportDraftFilters] = useState({ fromDate: todayText(), toDate: todayText(), productCode: '', orderCode: '' })
   const [dailyReportFilters, setDailyReportFilters] = useState(dailyReportDraftFilters)
@@ -9699,6 +9699,33 @@ function FinishedGoodsPage({ data, setData, user }) {
       document.body.removeChild(container)
     }
   }
+  const printHtmlDocument = (html, title = 'Phiếu') => {
+    if (typeof window === 'undefined') return
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${htmlEscape(title)}</title><style>
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #fff; color: #111; font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: 13px; }
+      .print-page { width: 210mm; min-height: 297mm; padding: 16mm 14mm; margin: 0 auto; background: #fff; }
+      .company { font-weight: 700; margin-bottom: 14px; }
+      h1 { margin: 0 0 16px; text-align: center; font-size: 20px; letter-spacing: 0; }
+      .voucher-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 34px; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+      th, td { border: 1px solid #222; padding: 7px 8px; vertical-align: middle; }
+      th { text-align: center; font-weight: 700; background: #f3f4f6; }
+      th:nth-child(1), td:nth-child(1) { width: 50px; text-align: center; }
+      th:nth-child(2), td:nth-child(2) { width: auto; text-align: left; }
+      th:nth-child(3), td:nth-child(3) { width: 70px; text-align: center; }
+      th:nth-child(4), td:nth-child(4) { width: 90px; text-align: right; }
+      th:nth-child(5), td:nth-child(5) { width: 130px; text-align: left; }
+      .signature-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 34px; text-align: center; font-weight: 700; }
+      .signature-row div { min-height: 78px; }
+      @page { size: A4 portrait; margin: 0; }
+    </style></head><body>${html}</body></html>`)
+    win.document.close()
+    win.focus()
+    window.setTimeout(() => win.print(), 150)
+  }
   const filterFinishedGoodsForVoucher = (source = [], filtersToUse = {}) => source.filter((item) => {
     const dateText = String(item.importDate || '').slice(0, 10)
     const orderText = String(finishedGoodsOrderCode(item)).toLowerCase()
@@ -9713,19 +9740,14 @@ function FinishedGoodsPage({ data, setData, user }) {
   const finishedGoodsLotOptions = Array.from(new Set(finishedGoods.map(finishedGoodsLotCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const updateRequestVoucherFilter = (field, value) => setRequestVoucherFilters((current) => {
     if (field !== 'lotCode') return { ...current, [field]: value }
-    const lotItems = finishedGoods.filter((item) => finishedGoodsLotCode(item) === value)
-    const firstCustomerItem = lotItems.find((item) => finishedGoodsCustomerCode(item))
-    return { ...current, lotCode: value, customerCode: firstCustomerItem ? finishedGoodsCustomerCode(firstCustomerItem) : '' }
+    return { ...current, lotCode: value }
   })
   const requestVoucherLotItems = requestVoucherFilters.lotCode
     ? finishedGoods.filter((item) => finishedGoodsLotCode(item) === requestVoucherFilters.lotCode)
     : []
-  const requestVoucherCustomerOptions = Array.from(new Set(requestVoucherLotItems.map(finishedGoodsCustomerCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
-  const requestVoucherItems = requestVoucherLotItems.filter((item) => !requestVoucherFilters.customerCode || finishedGoodsCustomerCode(item) === requestVoucherFilters.customerCode)
+  const requestVoucherItems = requestVoucherLotItems
   const requestVoucherNo = `DNNK-${String(requestVoucherFilters.requestDate || todayText()).replace(/-/g, '').slice(2)}-001`
   const requestVoucherRequester = requestVoucherFilters.requestedBy || requestVoucherItems.find((item) => item.receiver)?.receiver || user?.fullName || user?.username || ''
-  const requestVoucherCustomerItem = requestVoucherItems.find((item) => finishedGoodsCustomerCode(item))
-  const requestVoucherCustomerCode = requestVoucherFilters.customerCode || (requestVoucherCustomerItem ? finishedGoodsCustomerCode(requestVoucherCustomerItem) : '')
   const requestVoucherCustomerNameItem = requestVoucherItems.find((item) => finishedGoodsCustomerName(item))
   const requestVoucherCustomerName = requestVoucherCustomerNameItem ? finishedGoodsCustomerName(requestVoucherCustomerNameItem) : ''
   const requestVoucherDate = parseInputDate(requestVoucherFilters.requestDate || todayText())
@@ -9733,7 +9755,6 @@ function FinishedGoodsPage({ data, setData, user }) {
   const requestVoucherRows = requestVoucherItems.map((item, index) => ({
     no: index + 1,
     lotCode: finishedGoodsLotCode(item),
-    customerCode: finishedGoodsCustomerCode(item),
     productCode: finishedGoodsProductCode(item),
     productName: finishedGoodsProductName(item),
     packageSpec: item.spec || '',
@@ -9743,7 +9764,6 @@ function FinishedGoodsPage({ data, setData, user }) {
     note: item.note || '',
     productionOrderCode: finishedGoodsOrderCode(item),
   }))
-  const requestVoucherDetailRows = requestVoucherRows.map((row) => [row.no, row.name, row.unit, row.qty, row.note || requestVoucherFilters.note || ''])
   const validateRequestVoucherExport = () => {
     if (!requestVoucherFilters.lotCode) {
       setNotice('Vui lòng chọn Mã lô trước khi xuất phiếu.')
@@ -9759,45 +9779,56 @@ function FinishedGoodsPage({ data, setData, user }) {
     if (!validateRequestVoucherExport()) return
     const book = XLSX.utils.book_new()
     const sheetData = [
-      ['CÔNG TY CỔ PHẦN SƠN & CHẤT PHỦ HÒA BÌNH'],
-      ['PHIẾU ĐỀ NGHỊ NHẬP KHO THÀNH PHẨM'],
-      [requestVoucherDateText],
-      ['Người yêu cầu', requestVoucherRequester || ''],
-      ['Bộ phận', 'Sản xuất'],
-      ['Tên khách hàng', requestVoucherCustomerName || '-'],
-      ['Mã khách hàng', requestVoucherCustomerCode || '-'],
-      ['Lô sản xuất', requestVoucherFilters.lotCode],
-      ['Lý do yêu cầu', requestVoucherFilters.reason],
-      ['Ghi chú', requestVoucherFilters.note || ''],
+      ['requestDate', 'requestedBy', 'department', 'customerName', 'productionLot', 'reason', 'note'],
+      [requestVoucherFilters.requestDate, requestVoucherRequester || '', 'Sản xuất', requestVoucherCustomerName || '-', requestVoucherFilters.lotCode, requestVoucherFilters.reason, requestVoucherFilters.note || ''],
       [],
-      ['STT', 'Tên, mã hiệu vật tư', 'ĐVT', 'Số lượng', 'Ghi chú'],
-      ...requestVoucherDetailRows,
+      ['stt', 'itemNameSpec', 'unit', 'qty', 'note'],
+      ...requestVoucherRows.map((row) => [row.no, row.name, row.unit, row.qty, row.note || requestVoucherFilters.note || '']),
       [],
       ['KTT / Trưởng BP', 'Thủ kho', 'QC', 'Người đề nghị'],
     ]
     const sheet = XLSX.utils.aoa_to_sheet(sheetData)
-    sheet['!cols'] = [{ wch: 8 }, { wch: 42 }, { wch: 10 }, { wch: 14 }, { wch: 24 }]
+    sheet['!cols'] = [{ wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 24 }, { wch: 18 }, { wch: 24 }, { wch: 24 }]
     XLSX.utils.book_append_sheet(book, sheet, 'PHIEU_DE_NGHI_NHAP_KHO_TP')
     XLSX.writeFile(book, `phieu-de-nghi-nhap-kho-${requestVoucherNo}.xlsx`)
   }
   const exportRequestVoucherPdf = () => {
     if (!validateRequestVoucherExport()) return
-    exportHtmlPdf(reportHtml({
-    title: 'PHIẾU ĐỀ NGHỊ NHẬP KHO THÀNH PHẨM',
-    meta: [
-      requestVoucherDateText,
-      `Người yêu cầu: ${requestVoucherRequester || '-'}`,
-      'Bộ phận: Sản xuất',
-      `Tên khách hàng: ${requestVoucherCustomerName || '-'}`,
-      `Mã khách hàng: ${requestVoucherCustomerCode || '-'}`,
-      `Lô sản xuất: ${requestVoucherFilters.lotCode}`,
-      `Lý do yêu cầu: ${requestVoucherFilters.reason}`,
-      `Ghi chú: ${requestVoucherFilters.note || '-'}`,
-    ],
-    headers: ['STT', 'Tên, mã hiệu vật tư', 'ĐVT', 'Số lượng', 'Ghi chú'],
-    rows: requestVoucherDetailRows,
-    signatures: ['KTT / Trưởng BP', 'Thủ kho', 'QC', 'Người đề nghị'],
-    }), `phieu-de-nghi-nhap-kho-${requestVoucherNo}.pdf`)
+    const rowsHtml = requestVoucherRows.map((row) => `
+      <tr>
+        <td>${htmlEscape(row.no)}</td>
+        <td>${htmlEscape(row.name)}</td>
+        <td>${htmlEscape(row.unit)}</td>
+        <td>${htmlEscape(row.qty)}</td>
+        <td>${htmlEscape(row.note || requestVoucherFilters.note || '')}</td>
+      </tr>
+    `).join('')
+    printHtmlDocument(`
+      <main class="print-page">
+        <div class="company">CÔNG TY CỔ PHẦN SƠN &amp; CHẤT PHỦ HÒA BÌNH</div>
+        <h1>PHIẾU ĐỀ NGHỊ NHẬP KHO THÀNH PHẨM</h1>
+        <section class="voucher-meta">
+          <div>${htmlEscape(requestVoucherDateText)}</div>
+          <div>Người yêu cầu: ${htmlEscape(requestVoucherRequester || '-')}</div>
+          <div>Bộ phận: Sản xuất</div>
+          <div>Tên khách hàng: ${htmlEscape(requestVoucherCustomerName || '-')}</div>
+          <div>Lý do yêu cầu: ${htmlEscape(requestVoucherFilters.reason)}</div>
+          <div>Lô sản xuất: ${htmlEscape(requestVoucherFilters.lotCode)}</div>
+          <div></div>
+          <div>Ghi chú: ${htmlEscape(requestVoucherFilters.note || '-')}</div>
+        </section>
+        <table>
+          <thead><tr><th>STT</th><th>Tên, mã hiệu vật tư</th><th>ĐVT</th><th>Số lượng</th><th>Ghi chú</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        <section class="signature-row">
+          <div>KTT / Trưởng BP</div>
+          <div>Thủ kho</div>
+          <div>QC</div>
+          <div>Người đề nghị</div>
+        </section>
+      </main>
+    `, `phieu-de-nghi-nhap-kho-${requestVoucherNo}`)
   }
   const productCodeOptions = Array.from(new Set(finishedGoods.map(finishedGoodsProductCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
   const orderCodeOptions = Array.from(new Set(finishedGoods.map(finishedGoodsOrderCode).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }))
@@ -10095,7 +10126,6 @@ function FinishedGoodsPage({ data, setData, user }) {
         <div className="production-form-grid finished-goods-filters">
           <label>Ngày phiếu<input type="date" value={requestVoucherFilters.requestDate} onChange={(event) => updateRequestVoucherFilter('requestDate', event.target.value)} /></label>
           <label>Mã lô<select value={requestVoucherFilters.lotCode} onChange={(event) => updateRequestVoucherFilter('lotCode', event.target.value)}><option value="">Chọn Mã lô</option>{finishedGoodsLotOptions.map((lotCode) => <option key={lotCode} value={lotCode}>{lotCode}</option>)}</select></label>
-          <label>Mã khách hàng<select value={requestVoucherFilters.customerCode} onChange={(event) => updateRequestVoucherFilter('customerCode', event.target.value)}>{requestVoucherCustomerOptions.length ? requestVoucherCustomerOptions.map((customerCode) => <option key={customerCode} value={customerCode}>{customerCode}</option>) : <option value="">Chưa có mã khách hàng</option>}</select></label>
           <label>Người yêu cầu<input value={requestVoucherFilters.requestedBy} onChange={(event) => updateRequestVoucherFilter('requestedBy', event.target.value)} /></label>
           <label>Lý do yêu cầu<select value={requestVoucherFilters.reason} onChange={(event) => updateRequestVoucherFilter('reason', event.target.value)}><option>Hoàn thành lệnh sản xuất</option><option>QC đạt</option><option>Nhập lại sau điều chỉnh</option><option>Khác</option></select></label>
           <label className="wide-field">Ghi chú<input value={requestVoucherFilters.note} onChange={(event) => updateRequestVoucherFilter('note', event.target.value)} /></label>
@@ -10110,9 +10140,9 @@ function FinishedGoodsPage({ data, setData, user }) {
                 <span>Người yêu cầu: {requestVoucherRequester || '-'}</span>
                 <span>Bộ phận: Sản xuất</span>
                 <span>Tên khách hàng: {requestVoucherCustomerName || '-'}</span>
-                <span>Mã khách hàng: {requestVoucherCustomerCode || '-'}</span>
-                <span>Lô sản xuất: {requestVoucherFilters.lotCode || '-'}</span>
                 <span>Lý do yêu cầu: {requestVoucherFilters.reason}</span>
+                <span>Lô sản xuất: {requestVoucherFilters.lotCode || '-'}</span>
+                <span></span>
                 <span>Ghi chú: {requestVoucherFilters.note || '-'}</span>
               </div>
             </div>
