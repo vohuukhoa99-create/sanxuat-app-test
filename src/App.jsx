@@ -4349,9 +4349,9 @@ function MaterialLotLookupPage({ data }) {
           <label className="date-field">Đến ngày<input type="date" value={filters.toDate} onChange={(event) => setFilters({ ...filters, toDate: event.target.value })} /></label>
           <label className="batch-field">Batch/Lệnh sản xuất<input value={filters.batch} onChange={(event) => setFilters({ ...filters, batch: event.target.value })} /></label>
         </div>
-        <SimpleTable headers={['Internal Lot', 'Mã vật tư', 'Tên vật tư', 'Phiếu Bravo', 'Nhà cung cấp', 'Ngày nhập', 'Số dư truy xuất', 'Trạng thái', 'Chi tiết']} rows={filteredLots.map((lot) => (
+        <div className="lot-search-table-wrapper"><SimpleTable tableClassName="lot-search-table" headers={['Internal Lot', 'Mã vật tư', 'Tên vật tư', 'Phiếu Bravo', 'Nhà cung cấp', 'Ngày nhập', 'Số dư truy xuất', 'Trạng thái', 'Chi tiết']} rows={filteredLots.map((lot) => (
           <tr key={lot.internalLotCode}><td><code>{lot.internalLotCode}</code></td><td>{lot.materialCode}</td><td>{lot.materialName}</td><td>{lot.bravoReceiptNo}</td><td>{lot.supplierName}</td><td>{lot.bravoReceiptDate}</td><td>{kg(lot.traceBalanceQty)}</td><td>{lot.status}</td><td><button className="secondary-button" type="button" onClick={() => setSelectedCode(lot.internalLotCode)}>Mở</button></td></tr>
-        ))} empty="Không có lô phù hợp." />
+        ))} empty="Không có lô phù hợp." /></div>
       </section>
       {selectedLot && <section className="panel">
         <h3>Chi tiết {selectedLot.internalLotCode}</h3>
