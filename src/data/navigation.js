@@ -5,7 +5,7 @@ export const defaultNavItems = [
   { id: 'raw-material-active-lots', label: 'Lô đang sử dụng', parentId: 'raw-materials', permission: 'raw-materials' },
   { id: 'raw-material-balance-adjustment', label: 'Điều chỉnh số dư truy xuất', parentId: 'raw-materials', permission: 'raw-materials' },
   { id: 'raw-material-lot-lookup', label: 'Tra cứu lô', parentId: 'raw-materials', permission: 'raw-materials' },
-  { id: 'raw-material-consumption-log', label: 'Tiêu hao nguyên liệu', parentId: 'raw-materials', permission: 'raw-materials' },
+  { id: 'raw-material-consumption-log', label: 'Sử dụng nguyên liệu', parentId: 'raw-materials', permission: 'raw-materials' },
   { id: 'production', label: 'Sản xuất', type: 'group' },
   { id: 'production-assignments', label: 'Phân công nhân sự', parentId: 'production', permission: 'production.assignment.view' },
   { id: 'orders', label: 'Lệnh sản xuất', parentId: 'production', permission: 'orders' },

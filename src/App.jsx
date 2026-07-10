@@ -4364,7 +4364,7 @@ function MaterialLotLookupPage({ data }) {
         </div>
         <SimpleTable headers={['Batch/Lệnh', 'Số lượng sử dụng', 'Thời gian cân', 'Người cân', 'Trạm cân']} rows={selectedUsages.map((usage) => (
           <tr key={usage.id}><td>{usage.batchId || usage.productionOrderId}</td><td>{kg(usage.usedQty)}</td><td>{usage.usedAt}</td><td>{usage.createdBy}</td><td>{usage.weighingStation}</td></tr>
-        ))} empty="Lô này chưa phát sinh tiêu hao." />
+        ))} empty="Lô này chưa phát sinh sử dụng nguyên liệu." />
       </section>}
     </div>
   )
@@ -4408,11 +4408,9 @@ function MaterialConsumptionLogPage({ data }) {
     productionOrderCount: row.orderCodes.size,
   })).sort((a, b) => String(a.materialCode || '').localeCompare(String(b.materialCode || ''), 'vi', { numeric: true }))
   const summaryExportRows = summaryRows.map((row) => ({
-    fromDate: reportFilters.fromDate || '',
-    toDate: reportFilters.toDate || '',
     materialCode: row.materialCode,
     unit: row.unit,
-    totalUsedQty: row.totalUsedQty,
+    usedQtyKg: row.totalUsedQty,
     weighingCount: row.weighingCount,
     productionOrderCount: row.productionOrderCount,
   }))
@@ -4429,21 +4427,21 @@ function MaterialConsumptionLogPage({ data }) {
   }))
   const exportExcel = () => {
     const book = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(summaryExportRows), 'TIEU_HAO_TONG_HOP')
-    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(detailExportRows), 'TIEU_HAO_CHI_TIET')
-    XLSX.writeFile(book, `tieu-hao-nguyen-lieu-${todayText().replaceAll('-', '')}.xlsx`)
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(summaryExportRows), 'SU_DUNG_TONG_HOP')
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(detailExportRows), 'SU_DUNG_CHI_TIET')
+    XLSX.writeFile(book, `su-dung-nguyen-lieu-${todayText().replaceAll('-', '')}.xlsx`)
   }
   const exportCsv = () => {
     const rows = reportFilters.viewMode === 'detail' ? detailExportRows : summaryExportRows
     const headers = reportFilters.viewMode === 'detail'
       ? ['usedAt', 'productionOrderCode', 'batchCode', 'materialCode', 'internalLotCode', 'usedQty', 'unit', 'weighingStation', 'weighedBy']
-      : ['fromDate', 'toDate', 'materialCode', 'unit', 'totalUsedQty', 'weighingCount', 'productionOrderCount']
+      : ['materialCode', 'unit', 'usedQtyKg', 'weighingCount', 'productionOrderCount']
     const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`
     const csv = [headers.join(','), ...rows.map((row) => headers.map((header) => escapeCsv(row[header])).join(','))].join('\r\n')
     const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
-    link.download = `tieu-hao-nguyen-lieu-${reportFilters.viewMode}-${todayText().replaceAll('-', '')}.csv`
+    link.download = `su-dung-nguyen-lieu-${reportFilters.viewMode}-${todayText().replaceAll('-', '')}.csv`
     link.click()
     URL.revokeObjectURL(link.href)
   }
@@ -4451,7 +4449,7 @@ function MaterialConsumptionLogPage({ data }) {
     <div className="page-content">
       <section className="panel">
         <div className="section-heading-row">
-          <h2>Tiêu hao nguyên liệu</h2>
+          <h2>Sử dụng nguyên liệu</h2>
           <div className="action-row">
             <button className="primary-button" type="button" onClick={() => setReportFilters(draftFilters)}>Xem báo cáo</button>
             <button className="secondary-button" type="button" onClick={exportExcel}>Xuất Excel</button>
@@ -4468,13 +4466,13 @@ function MaterialConsumptionLogPage({ data }) {
       </section>
       <section className="panel">
         {reportFilters.viewMode === 'detail' ? (
-          <SimpleTable headers={['Ngày giờ', 'Lệnh sản xuất', 'Batch', 'Mã vật tư', 'Internal Lot', 'Số lượng sử dụng', 'ĐVT', 'Trạm cân', 'Người cân']} rows={detailRows.map((usage) => (
+          <SimpleTable headers={['Ngày giờ', 'Lệnh sản xuất', 'Batch', 'Mã vật tư', 'Internal Lot', 'KL sử dụng (Kg)', 'ĐVT', 'Trạm cân', 'Người cân']} rows={detailRows.map((usage) => (
             <tr key={usage.id}><td>{usage.usedAt || '-'}</td><td>{usage.productionOrderId || '-'}</td><td>{usage.batchId || '-'}</td><td>{usage.materialCode}</td><td><code>{usage.internalLotCode || '-'}</code></td><td>{kg(usage.usedQty)}</td><td>{usage.unit || 'kg'}</td><td>{usage.weighingStation || '-'}</td><td>{usage.createdBy || '-'}</td></tr>
-          ))} empty="Chưa có dữ liệu tiêu hao phù hợp." />
+          ))} empty="Chưa có dữ liệu sử dụng phù hợp." />
         ) : (
-          <SimpleTable headers={['Mã vật tư', 'ĐVT', 'Tổng số lượng tiêu hao', 'Số lần cân', 'Số lệnh sản xuất liên quan', 'Từ ngày', 'Đến ngày']} rows={summaryRows.map((row) => (
-            <tr key={row.materialCode}><td>{row.materialCode}</td><td>{row.unit}</td><td>{kg(row.totalUsedQty)}</td><td>{row.weighingCount}</td><td>{row.productionOrderCount}</td><td>{reportFilters.fromDate || '-'}</td><td>{reportFilters.toDate || '-'}</td></tr>
-          ))} empty="Chưa có dữ liệu tiêu hao phù hợp." />
+          <SimpleTable tableClassName="material-usage-summary-table" headers={['Mã vật tư', 'ĐVT', 'KL sử dụng (Kg)', 'Số lần cân', 'Số lệnh SX']} rows={summaryRows.map((row) => (
+            <tr key={row.materialCode}><td>{row.materialCode}</td><td>{row.unit}</td><td>{num(row.totalUsedQty).toLocaleString('vi-VN', { maximumFractionDigits: 3 })}</td><td>{row.weighingCount}</td><td>{row.productionOrderCount}</td></tr>
+          ))} empty="Chưa có dữ liệu sử dụng phù hợp." />
         )}
       </section>
     </div>
@@ -14267,7 +14265,7 @@ const pageMeta = {
   'raw-material-active-lots': ['Lô đang sử dụng', 'Theo dõi lô nguyên liệu đang sử dụng'],
   'raw-material-balance-adjustment': ['Điều chỉnh số dư truy xuất', 'Điều chỉnh số dư truy xuất nguyên liệu'],
   'raw-material-lot-lookup': ['Tra cứu lô', 'Tra cứu thông tin lô nguyên liệu'],
-  'raw-material-consumption-log': ['Tiêu hao nguyên liệu', 'Báo cáo tiêu hao nguyên liệu trung lập ERP'],
+  'raw-material-consumption-log': ['Sử dụng nguyên liệu', 'Báo cáo sử dụng nguyên liệu trung lập ERP'],
   formulas: ['Công thức gốc', 'Quản lý sản phẩm và công thức theo dữ liệu gốc sản phẩm'],
   orders: ['Lệnh sản xuất', 'Tạo lệnh từ công thức gốc và chờ QC sản xuất thử'],
   'production-assignments': ['Phân công nhân sự', 'Theo dõi nhân sự trực công đoạn trong từng ca sản xuất'],

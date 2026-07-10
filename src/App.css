@@ -15779,6 +15779,27 @@ body,
   background: #f0f7ff;
 }
 
+.material-usage-summary-table {
+  width: 650px !important;
+  max-width: 100%;
+  table-layout: fixed;
+}
+
+.material-usage-summary-table th {
+  text-align: center;
+}
+
+.material-usage-summary-table th:nth-child(1),
+.material-usage-summary-table td:nth-child(1) { width: 120px; text-align: left; }
+.material-usage-summary-table th:nth-child(2),
+.material-usage-summary-table td:nth-child(2) { width: 70px; text-align: center; }
+.material-usage-summary-table th:nth-child(3),
+.material-usage-summary-table td:nth-child(3) { width: 140px; text-align: right; }
+.material-usage-summary-table th:nth-child(4),
+.material-usage-summary-table td:nth-child(4) { width: 110px; text-align: center; }
+.material-usage-summary-table th:nth-child(5),
+.material-usage-summary-table td:nth-child(5) { width: 110px; text-align: center; }
+
 .packaging-plan-detail-table td:nth-child(8),
 .packaging-plan-detail-table td:nth-child(8) input {
   text-align: left !important;
