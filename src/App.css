@@ -15855,15 +15855,49 @@ body,
 .lot-detail-card.reference-qty-card, .lot-detail-card.trace-balance-card { width: 140px; }
 .lot-detail-card.status-card { width: 100px; }
 
+.active-material-lots-table-wrapper {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.active-material-lots-table-wrapper .table-wrapper {
+  width: fit-content !important;
+  max-width: 100%;
+}
+
+.active-material-lots-table {
+  width: fit-content !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  table-layout: auto;
+}
+
+.active-material-lots-table th,
+.active-material-lots-table td {
+  padding: 8px 12px;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.active-material-lots-table th { text-align: left; }
+.active-material-lots-table th:nth-child(1), .active-material-lots-table td:nth-child(1) { width: 90px; }
+.active-material-lots-table th:nth-child(2), .active-material-lots-table td:nth-child(2) { width: 120px; }
+.active-material-lots-table th:nth-child(3), .active-material-lots-table td:nth-child(3) { width: 250px; }
+.active-material-lots-table th:nth-child(4), .active-material-lots-table td:nth-child(4) { width: 110px; }
+.active-material-lots-table th:nth-child(5), .active-material-lots-table td:nth-child(5) { width: 120px; }
+.active-material-lots-table td:nth-child(5) { text-align: right; }
+.active-material-lots-table th:nth-child(6), .active-material-lots-table td:nth-child(6) { width: 100px; }
+.active-material-lots-table th:nth-child(7), .active-material-lots-table td:nth-child(7) { width: 80px; }
+.active-material-lots-table td:nth-child(7) { text-align: center; }
+
 .material-lot-adjustment-form {
-  display: grid;
-  gap: 12px;
+  display: block;
 }
 
 .material-lot-adjustment-main-row {
   display: flex;
   flex-wrap: nowrap;
-  gap: 12px;
+  gap: 10px;
   align-items: flex-end;
   overflow-x: auto;
   padding-bottom: 2px;
@@ -15876,12 +15910,11 @@ body,
   flex: 0 0 auto;
 }
 
-.adjustment-material-field, .adjustment-lot-field { width: 170px; }
-.adjustment-balance-field { width: 150px; }
-.adjustment-type-field { width: 160px; }
-.adjustment-qty-field { width: 140px; }
-.adjustment-reason-field { width: 260px; }
-.adjustment-note-field { width: 300px; }
+.adjustment-material-field, .adjustment-lot-field { width: 130px; }
+.adjustment-balance-field { width: 120px; }
+.adjustment-type-field { width: 120px; }
+.adjustment-qty-field { width: 110px; }
+.adjustment-reason-field, .adjustment-note-field { width: 180px; }
 .adjustment-save-button { flex: 0 0 auto; min-height: 40px; white-space: nowrap; }
 
 .material-lot-adjustment-history-table th,

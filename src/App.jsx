@@ -4232,17 +4232,19 @@ function MaterialActiveLotsPage({ data }) {
     <div className="page-content">
       <section className="panel">
         <h2>Lô đang sử dụng</h2>
-        <SimpleTable headers={['Mã vật tư', 'Tên vật tư', 'Internal Lot ưu tiên', 'Ngày nhập', 'Số dư truy xuất', 'Lô tiếp theo', 'Trạng thái']} rows={rows.map(({ materialCode, current, next }) => (
-          <tr key={materialCode}>
-            <td>{materialCode}</td>
-            <td>{current.materialName}</td>
-            <td><code>{current.internalLotCode}</code></td>
-            <td>{current.bravoReceiptDate}</td>
-            <td>{kg(current.traceBalanceQty)}</td>
-            <td>{next ? <code>{next.internalLotCode}</code> : '-'}</td>
-            <td>{current.status}</td>
-          </tr>
-        ))} empty="Chưa có lô active có số dư truy xuất." />
+        <div className="active-material-lots-table-wrapper">
+          <SimpleTable tableClassName="active-material-lots-table" headers={['Mã vật tư', 'Tên vật tư', 'Internal Lot ưu tiên', 'Ngày nhập', 'Số dư truy xuất', 'Lô tiếp theo', 'Trạng thái']} rows={rows.map(({ materialCode, current, next }) => (
+            <tr key={materialCode}>
+              <td>{materialCode}</td>
+              <td>{current.materialName}</td>
+              <td><code>{current.internalLotCode}</code></td>
+              <td>{current.bravoReceiptDate}</td>
+              <td>{kg(current.traceBalanceQty)}</td>
+              <td>{next ? <code>{next.internalLotCode}</code> : '-'}</td>
+              <td>{current.status}</td>
+            </tr>
+          ))} empty="Chưa có lô active có số dư truy xuất." />
+        </div>
       </section>
     </div>
   )
@@ -4307,9 +4309,9 @@ function MaterialTraceAdjustmentPage({ data, setData, user }) {
             <label className="adjustment-type-field">Loại điều chỉnh<select value={form.adjustmentType} onChange={(event) => updateForm('adjustmentType', event.target.value)}><option value="reduce">Giảm số dư</option><option value="block">Block lô</option><option value="reopen">Mở lại</option></select></label>
             {form.adjustmentType === 'reduce' && <label className="adjustment-qty-field">Số lượng giảm<input type="number" value={form.adjustmentQty} onChange={(event) => updateForm('adjustmentQty', event.target.value)} /></label>}
             <label className="adjustment-reason-field">Lý do *<input value={form.reason} onChange={(event) => updateForm('reason', event.target.value)} /></label>
+            <label className="adjustment-note-field">Ghi chú<input value={form.note} onChange={(event) => updateForm('note', event.target.value)} /></label>
             <button className="primary-button adjustment-save-button" type="button" disabled={!canAdjust} onClick={saveAdjustment}>Lưu điều chỉnh</button>
           </div>
-          <label className="adjustment-note-field">Ghi chú<input value={form.note} onChange={(event) => updateForm('note', event.target.value)} /></label>
         </div>
         {notice && <div className="process-alert">{notice}</div>}
       </section>
