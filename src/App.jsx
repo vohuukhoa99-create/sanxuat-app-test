@@ -6173,9 +6173,25 @@ function QC1({ data, setData, user }) {
   const [activeOrderId, setActiveOrderId] = useState(waitingOrders[0]?.id || '')
   const [showAddMaterial, setShowAddMaterial] = useState(false)
   const [newMaterial, setNewMaterial] = useState({ materialCode: '', materialGroup: CHEMICAL, requiredKg: 0, reason: '', note: '' })
+  const [historyFilters, setHistoryFilters] = useState({ fromDate: '', toDate: '', product: '', lot: '' })
+  const [historyDetail, setHistoryDetail] = useState(null)
   const selectableMaterials = activeMaterialCatalog(deriveMaterialCatalog(data))
   const activeOrder = data.orders.find((order) => order.id === activeOrderId && order.stage === 'qc1') || waitingOrders[0]
   const completedOrders = data.orders.filter((order) => order.qc1Result && order.stage !== 'qc1')
+  const qcPassHistory = data.orders.flatMap((order) => (order.qc1Logs || order.qc1Adjustments || [])
+    .filter((entry) => entry.isPass === true || ['Đạt', 'PASS', 'QC đạt', 'QC1 đạt'].includes(entry.result))
+    .map((entry) => ({ order, entry })))
+    .sort((left, right) => String(right.entry.time || '').localeCompare(String(left.entry.time || '')))
+  const historyProducts = [...new Set(qcPassHistory.map(({ order }) => order.productName || order.product).filter(Boolean))]
+  const filteredQcPassHistory = qcPassHistory.filter(({ order, entry }) => {
+    const date = String(entry.time || '').slice(0, 10)
+    const product = String(order.productName || order.product || '').toLowerCase()
+    const lot = String(getOrderLotCode(order) || '').toLowerCase()
+    return (!historyFilters.fromDate || date >= historyFilters.fromDate)
+      && (!historyFilters.toDate || date <= historyFilters.toDate)
+      && (!historyFilters.product || product === historyFilters.product.toLowerCase())
+      && (!historyFilters.lot || lot.includes(historyFilters.lot.toLowerCase()))
+  })
 
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'QC')
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
@@ -6247,17 +6263,21 @@ function QC1({ data, setData, user }) {
       const history = {
         id: uid('qc1'),
         time: nowText(),
-        result: adjusted ? 'Điều chỉnh' : 'Đạt',
+        result: 'Đạt',
+        isPass: true,
+        status: 'PASS',
+        adjusted,
         changes: adjusted ? getAdjustedRows(current) : [],
         addedMaterials: adjusted ? getAdjustedRows(current).filter((item) => item.isQc1Added) : [],
-        createdBy: 'QC',
+        createdBy: assignmentEmployeeText || user?.fullName || user?.username || 'QC',
+        note: adjusted ? 'QC đạt sau điều chỉnh.' : '',
       }
       return {
         ...current,
         stage: 'weighing',
         status: 'Chờ cân',
-        qc1Result: adjusted ? 'QC1 đã điều chỉnh & duyệt' : 'QC1 đạt',
-        qc1Status: adjusted ? 'QC1 đã điều chỉnh & duyệt' : 'QC1 đạt',
+        qc1Result: 'QC1 đạt',
+        qc1Status: 'QC1 đạt',
         activeProductionFormula: nextFormula,
         qc1AdjustedFormula: adjusted ? nextFormula : current.qc1AdjustedFormula,
         qc1Adjustments: [...(current.qc1Adjustments || current.qc1Logs || []), history],
@@ -6383,6 +6403,36 @@ function QC1({ data, setData, user }) {
           )}
         </main>
       </section>
+      <section className="panel qc-trial-history-panel">
+        <div className="section-heading-row">
+          <div><span className="section-kicker">Tra cứu</span><h2>Lịch sử QC sản xuất thử</h2></div>
+        </div>
+        <div className="production-form-grid qc-trial-history-filters">
+          <label>Từ ngày<input type="date" value={historyFilters.fromDate} onChange={(event) => setHistoryFilters((current) => ({ ...current, fromDate: event.target.value }))} /></label>
+          <label>Đến ngày<input type="date" value={historyFilters.toDate} onChange={(event) => setHistoryFilters((current) => ({ ...current, toDate: event.target.value }))} /></label>
+          <label>Sản phẩm<select value={historyFilters.product} onChange={(event) => setHistoryFilters((current) => ({ ...current, product: event.target.value }))}><option value="">Tất cả sản phẩm</option>{historyProducts.map((product) => <option key={product} value={product}>{product}</option>)}</select></label>
+          <label>Mã lô<input value={historyFilters.lot} placeholder="Nhập mã lô" onChange={(event) => setHistoryFilters((current) => ({ ...current, lot: event.target.value }))} /></label>
+        </div>
+        <SimpleTable
+          tableClassName="qc-trial-history-table"
+          headers={['Thời gian QC', 'Mã lô', 'Lệnh sản xuất', 'Sản phẩm', 'Khối lượng', 'Khách hàng', 'Người QC', 'Kết quả', 'Ghi chú', 'Hành động']}
+          empty="Chưa có lệnh pass QC sản xuất thử."
+          rows={filteredQcPassHistory.map(({ order, entry }) => (
+            <tr key={entry.id}>
+              <td>{entry.time || '-'}</td>
+              <td>{getOrderLotCode(order) || '-'}</td>
+              <td>{order.orderCode || order.id}</td>
+              <td>{order.productName || order.product || '-'}</td>
+              <td>{kg(order.requestedWeight ?? order.quantityKg)}</td>
+              <td>{order.customerName || order.customer || '-'}</td>
+              <td>{entry.createdBy || entry.operator || 'QC'}</td>
+              <td><span className="dispatch-badge ready">PASS / QC đạt</span></td>
+              <td>{entry.note || (entry.changes || []).map((item) => `${item.materialCode}: ${item.diff > 0 ? '+' : ''}${kg(item.diff)}`).join(', ') || '-'}</td>
+              <td><button type="button" className="secondary-button" onClick={() => setHistoryDetail({ order, entry })}>Chi tiết</button></td>
+            </tr>
+          ))}
+        />
+      </section>
       {showAddMaterial && (
         <div className="modal-backdrop" role="presentation">
           <div className="mixing-modal qc-add-material-modal" role="dialog" aria-modal="true">
@@ -6405,6 +6455,24 @@ function QC1({ data, setData, user }) {
               <button type="button" className="secondary-button" onClick={() => setShowAddMaterial(false)}>Hủy</button>
               <button type="button" className="primary-button" onClick={saveNewMaterial}>Lưu NVL</button>
             </div>
+          </div>
+        </div>
+      )}
+      {historyDetail && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="mixing-modal" role="dialog" aria-modal="true">
+            <div className="modal-header">
+              <div><span className="section-kicker">QC sản xuất thử đạt</span><h2>{historyDetail.order.orderCode || historyDetail.order.id}</h2></div>
+              <button type="button" className="icon-button" onClick={() => setHistoryDetail(null)} aria-label="Đóng">×</button>
+            </div>
+            <div className="qc-order-summary">
+              <div><span>Mã lô</span><strong>{getOrderLotCode(historyDetail.order) || '-'}</strong></div>
+              <div><span>Thời gian QC</span><strong>{historyDetail.entry.time || '-'}</strong></div>
+              <div><span>Người QC</span><strong>{historyDetail.entry.createdBy || historyDetail.entry.operator || 'QC'}</strong></div>
+              <div><span>Kết quả</span><strong>PASS / QC đạt</strong></div>
+            </div>
+            <SimpleTable headers={['Mã vật tư', 'Theo lệnh', 'Sau QC', 'Chênh lệch', 'Lý do', 'Ghi chú']} empty="Không có điều chỉnh QC." rows={(historyDetail.entry.changes || []).map((item) => <tr key={item.id || item.materialCode}><td>{item.materialCode}</td><td>{kg(item.requiredKg)}</td><td>{kg(item.adjustedValue)}</td><td>{item.diff > 0 ? '+' : ''}{kg(item.diff)}</td><td>{item.qcAdjustReason || '-'}</td><td>{item.note || '-'}</td></tr>)} />
+            <div className="modal-actions"><button type="button" className="primary-button" onClick={() => setHistoryDetail(null)}>Đóng</button></div>
           </div>
         </div>
       )}
