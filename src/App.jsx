@@ -2221,7 +2221,6 @@ const masterPermissionGroups = [
   ['material', 'Dữ liệu gốc / Danh mục vật tư'],
   ['product', 'Dữ liệu gốc / Danh mục sản phẩm'],
   ['packagingSpec', 'Dữ liệu gốc / Quy cách đóng gói'],
-  ['supplier', 'Dữ liệu gốc / Danh mục nhà cung cấp'],
   ['customer', 'Dữ liệu gốc / Danh mục khách hàng'],
   ['employee', 'Dữ liệu gốc / Danh sách nhân viên'],
   ['team', 'Dữ liệu gốc / Danh mục tổ sản xuất'],
@@ -2248,8 +2247,8 @@ const pagePermission = (item) => item.permission || item.id
 
 const defaultRoles = {
   Admin: allSystemPermissionIds,
-  'Kho NL': ['dashboard', 'raw-materials', 'production.log.view', ...masterView('material'), ...masterView('supplier')],
-  'Kỹ thuật': ['dashboard', 'production.log.view', ...masterFull('material'), ...masterFull('product'), ...masterFull('formula'), ...masterView('machine'), ...masterView('supplier'), 'formula.secure.view'],
+  'Kho NL': ['dashboard', 'raw-materials', 'production.log.view', ...masterView('material')],
+  'Kỹ thuật': ['dashboard', 'production.log.view', ...masterFull('material'), ...masterFull('product'), ...masterFull('formula'), ...masterView('machine'), 'formula.secure.view'],
   'Sản xuất': ['dashboard', 'orders', 'logs', 'production.log.view', ...productionFull('assignment'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('product'), ...masterView('packagingSpec'), ...masterView('machine'), ...masterView('customer')],
   QC: ['dashboard', 'qc', 'finished-qc', 'production.log.view', 'reports', ...masterView('product'), ...masterView('formula')],
   'Cân hóa': ['dashboard', 'chemical', 'logs', 'production.log.view', ...productionView('assignment')],
@@ -2258,7 +2257,7 @@ const defaultRoles = {
   'Đóng gói': ['dashboard', 'packaging', 'production.log.view'],
   'Kho TP': ['dashboard', 'finished-goods', 'production.log.view', 'reports'],
   'Quản đốc': ['dashboard', 'orders', 'qc', 'chemical', 'solid', 'mixing', 'finished-qc', 'packaging', 'finished-goods', 'logs', 'reports', 'production.trace.view', 'production.log.view', 'production.assignment.view', 'production.assignment.create', 'production.assignment.edit', ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('product'), ...masterView('packagingSpec'), ...masterView('customer')],
-  'Ban giám đốc': ['dashboard', 'logs', 'reports', 'production.trace.view', 'production.log.view', ...productionView('assignment'), ...masterView('material'), ...masterView('product'), ...masterView('packagingSpec'), ...masterView('supplier'), ...masterView('customer'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('formula')],
+  'Ban giám đốc': ['dashboard', 'logs', 'reports', 'production.trace.view', 'production.log.view', ...productionView('assignment'), ...masterView('material'), ...masterView('product'), ...masterView('packagingSpec'), ...masterView('customer'), ...masterView('employee'), ...masterView('team'), ...masterView('shift'), ...masterView('machine'), ...masterView('formula')],
 }
 const officialRoleNames = Object.keys(defaultRoles)
 
@@ -2314,7 +2313,6 @@ function expandLegacyPermissions(permissions = []) {
     'admin-machines': masterFull('machine'),
     'master-materials': masterFull('material'),
     'master-products': masterFull('product'),
-    'master-suppliers': masterFull('supplier'),
     'master-customers': masterFull('customer'),
     'master-employees': masterFull('employee'),
     'master-teams': masterFull('team'),
@@ -13799,7 +13797,6 @@ const pageMeta = {
   'master-materials': ['Danh mục vật tư', 'Dữ liệu gốc vật tư dùng trong sản xuất'],
   'master-products': ['Danh mục sản phẩm', 'Dữ liệu gốc sản phẩm và công thức'],
   'master-packaging-specs': ['Quy cách đóng gói', 'Khai báo quy cách, đơn vị công bố, kg quy đổi và dung sai'],
-  'master-suppliers': ['Danh mục nhà cung cấp', 'Dữ liệu gốc nhà cung cấp'],
   'master-customers': ['Danh mục khách hàng', 'Dữ liệu gốc khách hàng'],
   'master-employees': ['Danh sách nhân viên', 'Nhân sự vận hành trong phạm vi sản xuất'],
   'master-teams': ['Danh mục tổ sản xuất', 'Tổ vận hành dùng cho phân công sản xuất'],
@@ -14012,7 +14009,6 @@ function App() {
     'master-materials': <MasterCatalogPage title="Danh mục vật tư" storageKey="materialCatalog" fields={['materialCode', 'materialName', 'manufacturer', 'status', 'mainGroup', 'subclassification', 'unit']} labels={['Mã vật tư', 'Tên vật tư', 'Nhà sản xuất', 'Trạng thái', 'Nhóm', 'Phân nhóm', 'Đơn vị']} data={data} setData={setData} permissions={userPermissions} user={user} />,
     'master-products': <ProductMasterPage data={data} setData={setData} permissions={userPermissions} />,
     'master-packaging-specs': <MasterCatalogPage title="Quy cách đóng gói" storageKey="packagingSpecCatalog" permissionKey="packagingSpec" fields={['productGroup', 'productSubgroup', 'specType', 'spec', 'declaredUnit', 'convertedWeightKg', 'toleranceKg', 'status', 'note']} labels={['Nhóm sản phẩm', 'Phân nhóm', 'Loại quy cách', 'Quy cách đóng gói', 'Đơn vị công bố', 'Khối lượng quy đổi kg', 'Dung sai kg', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
-    'master-suppliers': <MasterCatalogPage title="Danh mục nhà cung cấp" storageKey="supplierCatalog" fields={['code', 'name', 'phone', 'address', 'status', 'note']} labels={['Mã NCC', 'Tên NCC', 'Điện thoại', 'Địa chỉ', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-customers': <MasterCatalogPage title="Danh mục khách hàng" storageKey="customerCatalog" fields={['customerCode', 'customerName', 'channelCode', 'province', 'status', 'note']} labels={['Mã khách hàng', 'Tên khách hàng', 'Nhóm khách hàng', 'Khu vực/Tỉnh thành', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-employees': <MasterCatalogPage title="Danh sách nhân viên" storageKey="employeeCatalog" permissionKey="employee" fields={['employeeCode', 'employeeName', 'department', 'role', 'phone', 'status', 'note']} labels={['Mã nhân viên', 'Họ tên', 'Bộ phận/Tổ', 'Vai trò', 'Điện thoại', 'Trạng thái', 'Ghi chú']} data={data} setData={setData} permissions={userPermissions} />,
     'master-teams': <MasterCatalogPage title="Danh mục tổ sản xuất" storageKey="teamCatalog" permissionKey="team" fields={['code', 'name', 'leader', 'note', 'status']} labels={['Mã tổ', 'Tên tổ', 'Tổ trưởng', 'Ghi chú', 'Trạng thái']} data={data} setData={setData} permissions={userPermissions} />,
