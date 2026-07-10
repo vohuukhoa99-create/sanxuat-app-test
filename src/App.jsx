@@ -4232,8 +4232,8 @@ function MaterialActiveLotsPage({ data }) {
     <div className="page-content">
       <section className="panel">
         <h2>Lô đang sử dụng</h2>
-        <div className="active-material-lots-table-wrapper">
-          <SimpleTable tableClassName="active-material-lots-table" headers={['Mã vật tư', 'Tên vật tư', 'Internal Lot ưu tiên', 'Ngày nhập', 'Số dư truy xuất', 'Lô tiếp theo', 'Trạng thái']} rows={rows.map(({ materialCode, current, next }) => (
+        <div className="lot-in-use-table-wrapper">
+          <SimpleTable tableClassName="lot-in-use-table" headers={['Mã vật tư', 'Tên vật tư', 'Internal Lot ưu tiên', 'Ngày nhập', 'Số dư truy xuất', 'Lô tiếp theo', 'Trạng thái']} rows={rows.map(({ materialCode, current, next }) => (
             <tr key={materialCode}>
               <td>{materialCode}</td>
               <td>{current.materialName}</td>

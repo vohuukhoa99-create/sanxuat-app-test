@@ -15855,40 +15855,42 @@ body,
 .lot-detail-card.reference-qty-card, .lot-detail-card.trace-balance-card { width: 140px; }
 .lot-detail-card.status-card { width: 100px; }
 
-.active-material-lots-table-wrapper {
+.lot-in-use-table-wrapper {
   width: fit-content;
   max-width: 100%;
+  overflow-x: auto;
 }
 
-.active-material-lots-table-wrapper .table-wrapper {
+.lot-in-use-table-wrapper .table-wrapper {
   width: fit-content !important;
   max-width: 100%;
 }
 
-.active-material-lots-table {
-  width: fit-content !important;
+.lot-in-use-table {
+  width: 810px !important;
   min-width: 0 !important;
-  max-width: none !important;
-  table-layout: auto;
+  max-width: 810px !important;
+  table-layout: fixed;
 }
 
-.active-material-lots-table th,
-.active-material-lots-table td {
+.lot-in-use-table th,
+.lot-in-use-table td {
   padding: 8px 12px;
   white-space: nowrap;
   text-align: left;
 }
 
-.active-material-lots-table th { text-align: left; }
-.active-material-lots-table th:nth-child(1), .active-material-lots-table td:nth-child(1) { width: 90px; }
-.active-material-lots-table th:nth-child(2), .active-material-lots-table td:nth-child(2) { width: 120px; }
-.active-material-lots-table th:nth-child(3), .active-material-lots-table td:nth-child(3) { width: 250px; }
-.active-material-lots-table th:nth-child(4), .active-material-lots-table td:nth-child(4) { width: 110px; }
-.active-material-lots-table th:nth-child(5), .active-material-lots-table td:nth-child(5) { width: 120px; }
-.active-material-lots-table td:nth-child(5) { text-align: right; }
-.active-material-lots-table th:nth-child(6), .active-material-lots-table td:nth-child(6) { width: 100px; }
-.active-material-lots-table th:nth-child(7), .active-material-lots-table td:nth-child(7) { width: 80px; }
-.active-material-lots-table td:nth-child(7) { text-align: center; }
+.lot-in-use-table th { text-align: left; }
+.lot-in-use-table th:nth-child(1), .lot-in-use-table td:nth-child(1) { width: 90px; }
+.lot-in-use-table th:nth-child(2), .lot-in-use-table td:nth-child(2) { width: 100px; }
+.lot-in-use-table th:nth-child(3), .lot-in-use-table td:nth-child(3) { width: 210px; }
+.lot-in-use-table th:nth-child(4), .lot-in-use-table td:nth-child(4) { width: 110px; }
+.lot-in-use-table th:nth-child(5), .lot-in-use-table td:nth-child(5) { width: 120px; }
+.lot-in-use-table th:nth-child(5) { text-align: center; }
+.lot-in-use-table td:nth-child(5) { text-align: left; padding-left: 4px; }
+.lot-in-use-table th:nth-child(6), .lot-in-use-table td:nth-child(6) { width: 100px; }
+.lot-in-use-table th:nth-child(7), .lot-in-use-table td:nth-child(7) { width: 80px; }
+.lot-in-use-table td:nth-child(7) { text-align: center; }
 
 .material-lot-adjustment-form {
   display: block;
