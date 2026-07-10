@@ -6541,6 +6541,8 @@ function FinishedProductQcPage({ data, setData, user }) {
   const [activeOrderId, setActiveOrderId] = useState(orders[0]?.id || '')
   const [qc2Tab, setQc2Tab] = useState('current')
   const [notice, setNotice] = useState('')
+  const [passHistoryFilters, setPassHistoryFilters] = useState({ fromDate: '', toDate: '', lot: '', product: '', customer: '' })
+  const [passHistoryDetail, setPassHistoryDetail] = useState(null)
   const selectableMaterials = activeMaterialCatalog(deriveMaterialCatalog(data))
   const [form, setForm] = useState({
     color: '',
@@ -6559,6 +6561,36 @@ function FinishedProductQcPage({ data, setData, user }) {
   const activeAdjustments = activeOrder ? getQc2Adjustments(activeOrder) : []
   const activeItems = activeAdjustments.flatMap((ticket) => getAdjustmentItems(ticket).map((item) => ({ ...item, ticket })))
   const qc2Rows = activeOrder ? buildQc2Rows(activeOrder, form.adjustments) : []
+  const qc2PassHistory = data.orders.flatMap((order) => {
+    const savedEntries = order.qc2PassHistory || []
+    if (savedEntries.length) return savedEntries.map((entry) => ({ order, entry }))
+    const result = order.qc2?.result || order.qc2Status || ''
+    return ['Đạt', 'PASS', 'QC-TP đạt'].includes(result) ? [{ order, entry: {
+      id: `legacy-qc2-pass-${order.id}`,
+      time: order.qc2?.checkedAt || order.updatedAt,
+      result: 'Đạt',
+      isPass: true,
+      actor: order.qc2?.confirmedBy || order.qc2?.createdBy || 'QC',
+      note: order.qc2?.note || '',
+      qualityCriteria: order.qc2 || {},
+      materialRows: buildQc2Rows(order),
+      newMaterials: order.qc2?.newMaterials || [],
+    } }] : []
+  }).filter(({ entry }) => entry.isPass === true || ['Đạt', 'PASS', 'QC-TP đạt'].includes(entry.result))
+    .sort((left, right) => String(right.entry.time || '').localeCompare(String(left.entry.time || '')))
+  const passHistoryProducts = [...new Set(qc2PassHistory.map(({ order }) => order.productName || order.product).filter(Boolean))]
+  const passHistoryCustomers = [...new Set(qc2PassHistory.map(({ order }) => order.customerName || order.customer).filter(Boolean))]
+  const filteredQc2PassHistory = qc2PassHistory.filter(({ order, entry }) => {
+    const date = String(entry.time || '').slice(0, 10)
+    const lot = String(getOrderLotCode(order) || '').toLowerCase()
+    const product = String(order.productName || order.product || '').toLowerCase()
+    const customer = String(order.customerName || order.customer || '').toLowerCase()
+    return (!passHistoryFilters.fromDate || date >= passHistoryFilters.fromDate)
+      && (!passHistoryFilters.toDate || date <= passHistoryFilters.toDate)
+      && (!passHistoryFilters.lot || lot.includes(passHistoryFilters.lot.toLowerCase()))
+      && (!passHistoryFilters.product || product === passHistoryFilters.product.toLowerCase())
+      && (!passHistoryFilters.customer || customer === passHistoryFilters.customer.toLowerCase())
+  })
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'QC')
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
   const hasPendingQcTpAdjustment = activeAdjustments.length > 0
@@ -6652,7 +6684,7 @@ function FinishedProductQcPage({ data, setData, user }) {
   const confirmQcTpPass = () => {
     if (!activeOrder || !canConfirmQcTpPass) return
     const checkedAt = nowText()
-    const actor = user?.name || user?.username || user?.role || assignmentEmployeeText || 'QC'
+    const actor = user?.fullName || user?.name || user?.username || assignmentEmployeeText || user?.role || 'QC'
     const qc2Record = {
       ...form,
       result: 'Đạt',
@@ -6660,6 +6692,23 @@ function FinishedProductQcPage({ data, setData, user }) {
       confirmedBy: actor,
       orderId: activeOrder.id,
       note: form.note || 'Xác nhận QC-TP đạt không điều chỉnh',
+    }
+    const passHistoryEntry = {
+      id: uid('qc2-pass'),
+      time: checkedAt,
+      result: 'Đạt',
+      isPass: true,
+      status: 'PASS',
+      actor,
+      note: qc2Record.note,
+      qualityCriteria: { color: form.color, ph: form.ph, viscosity: form.viscosity, density: form.density, coverage: form.coverage, fineness: form.fineness, note: qc2Record.note },
+      materialRows: [
+        ...qc2Rows.map((row) => ({ ...row })),
+        ...form.newMaterials.filter((item) => item.materialCode).map((item) => ({ ...item, originalKg: 0, qc1Kg: 0, supplementKg: num(item.adjustmentKg), afterQc2Kg: num(item.adjustmentKg) })),
+      ],
+      newMaterials: form.newMaterials.map((item) => ({ ...item })),
+      adjustments: form.adjustments.map((item) => ({ ...item })),
+      adjustmentReason: form.reason || '',
     }
     setData((current) => addLogToData({
       ...current,
@@ -6670,6 +6719,7 @@ function FinishedProductQcPage({ data, setData, user }) {
         orderStatus: 'QC-TP đạt',
         qc2: qc2Record,
         qc2Status: 'QC-TP đạt',
+        qc2PassHistory: [...(item.qc2PassHistory || []), passHistoryEntry],
         updatedAt: checkedAt,
       } : item),
       qc2Logs: [...(current.qc2Logs || []), { id: uid('qc2'), orderId: activeOrder.id, time: checkedAt, actor, action: 'QC-TP đạt', result: 'QC-TP đạt' }],
@@ -6977,6 +7027,58 @@ function FinishedProductQcPage({ data, setData, user }) {
           )}
         </main>
       </section>
+      <section className="panel qc2-pass-history-panel">
+        <div className="section-heading-row">
+          <div><span className="section-kicker">Tra cứu</span><h2>Lịch sử QC-TP đạt</h2></div>
+        </div>
+        <div className="production-form-grid qc2-pass-history-filters">
+          <label>Từ ngày<input type="date" value={passHistoryFilters.fromDate} onChange={(event) => setPassHistoryFilters((current) => ({ ...current, fromDate: event.target.value }))} /></label>
+          <label>Đến ngày<input type="date" value={passHistoryFilters.toDate} onChange={(event) => setPassHistoryFilters((current) => ({ ...current, toDate: event.target.value }))} /></label>
+          <label>Mã lô<input value={passHistoryFilters.lot} placeholder="Nhập mã lô" onChange={(event) => setPassHistoryFilters((current) => ({ ...current, lot: event.target.value }))} /></label>
+          <label>Sản phẩm<select value={passHistoryFilters.product} onChange={(event) => setPassHistoryFilters((current) => ({ ...current, product: event.target.value }))}><option value="">Tất cả sản phẩm</option>{passHistoryProducts.map((product) => <option key={product} value={product}>{product}</option>)}</select></label>
+          <label>Khách hàng<select value={passHistoryFilters.customer} onChange={(event) => setPassHistoryFilters((current) => ({ ...current, customer: event.target.value }))}><option value="">Tất cả khách hàng</option>{passHistoryCustomers.map((customer) => <option key={customer} value={customer}>{customer}</option>)}</select></label>
+        </div>
+        <SimpleTable
+          tableClassName="qc2-pass-history-table"
+          headers={['Thời gian QC-TP', 'Mã lô', 'Lệnh sản xuất', 'Sản phẩm', 'Khách hàng', 'KL yêu cầu', 'KL TP', 'Máy trộn', 'Người QC', 'Kết quả', 'Ghi chú', 'Hành động']}
+          empty="Chưa có lô pass QC-TP."
+          rows={filteredQc2PassHistory.map(({ order, entry }) => (
+            <tr key={entry.id}>
+              <td>{entry.time || '-'}</td>
+              <td>{getOrderLotCode(order) || '-'}</td>
+              <td>{order.orderCode || order.id}</td>
+              <td>{order.productName || order.product || '-'}</td>
+              <td>{order.customerName || order.customer || '-'}</td>
+              <td>{kg(order.requestedWeight ?? order.quantityKg)}</td>
+              <td>{kg(order.mixing?.finalWeightKg || order.quantityKg)}</td>
+              <td>{getOrderAssignedMachineLabel(order, data.mixingMachines)}</td>
+              <td>{entry.actor || entry.confirmedBy || 'QC'}</td>
+              <td><span className="dispatch-badge ready">PASS / QC đạt</span></td>
+              <td>{entry.note || '-'}</td>
+              <td><button type="button" className="secondary-button" onClick={() => setPassHistoryDetail({ order, entry })}>Chi tiết</button></td>
+            </tr>
+          ))}
+        />
+      </section>
+      {passHistoryDetail && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="mixing-modal qc2-pass-history-modal" role="dialog" aria-modal="true">
+            <div className="modal-header">
+              <div><span className="section-kicker">QC-TP đạt</span><h2>{passHistoryDetail.order.orderCode || passHistoryDetail.order.id}</h2></div>
+              <button type="button" className="icon-button" onClick={() => setPassHistoryDetail(null)} aria-label="Đóng">×</button>
+            </div>
+            <div className="qc-order-summary">
+              <div><span>Mã lô</span><strong>{getOrderLotCode(passHistoryDetail.order) || '-'}</strong></div>
+              <div><span>Thời gian QC-TP</span><strong>{passHistoryDetail.entry.time || '-'}</strong></div>
+              <div><span>Người QC</span><strong>{passHistoryDetail.entry.actor || passHistoryDetail.entry.confirmedBy || 'QC'}</strong></div>
+              <div><span>Kết quả</span><strong>PASS / QC đạt</strong></div>
+            </div>
+            <section className="v3-card"><h3>Chỉ tiêu QC thành phẩm</h3><div className="qc-order-summary"><div><span>Màu sắc</span><strong>{passHistoryDetail.entry.qualityCriteria?.color || '-'}</strong></div><div><span>pH</span><strong>{passHistoryDetail.entry.qualityCriteria?.ph || '-'}</strong></div><div><span>Độ nhớt</span><strong>{passHistoryDetail.entry.qualityCriteria?.viscosity || '-'}</strong></div><div><span>Tỷ trọng</span><strong>{passHistoryDetail.entry.qualityCriteria?.density || '-'}</strong></div><div><span>Độ phủ</span><strong>{passHistoryDetail.entry.qualityCriteria?.coverage || '-'}</strong></div><div><span>Độ mịn</span><strong>{passHistoryDetail.entry.qualityCriteria?.fineness || '-'}</strong></div></div><p className="panel-text">Ghi chú: {passHistoryDetail.entry.note || '-'}</p></section>
+            <SimpleTable headers={['Mã vật tư', 'Nhóm', 'KL gốc', 'KL sau QC1', 'QC-TP bổ sung', 'KL sau QC-TP', 'Lý do điều chỉnh', 'Ghi chú']} empty="Chưa có dữ liệu vật tư QC-TP." rows={(passHistoryDetail.entry.materialRows || []).map((row, index) => <tr key={row.id || `${row.materialCode}-${index}`}><td>{row.materialCode}</td><td>{row.materialGroup || '-'}</td><td>{kg(row.originalKg)}</td><td>{kg(row.qc1Kg)}</td><td>{kg(row.supplementKg)}</td><td>{kg(row.afterQc2Kg)}</td><td>{row.reason || passHistoryDetail.entry.adjustmentReason || '-'}</td><td>{row.note || '-'}</td></tr>)} />
+            <div className="modal-actions"><button type="button" className="primary-button" onClick={() => setPassHistoryDetail(null)}>Đóng</button></div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
