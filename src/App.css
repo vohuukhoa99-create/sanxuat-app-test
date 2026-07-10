@@ -15814,6 +15814,47 @@ body,
   width: 100%;
 }
 
+.lot-search-filter {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
+  align-items: flex-end;
+  justify-content: flex-start;
+  overflow-x: auto;
+}
+
+.lot-search-filter .keyword-field { flex: 0 0 260px; width: 260px; }
+.lot-search-filter .date-field { flex: 0 0 180px; width: 180px; }
+.lot-search-filter .batch-field { flex: 0 0 220px; width: 220px; }
+.lot-search-filter input { width: 100%; }
+
+.lot-detail-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.lot-detail-card {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid rgba(7, 34, 26, 0.1);
+  border-radius: 10px;
+  background: #fbfffd;
+}
+
+.lot-detail-card span { color: #60736a; font-size: 12px; }
+.lot-detail-card strong { color: #2f4b3f; white-space: nowrap; }
+.lot-detail-card.material-code-card, .lot-detail-card.material-name-card { width: 130px; }
+.lot-detail-card.bravo-card { width: 140px; }
+.lot-detail-card.supplier-card { width: 200px; }
+.lot-detail-card.receipt-date-card { width: 120px; }
+.lot-detail-card.reference-qty-card, .lot-detail-card.trace-balance-card { width: 140px; }
+.lot-detail-card.status-card { width: 100px; }
+
 .material-usage-table-wrapper {
   width: 450px;
   min-width: 450px;

@@ -4338,11 +4338,11 @@ function MaterialLotLookupPage({ data }) {
     <div className="page-content">
       <section className="panel">
         <div className="section-heading-row"><h2>Tra cứu lô</h2></div>
-        <div className="production-form-grid">
-          <label>Từ khóa<input value={filters.text} onChange={(event) => setFilters({ ...filters, text: event.target.value })} placeholder="Mã vật tư, tên, Internal Lot, Bravo, NCC" /></label>
-          <label>Từ ngày<input type="date" value={filters.fromDate} onChange={(event) => setFilters({ ...filters, fromDate: event.target.value })} /></label>
-          <label>Đến ngày<input type="date" value={filters.toDate} onChange={(event) => setFilters({ ...filters, toDate: event.target.value })} /></label>
-          <label>Batch/Lệnh sản xuất<input value={filters.batch} onChange={(event) => setFilters({ ...filters, batch: event.target.value })} /></label>
+        <div className="lot-search-filter">
+          <label className="keyword-field">Từ khóa<input value={filters.text} onChange={(event) => setFilters({ ...filters, text: event.target.value })} placeholder="Mã vật tư, tên, Internal Lot, Bravo, NCC" /></label>
+          <label className="date-field">Từ ngày<input type="date" value={filters.fromDate} onChange={(event) => setFilters({ ...filters, fromDate: event.target.value })} /></label>
+          <label className="date-field">Đến ngày<input type="date" value={filters.toDate} onChange={(event) => setFilters({ ...filters, toDate: event.target.value })} /></label>
+          <label className="batch-field">Batch/Lệnh sản xuất<input value={filters.batch} onChange={(event) => setFilters({ ...filters, batch: event.target.value })} /></label>
         </div>
         <SimpleTable headers={['Internal Lot', 'Mã vật tư', 'Tên vật tư', 'Phiếu Bravo', 'Nhà cung cấp', 'Ngày nhập', 'Số dư truy xuất', 'Trạng thái', 'Chi tiết']} rows={filteredLots.map((lot) => (
           <tr key={lot.internalLotCode}><td><code>{lot.internalLotCode}</code></td><td>{lot.materialCode}</td><td>{lot.materialName}</td><td>{lot.bravoReceiptNo}</td><td>{lot.supplierName}</td><td>{lot.bravoReceiptDate}</td><td>{kg(lot.traceBalanceQty)}</td><td>{lot.status}</td><td><button className="secondary-button" type="button" onClick={() => setSelectedCode(lot.internalLotCode)}>Mở</button></td></tr>
@@ -4350,17 +4350,17 @@ function MaterialLotLookupPage({ data }) {
       </section>
       {selectedLot && <section className="panel">
         <h3>Chi tiết {selectedLot.internalLotCode}</h3>
-        <div className="production-log-grid">
+        <div className="lot-detail-row">
           {[
-            ['Mã vật tư', selectedLot.materialCode],
-            ['Tên vật tư', selectedLot.materialName],
-            ['Phiếu Bravo', selectedLot.bravoReceiptNo],
-            ['Nhà cung cấp', selectedLot.supplierName],
-            ['Ngày nhập', selectedLot.bravoReceiptDate],
-            ['Số lượng tham chiếu', kg(selectedLot.importedQty)],
-            ['Số dư truy xuất', kg(selectedLot.traceBalanceQty)],
-            ['Trạng thái', selectedLot.status],
-          ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}
+            ['Mã vật tư', selectedLot.materialCode, 'material-code-card'],
+            ['Tên vật tư', selectedLot.materialName, 'material-name-card'],
+            ['Phiếu Bravo', selectedLot.bravoReceiptNo, 'bravo-card'],
+            ['Nhà cung cấp', selectedLot.supplierName, 'supplier-card'],
+            ['Ngày nhập', selectedLot.bravoReceiptDate, 'receipt-date-card'],
+            ['Số lượng tham chiếu', kg(selectedLot.importedQty), 'reference-qty-card'],
+            ['Số dư truy xuất', kg(selectedLot.traceBalanceQty), 'trace-balance-card'],
+            ['Trạng thái', selectedLot.status, 'status-card'],
+          ].map(([label, value, className]) => <div className={`lot-detail-card ${className}`} key={label}><span>{label}</span><strong>{value}</strong></div>)}
         </div>
         <SimpleTable headers={['Batch/Lệnh', 'Số lượng sử dụng', 'Thời gian cân', 'Người cân', 'Trạm cân']} rows={selectedUsages.map((usage) => (
           <tr key={usage.id}><td>{usage.batchId || usage.productionOrderId}</td><td>{kg(usage.usedQty)}</td><td>{usage.usedAt}</td><td>{usage.createdBy}</td><td>{usage.weighingStation}</td></tr>
