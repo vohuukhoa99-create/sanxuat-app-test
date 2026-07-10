@@ -15802,31 +15802,40 @@ body,
   width: 100%;
 }
 
-.material-usage-summary-table {
-  width: auto !important;
-  min-width: 650px;
-  max-width: 750px;
+.material-usage-table-wrapper {
+  width: 70%;
+  min-width: 520px;
+  max-width: 600px;
+}
+
+.material-usage-table-wrapper .table-wrapper {
+  width: 100%;
+}
+
+.material-usage-table {
+  width: 100% !important;
   table-layout: fixed;
 }
 
-.material-usage-summary-table th {
+.material-usage-table th {
   text-align: center;
 }
 
-.material-usage-summary-table th:nth-child(1),
-.material-usage-summary-table td:nth-child(1) { width: 120px; text-align: left; }
-.material-usage-summary-table th:nth-child(2),
-.material-usage-summary-table td:nth-child(2) { width: 60px; text-align: center; }
-.material-usage-summary-table th:nth-child(3),
-.material-usage-summary-table td:nth-child(3) { width: 140px; text-align: right; }
-.material-usage-summary-table th:nth-child(4),
-.material-usage-summary-table td:nth-child(4) { width: 100px; text-align: center; }
-.material-usage-summary-table th:nth-child(5),
-.material-usage-summary-table td:nth-child(5) { width: 100px; text-align: center; }
+.material-usage-table th:nth-child(1),
+.material-usage-table td:nth-child(1) { width: 120px; text-align: left; }
+.material-usage-table th:nth-child(2),
+.material-usage-table td:nth-child(2) { width: 60px; text-align: center; }
+.material-usage-table th:nth-child(3),
+.material-usage-table td:nth-child(3) { width: 130px; text-align: right; }
+.material-usage-table th:nth-child(4),
+.material-usage-table td:nth-child(4) { width: 100px; text-align: center; }
+.material-usage-table th:nth-child(5),
+.material-usage-table td:nth-child(5) { width: 100px; text-align: center; }
 
-.material-usage-summary-table th,
-.material-usage-summary-table td {
+.material-usage-table th,
+.material-usage-table td {
   white-space: nowrap;
+  padding: 8px 12px;
 }
 
 .packaging-plan-detail-table td:nth-child(8),

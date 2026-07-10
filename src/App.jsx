@@ -4470,9 +4470,11 @@ function MaterialConsumptionLogPage({ data }) {
             <tr key={usage.id}><td>{usage.usedAt || '-'}</td><td>{usage.productionOrderId || '-'}</td><td>{usage.batchId || '-'}</td><td>{usage.materialCode}</td><td><code>{usage.internalLotCode || '-'}</code></td><td>{kg(usage.usedQty)}</td><td>{usage.unit || 'kg'}</td><td>{usage.weighingStation || '-'}</td><td>{usage.createdBy || '-'}</td></tr>
           ))} empty="Chưa có dữ liệu sử dụng phù hợp." />
         ) : (
-          <SimpleTable tableClassName="material-usage-summary-table" headers={['Mã vật tư', 'ĐVT', 'KL sử dụng (Kg)', 'Số lần cân', 'Số lệnh SX']} rows={summaryRows.map((row) => (
-            <tr key={row.materialCode}><td>{row.materialCode}</td><td>{row.unit}</td><td>{num(row.totalUsedQty).toLocaleString('vi-VN', { maximumFractionDigits: 3 })}</td><td>{row.weighingCount}</td><td>{row.productionOrderCount}</td></tr>
-          ))} empty="Chưa có dữ liệu sử dụng phù hợp." />
+          <div className="material-usage-table-wrapper">
+            <SimpleTable tableClassName="material-usage-table" headers={['Mã vật tư', 'ĐVT', 'KL sử dụng (Kg)', 'Số lần cân', 'Số lệnh SX']} rows={summaryRows.map((row) => (
+              <tr key={row.materialCode}><td>{row.materialCode}</td><td>{row.unit}</td><td>{num(row.totalUsedQty).toLocaleString('vi-VN', { maximumFractionDigits: 3 })}</td><td>{row.weighingCount}</td><td>{row.productionOrderCount}</td></tr>
+            ))} empty="Chưa có dữ liệu sử dụng phù hợp." />
+          </div>
         )}
       </section>
     </div>
