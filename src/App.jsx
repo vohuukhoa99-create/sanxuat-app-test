@@ -2566,8 +2566,8 @@ function normalizeProductionOrders(orders = [], formulas = []) {
     const formula = formulas.find((item) => item.id === (order.formulaId || order.originalFormulaId))
       || formulas.find((item) => item.code === order.formulaCode)
       || formulas[0]
-    const fallbackLotCode = order.lotCode || order.lot || ''
-    const fallbackCode = order.orderCode || order.productionOrderCode || order.id || fallbackLotCode || `LSX-${todayText().replaceAll('-', '')}-${String(index + 1).padStart(3, '0')}`
+    const fallbackLotCode = order.lotCode || order.maLo || order.lot || ''
+    const fallbackCode = order.orderCode || order.productionOrderCode || order.lenhSanXuat || order.id || fallbackLotCode || `LSX-${todayText().replaceAll('-', '')}-${String(index + 1).padStart(3, '0')}`
     const originalFormulaSnapshot = normalizeFormulaRows(order.originalFormulaSnapshot || order.productionFormulaSnapshot || order.ingredients || [])
     const activeProductionFormula = normalizeFormulaRows(order.activeProductionFormula || order.qc1AdjustedFormula || order.productionFormulaSnapshot || originalFormulaSnapshot)
     const hasChemicalMaterials = activeProductionFormula.some((item) => normalizeMainGroup(item.mainGroup || item.materialGroup || item.group || '') === MAIN_GROUP_CHEMICAL)
@@ -2589,13 +2589,16 @@ function normalizeProductionOrders(orders = [], formulas = []) {
       formulaId: order.formulaId || order.originalFormulaId || formula?.id || '',
       formulaCode: order.formulaCode || formula?.code || order.formula || '',
       formulaVersion: order.formulaVersion || order.originalFormulaVersion || formula?.version || '',
-      productName: order.productName || order.product || formula?.product || '',
-      product: order.product || order.productName || formula?.product || '',
+      productCode: order.productCode || order.maSanPham || order.formulaCode || formula?.code || '',
+      productName: order.productName || order.sanPham || order.product || formula?.product || '',
+      product: order.product || order.productName || order.sanPham || formula?.product || '',
       productGroup,
       productSubgroup,
       productSubGroup: productSubgroup,
       packagingPlan,
       ...customerFields,
+      customerName: order.customerName || order.khachHang || customerFields.customerName || '',
+      customer: order.customer || order.customerName || order.khachHang || customerFields.customer || '',
       lot: fallbackLotCode || `LOT-${fallbackCode}`,
       lotCode: fallbackLotCode || `LOT-${fallbackCode}`,
       requestedWeight,
@@ -2649,6 +2652,8 @@ function normalizeProductionOrders(orders = [], formulas = []) {
       },
       qc1Status: order.qc1Status || order.qc1Result || 'Chờ QC sản xuất thử',
       qc2Status: order.qc2Status || order.qc2?.result || 'Pending',
+      qcTpStatus: order.qcTpStatus || ((order.qc2Status === 'QC-TP đạt' || order.qc2?.result === 'Đạt') ? 'pass' : ''),
+      productionStatus: order.productionStatus || (order.stage === 'packaging' ? 'READY_FOR_PACKAGING' : ''),
       packagingStatus: order.packagingStatus || order.packingStatus || (order.packaging ? 'Completed' : 'Pending'),
       packingStatus: order.packingStatus || order.packagingStatus || (order.packaging ? 'Completed' : 'Pending'),
       finishedGoodsStatus: order.finishedGoodsStatus || (order.stage === 'completed' ? 'Completed' : 'Pending'),
@@ -2769,7 +2774,7 @@ function countBy(rows, keyFn, valueFn = () => 1) {
 function orderCodeText(order) {
   return String(order.orderCode || order.id || '')
 }
-const getOrderLotCode = (order = {}) => order.lotCode || order.lot || order.productionLot || order.orderCode || order.id || ''
+const getOrderLotCode = (order = {}) => order.lotCode || order.maLo || order.lot || order.productionLot || order.orderCode || order.productionOrderCode || order.lenhSanXuat || order.id || ''
 
 function sortOldestOrders(a, b) {
   const priorityDiff = productionPriorityValue(a) - productionPriorityValue(b)
@@ -3127,7 +3132,7 @@ function normalizeStoredPackagingSpecCatalog(items = []) {
 }
 
 function qc2FinalWeight(order = {}) {
-  return num(order.qc2FinalWeight ?? order.mixing?.finalWeightKg ?? order.mixingFinalWeightKg ?? order.quantityKg)
+  return num(order.qc2FinalWeight ?? order.klSauQcTp ?? order.finalWeight ?? order.klTp ?? order.mixing?.finalWeightKg ?? order.mixingFinalWeightKg ?? order.quantityKg)
 }
 
 function materialGroupCode(group) {
@@ -6693,6 +6698,12 @@ function FinishedProductQcPage({ data, setData, user }) {
       orderId: activeOrder.id,
       note: form.note || 'Xác nhận QC-TP đạt không điều chỉnh',
     }
+    const finalWeight = qc2FinalWeight(activeOrder)
+    const productCode = activeOrder.productCode || activeOrder.formulaCode || activeOrder.originalFormulaId || ''
+    const productName = activeOrder.productName || activeOrder.product || ''
+    const customerName = activeOrder.customerName || activeOrder.customer || ''
+    const lotCode = getOrderLotCode(activeOrder)
+    const productionOrderCode = activeOrder.orderCode || activeOrder.id
     const passHistoryEntry = {
       id: uid('qc2-pass'),
       time: checkedAt,
@@ -6719,6 +6730,26 @@ function FinishedProductQcPage({ data, setData, user }) {
         orderStatus: 'QC-TP đạt',
         qc2: qc2Record,
         qc2Status: 'QC-TP đạt',
+        qcTpStatus: 'pass',
+        productionStatus: 'READY_FOR_PACKAGING',
+        packagingStatus: 'pending',
+        packingStatus: 'pending',
+        qcTpAt: checkedAt,
+        qcTpBy: actor,
+        qc2FinalWeight: finalWeight,
+        finalWeight,
+        klTp: finalWeight,
+        klSauQcTp: finalWeight,
+        lotCode,
+        maLo: lotCode,
+        productionOrderCode,
+        lenhSanXuat: productionOrderCode,
+        productCode,
+        maSanPham: productCode,
+        productName,
+        sanPham: productName,
+        customerName,
+        khachHang: customerName,
         qc2PassHistory: [...(item.qc2PassHistory || []), passHistoryEntry],
         updatedAt: checkedAt,
       } : item),
@@ -9369,9 +9400,13 @@ function PackagingPage({ data, setData, user }) {
   const packagingSpecCatalog = data.packagingSpecCatalog || defaultPackagingSpecCatalog
   const orders = data.orders
     .filter((order) => (
-      order.stage === 'packaging'
-      || ['Chờ đóng gói', 'Đang đóng gói', 'Đóng gói hoàn thành', FINISHED_GOODS_WAITING_STATUS].includes(order.status)
-      || ['pending', 'active', 'completed', 'Pending', 'Active', 'Completed'].includes(order.packingStatus || order.packagingStatus)
+      !['completed', 'Completed'].includes(order.packingStatus || order.packagingStatus)
+      && order.stage !== 'finished-goods'
+      && (
+        (order.qcTpStatus === 'pass' && order.productionStatus === 'READY_FOR_PACKAGING')
+        || order.stage === 'packaging'
+        || ['Chờ đóng gói', 'Đang đóng gói'].includes(order.status)
+      )
     ))
     .slice()
     .sort(sortOldestOrders)
@@ -9764,6 +9799,7 @@ function PackagingPage({ data, setData, user }) {
         status: 'Đang đóng gói',
         packingStatus: 'active',
         packagingStatus: 'Active',
+        productionStatus: 'READY_FOR_PACKAGING',
         packaging: nextForm,
         updatedAt: startedAt,
       } : order),
@@ -9783,6 +9819,7 @@ function PackagingPage({ data, setData, user }) {
         status: order.status === 'Chờ đóng gói' ? 'Đang đóng gói' : order.status,
         packingStatus: order.packingStatus === 'completed' ? 'completed' : 'active',
         packagingStatus: order.packagingStatus === 'Completed' ? 'Completed' : 'Active',
+        productionStatus: 'READY_FOR_PACKAGING',
         packaging: { ...nextForm, details: detailsWithQr, finishedQrItems },
         updatedAt: nowText(),
       } : order),
@@ -9814,6 +9851,7 @@ function PackagingPage({ data, setData, user }) {
         orderStatus: FINISHED_GOODS_WAITING_STATUS,
         packingStatus: 'completed',
         packagingStatus: 'Completed',
+        productionStatus: 'PACKAGING_COMPLETED',
         packaging: { ...nextForm, details: packingLog.packingDetails, ...nextTotals, packingLogId: packingLog.packingId, finishedQrItems: packingLog.finishedQrItems },
         updatedAt: completedAt,
       } : order),
@@ -9858,6 +9896,7 @@ function PackagingPage({ data, setData, user }) {
               <div className="qc-order-summary packing-detail-grid">
                 <div><span>Mã lô</span><strong>{getOrderLotCode(activeOrder)}</strong></div>
                 <div><span>Sản phẩm</span><strong>{activeOrder.productName || activeOrder.product}</strong></div>
+                <div><span>Khách hàng</span><strong>{activeOrder.customerName || activeOrder.customer || activeOrder.khachHang || '-'}</strong></div>
                 <div><span>KL QC-TP</span><strong>{kg(totals.qcWeight)}</strong></div>
                 <div><span>KL đã ĐG</span><strong>{kg(totals.totalPackedWeight)}</strong></div>
                 <div><span>KL còn lại</span><strong>{kg(totals.remainingWeight)}</strong></div>
