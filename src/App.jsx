@@ -3605,6 +3605,8 @@ function buildFinishedProductQrItem(order = {}, item = {}, index = 1, totalBoxes
     packedWeight: weightKg,
     completedAt: existing.completedAt || existing.packingDate || '',
     labelId,
+    mfgDate: productionDate,
+    expDate: expiryDate,
   }
   return {
     ...existing,
@@ -3628,11 +3630,14 @@ function buildFinishedProductQrItem(order = {}, item = {}, index = 1, totalBoxes
     weightKg,
     productionDate,
     expiryDate,
+    mfgDate: productionDate,
+    expDate: expiryDate,
     packingDate: existing.packingDate || '',
     packer: existing.packer || '',
     printedAt: existing.printedAt || '',
     printedBy: existing.printedBy || '',
     printCount: num(existing.printCount),
+    reprintLogs: existing.reprintLogs || [],
   }
 }
 
@@ -9478,6 +9483,10 @@ function PackagingPage({ data, setData, user }) {
       expiryDate: label.expiryDate || label.expDate || '',
       mfgDate: label.mfgDate || label.productionDate || '',
       expDate: label.expDate || label.expiryDate || '',
+      printCount: num(label.printCount),
+      printedAt: label.printedAt || '',
+      printedBy: label.printedBy || '',
+      reprintLogs: label.reprintLogs || [],
       qrPayload: { ...(label.qrPayload || label.tracePayload || {}), ...payload },
     }
   }
@@ -9515,6 +9524,10 @@ function PackagingPage({ data, setData, user }) {
     qrPayload: qr.qrPayload || qr.tracePayload,
     productionDate: qr.productionDate,
     expiryDate: qr.expiryDate,
+    printCount: qr.printCount,
+    printedAt: qr.printedAt,
+    printedBy: qr.printedBy,
+    reprintLogs: qr.reprintLogs,
   }))
   const generateFinishedGoodsQrLabels = ({ labels = [], qrItems = [], log = null, order = null } = {}) => {
     const saved = labels.length ? labels : qrItems.length ? qrItems : log?.qrLabels
@@ -9522,7 +9535,8 @@ function PackagingPage({ data, setData, user }) {
     if (log) console.warn('Legacy packaging record: qrLabels regenerated.', log.packingId || log.orderId)
     return labelsFromPackingLog(log || {}, order || {})
   }
-  const openFinishedGoodsQrModal = (labels = [], spec = '') => {
+  const openFinishedGoodsQrModal = (labels = [], spec = '', historyLogId = '') => {
+    setHistoryDetail(null)
     const qrItems = labels.map((label) => ({
       ...label,
       qrCode: label.labelId || `${label.lotCode}-${label.boxIndex}`,
@@ -9534,7 +9548,7 @@ function PackagingPage({ data, setData, user }) {
       tracePayload: label.qrPayload,
     }))
     setReprintChoice({ mode: 'all', from: 1, to: qrItems.length || 1, single: 1 })
-    setPrintModal({ detailId: '', spec: spec || 'Tem thành phẩm', boxes: qrItems.length, qrItems, reprint: false, history: true })
+    setPrintModal({ detailId: '', spec: spec || 'Tem thành phẩm', boxes: qrItems.length, qrItems, reprint: false, history: true, historyLogId, singleLabel: qrItems.length === 1 })
   }
   const labelsFromPackingLog = (log = {}, order = {}) => {
     const payloadBase = buildFinishedGoodsQrPayload(log, order)
@@ -9783,7 +9797,30 @@ function PackagingPage({ data, setData, user }) {
     if (!printModal) return
     const items = selectedPrintItems()
     if (printModal.history) {
-      printFinishedGoodsQrLabels(generateFinishedGoodsQrLabels({ qrItems: items }))
+      const printedAt = nowText()
+      const printedBy = user?.fullName || user?.name || user?.username || user?.role || 'Đóng gói'
+      const printedLabels = generateFinishedGoodsQrLabels({ qrItems: items }).map((label) => ({
+        ...label,
+        printCount: num(label.printCount) + 1,
+        printedAt,
+        printedBy,
+        reprintLogs: [...(label.reprintLogs || []), { printedAt, printedBy, reason: 'In lại tem' }],
+      }))
+      if (printModal.historyLogId) {
+        const printedById = new Map(printedLabels.map((label) => [label.labelId, label]))
+        setData((current) => ({
+          ...current,
+          packingLogs: (current.packingLogs || []).map((log) => log.packingId === printModal.historyLogId ? {
+            ...log,
+            qrLabels: generateFinishedGoodsQrLabels({ log }).map((label) => printedById.get(label.labelId) || label),
+          } : log),
+        }))
+        setHistoryDetail((current) => current?.log?.packingId === printModal.historyLogId ? {
+          ...current,
+          log: { ...current.log, qrLabels: generateFinishedGoodsQrLabels({ log: current.log }).map((label) => printedById.get(label.labelId) || label) },
+        } : current)
+      }
+      printFinishedGoodsQrLabels(printedLabels)
       return
     }
     applyQrItemsToActiveOrder(printModal.detailId, printModal.qrItems, items)
@@ -10003,7 +10040,7 @@ function PackagingPage({ data, setData, user }) {
                       <td>{kg(Math.max(0, num(log.remainingWeight)))}</td>
                       <td>{log.packer || '-'}</td>
                       <td>{log.completedAt || '-'}</td>
-                      <td><div className="action-row compact-actions"><button className="secondary-button" type="button" onClick={(event) => { event.stopPropagation(); setHistoryDetail({ log, order: historyOrder }) }}>Chi tiết</button><button className="secondary-button" type="button" onClick={(event) => { event.stopPropagation(); openFinishedGoodsQrModal(generateFinishedGoodsQrLabels({ log, order: historyOrder })) }}>In QR</button></div></td>
+                      <td><div className="action-row compact-actions"><button className="secondary-button" type="button" onClick={(event) => { event.stopPropagation(); setHistoryDetail({ log, order: historyOrder }) }}>Chi tiết</button><button className="secondary-button" type="button" onClick={(event) => { event.stopPropagation(); openFinishedGoodsQrModal(generateFinishedGoodsQrLabels({ log, order: historyOrder }), '', log.packingId) }}>In QR</button></div></td>
                     </tr>
                   )
                 })} empty="Chưa có lịch sử đóng gói." />
@@ -10047,7 +10084,7 @@ function PackagingPage({ data, setData, user }) {
                       </section>
                     </div>
                     <div className="modal-actions packaging-print-actions">
-                      <button type="button" className="primary-button" onClick={printSelectedLabels}>In tem</button>
+                      <button type="button" className="primary-button" onClick={printSelectedLabels}>{printModal.singleLabel ? 'In lại tem này' : 'In tem'}</button>
                       <button type="button" className="secondary-button" onClick={() => setPrintModal(null)}>Đóng</button>
                     </div>
                   </div>
@@ -10061,7 +10098,7 @@ function PackagingPage({ data, setData, user }) {
         <h3>Lịch sử đóng gói</h3>
         <SimpleTable headers={['Mã lô', 'Mã SP', 'KL QC-TP', 'KL đã ĐG', 'Dư SX', 'Người ĐG', 'Thời gian hoàn tất', 'Hành động']} rows={packingHistory.map((log) => {
           const historyOrder = data.orders.find((order) => order.id === log.orderId || order.orderCode === log.orderCode)
-          return <tr key={log.packingId || `${log.orderId}-${log.completedAt}`} className="packaging-history-row" onClick={() => setHistoryDetail({ log, order: historyOrder })}><td>{log.lot || getOrderLotCode(historyOrder || {}) || '-'}</td><td>{historyOrder?.productCode || log.productCode || '-'}</td><td>{kg(log.qc2FinalWeight)}</td><td>{kg(log.totalPackedWeight)}</td><td>{kg(Math.max(0, num(log.remainingWeight)))}</td><td>{log.packer || '-'}</td><td>{log.completedAt || '-'}</td><td><div className="action-row compact-actions"><button type="button" className="secondary-button" onClick={(event) => { event.stopPropagation(); setHistoryDetail({ log, order: historyOrder }) }}>Chi tiết</button><button type="button" className="secondary-button" onClick={(event) => { event.stopPropagation(); openFinishedGoodsQrModal(generateFinishedGoodsQrLabels({ log, order: historyOrder })) }}>In QR</button></div></td></tr>
+          return <tr key={log.packingId || `${log.orderId}-${log.completedAt}`} className="packaging-history-row" onClick={() => setHistoryDetail({ log, order: historyOrder })}><td>{log.lot || getOrderLotCode(historyOrder || {}) || '-'}</td><td>{historyOrder?.productCode || log.productCode || '-'}</td><td>{kg(log.qc2FinalWeight)}</td><td>{kg(log.totalPackedWeight)}</td><td>{kg(Math.max(0, num(log.remainingWeight)))}</td><td>{log.packer || '-'}</td><td>{log.completedAt || '-'}</td><td><div className="action-row compact-actions"><button type="button" className="secondary-button" onClick={(event) => { event.stopPropagation(); setHistoryDetail({ log, order: historyOrder }) }}>Chi tiết</button><button type="button" className="secondary-button" onClick={(event) => { event.stopPropagation(); openFinishedGoodsQrModal(generateFinishedGoodsQrLabels({ log, order: historyOrder }), '', log.packingId) }}>In QR</button></div></td></tr>
         })} empty="Chưa có lịch sử đóng gói." />
       </section>}
       {!activeOrder && printModal && (
@@ -10069,7 +10106,7 @@ function PackagingPage({ data, setData, user }) {
           <div className="production-modal packaging-print-modal" role="dialog" aria-modal="true">
             <div className="modal-header"><div><h2>In tem thành phẩm</h2><p className="packaging-print-subtitle">{printModal.spec} | {selectedPrintItems().length} tem</p></div><button type="button" className="secondary-button" onClick={() => setPrintModal(null)}>Đóng</button></div>
             <div className="packaging-print-body"><section className="packaging-print-preview"><h3>Xem trước tem</h3><div className="packaging-label-list">{selectedPrintItems().map((qr) => <FinishedGoodsQrLabelPreview key={qr.qrCode || qr.labelId} label={qr} />)}</div></section></div>
-            <div className="modal-actions packaging-print-actions"><button type="button" className="primary-button" onClick={printSelectedLabels}>In tem</button><button type="button" className="secondary-button" onClick={() => setPrintModal(null)}>Đóng</button></div>
+            <div className="modal-actions packaging-print-actions"><button type="button" className="primary-button" onClick={printSelectedLabels}>{printModal.singleLabel ? 'In lại tem này' : 'In tem'}</button><button type="button" className="secondary-button" onClick={() => setPrintModal(null)}>Đóng</button></div>
           </div>
         </div>
       )}
@@ -10077,7 +10114,7 @@ function PackagingPage({ data, setData, user }) {
         const { log, order } = historyDetail
         const labels = generateFinishedGoodsQrLabels({ log, order })
         const details = (log.packingDetails || []).filter(isStandardPackagingItem)
-        return <div className="modal-backdrop" role="presentation"><div className="production-modal packaging-history-detail-modal" role="dialog" aria-modal="true"><div className="modal-header"><div><span className="section-kicker">Lịch sử đóng gói</span><h2>{log.lot || getOrderLotCode(order || {}) || log.orderCode}</h2></div><button type="button" className="icon-button" onClick={() => setHistoryDetail(null)} aria-label="Đóng">×</button></div><div className="qc-order-summary"><div><span>Trạng thái</span><strong>Đã đóng gói</strong></div><div><span>Mã SP</span><strong>{order?.productCode || log.productCode || '-'}</strong></div><div><span>Sản phẩm</span><strong>{order?.productName || log.productName || '-'}</strong></div><div><span>Khách hàng</span><strong>{order?.customerName || order?.customer || '-'}</strong></div><div><span>KL QC-TP</span><strong>{kg(log.qc2FinalWeight)}</strong></div><div><span>KL đã đóng gói</span><strong>{kg(log.totalPackedWeight)}</strong></div><div><span>Dư SX</span><strong>{kg(Math.max(0, num(log.remainingWeight)))}</strong></div><div><span>Người đóng gói</span><strong>{log.packer || '-'}</strong></div><div><span>Bắt đầu / hoàn tất</span><strong>{log.startedAt || '-'} / {log.completedAt || '-'}</strong></div></div><p className="panel-text">Ghi chú: {log.notes || '-'}</p><SimpleTable headers={['Quy cách', 'Số thùng', 'Khối lượng quy đổi', 'Số tem đã in']} rows={details.map((item) => <tr key={item.specId || item.spec}><td>{item.spec || item.label || '-'}</td><td>{num(item.boxes)}</td><td>{kg(item.convertedWeight || item.actualWeight)}</td><td>{(item.finishedQrItems || []).length}</td></tr>)} empty="Chưa có quy cách đã đóng gói." /><SimpleTable headers={['Mã tem', 'Quy cách', 'Thứ tự', 'Khối lượng', 'Hoàn tất']} rows={labels.map((label) => <tr key={label.labelId}><td>{label.labelId || '-'}</td><td>{label.packageSpec || '-'}</td><td>{label.boxIndex}/{label.totalBoxes}</td><td>{kg(label.packedWeight)}</td><td>{label.completedAt || '-'}</td></tr>)} empty="Chưa có QR labels." /><div className="modal-actions"><button type="button" className="primary-button" onClick={() => openFinishedGoodsQrModal(labels)}>In lại QR</button><button type="button" className="secondary-button" onClick={() => setHistoryDetail(null)}>Đóng</button></div></div></div>
+        return <div className="modal-backdrop" role="presentation"><div className="production-modal packaging-history-detail-modal" role="dialog" aria-modal="true"><div className="modal-header"><div><span className="section-kicker">Chi tiết đóng gói</span><h2>{log.lot || getOrderLotCode(order || {}) || log.orderCode}</h2></div><button type="button" className="icon-button" onClick={() => setHistoryDetail(null)} aria-label="Đóng">×</button></div><div className="qc-order-summary"><div><span>Trạng thái</span><strong>Đã đóng gói</strong></div><div><span>Mã SP</span><strong>{order?.productCode || log.productCode || '-'}</strong></div><div><span>Sản phẩm</span><strong>{order?.productName || log.productName || '-'}</strong></div><div><span>Khách hàng</span><strong>{order?.customerName || order?.customer || '-'}</strong></div><div><span>KL QC-TP</span><strong>{kg(log.qc2FinalWeight)}</strong></div><div><span>KL đã đóng gói</span><strong>{kg(log.totalPackedWeight)}</strong></div><div><span>Dư SX</span><strong>{kg(Math.max(0, num(log.remainingWeight)))}</strong></div><div><span>Người đóng gói</span><strong>{log.packer || '-'}</strong></div><div><span>Bắt đầu / hoàn tất</span><strong>{log.startedAt || '-'} / {log.completedAt || '-'}</strong></div></div><p className="panel-text">Ghi chú: {log.notes || '-'}</p><SimpleTable headers={['Quy cách', 'Số thùng', 'Khối lượng quy đổi', 'Số tem đã in']} rows={details.map((item) => <tr key={item.specId || item.spec}><td>{item.spec || item.label || '-'}</td><td>{num(item.boxes)}</td><td>{kg(item.convertedWeight || item.actualWeight)}</td><td>{(item.finishedQrItems || []).length}</td></tr>)} empty="Chưa có quy cách đã đóng gói." /><SimpleTable headers={['STT', 'Mã tem', 'Quy cách', 'Thứ tự', 'Khối lượng', 'Trạng thái', 'Số lần in', 'In lần cuối', 'Hành động']} rows={labels.map((label, index) => <tr key={label.labelId}><td>{index + 1}</td><td>{label.labelId || '-'}</td><td>{label.packageSpec || '-'}</td><td>{label.boxIndex}/{label.totalBoxes}</td><td>{kg(label.packedWeight)}</td><td>{label.printedAt ? 'Đã in' : 'Chưa in'}</td><td>{num(label.printCount)}</td><td>{label.printedAt || '-'}</td><td><div className="action-row compact-actions"><button type="button" className="secondary-button" onClick={() => openFinishedGoodsQrModal([label], label.packageSpec, log.packingId)}>Xem tem</button><button type="button" className="primary-button" onClick={() => openFinishedGoodsQrModal([label], label.packageSpec, log.packingId)}>In lại</button></div></td></tr>)} empty="Chưa có QR labels." /><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => openFinishedGoodsQrModal(labels, '', log.packingId)}>In tất cả tem</button><button type="button" className="secondary-button" onClick={() => setHistoryDetail(null)}>Đóng</button></div></div></div>
       })()}
     </div>
   )
