@@ -15771,6 +15771,14 @@ body,
   justify-content: center !important;
 }
 
+.packaging-history-row {
+  cursor: pointer;
+}
+
+.packaging-history-row:hover td {
+  background: #f0f7ff;
+}
+
 .packaging-plan-detail-table td:nth-child(8),
 .packaging-plan-detail-table td:nth-child(8) input {
   text-align: left !important;
