@@ -4456,12 +4456,12 @@ function MaterialConsumptionLogPage({ data }) {
             <button className="secondary-button" type="button" onClick={exportCsv}>Xuất CSV</button>
           </div>
         </div>
-        <div className="production-form-grid">
-          <label>Từ ngày<input type="date" value={draftFilters.fromDate} onChange={(event) => updateFilter('fromDate', event.target.value)} /></label>
-          <label>Đến ngày<input type="date" value={draftFilters.toDate} onChange={(event) => updateFilter('toDate', event.target.value)} /></label>
-          <label>Mã vật tư<select value={draftFilters.materialCode} onChange={(event) => updateFilter('materialCode', event.target.value)}><option value="">Tất cả</option>{materialOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
-          <label>Lệnh sản xuất<select value={draftFilters.order} onChange={(event) => updateFilter('order', event.target.value)}><option value="">Tất cả</option>{orderOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
-          <label>Kiểu hiển thị<select value={draftFilters.viewMode} onChange={(event) => updateFilter('viewMode', event.target.value)}><option value="summary">Tổng hợp</option><option value="detail">Chi tiết</option></select></label>
+        <div className="material-usage-filter">
+          <label className="filter-field">Từ ngày<input type="date" value={draftFilters.fromDate} onChange={(event) => updateFilter('fromDate', event.target.value)} /></label>
+          <label className="filter-field">Đến ngày<input type="date" value={draftFilters.toDate} onChange={(event) => updateFilter('toDate', event.target.value)} /></label>
+          <label className="filter-field">Mã vật tư<select value={draftFilters.materialCode} onChange={(event) => updateFilter('materialCode', event.target.value)}><option value="">Tất cả</option>{materialOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+          <label className="filter-field order-filter-field">Lệnh sản xuất<select value={draftFilters.order} onChange={(event) => updateFilter('order', event.target.value)}><option value="">Tất cả</option>{orderOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+          <label className="filter-field">Kiểu hiển thị<select value={draftFilters.viewMode} onChange={(event) => updateFilter('viewMode', event.target.value)}><option value="summary">Tổng hợp</option><option value="detail">Chi tiết</option></select></label>
         </div>
       </section>
       <section className="panel">
