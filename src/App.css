@@ -15855,6 +15855,51 @@ body,
 .lot-detail-card.reference-qty-card, .lot-detail-card.trace-balance-card { width: 140px; }
 .lot-detail-card.status-card { width: 100px; }
 
+.material-lot-adjustment-form {
+  display: grid;
+  gap: 12px;
+}
+
+.material-lot-adjustment-main-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
+  align-items: flex-end;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.material-lot-adjustment-main-row label,
+.adjustment-note-field {
+  display: grid;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+.adjustment-material-field, .adjustment-lot-field { width: 170px; }
+.adjustment-balance-field { width: 150px; }
+.adjustment-type-field { width: 160px; }
+.adjustment-qty-field { width: 140px; }
+.adjustment-reason-field { width: 260px; }
+.adjustment-note-field { width: 300px; }
+.adjustment-save-button { flex: 0 0 auto; min-height: 40px; white-space: nowrap; }
+
+.material-lot-adjustment-history-table th,
+.material-lot-adjustment-history-table td {
+  padding: 7px 10px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.material-lot-adjustment-history-table thead tr,
+.material-lot-adjustment-history-table tbody tr {
+  height: 34px;
+}
+
+@media (max-width: 1280px) {
+  .material-lot-adjustment-main-row { flex-wrap: wrap; overflow-x: visible; }
+}
+
 .material-usage-table-wrapper {
   width: 450px;
   min-width: 450px;

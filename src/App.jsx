@@ -4298,21 +4298,24 @@ function MaterialTraceAdjustmentPage({ data, setData, user }) {
   return (
     <div className="page-content">
       <section className="panel">
-        <div className="section-heading-row"><h2>Điều chỉnh lô NL</h2><button className="primary-button" type="button" disabled={!canAdjust} onClick={saveAdjustment}>Lưu điều chỉnh</button></div>
-        <div className="production-form-grid">
-          <label>Mã vật tư<select value={form.materialCode} onChange={(event) => updateForm('materialCode', event.target.value)}><option value="">Chọn mã vật tư</option>{materialCodes.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
-          <label>Internal Lot<select value={form.internalLotCode} onChange={(event) => updateForm('internalLotCode', event.target.value)}><option value="">Chọn lô</option>{selectedLots.map((lot) => <option key={lot.internalLotCode} value={lot.internalLotCode}>{lot.internalLotCode}</option>)}</select></label>
-          <label>Số dư truy xuất hiện tại<input readOnly value={selectedLot ? kg(selectedLot.traceBalanceQty) : ''} /></label>
-          <label>Loại điều chỉnh<select value={form.adjustmentType} onChange={(event) => updateForm('adjustmentType', event.target.value)}><option value="reduce">Giảm số dư</option><option value="block">Block lô</option><option value="reopen">Mở lại</option></select></label>
-          {form.adjustmentType === 'reduce' && <label>Số lượng giảm<input type="number" value={form.adjustmentQty} onChange={(event) => updateForm('adjustmentQty', event.target.value)} /></label>}
-          <label className="wide-field">Lý do *<input value={form.reason} onChange={(event) => updateForm('reason', event.target.value)} /></label>
-          <label className="wide-field">Ghi chú<input value={form.note} onChange={(event) => updateForm('note', event.target.value)} /></label>
+        <div className="section-heading-row"><h2>Điều chỉnh lô NL</h2></div>
+        <div className="material-lot-adjustment-form">
+          <div className="material-lot-adjustment-main-row">
+            <label className="adjustment-material-field">Mã vật tư<select value={form.materialCode} onChange={(event) => updateForm('materialCode', event.target.value)}><option value="">Chọn mã vật tư</option>{materialCodes.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
+            <label className="adjustment-lot-field">Internal Lot<select value={form.internalLotCode} onChange={(event) => updateForm('internalLotCode', event.target.value)}><option value="">Chọn lô</option>{selectedLots.map((lot) => <option key={lot.internalLotCode} value={lot.internalLotCode}>{lot.internalLotCode}</option>)}</select></label>
+            <label className="adjustment-balance-field">Số dư truy xuất hiện tại<input readOnly value={selectedLot ? kg(selectedLot.traceBalanceQty) : ''} /></label>
+            <label className="adjustment-type-field">Loại điều chỉnh<select value={form.adjustmentType} onChange={(event) => updateForm('adjustmentType', event.target.value)}><option value="reduce">Giảm số dư</option><option value="block">Block lô</option><option value="reopen">Mở lại</option></select></label>
+            {form.adjustmentType === 'reduce' && <label className="adjustment-qty-field">Số lượng giảm<input type="number" value={form.adjustmentQty} onChange={(event) => updateForm('adjustmentQty', event.target.value)} /></label>}
+            <label className="adjustment-reason-field">Lý do *<input value={form.reason} onChange={(event) => updateForm('reason', event.target.value)} /></label>
+            <button className="primary-button adjustment-save-button" type="button" disabled={!canAdjust} onClick={saveAdjustment}>Lưu điều chỉnh</button>
+          </div>
+          <label className="adjustment-note-field">Ghi chú<input value={form.note} onChange={(event) => updateForm('note', event.target.value)} /></label>
         </div>
         {notice && <div className="process-alert">{notice}</div>}
       </section>
       <section className="panel">
         <h3>Lịch sử điều chỉnh</h3>
-        <SimpleTable headers={['Thời gian', 'Internal Lot', 'Mã vật tư', 'Loại', 'Trước', 'Điều chỉnh', 'Sau', 'Lý do', 'Người điều chỉnh']} rows={normalizeMaterialTraceAdjustments(data.materialTraceAdjustments || []).map((item) => (
+        <SimpleTable tableClassName="material-lot-adjustment-history-table" headers={['Thời gian', 'Internal Lot', 'Mã vật tư', 'Loại', 'Trước', 'Điều chỉnh', 'Sau', 'Lý do', 'Người điều chỉnh']} rows={normalizeMaterialTraceAdjustments(data.materialTraceAdjustments || []).map((item) => (
           <tr key={item.id}><td>{item.adjustedAt}</td><td><code>{item.internalLotCode}</code></td><td>{item.materialCode}</td><td>{item.adjustmentType}</td><td>{kg(item.beforeQty)}</td><td>{kg(item.adjustmentQty)}</td><td>{kg(item.afterQty)}</td><td>{item.reason}</td><td>{item.adjustedBy}</td></tr>
         ))} empty="Chưa có điều chỉnh." />
       </section>
