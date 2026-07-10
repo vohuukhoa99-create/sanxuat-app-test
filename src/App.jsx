@@ -4182,7 +4182,7 @@ function RawMaterialsPage({ data, setData }) {
               <button className="secondary-button" type="button" onClick={() => { setImportPreviewRows([]); setImportPreviewFileName(''); setNotice('Đã hủy preview Excel.') }}>Hủy</button>
             </div>
           </div>
-          <SimpleTable headers={['STT', 'Mã vật tư', 'ĐVT', 'Số lượng', 'Internal Lot dự kiến', 'Ngày', 'Số phiếu', 'Nhà cung cấp', 'Số dư truy xuất', 'Trạng thái']} rows={importPreviewRows.map((item) => (
+          <div className="lot-import-table-wrapper"><SimpleTable tableClassName="lot-import-table" headers={['STT', 'Mã vật tư', 'ĐVT', 'Số lượng', 'Internal Lot dự kiến', 'Ngày', 'Số phiếu', 'Nhà cung cấp', 'Số dư truy xuất', 'Trạng thái']} rows={importPreviewRows.map((item) => (
             <tr key={`${item.receiptNo}-${item.materialCode}-${item.stt}`}>
               <td>{item.stt}</td>
               <td>{item.materialCode}</td>
@@ -4195,12 +4195,12 @@ function RawMaterialsPage({ data, setData }) {
               <td>{kg(item.receivedQty)}</td>
               <td><span className="dispatch-badge ready">active</span></td>
             </tr>
-          ))} />
+          ))} /></div>
         </section>
       )}
       <section className="panel">
         <h3>Danh sách lô đã cập nhật</h3>
-        <SimpleTable headers={['STT', 'Mã vật tư', 'ĐVT', 'Số lượng', 'Internal Lot', 'Ngày', 'Số phiếu', 'Nhà cung cấp', 'Số dư truy xuất', 'Trạng thái']} rows={materialLots.map((item) => (
+        <div className="lot-import-table-wrapper"><SimpleTable tableClassName="lot-import-table" headers={['STT', 'Mã vật tư', 'ĐVT', 'Số lượng', 'Internal Lot', 'Ngày', 'Số phiếu', 'Nhà cung cấp', 'Số dư truy xuất', 'Trạng thái']} rows={materialLots.map((item) => (
           <tr key={item.id}>
             <td>{item.stt || '-'}</td>
             <td>{item.materialCode}</td>
@@ -4213,7 +4213,7 @@ function RawMaterialsPage({ data, setData }) {
             <td>{kg(item.traceBalanceQty)}</td>
             <td><span className={`dispatch-badge ${item.status === 'blocked' ? 'fail' : item.status === 'depleted' ? 'locked' : 'ready'}`}>{item.status}</span></td>
           </tr>
-        ))} empty="Chưa có lô nhập Bravo." />
+        ))} empty="Chưa có lô nhập Bravo." /></div>
       </section>
     </div>
   )
