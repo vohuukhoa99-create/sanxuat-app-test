@@ -2034,29 +2034,8 @@ tbody tr:hover {
     visibility: hidden !important;
   }
 
-  body.printing-finished-labels-active .app-shell,
-  body.printing-finished-labels-active .main-content {
-    display: block !important;
-    min-height: 0 !important;
-    height: auto !important;
-    overflow: visible !important;
-    background: #fff !important;
-  }
-
-  body.printing-finished-labels-active .desktop-sidebar,
-  body.printing-finished-labels-active .mobile-sidebar,
-  body.printing-finished-labels-active .mobile-header,
-  body.printing-finished-labels-active .topbar,
-  body.printing-finished-labels-active .mobile-drawer-overlay {
-    display: none !important;
-  }
-
   .qr-print-ticket,
-  .qr-print-ticket *,
-  .printing-finished-labels .modal-backdrop,
-  .printing-finished-labels .packaging-print-modal,
-  .printing-finished-labels .packaging-label-list,
-  .printing-finished-labels .packaging-label-list * {
+  .qr-print-ticket * {
     visibility: visible !important;
   }
 
@@ -2075,92 +2054,6 @@ tbody tr:hover {
     width: 100%;
   }
 
-  .printing-finished-labels .panel,
-  .printing-finished-labels .section-heading-row,
-  .printing-finished-labels .packaging-print-modal > .modal-header,
-  .printing-finished-labels .packaging-print-modal > .packaging-reprint-options,
-  .printing-finished-labels .packaging-print-modal .packaging-reprint-options,
-  .printing-finished-labels .packaging-print-preview > h3,
-  .printing-finished-labels .packaging-print-modal > .modal-actions {
-    display: none !important;
-  }
-
-  .printing-finished-labels,
-  .printing-finished-labels .modal-backdrop,
-  .printing-finished-labels .packaging-print-modal {
-    position: fixed;
-    inset: 0;
-    display: block !important;
-    width: auto !important;
-    max-width: none !important;
-    height: auto !important;
-    max-height: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: visible !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    background: #fff !important;
-  }
-
-  .printing-finished-labels .packaging-label-list {
-    position: static !important;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, 60mm);
-    grid-auto-rows: 30mm;
-    gap: 0 !important;
-    align-content: start !important;
-    justify-content: start !important;
-    max-height: none !important;
-    overflow: visible !important;
-    padding: 0 !important;
-    background: #fff !important;
-  }
-
-  .printing-finished-labels .finished-label-ticket {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) 23mm !important;
-    gap: 2.5mm !important;
-    align-items: center !important;
-    width: 60mm !important;
-    min-height: 0 !important;
-    height: 30mm !important;
-    padding: 3mm !important;
-    border: 1px solid #111 !important;
-    border-radius: 1.5mm !important;
-    box-shadow: none !important;
-    background: #fff !important;
-    break-inside: avoid !important;
-  }
-
-  .printing-finished-labels .finished-label-ticket canvas {
-    width: 23mm !important;
-    height: 23mm !important;
-    justify-self: center !important;
-  }
-
-  .printing-finished-labels .finished-label-info {
-    display: grid !important;
-    gap: 1.15mm !important;
-    min-width: 0 !important;
-  }
-
-  .printing-finished-labels .finished-label-info strong {
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-    font-size: 11px !important;
-    font-weight: 900 !important;
-    line-height: 1.08 !important;
-  }
-
-  .printing-finished-labels .finished-label-info span {
-    font-size: 8px !important;
-    font-weight: 700 !important;
-    line-height: 1.12 !important;
-    overflow-wrap: anywhere !important;
-  }
 }
 
 .current-row {

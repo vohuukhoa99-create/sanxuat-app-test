@@ -3587,22 +3587,17 @@ function buildFinishedProductQrItem(order = {}, item = {}, index = 1, totalBoxes
   const qrCode = existing.qrCode && existing.printedAt ? existing.qrCode : `${lot}-${specCode}-${serial}`
   const productionDate = existing.productionDate || String(order.createdAt || todayText()).slice(0, 10)
   const expiryDate = existing.expiryDate || order.expiryDate || order.expirationDate || order.hsd || addDaysText(productionDate, 365)
+  const packageSpec = item.spec || item.label || ''
+  const weightKg = num(item.convertedWeightKg ?? item.sizeKg)
   const payload = {
-    type: 'Thành phẩm',
-    qrCode,
-    lot,
-    orderId: order.id || '',
-    orderCode: order.orderCode || order.id || '',
+    type: 'FINISHED_GOODS_LOT',
+    lotCode: lot,
     productCode: order.productCode || order.formulaCode || order.originalFormulaId || '',
     productName: order.productName || order.product || '',
-    productGroup: displayProductGroup(order.productGroup) || order.productGroup || '',
-    packagingSpec: item.spec || item.label || '',
-    boxNo: sequence,
-    totalBoxes,
-    productionDate,
-    expiryDate,
-    packingDate: existing.packingDate || '',
-    packer: existing.packer || '',
+    packageSpec,
+    boxQty: totalBoxes,
+    packedWeight: weightKg,
+    completedAt: existing.completedAt || existing.packingDate || '',
   }
   return {
     ...existing,
@@ -3615,13 +3610,13 @@ function buildFinishedProductQrItem(order = {}, item = {}, index = 1, totalBoxes
     orderCode: order.orderCode || order.id || '',
     productCode: payload.productCode,
     productName: payload.productName,
-    productGroup: payload.productGroup,
+    productGroup: displayProductGroup(order.productGroup) || order.productGroup || '',
     specId: item.specId || item.id || '',
-    spec: item.spec || item.label,
+    spec: packageSpec,
     specCode,
     sequence,
     totalBoxes,
-    weightKg: num(item.convertedWeightKg ?? item.sizeKg),
+    weightKg,
     productionDate,
     expiryDate,
     packingDate: existing.packingDate || '',
@@ -9221,11 +9216,6 @@ function PackagingPage({ data, setData, user }) {
   const currentAssignments = getActiveAssignments(data.productionAssignments || [], 'Đóng gói')
   const assignmentEmployeeText = getAssignmentLogContext(currentAssignments).employee
 
-  useEffect(() => {
-    document.body.classList.toggle('printing-finished-labels-active', Boolean(printModal))
-    return () => document.body.classList.remove('printing-finished-labels-active')
-  }, [printModal])
-
   const packingHistory = (data.packingLogs || [])
     .filter((log) => log.status === 'completed')
     .slice()
@@ -9235,10 +9225,31 @@ function PackagingPage({ data, setData, user }) {
     if (order.status === 'Đang đóng gói') return 'Đang đóng gói'
     return 'Sẵn sàng đóng gói'
   }
+  const normalizeFinishedGoodsQrLabel = (label = {}) => {
+    const boxQty = Math.max(1, num(label.boxQty ?? label.totalBoxes ?? label.packedQty ?? label.boxes ?? 1))
+    const packedWeight = num(label.packedWeight ?? label.weightKg ?? label.actualWeight ?? label.convertedWeight)
+    const packageSpec = String(label.packageSpec || label.packagingSpec || label.spec || label.label || '').trim()
+    const payload = {
+      type: 'FINISHED_GOODS_LOT',
+      lotCode: String(label.lotCode || label.lot || '').trim(),
+      productCode: String(label.productCode || '').trim(),
+      productName: String(label.productName || '').trim(),
+      packageSpec,
+      boxQty,
+      packedWeight,
+      completedAt: String(label.completedAt || label.packingDate || '').trim(),
+    }
+    return {
+      ...payload,
+      labelNo: num(label.labelNo ?? label.sequence),
+    }
+  }
   const buildFinishedGoodsQrPayload = (log = {}, order = {}) => {
     const lotCode = log.lot || getOrderLotCode(order || {}) || log.orderCode || log.orderId || ''
     const productName = log.productName || order?.productName || order?.product || ''
     const productCode = order?.productCode || order?.formulaCode || log.productCode || order?.originalFormulaId || productName || ''
+    const details = (log.packingDetails || order?.packaging?.details || []).filter(isStandardPackagingItem)
+    const packageSpec = packingSpecSummary(details)
     const packedQty = totalPackingBoxes(log.packingDetails || order?.packaging?.details || [])
     const packedWeight = num(log.totalPackedWeight || order?.packaging?.totalPackedWeight)
     const completedAt = log.completedAt || order?.packaging?.completedAt || ''
@@ -9247,12 +9258,40 @@ function PackagingPage({ data, setData, user }) {
       lotCode,
       productCode,
       productName,
+      packageSpec,
+      boxQty: packedQty,
       packedQty,
       packedWeight,
       completedAt,
     }
   }
-  const renderFinishedGoodsQrDataUrl = async (payload) => {
+  const labelsFromFinishedGoodsQrItems = (items = []) => items.map((qr) => normalizeFinishedGoodsQrLabel({
+    lotCode: qr.lot,
+    productCode: qr.productCode,
+    productName: qr.productName,
+    packageSpec: qr.spec,
+    boxQty: qr.totalBoxes || 1,
+    packedWeight: qr.weightKg,
+    completedAt: qr.packingDate || form.completedAt || nowText(),
+    labelNo: qr.sequence,
+  }))
+  const labelsFromPackingLog = (log = {}, order = {}) => {
+    const payloadBase = buildFinishedGoodsQrPayload(log, order)
+    const details = (log.packingDetails || order?.packaging?.details || []).filter((item) => isStandardPackagingItem(item) && num(item.boxes) > 0)
+    if (!details.length) return [normalizeFinishedGoodsQrLabel(payloadBase)]
+    return details.flatMap((detail) => {
+      const boxQty = Math.max(1, num(detail.boxes))
+      const packedWeight = num(detail.actualWeight || detail.convertedWeight || num(detail.convertedWeightKg ?? detail.sizeKg) * boxQty)
+      return Array.from({ length: boxQty }, (_, index) => normalizeFinishedGoodsQrLabel({
+        ...payloadBase,
+        packageSpec: detail.spec || detail.label || payloadBase.packageSpec,
+        boxQty,
+        packedWeight: Number((packedWeight / boxQty).toFixed(3)),
+        labelNo: index + 1,
+      }))
+    })
+  }
+  const renderFinishedGoodsQrDataUrls = async (labels = []) => {
     if (typeof document === 'undefined') return ''
     const host = document.createElement('div')
     host.style.position = 'fixed'
@@ -9264,23 +9303,39 @@ function PackagingPage({ data, setData, user }) {
     host.style.pointerEvents = 'none'
     document.body.appendChild(host)
     const root = createRoot(host)
-    root.render(<QRCodeCanvas value={JSON.stringify(payload)} size={360} includeMargin />)
+    root.render(
+      <div>
+        {labels.map((label, index) => (
+          <QRCodeCanvas key={`${label.lotCode}-${label.packageSpec}-${label.labelNo || index}`} value={JSON.stringify({
+            type: 'FINISHED_GOODS_LOT',
+            lotCode: label.lotCode,
+            productCode: label.productCode,
+            productName: label.productName,
+            packageSpec: label.packageSpec,
+            boxQty: label.boxQty,
+            packedWeight: label.packedWeight,
+            completedAt: label.completedAt,
+          })} size={360} includeMargin />
+        ))}
+      </div>,
+    )
     await new Promise((resolve) => setTimeout(resolve, 80))
-    const canvas = host.querySelector('canvas')
-    const dataUrl = canvas?.toDataURL('image/png') || ''
+    const dataUrls = Array.from(host.querySelectorAll('canvas')).map((canvas) => canvas.toDataURL('image/png')).filter(Boolean)
     root.unmount()
     document.body.removeChild(host)
-    return dataUrl
+    return dataUrls
   }
-  const printFinishedGoodsQR = async (row = {}) => {
+  const printFinishedGoodsQrLabels = async (dataToPrint = {}) => {
     if (typeof document === 'undefined') return
-    const payload = row.payload || buildFinishedGoodsQrPayload(row.log || row, row.order || {})
-    if (!payload.lotCode || (!payload.productCode && !payload.productName) || payload.packedWeight <= 0) {
+    const labels = (dataToPrint.labels || labelsFromPackingLog(dataToPrint.log || dataToPrint, dataToPrint.order || {}))
+      .map(normalizeFinishedGoodsQrLabel)
+      .filter((label) => label.lotCode && (label.productCode || label.productName) && label.packedWeight > 0)
+    if (!labels.length) {
       setWarning('Không có dữ liệu QR để in.')
       return
     }
-    const qrImage = await renderFinishedGoodsQrDataUrl(payload)
-    if (!qrImage) {
+    const qrImages = await renderFinishedGoodsQrDataUrls(labels)
+    if (qrImages.length !== labels.length) {
       setWarning('Không có dữ liệu QR để in.')
       return
     }
@@ -9295,20 +9350,30 @@ function PackagingPage({ data, setData, user }) {
     iframe.style.opacity = '0'
     iframe.style.pointerEvents = 'none'
     document.body.appendChild(iframe)
-    const rows = [
-      ['Mã lô', payload.lotCode],
-      ['Mã SP', payload.productCode || '-'],
-      ['Sản phẩm', payload.productName || '-'],
-      ['KL đóng gói', kg(payload.packedWeight)],
-      ['Số thùng', payload.packedQty ? `${payload.packedQty} thùng` : '-'],
-      ['Ngày hoàn tất', payload.completedAt || '-'],
-    ]
-    const rowHtml = rows.map(([label, value]) => `<div class="qr-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')
+    const labelHtml = labels.map((label, index) => {
+      const rows = [
+        ['Mã lô', label.lotCode],
+        ['Mã SP', label.productCode || '-'],
+        ['Sản phẩm', label.productName || '-'],
+        ['Quy cách', label.packageSpec || '-'],
+        ['Số thùng', label.labelNo ? `${label.labelNo}/${label.boxQty}` : `${label.boxQty} thùng`],
+        ['KL đóng gói', kg(label.packedWeight)],
+        ['Ngày hoàn tất', label.completedAt || '-'],
+      ]
+      const rowHtml = rows.map(([rowLabel, value]) => `<div class="qr-row"><span>${escapeHtml(rowLabel)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')
+      return `<div class="qr-label">
+          <div class="qr-box"><img src="${qrImages[index]}" alt="QR lô thành phẩm"></div>
+          <div class="qr-info">
+            <h1 class="qr-title">${escapeHtml(label.productName || 'Lô thành phẩm')}</h1>
+            ${rowHtml}
+          </div>
+        </div>`
+    }).join('')
     const html = `<!doctype html>
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>QR ${escapeHtml(payload.lotCode || '')}</title>
+          <title>QR thành phẩm</title>
           <style>
             @page { size: 100mm 60mm; margin: 0; }
             * { box-sizing: border-box; }
@@ -9316,21 +9381,17 @@ function PackagingPage({ data, setData, user }) {
             .qr-label { width: 100mm; height: 60mm; box-sizing: border-box; padding: 5mm; display: flex; gap: 5mm; align-items: center; overflow: hidden; }
             .qr-box { width: 35mm; height: 35mm; flex: 0 0 35mm; display: grid; place-items: center; }
             .qr-box img { width: 35mm; height: 35mm; display: block; }
-            .qr-info { min-width: 0; font-size: 10px; line-height: 1.3; display: grid; gap: 2mm; }
-            .qr-title { margin: 0; font-size: 13px; font-weight: 800; line-height: 1.15; overflow-wrap: anywhere; }
+            .qr-info { min-width: 0; font-size: 9.5px; line-height: 1.24; display: grid; gap: 1.55mm; }
+            .qr-title { margin: 0; font-size: 12px; font-weight: 800; line-height: 1.12; overflow-wrap: anywhere; }
             .qr-row { display: grid; grid-template-columns: 20mm 1fr; gap: 2mm; align-items: baseline; }
             .qr-row span { color: #4b5563; font-weight: 700; }
             .qr-row strong { color: #111827; font-weight: 800; overflow-wrap: anywhere; }
+            .qr-label { break-after: page; page-break-after: always; }
+            .qr-label:last-child { break-after: auto; page-break-after: auto; }
           </style>
         </head>
         <body>
-          <div class="qr-label">
-            <div class="qr-box"><img src="${qrImage}" alt="QR lô thành phẩm"></div>
-            <div class="qr-info">
-              <h1 class="qr-title">${escapeHtml(payload.productName || 'Lô thành phẩm')}</h1>
-              ${rowHtml}
-            </div>
-          </div>
+          ${labelHtml}
         </body>
       </html>`
     const doc = iframe.contentDocument || iframe.contentWindow?.document
@@ -9475,7 +9536,7 @@ function PackagingPage({ data, setData, user }) {
     const items = selectedPrintItems()
     applyQrItemsToActiveOrder(printModal.detailId, printModal.qrItems, items)
     setPrintModal({ ...printModal, qrItems: printModal.qrItems.map((qr) => items.some((item) => item.qrCode === qr.qrCode) ? { ...qr, printedAt: qr.printedAt || nowText(), printCount: num(qr.printCount) + 1 } : qr) })
-    window.print()
+    printFinishedGoodsQrLabels({ labels: labelsFromFinishedGoodsQrItems(items) })
   }
   const buildPackingLog = (order, nextForm, status) => {
     const nextTotals = packingTotals(order, nextForm)
@@ -9592,7 +9653,7 @@ function PackagingPage({ data, setData, user }) {
   }
 
   return (
-    <div className={`page-content packaging-page ${printModal ? 'printing-finished-labels' : ''}`}>
+    <div className="page-content packaging-page">
       <section className="panel packaging-layout">
         <aside className="packaging-list">
           <h2>Lệnh chờ đóng gói</h2>
@@ -9677,7 +9738,7 @@ function PackagingPage({ data, setData, user }) {
                       <td>{kg(Math.max(0, num(log.remainingWeight)))}</td>
                       <td>{log.packer || '-'}</td>
                       <td>{log.completedAt || '-'}</td>
-                      <td><div className="action-row compact-actions"><button className="secondary-button" type="button" onClick={() => { if (log.orderId) setActiveOrderId(log.orderId); setWarning('') }}>Chi tiết</button><button className="secondary-button" type="button" onClick={() => printFinishedGoodsQR({ log, order: historyOrder })}>In QR</button></div></td>
+                      <td><div className="action-row compact-actions"><button className="secondary-button" type="button" onClick={() => { if (log.orderId) setActiveOrderId(log.orderId); setWarning('') }}>Chi tiết</button><button className="secondary-button" type="button" onClick={() => printFinishedGoodsQrLabels({ log, order: historyOrder })}>In QR</button></div></td>
                     </tr>
                   )
                 })} empty="Chưa có lịch sử đóng gói." />
