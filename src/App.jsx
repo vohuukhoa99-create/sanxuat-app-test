@@ -2271,7 +2271,7 @@ const removedDefaultUsernames = new Set(['kho-nvl', 'kho-tp', 'hcns', 'kinhdoanh
 
 const defaultUsers = [
   { username: 'admin', password: DEFAULT_PASSWORD, role: 'Admin', fullName: 'Quản trị hệ thống' },
-  { username: 'kho.nl', password: DEFAULT_PASSWORD, role: 'Kho NL', fullName: 'Truy xuất nguyên liệu' },
+  { username: 'kho.nl', password: DEFAULT_PASSWORD, role: 'Kho NL', fullName: 'Quản lý nguyên liệu' },
   { username: 'kythuat', password: DEFAULT_PASSWORD, role: 'Kỹ thuật', fullName: 'Phòng kỹ thuật' },
   { username: 'sanxuat', password: DEFAULT_PASSWORD, role: 'Sản xuất', fullName: 'Phòng sản xuất' },
   { username: 'qc', password: DEFAULT_PASSWORD, role: 'QC', fullName: 'QC sản xuất' },
@@ -4164,7 +4164,7 @@ function RawMaterialsPage({ data, setData }) {
     <div className="page-content">
       <section className="panel">
         <div className="panel-header-row">
-          <div><h2>Cập nhật lô nhập</h2><p className="panel-text">Import phiếu nhập nguyên liệu Bravo, chỉ lấy mã vật tư, đơn vị tính và số lượng thực nhập để sinh Internal Lot.</p></div>
+          <div><h2>Nhập lô nguyên liệu</h2><p className="panel-text">Import phiếu nhập nguyên liệu Bravo, chỉ lấy mã vật tư, đơn vị tính và số lượng thực nhập để sinh Internal Lot.</p></div>
           <div className="action-row">
             <button className="secondary-button" onClick={() => importMaterialCatalogRef.current?.click()}>Import phiếu Bravo</button>
             <button className="secondary-button" onClick={downloadMaterialCatalogTemplate}>Tải file mẫu Bravo</button>
@@ -4291,14 +4291,14 @@ function MaterialTraceAdjustmentPage({ data, setData, user }) {
       ...current,
       materialLots: normalizeMaterialLots(current.materialLots || []).map((lot) => lot.internalLotCode === selectedLot.internalLotCode ? normalizeMaterialLot({ ...lot, traceBalanceQty: afterQty, status: nextStatus, updatedAt: adjustedAt }) : lot),
       materialTraceAdjustments: [adjustment, ...normalizeMaterialTraceAdjustments(current.materialTraceAdjustments || [])],
-    }, `Điều chỉnh số dư truy xuất ${selectedLot.internalLotCode}: ${form.adjustmentType}.`))
+    }, `Điều chỉnh lô NL ${selectedLot.internalLotCode}: ${form.adjustmentType}.`))
     setNotice('Đã lưu điều chỉnh số dư truy xuất.')
     setForm({ materialCode: '', internalLotCode: '', adjustmentType: 'reduce', adjustmentQty: '', reason: '', note: '' })
   }
   return (
     <div className="page-content">
       <section className="panel">
-        <div className="section-heading-row"><h2>Điều chỉnh số dư truy xuất</h2><button className="primary-button" type="button" disabled={!canAdjust} onClick={saveAdjustment}>Lưu điều chỉnh</button></div>
+        <div className="section-heading-row"><h2>Điều chỉnh lô NL</h2><button className="primary-button" type="button" disabled={!canAdjust} onClick={saveAdjustment}>Lưu điều chỉnh</button></div>
         <div className="production-form-grid">
           <label>Mã vật tư<select value={form.materialCode} onChange={(event) => updateForm('materialCode', event.target.value)}><option value="">Chọn mã vật tư</option>{materialCodes.map((code) => <option key={code} value={code}>{code}</option>)}</select></label>
           <label>Internal Lot<select value={form.internalLotCode} onChange={(event) => updateForm('internalLotCode', event.target.value)}><option value="">Chọn lô</option>{selectedLots.map((lot) => <option key={lot.internalLotCode} value={lot.internalLotCode}>{lot.internalLotCode}</option>)}</select></label>
@@ -4449,7 +4449,7 @@ function MaterialConsumptionLogPage({ data }) {
     <div className="page-content">
       <section className="panel">
         <div className="section-heading-row">
-          <h2>Sử dụng nguyên liệu</h2>
+          <h2>Báo cáo sử dụng NL</h2>
           <div className="action-row">
             <button className="primary-button" type="button" onClick={() => setReportFilters(draftFilters)}>Xem báo cáo</button>
             <button className="secondary-button" type="button" onClick={exportExcel}>Xuất Excel</button>
@@ -14262,12 +14262,12 @@ function AdminPage({ authData, setAuthData, section = 'users', storageNotice = '
 
 const pageMeta = {
   dashboard: ['Dashboard', 'Báo cáo nhanh quy trình sản xuất V3'],
-  'raw-materials': ['Truy xuất nguyên liệu', 'Theo dõi lô nguyên liệu theo kiến trúc MES'],
-  'raw-material-lot-update': ['Cập nhật lô nhập', 'Cập nhật lô nguyên liệu, tạo QR/Barcode và lưu localStorage'],
+  'raw-materials': ['Quản lý nguyên liệu', 'Theo dõi lô nguyên liệu theo kiến trúc MES'],
+  'raw-material-lot-update': ['Nhập lô nguyên liệu', 'Cập nhật lô nguyên liệu, tạo QR/Barcode và lưu localStorage'],
   'raw-material-active-lots': ['Lô đang sử dụng', 'Theo dõi lô nguyên liệu đang sử dụng'],
-  'raw-material-balance-adjustment': ['Điều chỉnh số dư truy xuất', 'Điều chỉnh số dư truy xuất nguyên liệu'],
+  'raw-material-balance-adjustment': ['Điều chỉnh lô NL', 'Điều chỉnh lô nguyên liệu'],
   'raw-material-lot-lookup': ['Tra cứu lô', 'Tra cứu thông tin lô nguyên liệu'],
-  'raw-material-consumption-log': ['Sử dụng nguyên liệu', 'Báo cáo sử dụng nguyên liệu trung lập ERP'],
+  'raw-material-consumption-log': ['Báo cáo sử dụng NL', 'Báo cáo sử dụng nguyên liệu trung lập ERP'],
   formulas: ['Công thức gốc', 'Quản lý sản phẩm và công thức theo dữ liệu gốc sản phẩm'],
   orders: ['Lệnh sản xuất', 'Tạo lệnh từ công thức gốc và chờ QC sản xuất thử'],
   'production-assignments': ['Phân công nhân sự', 'Theo dõi nhân sự trực công đoạn trong từng ca sản xuất'],

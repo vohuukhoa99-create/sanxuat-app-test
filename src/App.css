@@ -15821,11 +15821,16 @@ body,
 }
 
 .material-usage-table-wrapper .table-wrapper {
-  width: 100%;
+  width: 450px !important;
+  min-width: 450px !important;
+  max-width: 450px !important;
+  overflow-x: visible;
 }
 
 .material-usage-table {
   width: 450px !important;
+  min-width: 450px !important;
+  max-width: 450px !important;
   table-layout: fixed;
 }
 
