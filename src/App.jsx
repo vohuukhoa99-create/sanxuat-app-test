@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { QRCodeCanvas } from 'qrcode.react'
+import { createRoot } from 'react-dom/client'
 import { CustomerFilterCombobox } from './components/CustomerFilterCombobox.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
 import { TopBar } from './components/TopBar.jsx'
@@ -9214,8 +9215,6 @@ function PackagingPage({ data, setData, user }) {
   const [warning, setWarning] = useState('')
   const [printModal, setPrintModal] = useState(null)
   const [reprintChoice, setReprintChoice] = useState({ mode: 'all', from: 1, to: 1, single: 1 })
-  const [historyQrPrint, setHistoryQrPrint] = useState(null)
-  const historyQrPrintRef = useRef(null)
   const activeOrder = orders.find((order) => order.id === activeOrderId) || orders[0]
   const form = activeOrder ? getPackingForm(forms, activeOrder, packagingSpecCatalog) : { details: defaultPackingDetails({}, packagingSpecCatalog) }
   const totals = activeOrder ? packingTotals(activeOrder, form) : { qcWeight: 0, totalPackedWeight: 0, remainingWeight: 0, differenceWeight: 0, totalTolerance: 0 }
@@ -9227,22 +9226,6 @@ function PackagingPage({ data, setData, user }) {
     return () => document.body.classList.remove('printing-finished-labels-active')
   }, [printModal])
 
-  useEffect(() => {
-    if (!historyQrPrint) return undefined
-    const timeout = setTimeout(() => {
-      const canvas = historyQrPrintRef.current?.querySelector('canvas')
-      if (!canvas) {
-        setWarning('Không có dữ liệu QR để in.')
-        setHistoryQrPrint(null)
-        return
-      }
-      const qrImage = canvas.toDataURL('image/png')
-      printPackingHistoryQrIframe(historyQrPrint, qrImage)
-      setHistoryQrPrint(null)
-    }, 80)
-    return () => clearTimeout(timeout)
-  }, [historyQrPrint])
-
   const packingHistory = (data.packingLogs || [])
     .filter((log) => log.status === 'completed')
     .slice()
@@ -9252,11 +9235,10 @@ function PackagingPage({ data, setData, user }) {
     if (order.status === 'Đang đóng gói') return 'Đang đóng gói'
     return 'Sẵn sàng đóng gói'
   }
-  const buildPackingHistoryQrPayload = (log = {}, order = {}) => {
+  const buildFinishedGoodsQrPayload = (log = {}, order = {}) => {
     const lotCode = log.lot || getOrderLotCode(order || {}) || log.orderCode || log.orderId || ''
     const productName = log.productName || order?.productName || order?.product || ''
     const productCode = order?.productCode || order?.formulaCode || log.productCode || order?.originalFormulaId || productName || ''
-    const packageSpec = packingSpecSummary(log.packingDetails || order?.packaging?.details || [])
     const packedQty = totalPackingBoxes(log.packingDetails || order?.packaging?.details || [])
     const packedWeight = num(log.totalPackedWeight || order?.packaging?.totalPackedWeight)
     const completedAt = log.completedAt || order?.packaging?.completedAt || ''
@@ -9265,16 +9247,40 @@ function PackagingPage({ data, setData, user }) {
       lotCode,
       productCode,
       productName,
-      packageSpec,
       packedQty,
       packedWeight,
       completedAt,
     }
   }
-  const printPackingHistoryQrIframe = (printData, qrImage) => {
+  const renderFinishedGoodsQrDataUrl = async (payload) => {
+    if (typeof document === 'undefined') return ''
+    const host = document.createElement('div')
+    host.style.position = 'fixed'
+    host.style.left = '-10000px'
+    host.style.top = '-10000px'
+    host.style.width = '1px'
+    host.style.height = '1px'
+    host.style.overflow = 'hidden'
+    host.style.pointerEvents = 'none'
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    root.render(<QRCodeCanvas value={JSON.stringify(payload)} size={360} includeMargin />)
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    const canvas = host.querySelector('canvas')
+    const dataUrl = canvas?.toDataURL('image/png') || ''
+    root.unmount()
+    document.body.removeChild(host)
+    return dataUrl
+  }
+  const printFinishedGoodsQR = async (row = {}) => {
     if (typeof document === 'undefined') return
-    const { payload } = printData || {}
-    if (!payload || !qrImage) {
+    const payload = row.payload || buildFinishedGoodsQrPayload(row.log || row, row.order || {})
+    if (!payload.lotCode || (!payload.productCode && !payload.productName) || payload.packedWeight <= 0) {
+      setWarning('Không có dữ liệu QR để in.')
+      return
+    }
+    const qrImage = await renderFinishedGoodsQrDataUrl(payload)
+    if (!qrImage) {
       setWarning('Không có dữ liệu QR để in.')
       return
     }
@@ -9292,9 +9298,10 @@ function PackagingPage({ data, setData, user }) {
     const rows = [
       ['Mã lô', payload.lotCode],
       ['Mã SP', payload.productCode || '-'],
-      ['Quy cách', payload.packageSpec || '-'],
-      ['Số thùng / KL', `${payload.packedQty || 0} thùng / ${kg(payload.packedWeight)}`],
-      ['Hoàn tất', payload.completedAt || '-'],
+      ['Sản phẩm', payload.productName || '-'],
+      ['KL đóng gói', kg(payload.packedWeight)],
+      ['Số thùng', payload.packedQty ? `${payload.packedQty} thùng` : '-'],
+      ['Ngày hoàn tất', payload.completedAt || '-'],
     ]
     const rowHtml = rows.map(([label, value]) => `<div class="qr-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')
     const html = `<!doctype html>
@@ -9305,26 +9312,25 @@ function PackagingPage({ data, setData, user }) {
           <style>
             @page { size: 100mm 60mm; margin: 0; }
             * { box-sizing: border-box; }
-            html, body { width: 100mm; min-height: 60mm; margin: 0; padding: 0; background: #fff; color: #111827; font-family: Arial, sans-serif; overflow: hidden; }
-            body { display: block; }
-            .qr-label { width: 100mm; min-height: 60mm; display: grid; grid-template-columns: 39mm 1fr; gap: 5mm; align-items: center; padding: 5mm; overflow: hidden; }
-            .qr-box { width: 35mm; height: 35mm; display: grid; place-items: center; border: 1px solid #d1d5db; }
-            .qr-box img { width: 32mm; height: 32mm; display: block; }
-            .qr-info { min-width: 0; display: grid; gap: 2.2mm; }
-            .qr-title { margin: 0 0 1mm; font-size: 12pt; font-weight: 800; line-height: 1.08; overflow-wrap: anywhere; }
-            .qr-row { display: grid; grid-template-columns: 20mm 1fr; gap: 2mm; align-items: baseline; font-size: 8.5pt; line-height: 1.15; border-bottom: 1px solid #e5e7eb; padding-bottom: 1mm; }
+            html, body { width: 100mm; height: 60mm; margin: 0; padding: 0; overflow: hidden; font-family: Arial, sans-serif; background: #fff; color: #111827; }
+            .qr-label { width: 100mm; height: 60mm; box-sizing: border-box; padding: 5mm; display: flex; gap: 5mm; align-items: center; overflow: hidden; }
+            .qr-box { width: 35mm; height: 35mm; flex: 0 0 35mm; display: grid; place-items: center; }
+            .qr-box img { width: 35mm; height: 35mm; display: block; }
+            .qr-info { min-width: 0; font-size: 10px; line-height: 1.3; display: grid; gap: 2mm; }
+            .qr-title { margin: 0; font-size: 13px; font-weight: 800; line-height: 1.15; overflow-wrap: anywhere; }
+            .qr-row { display: grid; grid-template-columns: 20mm 1fr; gap: 2mm; align-items: baseline; }
             .qr-row span { color: #4b5563; font-weight: 700; }
             .qr-row strong { color: #111827; font-weight: 800; overflow-wrap: anywhere; }
           </style>
         </head>
         <body>
-          <section class="qr-label">
-            <div class="qr-box"><img src="${qrImage}" alt="QR lô thành phẩm" /></div>
+          <div class="qr-label">
+            <div class="qr-box"><img src="${qrImage}" alt="QR lô thành phẩm"></div>
             <div class="qr-info">
               <h1 class="qr-title">${escapeHtml(payload.productName || 'Lô thành phẩm')}</h1>
               ${rowHtml}
             </div>
-          </section>
+          </div>
         </body>
       </html>`
     const doc = iframe.contentDocument || iframe.contentWindow?.document
@@ -9345,17 +9351,8 @@ function PackagingPage({ data, setData, user }) {
     setTimeout(() => {
       iframe.contentWindow?.focus()
       iframe.contentWindow?.print()
-      cleanup()
+      setTimeout(cleanup, 60000)
     }, 120)
-  }
-  const printPackingHistoryQr = (log = {}, historyOrder = {}) => {
-    const payload = buildPackingHistoryQrPayload(log, historyOrder)
-    if (!payload.lotCode || (!payload.productCode && !payload.productName) || payload.packedWeight <= 0) {
-      setWarning('Không có dữ liệu QR để in.')
-      return
-    }
-    setWarning('')
-    setHistoryQrPrint({ payload, value: JSON.stringify(payload) })
   }
 
   const updateForm = (patch) => {
@@ -9680,7 +9677,7 @@ function PackagingPage({ data, setData, user }) {
                       <td>{kg(Math.max(0, num(log.remainingWeight)))}</td>
                       <td>{log.packer || '-'}</td>
                       <td>{log.completedAt || '-'}</td>
-                      <td><div className="action-row compact-actions"><button className="secondary-button" type="button" onClick={() => { if (log.orderId) setActiveOrderId(log.orderId); setWarning('') }}>Chi tiết</button><button className="secondary-button" type="button" onClick={() => printPackingHistoryQr(log, historyOrder)}>In QR</button></div></td>
+                      <td><div className="action-row compact-actions"><button className="secondary-button" type="button" onClick={() => { if (log.orderId) setActiveOrderId(log.orderId); setWarning('') }}>Chi tiết</button><button className="secondary-button" type="button" onClick={() => printFinishedGoodsQR({ log, order: historyOrder })}>In QR</button></div></td>
                     </tr>
                   )
                 })} empty="Chưa có lịch sử đóng gói." />
@@ -9738,11 +9735,6 @@ function PackagingPage({ data, setData, user }) {
                       <button type="button" className="secondary-button" onClick={() => setPrintModal(null)}>Đóng</button>
                     </div>
                   </div>
-                </div>
-              )}
-              {historyQrPrint && (
-                <div id="qrPrintArea" className="finished-goods-qr-render-source no-print" ref={historyQrPrintRef} aria-hidden="true">
-                  <QRCodeCanvas value={historyQrPrint.value} size={360} includeMargin />
                 </div>
               )}
             </>
