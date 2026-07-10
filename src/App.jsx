@@ -4472,7 +4472,7 @@ function MaterialConsumptionLogPage({ data }) {
         ) : (
           <div className="material-usage-table-wrapper">
             <SimpleTable tableClassName="material-usage-table" headers={['Mã vật tư', 'ĐVT', 'KL sử dụng (Kg)', 'Số lần cân', 'Số lệnh SX']} rows={summaryRows.map((row) => (
-              <tr key={row.materialCode}><td>{row.materialCode}</td><td>{row.unit}</td><td>{num(row.totalUsedQty).toLocaleString('vi-VN', { maximumFractionDigits: 3 })}</td><td>{row.weighingCount}</td><td>{row.productionOrderCount}</td></tr>
+              <tr key={row.materialCode}><td>{row.materialCode}</td><td>{row.unit}</td><td>{num(row.totalUsedQty).toLocaleString('vi-VN', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td><td>{row.weighingCount}</td><td>{row.productionOrderCount}</td></tr>
             ))} empty="Chưa có dữ liệu sử dụng phù hợp." />
           </div>
         )}
