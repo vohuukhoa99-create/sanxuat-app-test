@@ -12921,14 +12921,14 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
           {header.editSingleDay && <label className="assignment-specific-date">Ngày<input type="date" min={header.weekStart} max={getWeekEndText(header.weekStart)} value={header.date} onChange={(event) => setHeader((current) => ({ ...current, date: event.target.value }))} /></label>}
         </div>
         <div className="table-wrap">
-          <table className="production-table assignment-planning-table">
+          <table className="production-table assignment-planning-table assignment-table">
             <thead>
               <tr>
                 <th>Tổ sản xuất</th>
                 <th>Vai trò</th>
-                <th>Người phụ trách / Team</th>
-                <th>Ghi chú</th>
-                <th>Trạng thái</th>
+                <th className="team-col">Người phụ trách / Team</th>
+                <th className="note-col">Ghi chú</th>
+                <th className="status-col">Trạng thái</th>
               </tr>
             </thead>
             <tbody>
@@ -12939,7 +12939,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
                   <tr key={row.id}>
                     <td>{row.displayTeamName || teamByCode[row.teamCode]?.name || teamNameByCode(row.teamCode)}</td>
                     <td>{draft.role}</td>
-                    <td>
+                    <td className="team-col">
                       {row.inputType === 'team' ? (
                         <select value={draft.selectedTeamCode} onChange={(event) => updateDraftRow(row.id, { selectedTeamCode: event.target.value })}>
                           {(mixingTeams.length ? mixingTeams : [{ code: 'TP1', name: teamNameByCode('TP1') }, { code: 'TP2', name: teamNameByCode('TP2') }]).map((team) => <option key={team.code} value={team.code}>{team.name}</option>)}
@@ -12952,8 +12952,8 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
                         />
                       )}
                     </td>
-                    <td><input value={draft.note} onChange={(event) => updateDraftRow(row.id, { note: event.target.value })} placeholder="Ghi chú" /></td>
-                    <td>
+                    <td className="note-col"><input value={draft.note} onChange={(event) => updateDraftRow(row.id, { note: event.target.value })} placeholder="Ghi chú" /></td>
+                    <td className="status-col">
                       <select value={draft.status} onChange={(event) => updateDraftRow(row.id, { status: event.target.value })}>
                         <option>Chưa bắt đầu</option>
                         <option>Đang thực hiện</option>

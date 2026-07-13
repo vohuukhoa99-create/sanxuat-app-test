@@ -1014,9 +1014,9 @@ tbody tr:hover {
 }
 
 .assignment-planning-table {
-  width: 960px !important;
-  min-width: 960px !important;
-  max-width: 960px !important;
+  width: 730px !important;
+  min-width: 730px !important;
+  max-width: 730px !important;
   table-layout: fixed;
 }
 
@@ -1036,22 +1036,26 @@ tbody tr:hover {
 
 .assignment-planning-table th:nth-child(3),
 .assignment-planning-table td:nth-child(3) {
-  width: 420px;
-  min-width: 420px;
+  width: 230px;
+  min-width: 230px;
 }
 
 .assignment-planning-table th:nth-child(4),
 .assignment-planning-table td:nth-child(4) {
-  width: 180px;
+  width: 150px;
 }
 
 .assignment-planning-table th:nth-child(5),
 .assignment-planning-table td:nth-child(5) {
-  width: 120px;
+  width: 110px;
 }
 
 .assignment-planning-table td { text-align: left; }
 .assignment-planning-table td:nth-child(5) { text-align: center; }
+.assignment-table th.team-col { text-align: center; }
+.assignment-table td.team-col { text-align: left; }
+.assignment-table td.team-col select,
+.assignment-table td.team-col input { width: 100%; max-width: 100%; }
 
 .assignment-saved-table-wrapper { width: fit-content; max-width: 100%; overflow-x: auto; }
 .assignment-saved-table-wrapper .table-wrapper { width: fit-content !important; max-width: 100%; }
