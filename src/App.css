@@ -953,7 +953,7 @@ tbody tr:hover {
 
 .assignment-day-controls {
   display: grid;
-  grid-template-columns: 180px 150px max-content 150px;
+  grid-template-columns: 150px 150px max-content 150px;
   gap: 10px;
   align-items: end;
   margin-bottom: 16px;
@@ -1004,7 +1004,9 @@ tbody tr:hover {
 }
 
 .production-assignment-page .table-wrap {
-  overflow: visible;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .production-assignment-page .panel {
@@ -1012,34 +1014,59 @@ tbody tr:hover {
 }
 
 .assignment-planning-table {
+  width: 960px !important;
+  min-width: 960px !important;
+  max-width: 960px !important;
   table-layout: fixed;
 }
 
+.assignment-planning-table th,
+.assignment-planning-table td { padding: 8px 10px; }
+.assignment-planning-table th { text-align: center; }
+
 .assignment-planning-table th:nth-child(1),
 .assignment-planning-table td:nth-child(1) {
-  width: 170px;
+  width: 120px;
 }
 
 .assignment-planning-table th:nth-child(2),
 .assignment-planning-table td:nth-child(2) {
-  width: 150px;
+  width: 120px;
 }
 
 .assignment-planning-table th:nth-child(3),
 .assignment-planning-table td:nth-child(3) {
-  width: auto;
-  min-width: 360px;
+  width: 420px;
+  min-width: 420px;
 }
 
 .assignment-planning-table th:nth-child(4),
 .assignment-planning-table td:nth-child(4) {
-  width: 250px;
+  width: 180px;
 }
 
 .assignment-planning-table th:nth-child(5),
 .assignment-planning-table td:nth-child(5) {
-  width: 150px;
+  width: 120px;
 }
+
+.assignment-planning-table td { text-align: left; }
+.assignment-planning-table td:nth-child(5) { text-align: center; }
+
+.assignment-saved-table-wrapper { width: fit-content; max-width: 100%; overflow-x: auto; }
+.assignment-saved-table-wrapper .table-wrapper { width: fit-content !important; max-width: 100%; }
+.assignment-saved-table { width: 1030px !important; min-width: 1030px !important; max-width: 1030px !important; table-layout: fixed; }
+.assignment-saved-table th, .assignment-saved-table td { padding: 8px 10px; white-space: nowrap; }
+.assignment-saved-table th { text-align: center; }
+.assignment-saved-table td { text-align: left; }
+.assignment-saved-table th:nth-child(1), .assignment-saved-table td:nth-child(1) { width: 100px; }
+.assignment-saved-table th:nth-child(2), .assignment-saved-table td:nth-child(2) { width: 90px; }
+.assignment-saved-table th:nth-child(3), .assignment-saved-table td:nth-child(3) { width: 120px; }
+.assignment-saved-table th:nth-child(4), .assignment-saved-table td:nth-child(4) { width: 120px; }
+.assignment-saved-table th:nth-child(5), .assignment-saved-table td:nth-child(5) { width: 300px; }
+.assignment-saved-table th:nth-child(6), .assignment-saved-table td:nth-child(6) { width: 180px; }
+.assignment-saved-table th:nth-child(7), .assignment-saved-table td:nth-child(7) { width: 120px; }
+.assignment-saved-table td:nth-child(7) { text-align: center; }
 
 .assignment-single-select .assignment-owner-dropdown,
 .assignment-single-select .assignment-owner-dropdown .customer-combobox-menu {

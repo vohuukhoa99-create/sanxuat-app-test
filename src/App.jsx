@@ -12971,7 +12971,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
       </section>
       <section className="panel">
         <h3>Bảng phân công đã lưu</h3>
-        <SimpleTable tableClassName="production-assignment-table" headers={['Ngày', 'Ca', 'Tổ sản xuất', 'Vai trò', 'Người phụ trách / Team', 'Ghi chú', 'Trạng thái']} rows={visibleAssignments.map((item) => (
+        <div className="assignment-saved-table-wrapper"><SimpleTable tableClassName="assignment-saved-table" headers={['Ngày', 'Ca', 'Tổ sản xuất', 'Vai trò', 'Người phụ trách / Team', 'Ghi chú', 'Trạng thái']} rows={visibleAssignments.map((item) => (
           <tr key={item.id || item.assignmentId}>
             <td>{item.workDate || item.date}</td>
             <td>{item.shiftCode} / {item.shiftName}</td>
@@ -12988,7 +12988,7 @@ function ProductionAssignmentPage({ data, setData, user, permissions = [] }) {
               </select>
             </td>
           </tr>
-        ))} empty="Chưa có phân công cho tuần/ca đang chọn." />
+        ))} empty="Chưa có phân công cho tuần/ca đang chọn." /></div>
       </section>
     </div>
   )
