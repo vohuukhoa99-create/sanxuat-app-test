@@ -16548,11 +16548,18 @@ body,
 /* Compact mixing dispatch tables: override legacy desktop percentage columns. */
 @media (min-width: 769px) {
   .mixing-page-v2 .mixing-machine-compact-table { width: 990px !important; min-width: 990px !important; max-width: 990px !important; }
-  .mixing-page-v2 .mixing-order-compact-table { width: 1280px !important; min-width: 1280px !important; max-width: 1280px !important; }
+  .mixing-page-v2 .mixing-order-compact-table { width: 1115px !important; min-width: 1115px !important; max-width: 1115px !important; }
   .mixing-page-v2 .mixing-machine-compact-table th:nth-child(1), .mixing-page-v2 .mixing-machine-compact-table td:nth-child(1) { width: 180px !important; }
   .mixing-page-v2 .mixing-machine-compact-table th:nth-child(2), .mixing-page-v2 .mixing-machine-compact-table td:nth-child(2) { width: 100px !important; }
   .mixing-page-v2 .mixing-machine-compact-table th:nth-child(3), .mixing-page-v2 .mixing-machine-compact-table td:nth-child(3) { width: 100px !important; }
   .mixing-page-v2 .mixing-machine-compact-table th:nth-child(4), .mixing-page-v2 .mixing-machine-compact-table td:nth-child(4) { width: 180px !important; }
   .mixing-page-v2 .mixing-machine-compact-table th:nth-child(5), .mixing-page-v2 .mixing-machine-compact-table td:nth-child(5) { width: 300px !important; }
   .mixing-page-v2 .mixing-machine-compact-table th:nth-child(6), .mixing-page-v2 .mixing-machine-compact-table td:nth-child(6) { width: 130px !important; }
+  .mixing-page-v2 .mixing-order-compact-table th:nth-child(1), .mixing-page-v2 .mixing-order-compact-table td:nth-child(1) { width: 180px !important; }
+  .mixing-page-v2 .mixing-order-compact-table th:nth-child(2), .mixing-page-v2 .mixing-order-compact-table td:nth-child(2) { width: 95px !important; }
+  .mixing-page-v2 .mixing-order-compact-table th:nth-child(3), .mixing-page-v2 .mixing-order-compact-table td:nth-child(3) { width: 220px !important; }
+  .mixing-page-v2 .mixing-order-compact-table th:nth-child(4), .mixing-page-v2 .mixing-order-compact-table td:nth-child(4) { width: 140px !important; }
+  .mixing-page-v2 .mixing-order-compact-table th:nth-child(5), .mixing-page-v2 .mixing-order-compact-table td:nth-child(5) { width: 140px !important; }
+  .mixing-page-v2 .mixing-order-compact-table th:nth-child(6), .mixing-page-v2 .mixing-order-compact-table td:nth-child(6) { width: 170px !important; }
+  .mixing-page-v2 .mixing-order-compact-table th:nth-child(7), .mixing-page-v2 .mixing-order-compact-table td:nth-child(7) { width: 170px !important; }
 }
