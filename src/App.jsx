@@ -9242,7 +9242,7 @@ function MixingPage({ data, setData, user }) {
         </div>
         <h3>Tình trạng máy phối trộn</h3>
         <div className="table-wrapper mixing-machine-table-wrapper">
-          <table className="mixing-machine-table">
+          <table className="mixing-machine-table mixing-machine-compact-table">
             <thead>
               <tr>
                 <th>Máy</th>
@@ -9275,7 +9275,7 @@ function MixingPage({ data, setData, user }) {
       <section className="panel mixing-ready-section">
           <h3>Theo dõi lệnh phối trộn</h3>
           <div className="ready-mixing-table-wrapper">
-            <table className="ready-mixing-table">
+            <table className="ready-mixing-table mixing-order-compact-table">
               <thead>
                 <tr>
                   <th>Mã lô</th>

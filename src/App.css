@@ -1072,6 +1072,57 @@ tbody tr:hover {
 .assignment-saved-table th:nth-child(7), .assignment-saved-table td:nth-child(7) { width: 120px; }
 .assignment-saved-table td:nth-child(7) { text-align: center; }
 
+.mixing-page-v2 .mixing-machine-table-wrapper,
+.mixing-page-v2 .ready-mixing-table-wrapper {
+  width: fit-content !important;
+  max-width: 100%;
+  overflow-x: auto !important;
+}
+
+.mixing-machine-compact-table {
+  width: 990px !important;
+  min-width: 990px !important;
+  max-width: 990px !important;
+  table-layout: fixed;
+}
+
+.mixing-order-compact-table {
+  width: 1280px !important;
+  min-width: 1280px !important;
+  max-width: 1280px !important;
+  table-layout: fixed;
+}
+
+.mixing-machine-compact-table th,
+.mixing-machine-compact-table td,
+.mixing-order-compact-table th,
+.mixing-order-compact-table td {
+  padding: 8px 10px !important;
+  vertical-align: middle;
+}
+
+.mixing-machine-compact-table th,
+.mixing-order-compact-table th { text-align: center; }
+.mixing-machine-compact-table td:nth-child(1), .mixing-machine-compact-table td:nth-child(4),
+.mixing-order-compact-table td:nth-child(1), .mixing-order-compact-table td:nth-child(2), .mixing-order-compact-table td:nth-child(3) { text-align: left; }
+.mixing-machine-compact-table td:nth-child(2), .mixing-machine-compact-table td:nth-child(3), .mixing-machine-compact-table td:nth-child(5), .mixing-machine-compact-table td:nth-child(6),
+.mixing-order-compact-table td:nth-child(4), .mixing-order-compact-table td:nth-child(5), .mixing-order-compact-table td:nth-child(6), .mixing-order-compact-table td:nth-child(7) { text-align: center; }
+
+.mixing-machine-compact-table th:nth-child(1), .mixing-machine-compact-table td:nth-child(1) { width: 180px; }
+.mixing-machine-compact-table th:nth-child(2), .mixing-machine-compact-table td:nth-child(2) { width: 100px; }
+.mixing-machine-compact-table th:nth-child(3), .mixing-machine-compact-table td:nth-child(3) { width: 100px; }
+.mixing-machine-compact-table th:nth-child(4), .mixing-machine-compact-table td:nth-child(4) { width: 180px; }
+.mixing-machine-compact-table th:nth-child(5), .mixing-machine-compact-table td:nth-child(5) { width: 300px; }
+.mixing-machine-compact-table th:nth-child(6), .mixing-machine-compact-table td:nth-child(6) { width: 130px; }
+
+.mixing-order-compact-table th:nth-child(1), .mixing-order-compact-table td:nth-child(1) { width: 180px; }
+.mixing-order-compact-table th:nth-child(2), .mixing-order-compact-table td:nth-child(2) { width: 150px; }
+.mixing-order-compact-table th:nth-child(3), .mixing-order-compact-table td:nth-child(3) { width: 240px; }
+.mixing-order-compact-table th:nth-child(4), .mixing-order-compact-table td:nth-child(4) { width: 180px; }
+.mixing-order-compact-table th:nth-child(5), .mixing-order-compact-table td:nth-child(5) { width: 180px; }
+.mixing-order-compact-table th:nth-child(6), .mixing-order-compact-table td:nth-child(6) { width: 190px; }
+.mixing-order-compact-table th:nth-child(7), .mixing-order-compact-table td:nth-child(7) { width: 160px; }
+
 .assignment-single-select .assignment-owner-dropdown,
 .assignment-single-select .assignment-owner-dropdown .customer-combobox-menu {
   width: 100%;
@@ -16492,4 +16543,16 @@ body,
   .qc2-page .qc-finished-info-grid {
     flex-wrap: wrap !important;
   }
+}
+
+/* Compact mixing dispatch tables: override legacy desktop percentage columns. */
+@media (min-width: 769px) {
+  .mixing-page-v2 .mixing-machine-compact-table { width: 990px !important; min-width: 990px !important; max-width: 990px !important; }
+  .mixing-page-v2 .mixing-order-compact-table { width: 1280px !important; min-width: 1280px !important; max-width: 1280px !important; }
+  .mixing-page-v2 .mixing-machine-compact-table th:nth-child(1), .mixing-page-v2 .mixing-machine-compact-table td:nth-child(1) { width: 180px !important; }
+  .mixing-page-v2 .mixing-machine-compact-table th:nth-child(2), .mixing-page-v2 .mixing-machine-compact-table td:nth-child(2) { width: 100px !important; }
+  .mixing-page-v2 .mixing-machine-compact-table th:nth-child(3), .mixing-page-v2 .mixing-machine-compact-table td:nth-child(3) { width: 100px !important; }
+  .mixing-page-v2 .mixing-machine-compact-table th:nth-child(4), .mixing-page-v2 .mixing-machine-compact-table td:nth-child(4) { width: 180px !important; }
+  .mixing-page-v2 .mixing-machine-compact-table th:nth-child(5), .mixing-page-v2 .mixing-machine-compact-table td:nth-child(5) { width: 300px !important; }
+  .mixing-page-v2 .mixing-machine-compact-table th:nth-child(6), .mixing-page-v2 .mixing-machine-compact-table td:nth-child(6) { width: 130px !important; }
 }
