@@ -2069,6 +2069,27 @@ const normalizeProductionAssignmentsData = (assignments = []) => (Array.isArray(
   }
 })
 
+const ACTIVE_STATUS = 'Hoạt động'
+
+const defaultPackagingSpecCatalog = [
+  { id: 'PKG-SON-DA-25KG', productGroup: PRODUCT_GROUP_SON_DA, productSubgroup: '', spec: 'Thùng 25kg', declaredUnit: 'kg', convertedWeightKg: 25, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-SON-DA-10KG', productGroup: PRODUCT_GROUP_SON_DA, productSubgroup: '', spec: 'Thùng 10kg', declaredUnit: 'kg', convertedWeightKg: 10, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-SON-DA-5KG', productGroup: PRODUCT_GROUP_SON_DA, productSubgroup: '', spec: 'Thùng 5kg', declaredUnit: 'kg', convertedWeightKg: 5, toleranceKg: 0.05, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-KEO-LOT-18L', productGroup: PRODUCT_GROUP_KEO_BTP, productSubgroup: 'Keo lót', spec: 'Thùng 18L', declaredUnit: 'L', convertedWeightKg: 18.05, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-KEO-LOT-05L', productGroup: PRODUCT_GROUP_KEO_BTP, productSubgroup: 'Keo lót', spec: 'Thùng 05L', declaredUnit: 'L', convertedWeightKg: 5.05, toleranceKg: 0.05, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-KEO-PHU-18L', productGroup: PRODUCT_GROUP_KEO_BTP, productSubgroup: 'Keo phủ', spec: 'Thùng 18L', declaredUnit: 'L', convertedWeightKg: 18.2, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-KEO-PHU-05L', productGroup: PRODUCT_GROUP_KEO_BTP, productSubgroup: 'Keo phủ', spec: 'Thùng 05L', declaredUnit: 'L', convertedWeightKg: 5.1, toleranceKg: 0.05, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-EROS-15L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Eros', spec: 'Thùng 15L', declaredUnit: 'L', convertedWeightKg: 15.1, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-EROS-5L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Eros', spec: 'Thùng 5L', declaredUnit: 'L', convertedWeightKg: 5.05, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-EROS-1L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Eros', spec: 'Thùng 1L', declaredUnit: 'L', convertedWeightKg: 1.02, toleranceKg: 0.01, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-HELIOS-15L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Helios', spec: 'Thùng 15L', declaredUnit: 'L', convertedWeightKg: 15.15, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-HELIOS-5L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Helios', spec: 'Thùng 5L', declaredUnit: 'L', convertedWeightKg: 5.07, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-HELIOS-1L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Helios', spec: 'Thùng 1L', declaredUnit: 'L', convertedWeightKg: 1.03, toleranceKg: 0.01, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-ZELOS-15L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Zelos', spec: 'Thùng 15L', declaredUnit: 'L', convertedWeightKg: 15.12, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-ZELOS-5L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Zelos', spec: 'Thùng 5L', declaredUnit: 'L', convertedWeightKg: 5.06, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
+  { id: 'PKG-ZELOS-1L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Zelos', spec: 'Thùng 1L', declaredUnit: 'L', convertedWeightKg: 1.02, toleranceKg: 0.01, status: ACTIVE_STATUS, note: '' },
+]
+
 const initialData = {
   rawMaterials: [
     normalizeRawMaterialLot({ id: 'RM-001', materialCode: 'PASTE 02', materialName: 'Paste nền 02', materialGroup: CHEMICAL, lotCode: 'NVL-260613-01', importDate: '2026-06-13', supplier: 'HB Chemical', initialQty: 320, remainingQty: 320, unit: 'kg' }),
@@ -2263,7 +2284,6 @@ const defaultRoles = {
 }
 const officialRoleNames = Object.keys(defaultRoles)
 
-const ACTIVE_STATUS = 'Hoạt động'
 const LOCKED_STATUS = 'Khóa'
 const DEFAULT_PASSWORD = '123456'
 const AUTH_VERSION = 3
@@ -2906,25 +2926,6 @@ function ensureResidualPackagingSpecs(rows = []) {
   })
   return normalized
 }
-
-const defaultPackagingSpecCatalog = [
-  { id: 'PKG-SON-DA-25KG', productGroup: PRODUCT_GROUP_SON_DA, productSubgroup: '', spec: 'Thùng 25kg', declaredUnit: 'kg', convertedWeightKg: 25, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-SON-DA-10KG', productGroup: PRODUCT_GROUP_SON_DA, productSubgroup: '', spec: 'Thùng 10kg', declaredUnit: 'kg', convertedWeightKg: 10, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-SON-DA-5KG', productGroup: PRODUCT_GROUP_SON_DA, productSubgroup: '', spec: 'Thùng 5kg', declaredUnit: 'kg', convertedWeightKg: 5, toleranceKg: 0.05, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-KEO-LOT-18L', productGroup: PRODUCT_GROUP_KEO_BTP, productSubgroup: 'Keo lót', spec: 'Thùng 18L', declaredUnit: 'L', convertedWeightKg: 18.05, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-KEO-LOT-05L', productGroup: PRODUCT_GROUP_KEO_BTP, productSubgroup: 'Keo lót', spec: 'Thùng 05L', declaredUnit: 'L', convertedWeightKg: 5.05, toleranceKg: 0.05, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-KEO-PHU-18L', productGroup: PRODUCT_GROUP_KEO_BTP, productSubgroup: 'Keo phủ', spec: 'Thùng 18L', declaredUnit: 'L', convertedWeightKg: 18.2, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-KEO-PHU-05L', productGroup: PRODUCT_GROUP_KEO_BTP, productSubgroup: 'Keo phủ', spec: 'Thùng 05L', declaredUnit: 'L', convertedWeightKg: 5.1, toleranceKg: 0.05, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-EROS-15L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Eros', spec: 'Thùng 15L', declaredUnit: 'L', convertedWeightKg: 15.1, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-EROS-5L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Eros', spec: 'Thùng 5L', declaredUnit: 'L', convertedWeightKg: 5.05, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-EROS-1L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Eros', spec: 'Thùng 1L', declaredUnit: 'L', convertedWeightKg: 1.02, toleranceKg: 0.01, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-HELIOS-15L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Helios', spec: 'Thùng 15L', declaredUnit: 'L', convertedWeightKg: 15.15, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-HELIOS-5L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Helios', spec: 'Thùng 5L', declaredUnit: 'L', convertedWeightKg: 5.07, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-HELIOS-1L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Helios', spec: 'Thùng 1L', declaredUnit: 'L', convertedWeightKg: 1.03, toleranceKg: 0.01, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-ZELOS-15L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Zelos', spec: 'Thùng 15L', declaredUnit: 'L', convertedWeightKg: 15.12, toleranceKg: 0.2, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-ZELOS-5L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Zelos', spec: 'Thùng 5L', declaredUnit: 'L', convertedWeightKg: 5.06, toleranceKg: 0.1, status: ACTIVE_STATUS, note: '' },
-  { id: 'PKG-ZELOS-1L', productGroup: PRODUCT_GROUP_SON_NUOC, productSubgroup: 'Zelos', spec: 'Thùng 1L', declaredUnit: 'L', convertedWeightKg: 1.02, toleranceKg: 0.01, status: ACTIVE_STATUS, note: '' },
-]
 
 function legacyNormalizePackagingSpecCatalog(items = defaultPackagingSpecCatalog) {
   const source = Array.isArray(items) && items.length ? items : defaultPackagingSpecCatalog
