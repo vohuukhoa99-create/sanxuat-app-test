@@ -2738,7 +2738,7 @@ function SimpleTable({ headers, rows, empty = 'Không có dữ liệu.', tableCl
   return (
     <div className="table-wrapper">
       <table className={tableClassName}>
-        <thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead>
+        <thead><tr>{headers.map((header, index) => <th key={typeof header === 'string' ? header : index}>{header}</th>)}</tr></thead>
         <tbody>
           {labeledRows}
           {safeRows.length === 0 && <tr><td className="empty-row" colSpan={headers.length}>{empty}</td></tr>}
@@ -4041,13 +4041,55 @@ function PseudoQr({ value }) {
   return <div className="pseudo-qr">{bits.map((on, index) => <span className={on ? 'on' : ''} key={index} />)}</div>
 }
 
+const formatMaterialLotLabelDate = (value = '') => {
+  const match = String(value || '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : String(value || '-')
+}
+
+const formatMaterialLotLabelQuantity = (value, unit = 'kg') => `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 }).format(num(value))} ${unit || 'kg'}`
+
+function MaterialLotQrLabel({ lot }) {
+  if (!lot) return null
+  const materialLotCode = normalizeMaterialLotCode(lot.materialLotCode || lot.internalLotCode || lot.internalLot || lot.lotCode)
+  const rows = [
+    ['Mã vật tư', lot.materialCode || '-'],
+    ['Mã lô NL', materialLotCode],
+    ['Ngày nhập', formatMaterialLotLabelDate(lot.receiptDate || lot.bravoReceiptDate)],
+    ['Số phiếu', lot.receiptNumber || lot.receiptNo || lot.bravoReceiptNo || '-'],
+    ['ĐVT', lot.unit || '-'],
+    ['Số lượng nhập', formatMaterialLotLabelQuantity(lot.receivedQuantity ?? lot.receivedQty ?? lot.importedQty, lot.unit)],
+  ]
+  return (
+    <section className="material-lot-label">
+      <div className="material-lot-label__info">
+        {rows.map(([label, value]) => <div className={`material-lot-label__row ${label === 'Mã lô NL' ? 'is-lot-code' : ''}`} key={label}><span>{label}:</span><strong className="material-lot-label__value">{value}</strong></div>)}
+      </div>
+      <div className="material-lot-label__qr"><QRCodeCanvas value={materialLotCode} size={132} includeMargin={false} /><strong>{materialLotCode}</strong></div>
+    </section>
+  )
+}
+
 function RawMaterialsPage({ data, setData }) {
   const importMaterialCatalogRef = useRef(null)
   const [notice, setNotice] = useState('')
   const [importPreviewRows, setImportPreviewRows] = useState([])
   const [importPreviewFileName, setImportPreviewFileName] = useState('')
   const [lotQrModal, setLotQrModal] = useState(null)
+  const [selectedLotIds, setSelectedLotIds] = useState([])
+  const [printingLots, setPrintingLots] = useState([])
   const materialLots = normalizeMaterialLots(data.materialLots || [])
+  const selectedLotIdSet = new Set(selectedLotIds)
+  const allLotsSelected = materialLots.length > 0 && materialLots.every((lot) => selectedLotIdSet.has(lot.id))
+  const startPrint = (lots) => {
+    if (!lots.length) return
+    setPrintingLots(lots)
+    window.setTimeout(() => window.print(), 100)
+  }
+  useEffect(() => {
+    const clearPrintLots = () => setPrintingLots([])
+    window.addEventListener('afterprint', clearPrintLots)
+    return () => window.removeEventListener('afterprint', clearPrintLots)
+  }, [])
   const previewLotCodeAt = (targetIndex) => {
     const simulatedLots = [...materialLots]
     let code = ''
@@ -4243,9 +4285,13 @@ function RawMaterialsPage({ data, setData }) {
         </section>
       )}
       <section className="panel">
-        <h3>Danh sách lô đã cập nhật</h3>
-        <div className="lot-import-table-wrapper"><SimpleTable tableClassName="lot-import-table" headers={['STT', 'Mã vật tư', 'ĐVT', 'Số lượng', 'Mã lô NL', 'Ngày', 'Số phiếu', 'Nhà cung cấp', 'Số dư truy xuất', 'Trạng thái', 'Hành động']} rows={materialLots.map((item) => (
+        <div className="section-heading-row"><h3>Danh sách lô đã cập nhật</h3><button className="primary-button" type="button" disabled={!selectedLotIds.length} onClick={() => startPrint(materialLots.filter((lot) => selectedLotIdSet.has(lot.id)))}>In QR đã chọn ({selectedLotIds.length})</button></div>
+        <div className="lot-import-table-wrapper"><SimpleTable tableClassName="lot-import-table material-lot-list-table" headers={[
+          <label className="material-lot-select-all" title="Chọn tất cả" key="select-all"><input type="checkbox" checked={allLotsSelected} onChange={(event) => setSelectedLotIds(event.target.checked ? materialLots.map((lot) => lot.id) : [])} /><span>Chọn tất cả</span></label>,
+          'STT', 'Mã vật tư', 'ĐVT', 'Số lượng', 'Mã lô NL', 'Ngày', 'Số phiếu', 'Nhà cung cấp', 'Số dư truy xuất', 'Trạng thái', 'Hành động',
+        ]} rows={materialLots.map((item) => (
           <tr key={item.id}>
+            <td><input type="checkbox" aria-label={`Chọn ${item.internalLotCode}`} checked={selectedLotIdSet.has(item.id)} onChange={(event) => setSelectedLotIds((current) => event.target.checked ? [...new Set([...current, item.id])] : current.filter((id) => id !== item.id))} /></td>
             <td>{item.stt || '-'}</td>
             <td>{item.materialCode}</td>
             <td>{item.unit}</td>
@@ -4256,22 +4302,20 @@ function RawMaterialsPage({ data, setData }) {
             <td>{item.supplierName}</td>
             <td>{kg(item.traceBalanceQty)}</td>
             <td><span className={`dispatch-badge ${item.status === 'blocked' ? 'fail' : item.status === 'depleted' ? 'locked' : 'ready'}`}>{item.status}</span></td>
-            <td><div className="action-row"><button className="secondary-button" type="button" onClick={() => setLotQrModal(item)}>Xem QR</button><button className="secondary-button" type="button" onClick={() => { setLotQrModal(item); window.setTimeout(() => window.print(), 100) }}>In QR</button></div></td>
+            <td><div className="action-row"><button className="secondary-button" type="button" onClick={() => setLotQrModal(item)}>Xem QR</button><button className="secondary-button" type="button" onClick={() => startPrint([item])}>In QR</button></div></td>
           </tr>
         ))} empty="Chưa có lô nhập Bravo." /></div>
       </section>
       {lotQrModal && (
         <div className="modal-backdrop material-lot-qr-modal" role="presentation">
-          <div className="mixing-modal weighed-container-modal" role="dialog" aria-modal="true">
+          <div className="mixing-modal material-lot-qr-dialog" role="dialog" aria-modal="true">
             <div className="modal-header"><div><span className="section-kicker">Tem QR lô nguyên liệu</span><h2>{lotQrModal.internalLotCode}</h2></div><button type="button" className="icon-button" onClick={() => setLotQrModal(null)} aria-label="Đóng">×</button></div>
-            <section className="qr-print-ticket material-lot-label">
-              <div className="qr-print-info"><div><span>Mã vật tư</span><strong>{lotQrModal.materialCode}</strong></div><div><span>Mã lô NL</span><strong>{lotQrModal.internalLotCode}</strong></div><div><span>Ngày nhập</span><strong>{lotQrModal.bravoReceiptDate}</strong></div><div><span>Số phiếu</span><strong>{lotQrModal.bravoReceiptNo}</strong></div><div><span>ĐVT</span><strong>{lotQrModal.unit}</strong></div><div><span>Số lượng nhập</span><strong>{kg(lotQrModal.importedQty)}</strong></div></div>
-              <div className="qr-print-code"><QRCodeCanvas value={lotQrModal.internalLotCode} size={220} includeMargin /><strong className="qr-print-text">{lotQrModal.internalLotCode}</strong></div>
-            </section>
-            <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => window.print()}>In QR</button><button type="button" className="primary-button" onClick={() => setLotQrModal(null)}>Đóng</button></div>
+            <div className="material-lot-label-preview"><MaterialLotQrLabel lot={lotQrModal} /></div>
+            <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => startPrint([lotQrModal])}>In tem</button><button type="button" className="primary-button" onClick={() => setLotQrModal(null)}>Đóng</button></div>
           </div>
         </div>
       )}
+      {printingLots.length > 0 && <div className="material-lot-print-root" aria-hidden="true">{Array.from({ length: Math.ceil(printingLots.length / 10) }, (_, pageIndex) => <div className="material-lot-print-page" key={pageIndex}>{printingLots.slice(pageIndex * 10, pageIndex * 10 + 10).map((lot) => <div className="material-lot-print-item" key={lot.id || lot.internalLotCode}><MaterialLotQrLabel lot={lot} /></div>)}</div>)}</div>}
     </div>
   )
 }

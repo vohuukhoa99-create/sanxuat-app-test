@@ -15980,15 +15980,48 @@ body,
   overflow-x: auto;
 }
 
-.material-lot-label { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-.material-lot-label .qr-print-info { flex: 1; }
+.material-lot-qr-dialog { width: min(760px, 95vw); max-height: 95vh; overflow: visible; }
+.material-lot-label-preview { display: flex; justify-content: center; padding: 20px; overflow-x: auto; }
+.material-lot-label {
+  width: 90mm;
+  height: 50mm;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 4mm;
+  flex: 0 0 90mm;
+  padding: 4mm;
+  border: .3mm dashed #666;
+  background: #fff;
+  color: #111;
+  font-family: Arial, "Segoe UI", sans-serif;
+  font-size: 10pt;
+  line-height: 1.25;
+  letter-spacing: normal;
+  writing-mode: horizontal-tb;
+  overflow: hidden;
+}
+.material-lot-label__info { flex: 1 1 auto; min-width: 0; }
+.material-lot-label__row { display: grid; grid-template-columns: 27mm minmax(0, 1fr); column-gap: 2mm; align-items: baseline; margin-bottom: 1.1mm; text-align: left; }
+.material-lot-label__row > span { white-space: nowrap; }
+.material-lot-label__value { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; word-break: normal; }
+.material-lot-label__row.is-lot-code .material-lot-label__value { overflow: visible; text-overflow: clip; font-size: 11pt; }
+.material-lot-label__qr { width: 34mm; flex: 0 0 34mm; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 34mm; }
+.material-lot-label__qr canvas { width: 34mm !important; height: 34mm !important; display: block; }
+.material-lot-label__qr strong { width: 100%; margin-top: 1mm; font-size: 7.5pt; line-height: 1; text-align: center; white-space: nowrap; }
+.material-lot-select-all { display: inline-flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; }
+.material-lot-list-table input[type="checkbox"] { width: 16px; height: 16px; }
+.material-lot-print-root { display: none; }
 
 @media print {
-  body:has(.material-lot-qr-modal) * { visibility: hidden !important; }
-  body:has(.material-lot-qr-modal) .material-lot-label,
-  body:has(.material-lot-qr-modal) .material-lot-label * { visibility: visible !important; }
-  body:has(.material-lot-qr-modal) .material-lot-label { position: fixed; inset: 0; width: 100%; height: 100%; margin: 0; padding: 10mm; box-sizing: border-box; border: 0; }
-  @page { margin: 0; }
+  @page { size: A4 portrait; margin: 8mm; }
+  body * { visibility: hidden !important; }
+  .material-lot-print-root,
+  .material-lot-print-root * { visibility: visible !important; }
+  .material-lot-print-root { display: block !important; position: absolute; inset: 0; margin: 0; padding: 0; }
+  .material-lot-print-page { width: 194mm; min-height: 281mm; display: grid; grid-template-columns: repeat(2, 90mm); grid-auto-rows: 50mm; gap: 4mm 6mm; align-content: start; justify-content: center; break-after: page; page-break-after: always; }
+  .material-lot-print-page:last-child { break-after: auto; page-break-after: auto; }
+  .material-lot-print-item { width: 90mm; height: 50mm; break-inside: avoid; page-break-inside: avoid; }
 }
 
 .lot-import-table-wrapper .table-wrapper {
