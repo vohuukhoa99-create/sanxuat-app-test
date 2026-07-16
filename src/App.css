@@ -15986,41 +15986,44 @@ body,
   width: 90mm;
   height: 50mm;
   box-sizing: border-box;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30mm;
+  column-gap: 3mm;
   align-items: center;
-  gap: 4mm;
   flex: 0 0 90mm;
   padding: 4mm;
   border: .3mm dashed #666;
   background: #fff;
   color: #111;
   font-family: Arial, "Segoe UI", sans-serif;
-  font-size: 10pt;
+  font-size: 8.5pt;
   line-height: 1.25;
   letter-spacing: normal;
   writing-mode: horizontal-tb;
   overflow: hidden;
 }
-.material-lot-label__info { flex: 1 1 auto; min-width: 0; }
-.material-lot-label__row { display: grid; grid-template-columns: 27mm minmax(0, 1fr); column-gap: 2mm; align-items: baseline; margin-bottom: 1.1mm; text-align: left; }
+.material-lot-label__info { width: 100%; min-width: 0; overflow: hidden; }
+.material-lot-label__row { display: grid; grid-template-columns: 19mm minmax(0, 1fr); column-gap: 1.5mm; align-items: baseline; margin-bottom: 1.1mm; text-align: left; }
 .material-lot-label__row > span { white-space: nowrap; }
 .material-lot-label__value { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; word-break: normal; }
-.material-lot-label__row.is-lot-code .material-lot-label__value { overflow: visible; text-overflow: clip; font-size: 11pt; }
-.material-lot-label__qr { width: 34mm; flex: 0 0 34mm; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 34mm; }
-.material-lot-label__qr canvas { width: 34mm !important; height: 34mm !important; display: block; }
+.material-lot-label__row.is-lot-code .material-lot-label__value { overflow: visible; text-overflow: clip; font-size: 9.2pt; }
+.material-lot-label__qr { width: 30mm; height: 38mm; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 30mm; overflow: hidden; }
+.material-lot-label__qr canvas { width: 30mm !important; height: 30mm !important; flex: 0 0 30mm; display: block; }
 .material-lot-label__qr strong { width: 100%; margin-top: 1mm; font-size: 7.5pt; line-height: 1; text-align: center; white-space: nowrap; }
 .material-lot-select-all { display: inline-flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; }
 .material-lot-list-table input[type="checkbox"] { width: 16px; height: 16px; }
+.material-lot-copy-input { width: 58px; text-align: center; }
+.material-lot-copy-control { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.material-lot-copy-control input { width: 70px; }
 .material-lot-print-root { display: none; }
 
 @media print {
   @page { size: A4 portrait; margin: 8mm; }
-  body * { visibility: hidden !important; }
-  .material-lot-print-root,
-  .material-lot-print-root * { visibility: visible !important; }
-  .material-lot-print-root { display: block !important; position: absolute; inset: 0; margin: 0; padding: 0; }
-  .material-lot-print-page { width: 194mm; min-height: 281mm; display: grid; grid-template-columns: repeat(2, 90mm); grid-auto-rows: 50mm; gap: 4mm 6mm; align-content: start; justify-content: center; break-after: page; page-break-after: always; }
-  .material-lot-print-page:last-child { break-after: auto; page-break-after: auto; }
+  html, body { width: 210mm; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  body > #root { display: none !important; }
+  body > .material-lot-print-root { display: block !important; width: 194mm; margin: 0; padding: 0; }
+  .material-lot-print-page { width: 194mm; display: grid; grid-template-columns: repeat(2, 90mm); grid-auto-rows: 50mm; gap: 4mm 6mm; align-content: start; justify-content: center; }
+  .material-lot-print-page + .material-lot-print-page { break-before: page; page-break-before: always; }
   .material-lot-print-item { width: 90mm; height: 50mm; break-inside: avoid; page-break-inside: avoid; }
 }
 
