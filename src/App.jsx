@@ -4070,6 +4070,30 @@ function MaterialLotQrLabel({ lot }) {
   )
 }
 
+async function waitForPrintWindowReady(printWindow) {
+  const doc = printWindow.document
+  if (doc.readyState !== 'complete') {
+    await new Promise((resolve) => {
+      let resolved = false
+      const finish = () => {
+        if (resolved) return
+        resolved = true
+        printWindow.removeEventListener('load', finish)
+        resolve()
+      }
+      printWindow.addEventListener('load', finish)
+      window.setTimeout(finish, 1500)
+    })
+  }
+  await Promise.all(Array.from(doc.images || []).map((image) => new Promise((resolve) => {
+    if (image.complete) return resolve()
+    image.addEventListener('load', resolve, { once: true })
+    image.addEventListener('error', resolve, { once: true })
+  })))
+  if (doc.fonts?.ready) await doc.fonts.ready
+  await new Promise((resolve) => printWindow.requestAnimationFrame(() => printWindow.requestAnimationFrame(resolve)))
+}
+
 function RawMaterialsPage({ data, setData }) {
   const importMaterialCatalogRef = useRef(null)
   const [notice, setNotice] = useState('')
@@ -4083,33 +4107,42 @@ function RawMaterialsPage({ data, setData }) {
   const allLotsSelected = materialLots.length > 0 && materialLots.every((lot) => selectedLotIdSet.has(lot.id))
   const copyCountFor = (lot) => Math.max(1, Math.min(99, Math.floor(num(lotCopyCounts[lot.id] || 1))))
   const setCopyCount = (lotId, value) => setLotCopyCounts((current) => ({ ...current, [lotId]: Math.max(1, Math.min(99, Math.floor(num(value) || 1))) }))
-  const printMaterialLotLabels = (lots) => {
-    if (!lots.length) return
+  const printMaterialLotLabels = async (lots) => {
+    if (!lots.length) {
+      setNotice('Không có tem nào để in.')
+      return
+    }
+    const printWindow = window.open('', '_blank', 'width=1200,height=850')
+    if (!printWindow) {
+      const message = 'Trình duyệt đang chặn cửa sổ in. Vui lòng cho phép cửa sổ bật lên.'
+      setNotice(message)
+      window.alert(message)
+      return
+    }
     try {
+      printWindow.document.open()
+      printWindow.document.write('<!doctype html><html lang="vi"><head><meta charset="UTF-8"><title>Đang chuẩn bị tem…</title></head><body style="font-family:Arial,Segoe UI,sans-serif;padding:24px">Đang chuẩn bị tem…</body></html>')
+      printWindow.document.close()
       const labels = lots.flatMap((lot) => Array.from({ length: copyCountFor(lot) }, (_, copyIndex) => ({ ...lot, printCopyKey: `${lot.id}-${copyIndex}` })))
       const pages = Array.from({ length: Math.ceil(labels.length / 10) }, (_, pageIndex) => renderToStaticMarkup(
         <div className="material-lot-print-page">{labels.slice(pageIndex * 10, pageIndex * 10 + 10).map((lot) => <div className="material-lot-print-item" key={lot.printCopyKey}><MaterialLotQrLabel lot={lot} /></div>)}</div>,
       )).join('')
       if (!pages || !pages.includes('<svg')) throw new Error('QR SVG chưa được tạo.')
       const sharedStyles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style')).map((node) => node.outerHTML).join('\n')
-      const printWindow = window.open('', '_blank', 'width=1200,height=800')
-      if (!printWindow) {
-        setNotice('Không thể mở cửa sổ in. Vui lòng cho phép popup và thử lại.')
-        return
-      }
-      printWindow.onload = () => {
-        printWindow.requestAnimationFrame(() => printWindow.requestAnimationFrame(() => {
-          printWindow.focus()
-          printWindow.print()
-        }))
-      }
-      printWindow.onafterprint = () => printWindow.close()
       printWindow.document.open()
-      printWindow.document.write(`<!doctype html><html lang="vi"><head><meta charset="UTF-8"><base href="${document.baseURI}"><title>In tem QR lô nguyên liệu</title>${sharedStyles}<style>@page{size:A4 portrait;margin:8mm}html,body{margin:0!important;padding:0!important;background:#fff!important;font-family:Arial,"Segoe UI",sans-serif}.material-lot-print-page{width:194mm;display:grid;grid-template-columns:repeat(2,90mm);grid-auto-rows:50mm;gap:4mm 6mm;align-content:start;justify-content:center}.material-lot-print-page+.material-lot-print-page{break-before:page;page-break-before:always}.material-lot-print-item{width:90mm;height:50mm;break-inside:avoid;page-break-inside:avoid}</style></head><body>${pages}</body></html>`)
+      printWindow.document.write(`<!doctype html><html lang="vi"><head><meta charset="UTF-8"><base href="${document.baseURI}"><title>In tem QR lô nguyên liệu</title>${sharedStyles}<style>@page{size:A4 portrait;margin:8mm}html,body{margin:0!important;padding:0!important;background:#fff!important;font-family:Arial,"Segoe UI",sans-serif}.print-toolbar{position:sticky;top:0;z-index:10;display:flex;gap:8px;padding:10px 16px;background:#f4f6f5;border-bottom:1px solid #ccd5d0}.print-toolbar button{padding:8px 16px;border:1px solid #789084;border-radius:6px;background:#fff;font:600 14px Arial;cursor:pointer}.print-root{padding-top:6mm}.material-lot-print-page{width:194mm;display:grid;grid-template-columns:repeat(2,90mm);grid-auto-rows:50mm;gap:4mm 6mm;align-content:start;justify-content:center}.material-lot-print-page+.material-lot-print-page{break-before:page;page-break-before:always}.material-lot-print-item{width:90mm;height:50mm;break-inside:avoid;page-break-inside:avoid}@media print{.print-toolbar{display:none!important}.print-root{padding-top:0}}</style></head><body><div class="print-toolbar"><button type="button" onclick="window.print()">In ngay</button><button type="button" onclick="window.close()">Đóng</button></div><main class="print-root">${pages}</main></body></html>`)
       printWindow.document.close()
+      await waitForPrintWindowReady(printWindow)
+      if (printWindow.closed) return
+      printWindow.focus()
+      await new Promise((resolve) => window.setTimeout(resolve, 100))
+      if (!printWindow.closed) printWindow.print()
     } catch (error) {
-      console.error('Không thể tạo mã QR lô nguyên liệu để in.', error)
-      setNotice('Không thể tạo mã QR. Vui lòng thử lại.')
+      console.error('Không thể in tem QR lô nguyên liệu.', error)
+      if (!printWindow.closed) printWindow.close()
+      const message = 'Không thể mở hộp thoại in. Vui lòng thử lại.'
+      setNotice(message)
+      window.alert(message)
     }
   }
   const previewLotCodeAt = (targetIndex) => {
