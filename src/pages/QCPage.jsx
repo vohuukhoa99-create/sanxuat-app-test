@@ -20,7 +20,7 @@ export function QCPage({ orders, onAdvance, logs, addLog }) {
           <table>
             <thead>
               <tr>
-                <th>Mã lô</th>
+                <th>Mã lô SX</th>
                 <th>Sản phẩm</th>
                 <th>Khối lượng</th>
                 <th>Hành động</th>

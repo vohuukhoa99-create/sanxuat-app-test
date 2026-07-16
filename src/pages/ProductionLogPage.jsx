@@ -124,7 +124,7 @@ function getSummaryRows(orders) {
   return orders.map((order, index) => ({
     STT: index + 1,
     Ngày: order.productionDate || emptyText,
-    'Mã lô': getOrderLotCode(order),
+    'Mã lô SX': getOrderLotCode(order),
     'Khách hàng': order.customer || emptyText,
     'Sản phẩm': order.product || emptyText,
     'Khối lượng yêu cầu': displayKg(order.quantityKg),
@@ -138,7 +138,7 @@ function getSummaryRows(orders) {
 function getWeighRows(orders, type) {
   return orders.flatMap((order) =>
     (type === 'chemical' ? order.chemicalRows : order.solidRows).map((item) => ({
-      'Mã lô': getOrderLotCode(order),
+      'Mã lô SX': getOrderLotCode(order),
       'Mã vật tư': item.materialCode,
       [type === 'chemical' ? 'Tên hóa chất' : 'Tên nguyên liệu rắn']: item.materialName,
       'Khối lượng yêu cầu': displayKg(item.requiredKg),
@@ -157,7 +157,7 @@ function getWeighRows(orders, type) {
 
 function getMixQcRows(orders) {
   return orders.map((order) => ({
-    'Mã lô': getOrderLotCode(order),
+    'Mã lô SX': getOrderLotCode(order),
     'Người phối trộn': order.mixing?.operator || emptyText,
     'Máy trộn số': order.mixing?.mixerNo || emptyText,
     'Thời gian bắt đầu': order.mixingStartedAt || emptyText,
@@ -197,7 +197,7 @@ function downloadFile(filename, mimeType, content) {
 
 function exportExcel(orders) {
   const sheets = [
-    ['Tổng hợp mã lô', getSummaryRows(orders)],
+    ['Tổng hợp mã lô SX', getSummaryRows(orders)],
     ['Chi tiết cân hóa', getWeighRows(orders, 'chemical')],
     ['Chi tiết cân rắn', getWeighRows(orders, 'solid')],
     ['Phối trộn và QC', getMixQcRows(orders)],
@@ -229,7 +229,7 @@ function exportPdf(orders) {
       <body>
         <button onclick="window.print()">Lưu PDF</button>
         <h1>NHẬT KÝ SẢN XUẤT</h1>
-        ${tableToHtml('Thông tin tổng hợp mã lô', getSummaryRows(orders))}
+        ${tableToHtml('Thông tin tổng hợp mã lô SX', getSummaryRows(orders))}
         ${tableToHtml('Bảng chi tiết cân hóa', getWeighRows(orders, 'chemical'))}
         ${tableToHtml('Bảng chi tiết cân rắn', getWeighRows(orders, 'solid'))}
         ${tableToHtml('Bảng phối trộn / QC', getMixQcRows(orders))}
@@ -266,7 +266,7 @@ function OrderDetail({ order, logs, onClose }) {
       {tab === 'info' && (
         <div className="production-log-grid">
           {[
-            ['Mã lô', getOrderLotCode(order)],
+            ['Mã lô SX', getOrderLotCode(order)],
             ['Ngày sản xuất', order.productionDate],
             ['Khách hàng', order.customer],
             ['Tên sản phẩm', order.product],
@@ -326,7 +326,7 @@ function WeighingTable({ rows, type }) {
       <table className="production-log-wide-table">
         <thead>
           <tr>
-            <th>Mã lô</th>
+            <th>Mã lô SX</th>
             <th>Mã vật tư</th>
             <th>{type === 'chemical' ? 'Tên hóa chất' : 'Tên nguyên liệu rắn'}</th>
             <th>Khối lượng yêu cầu</th>
@@ -410,7 +410,7 @@ export function ProductionLogPage({ orders = [], logs = [] }) {
         <div className="production-log-filters">
           <label>Từ ngày<input type="date" value={filters.fromDate} onChange={(event) => updateFilter('fromDate', event.target.value)} /></label>
           <label>Đến ngày<input type="date" value={filters.toDate} onChange={(event) => updateFilter('toDate', event.target.value)} /></label>
-          <label>Mã lô<input value={filters.orderId} onChange={(event) => updateFilter('orderId', event.target.value)} /></label>
+          <label>Mã lô SX<input value={filters.orderId} onChange={(event) => updateFilter('orderId', event.target.value)} /></label>
           <label>Khách hàng
             <CustomerFilterCombobox
               options={customerOptions}
@@ -430,7 +430,7 @@ export function ProductionLogPage({ orders = [], logs = [] }) {
               <tr>
                 <th>STT</th>
                 <th>Ngày</th>
-                <th>Mã lô</th>
+                <th>Mã lô SX</th>
                 <th>Khách hàng</th>
                 <th>Sản phẩm</th>
                 <th>Khối lượng yêu cầu</th>

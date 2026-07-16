@@ -203,7 +203,7 @@ function OrderCreateModal({ onClose, onSave }) {
           <section className="form-section">
             <h3>A. Thông tin chung</h3>
             <div className="production-form-grid">
-              <label>Mã lô<input value={form.lot || form.id} onChange={(event) => { updateField('lot', event.target.value); updateField('id', event.target.value) }} required /></label>
+              <label>Mã lô SX<input value={form.lot || form.id} onChange={(event) => { updateField('lot', event.target.value); updateField('id', event.target.value) }} required /></label>
               <label>Ngày sản xuất<input type="date" value={form.productionDate} onChange={(event) => updateField('productionDate', event.target.value)} /></label>
               <label>Khách hàng / CT-KH
                 <CustomerSearchCombobox
@@ -301,7 +301,7 @@ export function ProductionOrdersPage({ orders, onCreateOrder }) {
           <table>
             <thead>
               <tr>
-                <th>Mã lô</th>
+                <th>Mã lô SX</th>
                 <th>Sản phẩm</th>
                 <th>Khách hàng</th>
                 <th>Công thức</th>

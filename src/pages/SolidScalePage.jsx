@@ -219,7 +219,7 @@ export function SolidScalePage({ orders, onUpdateOrder }) {
               <table className="queue-table">
                 <thead>
                   <tr>
-                    <th>Mã lô</th>
+                    <th>Mã lô SX</th>
                     <th>Tên sản phẩm</th>
                     <th>Khối lượng</th>
                     <th>Trạng thái</th>

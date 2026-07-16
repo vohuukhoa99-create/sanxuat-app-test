@@ -248,7 +248,7 @@ export function MixingPage({ orders, onUpdateOrder }) {
             <thead>
               <tr>
                 <th>STT</th>
-                <th>Mã lô</th>
+                <th>Mã lô SX</th>
                 <th>Ngày sản xuất</th>
                 <th>Khách hàng</th>
                 <th>Tên sản phẩm</th>
@@ -308,7 +308,7 @@ export function MixingPage({ orders, onUpdateOrder }) {
           </div>
 
           <div className="mixing-info-grid">
-            <div><span>Mã lô</span><strong>{selectedOrder.lot || selectedOrder.id}</strong></div>
+            <div><span>Mã lô SX</span><strong>{selectedOrder.lot || selectedOrder.id}</strong></div>
             <div><span>Tên sản phẩm</span><strong>{selectedOrder.product}</strong></div>
             <div><span>Khách hàng</span><strong>{selectedOrder.customer || '-'}</strong></div>
             <div><span>Khối lượng yêu cầu</span><strong>{formatKg(selectedOrder.quantityKg)}</strong></div>

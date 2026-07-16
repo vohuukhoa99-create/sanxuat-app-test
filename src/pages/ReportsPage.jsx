@@ -294,7 +294,7 @@ export function ReportsPage({ orders }) {
     'Tỷ lệ hoàn thành': `${row.completionRate}%`,
   }))
   const lossRows = lossRowsRaw.map((order) => ({
-    'Mã lô': getOrderLotCode(order),
+    'Mã lô SX': getOrderLotCode(order),
     'Sản phẩm': order.product,
     'Khối lượng yêu cầu': displayKg(order.requiredKg),
     'Khối lượng thực tế': order.actualKg ? displayKg(order.actualKg) : '-',
@@ -305,7 +305,7 @@ export function ReportsPage({ orders }) {
   }))
   const errorRows = errorRowsRaw.map((row) => ({
     Ngày: row.date || '-',
-    'Mã lô': row.orderId,
+    'Mã lô SX': row.orderId,
     'Công đoạn': row.stage,
     'Mã vật tư': row.materialCode,
     'Tên nguyên liệu': row.materialName,
@@ -318,7 +318,7 @@ export function ReportsPage({ orders }) {
     'Ghi chú': row.note || '-',
   }))
   const progressRows = progressRowsRaw.map((order) => ({
-    'Mã lô': getOrderLotCode(order),
+    'Mã lô SX': getOrderLotCode(order),
     'Khách hàng': order.customer || '-',
     'Sản phẩm': order.product,
     'Trạng thái hiện tại': order.status,
@@ -349,7 +349,7 @@ export function ReportsPage({ orders }) {
         <div className="report-filters">
           <label>Từ ngày<input type="date" value={filters.fromDate} onChange={(event) => updateFilter('fromDate', event.target.value)} /></label>
           <label>Đến ngày<input type="date" value={filters.toDate} onChange={(event) => updateFilter('toDate', event.target.value)} /></label>
-          <label>Mã lô<input value={filters.orderId} onChange={(event) => updateFilter('orderId', event.target.value)} /></label>
+          <label>Mã lô SX<input value={filters.orderId} onChange={(event) => updateFilter('orderId', event.target.value)} /></label>
           <label>Khách hàng
             <CustomerFilterCombobox
               options={customerOptions}
