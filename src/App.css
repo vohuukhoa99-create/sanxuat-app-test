@@ -16008,7 +16008,8 @@ body,
 .material-lot-label__value { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; word-break: normal; }
 .material-lot-label__row.is-lot-code .material-lot-label__value { overflow: visible; text-overflow: clip; font-size: 9.2pt; }
 .material-lot-label__qr { width: 30mm; height: 38mm; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 30mm; overflow: hidden; }
-.material-lot-label__qr canvas { width: 30mm !important; height: 30mm !important; flex: 0 0 30mm; display: block; }
+.material-lot-label__qr canvas,
+.material-lot-label__qr svg { width: 30mm !important; height: 30mm !important; flex: 0 0 30mm; display: block; }
 .material-lot-label__qr strong { width: 100%; margin-top: 1mm; font-size: 7.5pt; line-height: 1; text-align: center; white-space: nowrap; }
 .material-lot-select-all { display: inline-flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; }
 .material-lot-list-table input[type="checkbox"] { width: 16px; height: 16px; }
