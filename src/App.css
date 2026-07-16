@@ -15980,6 +15980,17 @@ body,
   overflow-x: auto;
 }
 
+.material-lot-label { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.material-lot-label .qr-print-info { flex: 1; }
+
+@media print {
+  body:has(.material-lot-qr-modal) * { visibility: hidden !important; }
+  body:has(.material-lot-qr-modal) .material-lot-label,
+  body:has(.material-lot-qr-modal) .material-lot-label * { visibility: visible !important; }
+  body:has(.material-lot-qr-modal) .material-lot-label { position: fixed; inset: 0; width: 100%; height: 100%; margin: 0; padding: 10mm; box-sizing: border-box; border: 0; }
+  @page { margin: 0; }
+}
+
 .lot-import-table-wrapper .table-wrapper {
   width: fit-content !important;
   max-width: 100%;
