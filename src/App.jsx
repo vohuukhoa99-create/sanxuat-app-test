@@ -4125,15 +4125,38 @@ function RawMaterialsPage({ data, setData }) {
       printWindow.document.close()
       const labels = lots.flatMap((lot) => Array.from({ length: copyCountFor(lot) }, (_, copyIndex) => ({ ...lot, printCopyKey: `${lot.id}-${copyIndex}` })))
       const pages = Array.from({ length: Math.ceil(labels.length / 10) }, (_, pageIndex) => renderToStaticMarkup(
-        <div className="material-lot-print-page">{labels.slice(pageIndex * 10, pageIndex * 10 + 10).map((lot) => <div className="material-lot-print-item" key={lot.printCopyKey}><MaterialLotQrLabel lot={lot} /></div>)}</div>,
+        <section className="print-page"><div className="print-grid">{labels.slice(pageIndex * 10, pageIndex * 10 + 10).map((lot) => <div className="print-label" key={lot.printCopyKey}><MaterialLotQrLabel lot={lot} /></div>)}</div></section>,
       )).join('')
       if (!pages || !pages.includes('<svg')) throw new Error('QR SVG chưa được tạo.')
-      const sharedStyles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style')).map((node) => node.outerHTML).join('\n')
       printWindow.document.open()
-      printWindow.document.write(`<!doctype html><html lang="vi"><head><meta charset="UTF-8"><base href="${document.baseURI}"><title>In tem QR lô nguyên liệu</title>${sharedStyles}<style>@page{size:A4 portrait;margin:8mm}html,body{margin:0!important;padding:0!important;background:#fff!important;font-family:Arial,"Segoe UI",sans-serif}.print-toolbar{position:sticky;top:0;z-index:10;display:flex;gap:8px;padding:10px 16px;background:#f4f6f5;border-bottom:1px solid #ccd5d0}.print-toolbar button{padding:8px 16px;border:1px solid #789084;border-radius:6px;background:#fff;font:600 14px Arial;cursor:pointer}.print-root{padding-top:6mm}.material-lot-print-page{width:194mm;display:grid;grid-template-columns:repeat(2,90mm);grid-auto-rows:50mm;gap:4mm 6mm;align-content:start;justify-content:center}.material-lot-print-page+.material-lot-print-page{break-before:page;page-break-before:always}.material-lot-print-item{width:90mm;height:50mm;break-inside:avoid;page-break-inside:avoid}@media print{.print-toolbar{display:none!important}.print-root{padding-top:0}}</style></head><body><div class="print-toolbar"><button type="button" onclick="window.print()">In ngay</button><button type="button" onclick="window.close()">Đóng</button></div><main class="print-root">${pages}</main></body></html>`)
+      printWindow.document.write(`<!doctype html><html lang="vi"><head><meta charset="UTF-8"><title>In tem QR lô nguyên liệu</title><style>
+@page{size:A4 portrait;margin:8mm}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;width:auto;height:auto;min-height:0;overflow:visible;background:#fff;color:#000;font-family:Arial,"Segoe UI",sans-serif}
+.screen-toolbar{display:flex;gap:8px;padding:10px;position:static;background:#fff;border-bottom:1px solid #ccd5d0}
+.screen-toolbar button{padding:8px 16px;border:1px solid #789084;border-radius:6px;background:#fff;font:600 14px Arial;cursor:pointer}
+.print-root{display:block;width:auto;height:auto;min-height:0;margin:0;padding:6mm 0 0;overflow:visible;background:#fff}
+.print-page{width:194mm;height:auto;min-height:0;margin:0;padding:0;overflow:visible;break-after:page;page-break-after:always}
+.print-page:last-child{break-after:auto;page-break-after:auto}
+.print-grid{display:grid;grid-template-columns:repeat(2,90mm);grid-auto-rows:50mm;column-gap:6mm;row-gap:4mm;justify-content:center;align-content:start;width:100%;height:auto;min-height:0;overflow:visible}
+.print-label{display:block;position:static;width:90mm;height:50mm;overflow:hidden;break-inside:avoid;page-break-inside:avoid;transform:none}
+.material-lot-label{width:90mm;height:50mm;padding:4mm;border:.3mm dashed #666;display:grid;grid-template-columns:minmax(0,1fr) 30mm;column-gap:3mm;align-items:center;overflow:hidden;background:#fff;color:#111;font:8.5pt/1.25 Arial,"Segoe UI",sans-serif;letter-spacing:normal;writing-mode:horizontal-tb}
+.material-lot-label__info{width:100%;min-width:0;overflow:hidden}
+.material-lot-label__row{display:grid;grid-template-columns:19mm minmax(0,1fr);column-gap:1.5mm;align-items:baseline;margin-bottom:1.1mm;text-align:left}
+.material-lot-label__row>span,.material-lot-label__value{white-space:nowrap}
+.material-lot-label__value{min-width:0;overflow:hidden;text-overflow:ellipsis;word-break:normal}
+.material-lot-label__row.is-lot-code .material-lot-label__value{overflow:visible;text-overflow:clip;font-size:9.2pt}
+.material-lot-label__qr{width:30mm;height:38mm;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:30mm;overflow:hidden}
+.material-lot-label__qr svg{display:block;width:30mm!important;height:30mm!important;flex:0 0 30mm}
+.material-lot-label__qr strong{width:100%;margin-top:1mm;font-size:7.5pt;line-height:1;text-align:center;white-space:nowrap}
+@media print{html,body{width:auto!important;height:auto!important;min-height:0!important;overflow:visible!important;background:#fff!important}.screen-toolbar{display:none!important}.print-root{display:block!important;position:static!important;transform:none!important;padding:0!important;overflow:visible!important}.print-page,.print-grid,.print-label{visibility:visible!important;opacity:1!important;position:static!important;transform:none!important;overflow:visible!important}.print-grid{display:grid!important}.print-label{display:block!important;overflow:hidden!important}}
+</style></head><body><div class="screen-toolbar"><button type="button" onclick="window.print()">In ngay</button><button type="button" onclick="window.close()">Đóng</button></div><main class="print-root">${pages}</main></body></html>`)
       printWindow.document.close()
       await waitForPrintWindowReady(printWindow)
       if (printWindow.closed) return
+      const printRootRect = printWindow.document.querySelector('.print-root')?.getBoundingClientRect()
+      const firstLabelRect = printWindow.document.querySelector('.print-label')?.getBoundingClientRect()
+      if (!printRootRect?.width || !printRootRect?.height || !firstLabelRect?.width || !firstLabelRect?.height) throw new Error('Vùng in không có kích thước hiển thị.')
       printWindow.focus()
       await new Promise((resolve) => window.setTimeout(resolve, 100))
       if (!printWindow.closed) printWindow.print()
